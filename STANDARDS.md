@@ -244,6 +244,7 @@ Every `<kind>-sdk` repository follows this structure:
 - **Build and language:** Vite 8 and TypeScript in strict mode.
 - **Code checks:** Biome, stylelint and `dependency-cruiser`.
 - **Tests:** Vitest, Playwright and `@axe-core/playwright`.
+- **Playwright is pinned exactly to the browser test image's version:** `playwright` and `@playwright/test` move together with `ci/Dockerfile`, in one pull request, and `hm-check-playwright-image` runs in `verify` and `verify:fast` ([ADR 0025](docs/adr/0025-one-browser-test-image-in-one-place.md)).
 - **Browser tests run in the pinned browser test image,** locally as in CI, through `sdk-config`'s `hm-in-image`, such as `"test:browser": "hm-in-image vitest run --project browser"`. On a host, Docker's network changes abort Chromium's requests ([ADR 0049](docs/adr/0049-local-browser-tests-in-the-pinned-image.md)).
 - **Packaging and API:** `size-limit`, `api-extractor`, `publint` and `@arethetypeswrong/cli`.
   - Every entry point's api-extractor configuration extends `sdk-config`'s preset. A package with more than one entry point runs `hm-check-api-reports` after api-extractor, and never turns `ae-forgotten-export` off ([ADR 0033](docs/adr/0033-api-reports-for-several-entry-points.md)).

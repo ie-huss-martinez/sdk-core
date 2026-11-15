@@ -23,8 +23,9 @@ updates:
 
   # The browser test image, in its only copy (ADR 0025): both workflows read
   # it from ci/Dockerfile through sdk-ci's image action, so this one update
-  # changes CI and releases together. Its tag must move together with the playwright package;
-  # test/ci-image.test.js fails until both match. The short directory keeps
+  # changes CI and releases together. Its tag moves together with the
+  # "playwright" npm group below, in one pull request: hm-check-playwright-image
+  # fails until both match (ADR 0025). The short directory keeps
   # titles such as "ci: bump playwright from v1.65.0-noble to v1.66.0-noble in
   # /ci" within the 65-character limit, as Dependabot always appends
   # "in /<directory>".
@@ -59,8 +60,14 @@ updates:
       - dependency-name: "@types/node"
         versions: [">=25"]
     groups:
+      # Playwright's packages are pinned exactly to the browser test image's
+      # version (ADR 0025), so they're proposed together, apart from the rest.
+      # Merge them in the same pull request as the docker update above.
+      playwright:
+        patterns: ["playwright", "playwright-core", "@playwright/test"]
       # Minor and patch updates arrive together; each major gets its own pull
       # request, because it may need code or configuration changes.
       npm:
         patterns: ["*"]
+        exclude-patterns: ["playwright", "playwright-core", "@playwright/test"]
         update-types: [minor, patch]
