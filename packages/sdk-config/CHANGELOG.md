@@ -1,5 +1,11 @@
 # @hussmartinez/sdk-config
 
+## 0.8.1
+
+### Patch Changes
+
+- [#127](https://github.com/ie-huss-martinez/sdk-core/pull/127) [`eb62efa`](https://github.com/ie-huss-martinez/sdk-core/commit/eb62efa2b20706422f6d12943f57656e8a192e6a) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `hm-in-image pnpm <script>` works. The image's `pnpm` was pnpm's placeholder script, because install scripts are off for the integrity-checked install. Commands that spawn `pnpm` directly, as `pnpm exec pnpm` does, failed with "Exec format error". The image now runs pnpm's own `install.js`, which copies the native binary from the checked `@pnpm/exe` package over the placeholders without downloading anything, and its build fails if `pnpm` still isn't a native executable. The image is rebuilt automatically on the next run.
+
 ## 0.8.0
 
 ### Minor Changes
