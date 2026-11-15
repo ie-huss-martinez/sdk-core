@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-12
 - **Supersedes:** where [ADR 0023](0023-verify-releases-in-an-unprivileged-job.md) keeps the image, `.github/ci-image/Dockerfile` with a copy in each workflow; the rest of 0023 stands
+- **Amended:** 2026-11-15, so Playwright's packages are pinned exactly to the image's version, and checked by `hm-check-playwright-image` (a caret range drifted to 1.65.1 under the 1.65.0 image)
 
 ## Context
 
@@ -17,6 +18,10 @@
 - **A failure can't pass silently:** a job whose dependency failed is skipped, and a skipped required check counts as passing. So both verify jobs run unless the run was cancelled, and fall back to an image name that can't be pulled, which fails them. In a release, the publish job then refuses to publish, as ADR 0023 requires.
 - **Short Dependabot titles:** the Dockerfile sits in the short top-level directory `ci/`, and its Dependabot entry uses the prefix `ci`.
 - **Tests keep the rest in step.** The image's Playwright version must equal the lockfile's, and it must be pinned by tag and digest. Neither workflow may contain an image of its own, and both verify jobs must take theirs from the `image` job, falling back on failure. The validation step itself is run against valid and invalid Dockerfiles.
+- **Playwright is pinned exactly to the image's version** (amended 2026-11-15). The image's browsers are built for one Playwright version, and a caret range drifts on the next install: `^1.65.0` resolved to 1.65.1 under the 1.65.0 image.
+  - **The rule:** `playwright` and `@playwright/test` are specified as the image tag's exact version, in the pnpm catalog or a package.json, and they move together with `ci/Dockerfile`, in one pull request.
+  - **The check:** `sdk-config`'s `hm-check-playwright-image` enforces it in `pnpm verify` and `verify:fast`. It fails when a locked `playwright`, `playwright-core` or `@playwright/test` differs from the tag, or when a specifier isn't that exact version. It replaces each repository's own image test.
+  - **Dependabot** proposes the three packages as one npm group, `playwright`, kept out of the general group. Its pull request and the docker update for `ci/Dockerfile` are merged as one.
 
 ## Alternatives considered
 

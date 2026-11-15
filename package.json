@@ -23,9 +23,10 @@
     "check:size": "pnpm -r --if-present check:size",
     "check:api": "pnpm -r --if-present check:api",
     "check:package": "pnpm -r --if-present check:package",
+    "check:playwright-image": "hm-check-playwright-image",
     "check:single-copy": "hm-check-single-copy",
-    "verify": "pnpm lint && pnpm lint:css && pnpm typecheck && pnpm lint:deps && pnpm check:single-copy && pnpm build && pnpm test && pnpm test:browser && pnpm check:size && pnpm check:api && pnpm check:package",
-    "verify:fast": "pnpm typecheck && pnpm test && pnpm lint:deps && pnpm check:single-copy && pnpm check:api"
+    "verify": "pnpm lint && pnpm lint:css && pnpm typecheck && pnpm lint:deps && pnpm check:single-copy && pnpm check:playwright-image && pnpm build && pnpm test && pnpm test:browser && pnpm check:size && pnpm check:api && pnpm check:package",
+    "verify:fast": "pnpm typecheck && pnpm test && pnpm lint:deps && pnpm check:single-copy && pnpm check:playwright-image && pnpm check:api"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",

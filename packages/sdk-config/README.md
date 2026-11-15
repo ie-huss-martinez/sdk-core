@@ -22,6 +22,7 @@ Install, as devDependencies, the tools for the presets you use. They are optiona
 | `api-extractor/base.json`, `hm-check-api-reports` | `@microsoft/api-extractor` |
 | `testing/conformance` | `vitest`, `ajv` |
 | `hm-in-image` | Docker outside the browser test image |
+| `hm-check-playwright-image` | Nothing |
 | `testing/visual`, `hm-test-visual` | `@playwright/test`, and Docker outside the browser test image |
 | `testing/browser-instances`, `hm-netlog-errors` | `@vitest/browser-playwright` |
 
@@ -306,6 +307,42 @@ Usage: hm-test-visual [--update]
 | 0 | Every screenshot matches, or the baselines were written |
 | 1 | A screenshot differs, a test fails, or Docker isn't available |
 | 2 | Usage error, or a repository it can't read |
+
+### `hm-check-playwright-image`
+
+Fails when the repository's Playwright can differ from its browser test image's ([ADR 0025](../../docs/adr/0025-one-browser-test-image-in-one-place.md)). The image's browsers are built for one Playwright version, so `playwright` and `@playwright/test` are pinned exactly to the version in `ci/Dockerfile`'s tag, and move with it. Run it in `verify` and `verify:fast`:
+
+```json
+{ "scripts": { "check:playwright-image": "hm-check-playwright-image" } }
+```
+
+It reports:
+
+- each locked `playwright`, `playwright-core` or `@playwright/test` whose version isn't the tag's, including one that another package brings;
+- each specifier for them, in the pnpm catalog or a package.json, that isn't the tag's exact version, because a range like `^1.65.0` drifts at the next install.
+
+```text
+@playwright/test is specified as ^1.65.0 in the default catalog; pin it exactly to 1.65.0.
+playwright 1.65.1 is locked, but ci/Dockerfile's image is Playwright 1.65.0.
+```
+
+It exits with 0 when everything matches, 1 when something differs, and 2 for a usage error or a repository it can't read. It replaces a repository's own `ci-image` test. That test's remaining case, that no workflow has an image of its own, is `sdk-ci`'s `check-workflows`.
+
+**Dependabot** should propose the packages together, apart from other updates, and that pull request is merged together with the docker update for `ci/Dockerfile`:
+
+```yaml
+  - package-ecosystem: npm
+    directory: /
+    groups:
+      playwright:
+        patterns: ["playwright", "playwright-core", "@playwright/test"]
+      npm:
+        patterns: ["*"]
+        exclude-patterns: ["playwright", "playwright-core", "@playwright/test"]
+        update-types: [minor, patch]
+```
+
+Dependabot's `multi-ecosystem-groups` could put the docker and npm updates in a single pull request. It isn't used yet: GitHub's documentation doesn't say what it does to an npm entry's other dependencies, so it needs a trial in one repository first.
 
 ### `hm-in-image`
 

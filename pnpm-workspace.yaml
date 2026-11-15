@@ -14,7 +14,7 @@ catalog:
   "@commitlint/load": ^21.2.4
   "@commitlint/types": ^21.2.3
   "@microsoft/api-extractor": ^7.60.1
-  "@playwright/test": ^1.65.0
+  "@playwright/test": 1.65.0
   "@secretlint/node": ^13.1.0
   "@secretlint/secretlint-rule-preset-recommend": ^13.1.0
   "@size-limit/file": ^14.3.0
@@ -30,7 +30,7 @@ catalog:
   husky: ^9.1.7
   lint-staged: ^17.6.0
   picomatch: ^4.0.7
-  playwright: ^1.65.0
+  playwright: 1.65.0
   postcss-selector-parser: ^7.1.7
   postcss-value-parser: ^4.2.0
   postcss: ^8.5.31
