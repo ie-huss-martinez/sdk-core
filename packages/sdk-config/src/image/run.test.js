@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +11,7 @@ import {
   dockerRunArgs,
   findRoot,
   imageTag,
+  NATIVE_PNPM_CHECK,
   readImage,
   readPinnedPnpm,
   readWorkspace,
@@ -133,6 +134,42 @@ describe("the image", () => {
     expect(install).toBeGreaterThan(check);
     // Installed from the checked files only, never by name from the registry.
     expect(text).not.toMatch(/npm install[^\n]* pnpm@/);
+  });
+
+  it("replaces pnpm's placeholder bins with the native binary, so `pnpm exec pnpm` can spawn it", () => {
+    const text = dockerfile(IMAGE, PINNED);
+    const install = text.indexOf("npm install --global --ignore-scripts");
+    const replace = text.indexOf('node "$(npm root --global)/pnpm/install.js"');
+    const check = text.indexOf(NATIVE_PNPM_CHECK);
+    // After the checked install, and only then; the check comes last.
+    expect(replace).toBeGreaterThan(install);
+    expect(check).toBeGreaterThan(replace);
+  });
+
+  it("fails the build if pnpm is still a placeholder script, which can't be spawned directly", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "hm-image-pnpm-"));
+    scratch.push(dir);
+    // pnpm's placeholder, as `npm install --ignore-scripts` leaves it: no
+    // shebang, so the kernel refuses to execute it ("Exec format error").
+    const placeholder = join(dir, "placeholder");
+    await writeFile(placeholder, "# pnpm's native binary replaces this file\nexec node pnpm.mjs\n");
+    await chmod(placeholder, 0o755);
+    /** @param {string} target */
+    const check = async (target) => {
+      const bin = await mkdtemp(join(tmpdir(), "hm-image-bin-"));
+      scratch.push(bin);
+      await symlink(target, join(bin, "pnpm"));
+      return spawnSync("bash", ["-c", NATIVE_PNPM_CHECK], {
+        encoding: "utf8",
+        env: { PATH: `${bin}:/usr/bin:/bin` },
+      });
+    };
+
+    const failed = await check(placeholder);
+    expect(failed.status).toBe(1);
+    expect(failed.stderr).toBe("browser test image: pnpm is not the native binary.\n");
+    // A native executable, as pnpm's binary is.
+    expect((await check(process.execPath)).status).toBe(0);
   });
 
   it("fails the build when a tarball doesn't match its integrity", async () => {

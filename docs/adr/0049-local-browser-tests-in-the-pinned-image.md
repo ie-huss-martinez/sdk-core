@@ -10,6 +10,7 @@ Local browser tests failed intermittently in every SDK: an iframe that "did not 
 
 - **Why the network changes:** Chromium cancels in-flight requests when the host's network configuration changes, even requests to `localhost`. Docker adds and removes an interface whenever a container or network starts or stops. On a shared machine, that happens all the time: other repositories' verifies, `hm-test-visual`, and the image scripts.
 - **CI never sees it:** its verify job runs inside one container ([ADR 0025](0025-one-browser-test-image-in-one-place.md)), whose network namespace the host's changes don't reach.
+- **The host's system libraries drift too:** after an Ubuntu upgrade replaced ICU 74 with ICU 78, Playwright's WebKit can't launch on the host at all, because it needs `libicudata.so.74`. The image keeps the libraries Playwright's browsers are built against.
 
 The evidence, from a harness that loads 150 slow modules in Chromium for 12 rounds, and from `sdk-core`'s own browser tests:
 
