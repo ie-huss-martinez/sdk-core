@@ -160,6 +160,10 @@ const VERIFY = [
   "}",
 ].join(" ");
 
+/** Fails the build unless the `pnpm` on the PATH is a native executable, which starts with ELF's magic number. */
+export const NATIVE_PNPM_CHECK =
+  'if [ "$(head -c 4 "$(readlink -f "$(command -v pnpm)")" | od -An -c | tr -d " ")" != "177ELF" ]; then echo "browser test image: pnpm is not the native binary." >&2; exit 1; fi';
+
 /**
  * The image's Dockerfile: the browser test image, with the repository's pnpm
  * and the variable that marks it as the browser test image.
@@ -167,7 +171,9 @@ const VERIFY = [
  * pnpm is installed from tarballs checked against the integrity in
  * pnpm-lock.yaml: the `pnpm` package and the native binary for the image's
  * architecture, both as local files, with no install scripts, so nothing
- * else is fetched or downloaded on first use.
+ * else is fetched or downloaded on first use. pnpm's own install.js then
+ * replaces its placeholder bins with that binary, so a process can spawn
+ * `pnpm` directly.
  *
  * @param {string} image The browser test image.
  * @param {PinnedPnpm} pnpm The pnpm version and its integrity.
@@ -188,6 +194,13 @@ export function dockerfile(image, pnpm) {
     `node -e '${VERIFY}' "$wrapper" "${integrity}" "$binary" "$binary_integrity"`,
     'npm install --global --ignore-scripts --no-audit --no-fund "./$wrapper" "./$binary"',
     'rm -f "$wrapper" "$binary"',
+    // With install scripts off, pnpm's bins stay placeholders: shell scripts
+    // without a shebang, which a shell runs but a process spawned directly,
+    // as by `pnpm exec pnpm`, can't ("Exec format error"). pnpm's own
+    // install.js copies the native binary from the checked @pnpm/exe package
+    // over them; it never downloads.
+    'node "$(npm root --global)/pnpm/install.js"',
+    NATIVE_PNPM_CHECK,
   ];
   return [`FROM ${image}`, `RUN ${steps.join("; \\\n  ")}`, `ENV ${CONTAINER_ENV}=1`, ""].join(
     "\n",
