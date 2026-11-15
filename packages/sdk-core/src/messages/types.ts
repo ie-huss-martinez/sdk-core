@@ -54,6 +54,17 @@ export interface MessageFormats {
   readonly number: number;
   /** `{name, fileSize}`: a byte count in decimal units, such as "1.3 MB". */
   readonly fileSize: number;
+  /**
+   * `{name, duration}`: a duration in milliseconds, in hours, minutes and
+   * seconds, such as "3 hr, 5 min".
+   */
+  readonly duration: number;
+  /**
+   * `{name, megapixels}`: a pixel count in millions, with up to one fraction
+   * digit, such as "24.2" for 24 159 744. The message gives the unit, such as
+   * `{actual, megapixels} megapixels`, so translators can word it.
+   */
+  readonly megapixels: number;
   /** `{name, date}`: a date, as a `Date` or a timestamp in milliseconds. */
   readonly date: Date | number;
   /** `{name, time}`: a time of day, as a `Date` or a timestamp in milliseconds. */
@@ -78,6 +89,12 @@ type PlaceholderOf<Body extends string> = Body extends `${infer Name},${infer Fo
   : [Trim<Body>, "default"];
 
 type ValueOf<Format> = Format extends keyof MessageFormats ? MessageFormats[Format] : never;
+
+// Merge, TemplateParams, PluralForms and ParamNames are deliberately not
+// exported. MessageParams and MessageOverrides cover what hosts need, and
+// these helpers' shapes shouldn't be frozen under semver. They can't be
+// @internal either: the public types reference them, so trimming them from
+// the published declarations would break those types (sdk-core#66).
 
 /** Merges a union of objects into one object type. */
 type Merge<Union> = (Union extends unknown ? (value: Union) => void : never) extends (
@@ -111,11 +128,16 @@ export type MessageParams<Message extends MessageValue> = Message extends string
     ? Merge<TemplateParams<PluralForms<Message>> | { readonly [Key in Message["$plural"]]: number }>
     : never;
 
+// Not exported, like Merge above (sdk-core#66).
 /** The placeholder names a message uses. */
 type ParamNames<Message> = Message extends string
   ? Placeholders<Message>[0]
   : Message extends PluralMessage
-    ? Placeholders<PluralForms<Message>>[0] | Message["$plural"]
+    ? // A plural typed only as PluralMessage, not a literal, names no
+      // particular selector: its placeholders are checked at runtime, as a
+      // plain string's are.
+        | Placeholders<PluralForms<Message>>[0]
+        | (string extends Message["$plural"] ? never : Message["$plural"])
     : never;
 
 /**

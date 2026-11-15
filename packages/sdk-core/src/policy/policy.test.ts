@@ -77,6 +77,33 @@ describe("defineLimits", () => {
       });
     });
 
+    it("reports rates in hertz", () => {
+      const audioLimits = defineLimits({
+        maxSampleRate: { code: "SAMPLE_RATE_TOO_HIGH", unit: "hertz", default: 192_000 },
+      });
+
+      expect(thrown(() => audioLimits.resolve().check("maxSampleRate", 384_000))).toMatchObject({
+        code: "SAMPLE_RATE_TOO_HIGH",
+        details: { limit: "maxSampleRate", maximum: 192_000, actual: 384_000, unit: "hertz" },
+      });
+    });
+
+    it("reports data rates in bits per second", () => {
+      const videoLimits = defineLimits({
+        maxBitrate: { code: "BITRATE_TOO_HIGH", unit: "bitsPerSecond", default: 50_000_000 },
+      });
+
+      expect(thrown(() => videoLimits.resolve().check("maxBitrate", 80_000_000))).toMatchObject({
+        code: "BITRATE_TOO_HIGH",
+        details: {
+          limit: "maxBitrate",
+          maximum: 50_000_000,
+          actual: 80_000_000,
+          unit: "bitsPerSecond",
+        },
+      });
+    });
+
     it("throws SdkError when no error class is given", () => {
       const error = thrown(() => defineLimits(coreLimits).resolve().check("maxFiles", 21));
 

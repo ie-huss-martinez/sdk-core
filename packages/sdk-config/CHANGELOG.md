@@ -1,5 +1,103 @@
 # @hussmartinez/sdk-config
 
+## 0.8.0
+
+### Minor Changes
+
+- [#125](https://github.com/ie-huss-martinez/sdk-core/pull/125) [`ccc584a`](https://github.com/ie-huss-martinez/sdk-core/commit/ccc584a7f0baad5ff8e48ae0542de33b738bb3aa) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Add `hm-in-image`, which runs a command in the browser test image that `ci/Dockerfile` pins, locally as CI does (sdk-core ADR 0049). On a host, Chromium aborts dev-server requests with `ERR_NETWORK_CHANGED` whenever Docker adds or removes a network interface, so browser tests failed at random with "did not become ready" or "failed to load". Inside the image, the host's network changes don't reach the browser.
+  
+  To adopt it, run every browser step through it, such as `"test:browser": "hm-in-image vitest run --project browser"`, and `"test:e2e": "hm-in-image playwright test"`. Also set `HM_VISUAL_CONTAINER: "1"` in your CI verify jobs' `env`, so that it runs the commands directly there. It needs Docker locally.
+  
+  `hm-test-visual` now runs through the same code, and shares its image and volumes, named `hm-browser-<workspace>`. Volumes named `hm-visual-*` from earlier versions are no longer used, and can be removed with `docker volume rm`.
+
+## 0.7.0
+
+### Minor Changes
+
+- [#121](https://github.com/ie-huss-martinez/sdk-core/pull/121) [`3262db1`](https://github.com/ie-huss-martinez/sdk-core/commit/3262db1404d6017002115b6e73ba542da015d43a) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Add opt-in diagnostics for browser tests that fail without a reason, such as an iframe that "did not become ready" or a module worker that "failed to load".
+  
+  - `@hussmartinez/sdk-config/testing/browser-instances` exports `browserInstances(browsers)`, Vitest's `browser.instances` with Playwright. Adopt it by replacing `instances: browsers.map((browser) => ({ browser }))` with `instances: browserInstances(browsers)`. By default nothing changes. With `HM_BROWSER_DIAGNOSTICS=<folder>`, Chromium records every request and its network error in a net log in that folder, and writes its console to stderr, which `DEBUG=pw:browser` shows. Firefox and WebKit are never changed.
+  - `hm-netlog-errors <netlog>...` lists the failed requests in those logs: Chromium's error and the URL.
+
+### Patch Changes
+
+- [#119](https://github.com/ie-huss-martinez/sdk-core/pull/119) [`2c419ee`](https://github.com/ie-huss-martinez/sdk-core/commit/2c419ee925268c2997628fbcbcdc2e26532f32e9) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `hm-test-visual` now installs pnpm in its image only after checking it against `pnpm-lock.yaml`. It downloads the `pnpm` package and the native binary for the image's architecture (`@pnpm/exe.linux-x64` or `linux-arm64`), checks each against the sha512 integrity that the lockfile records for the package manager, and installs those files with no install scripts. Before, it installed `pnpm@<version>` by name, trusting the registry. If `pnpm-lock.yaml` doesn't record the `packageManager` version of pnpm with these integrities, it stops with a usage error that says to run `pnpm install` with that version.
+
+## 0.6.1
+
+### Patch Changes
+
+- [#115](https://github.com/ie-huss-martinez/sdk-core/pull/115) [`70b7441`](https://github.com/ie-huss-martinez/sdk-core/commit/70b7441ee6bd53a194db3f917568fa141147177e) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `hm-test-visual` no longer fails with "Duplicate mount point: /work/node_modules" in a workspace whose `pnpm-workspace.yaml` lists the root as `"."`, as Changesets needs. It mounts the root's `node_modules` once, and ignores entries that point outside the repository.
+
+## 0.6.0
+
+### Minor Changes
+
+- [#112](https://github.com/ie-huss-martinez/sdk-core/pull/112) [`d8ccdb3`](https://github.com/ie-huss-martinez/sdk-core/commit/d8ccdb3778a80f76c65002382739407b832f8877) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Add visual regression testing for SDK editors (sdk-core ADR 0048).
+  
+  - `@hussmartinez/sdk-config/testing/visual` exports `defineVisualConfig({ baseURL, webServer })`, the Playwright configuration for `e2e/playwright.visual.config.ts`: Chromium in a fixed 1280 × 800 page with `en-US`, `UTC` and reduced motion, screenshots without animations or carets, compared with no tolerance, and baselines named `<state>-<theme>-<density>-chromium-linux.png`. It also exports `visualVariants`, the four theme and density combinations, and `applyVisualVariant(page, variant)`.
+  - The `hm-test-visual` command runs those tests inside the browser test image that `ci/Dockerfile` pins, through Docker locally and directly in CI. `hm-test-visual --update` rewrites the baselines and removes the ones no state produces any more.
+  
+  To adopt it, install `@playwright/test`, add `"test:visual": "hm-test-visual"` and `"test:visual:update": "hm-test-visual --update"`, and run `test:visual` in `verify` after `test:e2e`.
+
+## 0.5.0
+
+### Minor Changes
+
+- [#105](https://github.com/ie-huss-martinez/sdk-core/pull/105) [`50528e2`](https://github.com/ie-huss-martinez/sdk-core/commit/50528e2af66ccb2cea1b38c32de05a9ea590bbb9) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Adds `hm-check-single-copy`, which fails when `pnpm-lock.yaml` resolves more than one version of any `@hussmartinez` package (or of the scopes given with `--scope`). It names each version and what depends on it, such as `0.3.0, through @hussmartinez/ui@0.5.0`. Workspace links aren't copies, and versions that differ only in their peer dependencies count once. Add `"check:single-copy": "hm-check-single-copy"` to your scripts and run it in `verify`. It adds `yaml` as a dependency.
+
+### Patch Changes
+
+- [#103](https://github.com/ie-huss-martinez/sdk-core/pull/103) [`1b730b6`](https://github.com/ie-huss-martinez/sdk-core/commit/1b730b654f37123d198a93cedfbe90dd5c0bcadb) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `testing/audio-output` and `testing/conformance` now ship TypeScript declarations, so TypeScript test projects can import them without a shim. `describeConformance` and `checkCase` take a generic `Input`, the type of the cases' inputs, instead of `any`.
+  
+  The `audioOutput()` documentation now says to probe inside the tests that need audio, never at a file's top level: the probe clicks, which gives the page user activation, so a test of behaviour before any gesture, such as autoplay, would see that click. The README shows a `needAudio(context)` helper that skips the test with the reason.
+
+## 0.4.0
+
+### Minor Changes
+
+- [#94](https://github.com/ie-huss-martinez/sdk-core/pull/94) [`11cba26`](https://github.com/ie-huss-martinez/sdk-core/commit/11cba269f62a8f9771867d5277e2ce3774d9604c) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Adds `@hussmartinez/sdk-config/testing/audio-output`, a helper for browser tests that need real-time audio output. `audioOutput({ activate })` probes the browser once per test run and returns `{ available, reason, clockRatio }`: audio counts as available only when an `AudioContext` runs, and its clock keeps real time. Firefox in the family's test image has no audio output, so tests that need it skip there with `it.skipIf(!audio.available)(\`name${audio.reason}\`, …)`. Pass `activate: (button) => userEvent.click(button)` from `vitest/browser` for browsers that start audio only after a user gesture. Import it only from tests.
+
+- [#98](https://github.com/ie-huss-martinez/sdk-core/pull/98) [`ffc0217`](https://github.com/ie-huss-martinez/sdk-core/commit/ffc021703a931a035601170f90da9f3f8889e53a) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Adds the shared pieces for conformance vectors (sdk-core ADR 0045):
+  
+  - `@hussmartinez/sdk-config/formats/hm-conformance/v1.schema.json`, the JSON Schema of an `hm-conformance` case file.
+  - `@hussmartinez/sdk-config/testing/conformance`, a test-only Vitest loader. `describeConformance(file, run)` validates a case file and registers one test per case. It compares results exactly, or within a case's `tolerance` for numbers, and matches a rejection by its `code` and `details.reason`, never its message. `schemaValidator(schemaFile)` checks values against an SDK's own format schemas in tests.
+  
+  The loader needs `vitest` and `ajv`, which are optional peer dependencies. Import it only from tests.
+
+## 0.3.0
+
+### Minor Changes
+
+- [#93](https://github.com/ie-huss-martinez/sdk-core/pull/93) [`20c2f29`](https://github.com/ie-huss-martinez/sdk-core/commit/20c2f29d7d365fea7bfd96d4880cb7c3bc9569bf) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The dependency-cruiser preset adds a `no-ai-core` rule: published source under `src/` may no longer import `@hussmartinez/ai-core`, not even its types (ADR 0035). Tests and anything under `examples/` may still import it, so examples can show hosts how to pass an `ai-core` provider.
+  
+  If your SDK needs AI, define a provider port in `src/core/ports` with only what it needs, such as `complete()` and `stream()` taking an `AbortSignal`, plus a fake and contract tests, and let the host pass a provider built with `ai-core` or its own backend. No package in the family imports `ai-core` today, so `hm-lint-deps` passes unchanged for existing repositories.
+
+## 0.2.1
+
+### Patch Changes
+
+- [#82](https://github.com/ie-huss-martinez/sdk-core/pull/82) [`e4c8dfd`](https://github.com/ie-huss-martinez/sdk-core/commit/e4c8dfd9cda0bfe7e7a4af56b389e0121a9a1ee4) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The dependency-cruiser preset now checks imports that resolve into a dependency's `dist/`. It used to leave out every path with a `dist/` segment, including `node_modules/<package>/dist/`, where most packages keep their code, such as `@hussmartinez/ui`, so rules such as `core-no-ui`, `entry-no-react` and `not-to-dev-dep` couldn't see imports of them. Only the repository's own `dist/`, `temp/` and `coverage/`, and fixtures under `src/`, `test/` or `tests/`, are left out now. Packages installed flat, as `node_modules/<name>`, are matched as well as pnpm's store paths, and `layer-errors` lets tests in `core/errors` import test tools. `hm-lint-deps` may now report violations it missed before: fix them, as the rule's message says.
+
+- [#85](https://github.com/ie-huss-martinez/sdk-core/pull/85) [`64a998d`](https://github.com/ie-huss-martinez/sdk-core/commit/64a998d88c65fbaa258880265f64e8252da70f28) Thanks [@hussmartinez](https://github.com/hussmartinez)! - 0.2.0 was never published; its changes ship in this release.
+
+## 0.2.0
+
+### Minor Changes
+
+- [#65](https://github.com/ie-huss-martinez/sdk-core/pull/65) [`16a28aa`](https://github.com/ie-huss-martinez/sdk-core/commit/16a28aa2705bea21b8657f95258e7dc540aa91bb) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Adds an api-extractor preset and the `hm-check-api-reports` command, for packages with more than one entry point.
+  
+  - **`@hussmartinez/sdk-config/api-extractor/base.json`:** extend it from each entry point's `api-extractor.json`, using that full path, and set only the paths. It lists the package types a secondary entry point copies in its API report (`ae-forgotten-export`), instead of failing or hiding them.
+  - **`hm-check-api-reports --main <report> --types <rollup> [<report>...]`:** run it after api-extractor. It fails when another entry point copies a type the main entry point doesn't export, or a class with `private`, `protected` or `#private` members, whose copy TypeScript would treat as a different type.
+  
+  If your configuration turns `ae-forgotten-export` off, extend the preset and run the command instead. It needs `@microsoft/api-extractor`, an optional peer dependency.
+
+- [#67](https://github.com/ie-huss-martinez/sdk-core/pull/67) [`267f273`](https://github.com/ie-huss-martinez/sdk-core/commit/267f273681160a664f488614eddec2b2145e42a2) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The api-extractor preset now fails when a public type references an `@internal` one (`ae-incompatible-release-tags`). api-extractor trims `@internal` declarations from the published declaration rollup, so that public type would reach users broken; api-extractor's own default only notes it in the report. To fix the failure, export the referenced type as `@public`, or leave it unexported without a release tag.
+
+- [#80](https://github.com/ie-huss-martinez/sdk-core/pull/80) [`6360866`](https://github.com/ie-huss-martinez/sdk-core/commit/63608667c83da50ed0833cc3b77ba052f570862d) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The dependency-cruiser preset's `entry-no-ui` rule is now `entry-no-react` (ADR 0036, amended). Nothing the `.` entry reaches may import `react`, `react-dom` or `@hussmartinez/ui/react`, even as types, but it may now reach `@hussmartinez/ui`'s root entry through `src/features`, so headless tool definitions can import `IconName`. `core-no-ui` still keeps `src/core`, `src/adapters` and `src/workers` free of ui entirely. If your `.dependency-cruiser.js` adjusts the rule by name, rename `entry-no-ui` to `entry-no-react`.
+
+- [#72](https://github.com/ie-huss-martinez/sdk-core/pull/72) [`f007269`](https://github.com/ie-huss-martinez/sdk-core/commit/f007269b245925f0ffd89557d2bd3c15fd5abb54) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The dependency-cruiser preset keeps React and `@hussmartinez/ui` out of every headless part of an SDK (ADR 0036). `core-no-ui` now also covers `src/adapters` and `src/workers`, and the new `entry-no-ui` rule fails when anything the `.` entry module, `src/index.*`, reaches imports `react`, `react-dom` or `@hussmartinez/ui`, naming the path it took. A headless entry that reaches them through a feature or an adapter now fails `hm-lint-deps`: move that import behind the `./react` or `./element` entry.
+
 ## 0.1.5
 
 ### Patch Changes

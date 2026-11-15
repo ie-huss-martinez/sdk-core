@@ -1,6 +1,6 @@
 {
   "name": "@hussmartinez/sdk-config",
-  "version": "0.1.5",
+  "version": "0.8.0",
   "description": "Shared development configuration for the @hussmartinez SDK family.",
   "license": "Apache-2.0",
   "repository": {
@@ -14,52 +14,99 @@
   "homepage": "https://github.com/ie-huss-martinez/sdk-core/tree/main/packages/sdk-config#readme",
   "type": "module",
   "bin": {
-    "hm-lint-deps": "./src/dependency-cruiser/cli.js"
+    "hm-check-api-reports": "./src/api-extractor/cli.js",
+    "hm-check-single-copy": "./src/single-copy/cli.js",
+    "hm-in-image": "./src/image/cli.js",
+    "hm-lint-deps": "./src/dependency-cruiser/cli.js",
+    "hm-netlog-errors": "./src/netlog/cli.js",
+    "hm-test-visual": "./src/visual/cli.js"
   },
   "exports": {
+    "./api-extractor/base.json": "./api-extractor/base.json",
     "./biome": "./biome/base.jsonc",
     "./commitlint": "./src/commitlint/index.js",
     "./dependency-cruiser": "./src/dependency-cruiser/index.js",
+    "./formats/hm-conformance/v1.schema.json": "./formats/hm-conformance/v1.schema.json",
     "./lint-staged": "./src/lint-staged/index.js",
     "./package.json": "./package.json",
     "./secretlint": "./src/secretlint/index.js",
     "./stylelint": "./src/stylelint/index.js",
+    "./testing/audio-output": {
+      "types": "./src/testing/audio-output.d.ts",
+      "default": "./src/testing/audio-output.js"
+    },
+    "./testing/browser-instances": {
+      "types": "./src/testing/browser-instances.d.ts",
+      "default": "./src/testing/browser-instances.js"
+    },
+    "./testing/conformance": {
+      "types": "./src/testing/conformance.d.ts",
+      "default": "./src/testing/conformance.js"
+    },
+    "./testing/visual": {
+      "types": "./src/testing/visual.d.ts",
+      "default": "./src/testing/visual.js"
+    },
     "./tsconfig/*": "./tsconfig/*.json"
   },
   "files": [
+    "api-extractor",
     "biome",
+    "formats",
     "src",
     "tsconfig",
-    "!src/**/*.test.js"
+    "!src/**/*.test.js",
+    "!src/**/*.check.ts"
   ],
   "engines": {
     "node": ">=24"
   },
   "scripts": {
     "typecheck": "tsc",
-    "test": "vitest run",
-    "check:package": "publint run --pack pnpm --strict && attw --pack . --profile esm-only"
+    "test": "vitest run --project unit",
+    "check:package": "publint run --pack pnpm --strict && attw --pack . --profile esm-only --exclude-entrypoints ./biome ./commitlint ./dependency-cruiser ./lint-staged ./secretlint ./stylelint",
+    "test:browser": "node src/image/cli.js vitest run --project browser",
+    "test:browser:all": "node src/image/cli.js vitest run --project browser --mode all-browsers",
+    "types:update": "tsc -p tsconfig.types.json"
   },
   "dependencies": {
     "@commitlint/config-conventional": "catalog:",
     "@secretlint/secretlint-rule-preset-recommend": "catalog:",
     "postcss-selector-parser": "catalog:",
-    "postcss-value-parser": "catalog:"
+    "postcss-value-parser": "catalog:",
+    "yaml": "catalog:"
   },
   "peerDependencies": {
     "@biomejs/biome": "^2.6.2",
     "@commitlint/cli": "catalog:",
+    "@microsoft/api-extractor": "catalog:",
+    "@playwright/test": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "ajv": "catalog:",
     "dependency-cruiser": "catalog:",
     "lint-staged": "catalog:",
     "secretlint": "catalog:",
     "stylelint": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependenciesMeta": {
     "@biomejs/biome": {
       "optional": true
     },
     "@commitlint/cli": {
+      "optional": true
+    },
+    "@microsoft/api-extractor": {
+      "optional": true
+    },
+    "@playwright/test": {
+      "optional": true
+    },
+    "@vitest/browser-playwright": {
+      "optional": true
+    },
+    "ajv": {
       "optional": true
     },
     "dependency-cruiser": {
@@ -76,6 +123,9 @@
     },
     "typescript": {
       "optional": true
+    },
+    "vitest": {
+      "optional": true
     }
   },
   "devDependencies": {
@@ -85,12 +135,17 @@
     "@commitlint/lint": "catalog:",
     "@commitlint/load": "catalog:",
     "@commitlint/types": "catalog:",
+    "@microsoft/api-extractor": "catalog:",
+    "@playwright/test": "catalog:",
     "@secretlint/node": "catalog:",
     "@types/node": "catalog:",
     "@types/picomatch": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "ajv": "catalog:",
     "dependency-cruiser": "catalog:",
     "lint-staged": "catalog:",
     "picomatch": "catalog:",
+    "playwright": "catalog:",
     "postcss": "catalog:",
     "publint": "catalog:",
     "secretlint": "catalog:",

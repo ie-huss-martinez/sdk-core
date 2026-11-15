@@ -3,13 +3,15 @@ import { SdkError } from "../errors/sdk-error.js";
 import { sdkCoreMessages } from "./core-messages.js";
 import { clearIntlCache } from "./intl.js";
 import { createMessages, defineMessages, plural } from "./messages.js";
-import type { MessageParams } from "./types.js";
+import type { MessageOverrides, MessageParams } from "./types.js";
 
 const en = defineMessages({
   ...sdkCoreMessages,
   "toolbar.rotate": "Rotate",
   "file.opened": "Opened {name}",
   "result.saved": "Saved {size, fileSize}",
+  "audio.length": "Length: {length, duration}",
+  "image.size": "The image is {actual, megapixels} megapixels.",
   "pages.total": "{count, number} pages",
   "file.modified": "Modified {when, date} at {when, time}",
   "pages.selected": plural("count", {
@@ -33,6 +35,18 @@ afterEach(() => {
 });
 
 describe("message types", () => {
+  it("types a megapixels parameter as a number", () => {
+    expectTypeOf<MessageParams<"{actual, megapixels} MP">>().toEqualTypeOf<{
+      readonly actual: number;
+    }>();
+  });
+
+  it("types a duration parameter as a number", () => {
+    expectTypeOf<MessageParams<"Length: {length, duration}">>().toEqualTypeOf<{
+      readonly length: number;
+    }>();
+  });
+
   it("derive parameters from placeholders", () => {
     expectTypeOf<keyof MessageParams<"Rotate">>().toEqualTypeOf<never>();
     expectTypeOf<MessageParams<"Opened {name}">>().toEqualTypeOf<{
@@ -70,6 +84,26 @@ describe("message types", () => {
     const fromJson: Record<string, string> = { "toolbar.rotate": "Drehen" };
     createMessages(en, { overrides: fromJson });
   });
+
+  it("accept overrides typed as MessageOverrides, as an SDK's messages prop is, with no cast", () => {
+    // What an SDK receives from its host and passes on (ADR 0019, ADR 0046).
+    const fromHost: MessageOverrides<typeof en> = { "toolbar.rotate": "Drehen" };
+    const messages = createMessages(en, { locale: "de", overrides: fromHost });
+    expect(messages.t("toolbar.rotate")).toBe("Drehen");
+    // Literal overrides are still checked, plurals included.
+    createMessages(en, {
+      // @ts-expect-error {total} isn't a placeholder of "pages.selected".
+      overrides: { "pages.selected": { $plural: "total", one: "1", other: "{total}" } },
+    });
+    createMessages(en, {
+      overrides: {
+        "pages.selected": { $plural: "count", one: "1 Seite", other: "{count} Seiten" },
+      },
+    });
+    // Optional, as a component's prop is.
+    const maybe: MessageOverrides<typeof en> | undefined = undefined;
+    createMessages(en, { ...(maybe ? { overrides: maybe } : {}) });
+  });
 });
 
 describe("createMessages", () => {
@@ -93,10 +127,132 @@ describe("createMessages", () => {
     const messages = createMessages(en);
     const de = createMessages(en, { locale: "de" });
 
-    expect(messages.t("result.saved", { size: 999 })).toBe("Saved 999 byte");
+    expect(messages.t("result.saved", { size: 999 })).toBe("Saved 999 bytes");
     expect(messages.t("result.saved", { size: 1_300_000 })).toBe("Saved 1.3 MB");
     expect(messages.t("result.saved", { size: 2_000_000_000 })).toBe("Saved 2 GB");
     expect(de.t("result.saved", { size: 1_300_000 })).toBe("Saved 1,3 MB");
+  });
+
+  // Bytes take the unit's long name, whose plural follows the locale: the
+  // short name is "byte" for every count in en. French puts a no-break space
+  // (U+00A0) before "octet" and a narrow one (U+202F) before "ko" and "Mo".
+  it.each([
+    [0, "0 bytes", "0\u00a0octet"],
+    [1, "1 byte", "1\u00a0octet"],
+    [2, "2 bytes", "2\u00a0octets"],
+    [297, "297 bytes", "297\u00a0octets"],
+    [1023, "1 kB", "1\u202fko"],
+    [1024, "1 kB", "1\u202fko"],
+    [1_500_000, "1.5 MB", "1,5\u202fMo"],
+    [73_400_000, "73.4 MB", "73,4\u202fMo"],
+    [999_960, "1 MB", "1\u202fMo"],
+  ])("formats %d bytes as %s in en, and %s in fr", (size, inEnglish, inFrench) => {
+    expect(createMessages(en).t("result.saved", { size })).toBe(`Saved ${inEnglish}`);
+    expect(createMessages(en, { locale: "fr" }).t("result.saved", { size })).toBe(
+      `Saved ${inFrench}`,
+    );
+  });
+
+  it("moves to the next unit when rounding would show 1000", () => {
+    const messages = createMessages(en);
+
+    expect(messages.t("result.saved", { size: 999_949 })).toBe("Saved 999.9 kB");
+    expect(messages.t("result.saved", { size: 999_950 })).toBe("Saved 1 MB");
+    expect(messages.t("result.saved", { size: 999_999_999 })).toBe("Saved 1 GB");
+  });
+
+  describe("megapixels", () => {
+    it("formats a pixel count in millions, with up to one fraction digit, for the locale", () => {
+      const messages = createMessages(en);
+      const de = createMessages(en, { locale: "de" });
+
+      expect(messages.t("image.size", { actual: 50_000_000 })).toBe("The image is 50 megapixels.");
+      expect(messages.t("image.size", { actual: 24_159_744 })).toBe(
+        "The image is 24.2 megapixels.",
+      );
+      expect(messages.t("image.size", { actual: 1_234_567_890 })).toBe(
+        "The image is 1,234.6 megapixels.",
+      );
+      expect(messages.t("image.size", { actual: 0 })).toBe("The image is 0 megapixels.");
+      expect(de.t("image.size", { actual: 24_159_744 })).toBe("The image is 24,2 megapixels.");
+    });
+
+    it.each([Number.NaN, Number.POSITIVE_INFINITY, -1, "50"])(
+      "leaves out %s, with a warning",
+      (actual) => {
+        const messages = createMessages(en);
+
+        expect(messages.t("image.size", { actual: actual as number })).toBe(
+          "The image is  megapixels.",
+        );
+        expect(warnings).toEqual([
+          expect.stringContaining(
+            'The message "image.size" is missing a valid "actual" parameter.',
+          ),
+        ]);
+      },
+    );
+  });
+
+  describe("durations", () => {
+    afterEach(() => {
+      clearIntlCache();
+    });
+
+    it("formats milliseconds as hours, minutes and seconds for the locale", () => {
+      const messages = createMessages(en);
+      const de = createMessages(en, { locale: "de" });
+
+      expect(messages.t("audio.length", { length: (3 * 60 + 5) * 60_000 })).toBe(
+        "Length: 3 hr, 5 min",
+      );
+      expect(messages.t("audio.length", { length: 90 * 60_000 })).toBe("Length: 1 hr, 30 min");
+      expect(messages.t("audio.length", { length: 42_000 })).toBe("Length: 42 sec");
+      expect(de.t("audio.length", { length: ((3 * 60 + 5) * 60 + 30) * 1000 })).toBe(
+        "Length: 3 Std., 5 Min. und 30 Sek.",
+      );
+    });
+
+    it("rounds to the nearest second, and shows zero as 0 seconds", () => {
+      const messages = createMessages(en);
+
+      expect(messages.t("audio.length", { length: 0 })).toBe("Length: 0 sec");
+      expect(messages.t("audio.length", { length: 499 })).toBe("Length: 0 sec");
+      expect(messages.t("audio.length", { length: 1_500 })).toBe("Length: 2 sec");
+    });
+
+    it("falls back to unit-formatted numbers where Intl.DurationFormat is missing", () => {
+      clearIntlCache();
+      // Intl's members aren't enumerable, so inherit them rather than spread them.
+      vi.stubGlobal("Intl", Object.create(Intl, { DurationFormat: { value: undefined } }));
+      try {
+        const messages = createMessages(en);
+
+        expect(messages.t("audio.length", { length: (3 * 60 + 5) * 60_000 })).toBe(
+          "Length: 3 hr, 5 min",
+        );
+        expect(messages.t("audio.length", { length: 0 })).toBe("Length: 0 sec");
+        expect(messages.t("audio.length", { length: 3_661_000 })).toBe(
+          "Length: 1 hr, 1 min, 1 sec",
+        );
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it.each([Number.NaN, Number.POSITIVE_INFINITY, -1, "90"])(
+      "leaves out %s, with a warning",
+      (length) => {
+        const messages = createMessages(en);
+
+        expect(messages.t("audio.length", { length: length as number })).toBe("Length: ");
+        expect(warnings).toEqual([
+          expect.stringContaining(
+            'The message "audio.length" is missing a valid "length" parameter.',
+          ),
+        ]);
+      },
+    );
   });
 
   it("formats dates and times", () => {

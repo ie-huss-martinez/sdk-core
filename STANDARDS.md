@@ -1,18 +1,19 @@
 # Standards for the `@hussmartinez` SDK family
 
-These rules apply to `sdk-core`, `ui` and every `<kind>-sdk` repository. Each rule links to the architecture decision record (ADR) that explains it. When a rule and an ADR disagree, the newest accepted ADR wins, and this file must be corrected.
+These rules apply to `sdk-core`, `ui`, `ai-core` and every `<kind>-sdk` repository. Each rule links to the architecture decision record (ADR) that explains it. When a rule and an ADR disagree, the newest accepted ADR wins, and this file must be corrected.
 
-## Repositories and packages ([ADR 0002](docs/adr/0002-one-repository-per-sdk.md), [ADR 0024](docs/adr/0024-github-organisation-for-the-sdk-family.md))
+## Repositories and packages ([ADR 0002](docs/adr/0002-one-repository-per-sdk.md), [ADR 0024](docs/adr/0024-github-organisation-for-the-sdk-family.md), [ADR 0035](docs/adr/0035-ai-core-and-host-configured-network.md))
 
 | Repository | Publishes | Role |
 |---|---|---|
 | `ie-huss-martinez/sdk-core` | `@hussmartinez/sdk-core` | Headless shared runtime: worker messaging, errors, session primitives, tool registry, custom-element base, file policy, messages helper |
-| | `@hussmartinez/sdk-config` | Shared tsconfig, Biome, stylelint, dependency-cruiser, Vite and Playwright presets, and the test applications |
+| | `@hussmartinez/sdk-config` | Shared tsconfig, Biome, stylelint, dependency-cruiser, api-extractor, commitlint, lint-staged and secretlint presets |
 | `ie-huss-martinez/ui` | `@hussmartinez/ui` | Design system: tokens, themes, base styles, shared React components |
-| `ie-huss-martinez/<kind>-sdk` | `@hussmartinez/<kind>-sdk` | One media kind: `pdf`, `image`, `video`, `audio`, … |
+| `ie-huss-martinez/ai-core` | `@hussmartinez/ai-core` | Headless AI provider layer: message model, provider adapters, errors, server handler and browser transport. Renders nothing, and is the only package with network code |
+| `ie-huss-martinez/<kind>-sdk` | `@hussmartinez/<kind>-sdk` | One kind: media such as `pdf`, `image`, `video` and `audio`, or another product area such as `chat` |
 | `ie-huss-martinez/sdk-ci` | (none: GitHub Actions) | The family's shared CI and release steps, as versioned composite actions ([ADR 0026](docs/adr/0026-share-ci-steps-from-sdk-ci.md)) |
 
-The repositories live in the `ie-huss-martinez` GitHub organisation, and the npm scope is `@hussmartinez`. `pnpm create-sdk-repo <name>` in `sdk-core` creates a repository and keeps its GitHub settings, environments, branch protection and required checks to the family's (CONTRIBUTING.md, "Setting up a new repository"). Everything specific to one media kind stays in that SDK. `sdk-core` and `ui` stay small and stable.
+The repositories live in the `ie-huss-martinez` GitHub organisation, and the npm scope is `@hussmartinez`. `pnpm create-sdk-repo <name>` in `sdk-core` creates a repository and keeps its GitHub settings, environments, branch protection and required checks to the family's (CONTRIBUTING.md, "Setting up a new repository"). Everything specific to one kind stays in that SDK. `sdk-core` and `ui` stay small and stable. AI provider code lives in `ai-core`, never in `sdk-core`.
 
 ## Naming ([ADR 0003](docs/adr/0003-hm-namespace.md))
 
@@ -32,18 +33,19 @@ The repositories live in the `ie-huss-martinez` GitHub organisation, and the npm
 
 Everything that reaches the page starts with `hm-`. States use ARIA attributes, then `data-hm-*`. Never use generic state classes such as `.is-active`.
 
-## Package shape ([ADR 0004](docs/adr/0004-entry-points-and-module-format.md))
+## Package shape ([ADR 0004](docs/adr/0004-entry-points-and-module-format.md), [ADR 0036](docs/adr/0036-ui-as-a-dependency-of-the-sdks.md))
 
 | Entry | Contents |
 |---|---|
 | `.` | Headless core. No React, no DOM access on import, server-safe |
 | `./react` | Editor, building blocks and hooks. Starts with `"use client"` |
-| `./element` | `define<Kind>EditorElement()`. Registers nothing on import |
+| `./element` | `define<Kind>EditorElement()`, built with `sdk-core/element`'s `createEditorElement`. Registers nothing on import, and renders into the light DOM ([ADR 0040](docs/adr/0040-editor-element-base.md)) |
 | `./styles.css` | All styles. Imported once by the application |
-| `./standalone` | Self-contained script for plain HTML pages |
+| `./standalone` | Self-contained script for plain HTML pages. Adopts one shared copy of `ui`'s styles per `ui` minor ([ADR 0040](docs/adr/0040-editor-element-base.md)) |
 
 - **Module format:** ESM only, with `"type": "module"`, `types` first in every `exports` condition, and `"sideEffects": ["**/*.css"]`.
 - **Peer dependencies:** `react` and `react-dom` are optional, `>=18.3`.
+- **`@hussmartinez/ui`:** a regular dependency of every SDK, on the current minor (`^0.N.0` during `0.x`), imported only by `features/`, `react/` and `element/`. Applications that use `ui` themselves depend on the same minor, so there's one copy; `ui` warns in development when there are two.
 - **No CSS from JavaScript:** library code never imports CSS.
 
 ## React API
@@ -64,7 +66,7 @@ Every editor accepts the same configuration props:
 | `file` + `onChange`, or `initialFile` | Controlled or uncontrolled document |
 | `onEvent` | Anonymous usage events. Never file names or contents |
 | `engine`, `processor` | Replace the default adapters |
-| `assets` | Self-hosted worker and WebAssembly URLs ([ADR 0011](docs/adr/0011-worker-messaging-and-assets.md)) |
+| `assetsUrl` | Where the host serves the package's `dist/assets/`, to self-host workers and WebAssembly ([ADR 0011](docs/adr/0011-worker-messaging-and-assets.md), [ADR 0038](docs/adr/0038-self-hosted-assets-and-worker-version.md)) |
 | `filePolicy` | Resource limits ([ADR 0012](docs/adr/0012-hostile-input-and-no-network.md)) |
 | `tools`, `toolbar`, `features` | Which tools exist, their order and grouping, and which capabilities are on |
 | `theme` | Theme object or `"light"`, `"dark"` or `"system"` |
@@ -75,9 +77,10 @@ Every editor accepts the same configuration props:
 
 Programmatic control goes through a ref handle, such as `open(file)`, `export()` and `undo()`. Refs use `forwardRef`.
 
-## Styling and theming ([ADR 0005](docs/adr/0005-plain-css-with-cascade-layers.md), [ADR 0006](docs/adr/0006-design-tokens-and-theming.md))
+## Styling and theming ([ADR 0005](docs/adr/0005-plain-css-with-cascade-layers.md), [ADR 0006](docs/adr/0006-design-tokens-and-theming.md), [ADR 0036](docs/adr/0036-ui-as-a-dependency-of-the-sdks.md))
 
 - **Plain CSS** in the layer order `@layer hm.tokens, hm.base, hm.components, hm.sdk;`. SDKs write only into `hm.sdk`.
+- **One copy of `ui`'s stylesheet:** hosts import `@hussmartinez/ui/styles.css` once, before the SDKs' stylesheets. It's required for every surface that renders `ui`'s components, whose focus rings and target sizes live there. An SDK's `styles.css` never bundles or `@import`s it, and a custom element never ships its own copy.
 - **No global selectors.** Nothing targets `html`, `body`, `*` or bare elements outside a component root.
 - **No literal values.** Colours, lengths, durations, shadows, z-indexes and font values come from `--hm-*` tokens. stylelint enforces this.
 - **Three token levels:** base scale, then semantic, then component. Components use only semantic and component tokens.
@@ -96,45 +99,70 @@ Programmatic control goes through a ref handle, such as `open(file)`, `export()`
 - No browser APIs at import time or during render. Heavy dependencies load with dynamic `import()` after mount.
 - Server and client render identical markup: IDs come from `useId`, and nothing in render depends on time or randomness.
 - `"use client"` is kept in built React entries, and a test verifies it.
-- Every repository's end-to-end tests run against the Next.js and Vite test applications from `sdk-config`.
+- Every repository's end-to-end tests run against its own Next.js and Vite applications in `examples/`, required before its first release with a React layer or custom element ([ADR 0039](docs/adr/0039-test-applications-in-each-repository.md)).
 
 ## Architecture ([ADR 0008](docs/adr/0008-ports-adapters-and-session.md), [ADR 0009](docs/adr/0009-features-as-tools.md), [ADR 0010](docs/adr/0010-edits-as-commands.md), [ADR 0011](docs/adr/0011-worker-messaging-and-assets.md), [ADR 0017](docs/adr/0017-core-errors-and-shared-runtime-imports.md))
 
 - **Ports and adapters:**
   - the core defines ports, such as `PdfEngine` and `PdfProcessor`;
+  - an SDK that needs AI defines its own provider port, such as `AiProvider` with `complete()` and `stream()` taking an `AbortSignal`, with a fake and contract tests; hosts pass a provider from `ai-core` or their own backend ([ADR 0035](docs/adr/0035-ai-core-and-host-configured-network.md));
   - adapters implement them and run in workers;
-  - every core layer may import `@hussmartinez/sdk-core`, but never `@hussmartinez/ui`, `react` or `react-dom`;
+  - every core layer may import `@hussmartinez/sdk-core`, but never `@hussmartinez/ui`, `react` or `react-dom`, and neither may `adapters/` or `workers/`. Nothing the `.` entry reaches may import React or `ui`'s React entry, even as types; it may reach `ui`'s server-safe root entry through `features/` ([ADR 0036](docs/adr/0036-ui-as-a-dependency-of-the-sdks.md));
   - `core/errors` is a leaf: it imports only `core/model` and `@hussmartinez/sdk-core`, and every layer may import it;
   - the dependency rules are enforced with `dependency-cruiser`.
-- **Framework-agnostic session:** the store exposes `getSnapshot()`, `subscribe()` and commands. React binds with `useSyncExternalStore`, and the element binds to the same store.
+- **Framework-agnostic session:** the store exposes `getSnapshot()`, `subscribe()` and commands. React binds with `useSyncExternalStore`, and the element binds to the same store. Sessions build on `sdk-core`'s `createStore`, `createHistory` and `Reducer` ([ADR 0029](docs/adr/0029-session-store-and-history.md)).
 - **Tools:**
   - every feature is a folder under `src/features/<feature>/`, registered with `defineTool`;
-  - toolbars, menus and shortcuts are built from the registered tools.
+  - toolbars, menus and shortcuts are built from the registered tools, with `createToolRegistry` and `createShortcutRegistry` from `sdk-core`, and unknown tool ids fail when the editor is created ([ADR 0030](docs/adr/0030-tools-and-keyboard-shortcuts.md)).
 - **Commands:**
   - every edit is a serialisable command;
-  - the session provides undo, redo and grouping within a memory budget;
+  - the session provides undo, redo and grouping within a memory budget, with `sdk-core`'s history and each SDK's own memory policy ([ADR 0029](docs/adr/0029-session-store-and-history.md));
   - destructive actions offer undo instead of confirmation.
 - **Workers** ([ADR 0018](docs/adr/0018-worker-rpc-protocol.md)):
   - typed, versioned RPC from `sdk-core`, with cancellation, progress and error codes preserved;
   - caller buffers are copied unless `transfer: true`, and results are transferred, except views into part of a buffer, which are copied;
   - a call that can't be stopped terminates its worker, other calls on it fail with `WORKER_TERMINATED`, and none are retried automatically;
-  - `exposeWorker` runs before any heavy initialisation, and WebAssembly loads lazily.
+  - `exposeWorker` runs before any heavy initialisation, and WebAssembly loads lazily;
+  - an engine's own worker protocol, such as pdf.js's, is allowed when it can't be replaced, if its adapter gives callers the same guarantees: copied inputs, abort, time limits, termination, error codes and managed lifetimes, with contract tests for each ([ADR 0028](docs/adr/0028-third-party-engines.md)).
 - **Errors:** one `SdkError` subclass per SDK, with a stable `code`, `details` and `cause`. User-facing text comes from messages, never from error text.
 - **Contract tests:** every adapter passes the contract-test suite for its port.
 
-## Security and privacy ([ADR 0012](docs/adr/0012-hostile-input-and-no-network.md), [ADR 0020](docs/adr/0020-file-policy.md))
+## Portable formats and conformance ([ADR 0045](docs/adr/0045-portable-formats-and-conformance-vectors.md))
+
+- **Formats:** every persisted or exchanged format is versioned JSON, `{ "format": "hm-<kind>-<thing>", "version": N, … }`, with a JSON Schema at `formats/<format>/v<N>.schema.json`. A breaking change bumps the version and ships a migration, so every earlier version stays readable.
+- **Binary data** is a content-addressed asset reference (`sha256:`), never inline. Source names are recorded only if the user opts in.
+- **Numbers:** integers wherever the model uses them, fixed integer grids for fractional positions, exact copies of floats that are only copied, and stated tolerances for computed floats. Anything hashed across languages uses RFC 8785 JSON canonicalisation.
+- **Conformance vectors:** each SDK keeps `conformance/`, JSON cases of its deterministic logic that its own tests run. Rejections are checked by error code and `details.reason`, never message text.
+- **Shared rejection codes:** `UNSUPPORTED_FORMAT` (`unknown-format`, `unknown-format-version`), `INVALID_DOCUMENT` and `INVALID_COMMAND`. Schemas and readers are strict, refusing unknown fields, and vectors include hostile keys (`__proto__`, `constructor`, `toString`). `formats/` ships in each package; `conformance/` doesn't. Length limits count Unicode code points (`[...text].length`, as `maxLength` does), never UTF-16 units.
+
+## Security and privacy ([ADR 0012](docs/adr/0012-hostile-input-and-no-network.md), [ADR 0020](docs/adr/0020-file-policy.md), [ADR 0028](docs/adr/0028-third-party-engines.md), [ADR 0035](docs/adr/0035-ai-core-and-host-configured-network.md))
 
 - **Treat every file as hostile** ([ADR 0020](docs/adr/0020-file-policy.md)):
-  - parse only in workers;
+  - parse only in workers, except with a browser decoder that only exists on the page, such as `decodeAudioData`, and then only for files a worker has probed and bounded, with the decoded output checked against that bound ([ADR 0031](docs/adr/0031-platform-decoders-on-the-page.md));
   - enforce limits on size, count, pixels, decoded size and time, with `defineLimits` from `sdk-core`, extending `coreLimits` with the SDK's own;
   - check before or while decoding, failing with specific error codes and `details` naming the limit, and warning from each limit's warning threshold;
   - hosts configure limits through `filePolicy`, and unknown limit names are an error.
 - **Harden parsers:**
-  - pdf.js runs with `isEvalSupported: false` and scripting disabled;
+  - no code is generated from file data: a build test fails if any built engine chunk contains `eval(` or `new Function`, and the documented CSP never needs `'unsafe-eval'` ([ADR 0028](docs/adr/0028-third-party-engines.md));
+  - engine options that enable code generation or scripting are off, such as pdf.js's scripting and XFA;
   - link protocols are allowlisted;
   - links get `rel="noopener noreferrer"`.
 - **Never insert file-derived strings as HTML.** Sanitise SVG, or display it only through `<img>`.
-- **No network requests** by default. End-to-end tests fail on any request to another origin.
+- **No network requests** by default. End-to-end tests fail on any request to an origin the test didn't configure.
+  - No `@hussmartinez` SDK, and neither `sdk-core` nor `ui`, makes any request.
+  - None of them imports `@hussmartinez/ai-core`, for code or types: the `sdk-config` dependency-cruiser preset forbids it, with no opt-in. An SDK that needs AI defines its own provider port, and the host passes a provider ([ADR 0035](docs/adr/0035-ai-core-and-host-configured-network.md)).
+  - `ai-core` is the only package with network code. It requests only endpoints the host configures, and only for calls the host or the user started. A unit test proves that nothing is requested on import, event callbacks never carry prompts, outputs or keys, and the documented CSP limits `connect-src` to the host's endpoint.
+- **AI secrets stay on the server** ([ADR 0035](docs/adr/0035-ai-core-and-host-configured-network.md)):
+  - `ai-core`'s provider adapters run behind the host's request handler, and the browser talks only to the host's endpoint;
+  - an adapter refuses to run in a browser unless the host passes `dangerouslyAllowBrowser: true`;
+  - keys never reach an error's `message`, `details` or `cause`, serialised errors, event payloads or logs; `cause` never holds a request, headers or a raw response; request and response bodies stay out of `details`; a sentinel test covers every adapter's failure paths.
+- **Provider responses and model output are hostile input** ([ADR 0035](docs/adr/0035-ai-core-and-host-configured-network.md)):
+  - an SDK treats whatever its provider port returns as hostile, whichever provider the host passed;
+  - `ai-core` limits response size, stream duration and idle time with `defineLimits`, failing with `RESPONSE_TOO_LARGE`, `STREAM_TIMEOUT` and `STREAM_IDLE`, and hosts set them through `limits`;
+  - model output is displayed as text, or as a strict formatting subset rendered to elements, never as HTML, with no remote resources by default;
+  - tool calls are never executed automatically: running one needs a host handler for its name, and a `maxSteps` limit;
+  - `ai-core`'s tests replay recorded provider responses, SDKs test against their fake provider, and CI never calls a provider.
+- **Third-party engines are proven offline** ([ADR 0028](docs/adr/0028-third-party-engines.md)): every data file an engine needs, such as character maps, fonts, colour profiles, decoders or models, comes from the SDK's asset provider, never from the engine's default URLs; fallbacks that load code by URL aren't bundled; unknown asset requests fail closed; and end-to-end fixtures exercise every data path the engines have.
 - **Supply chain:**
   - minimal, justified dependencies;
   - committed lockfiles and allowlisted install scripts;
@@ -157,10 +185,11 @@ Programmatic control goes through a ref handle, such as `open(file)`, `export()`
   - native `<dialog>` with `showModal()`;
   - `aria-live` announcements for results;
   - target sizes of at least 24 px, and 44 px on touch.
-- **No inline text** ([ADR 0019](docs/adr/0019-message-catalogues.md)):
+- **No inline text** ([ADR 0019](docs/adr/0019-message-catalogues.md), [ADR 0046](docs/adr/0046-ui-text-through-the-sdk.md)):
   - every visible string and accessible name comes from the typed message catalogue in `src/messages/en.ts`, declared with `defineMessages` and including `sdkCoreMessages`;
   - messages are plain text with `{name}` and `{name, format}` placeholders, plurals are `{ "$plural": … }` objects, and output is never markup;
   - hosts override them with `messages`, and numbers, sizes and dates use `Intl` for the `locale` the host passes;
+  - an SDK that renders `ui`'s components also spreads `uiMessages` into its catalogue and passes its single `Messages` object to `UiMessagesProvider`, so a host's overrides reach `ui`'s strings too; a test checks that the SDK's own keys don't collide with `sdkCoreMessages` or `uiMessages`;
   - error text is looked up by code under `errors.<CODE>`, never taken from `error.message`.
 - **Automated checks:** `@axe-core/playwright` runs in every end-to-end suite.
 
@@ -168,7 +197,7 @@ Programmatic control goes through a ref handle, such as `open(file)`, `export()`
 
 - **Long operations** show progress, can be cancelled, and recover from errors with a clear next step.
 - **Designed states:** empty, loading, error and success states are designed, never blank.
-- **Shared shortcuts:** keyboard shortcuts are consistent across SDKs, through the shared shortcut registry.
+- **Shared shortcuts:** keyboard shortcuts are consistent across SDKs, through the shared shortcut registry ([ADR 0030](docs/adr/0030-tools-and-keyboard-shortcuts.md)). Shortcuts never take a field's or a control's own keys, and never the browser's page zoom (`Mod+=`, `Mod+-`, `Mod+0`).
 - **Previews before downloads:** irreversible outputs, such as downloads of transformed files, show a preview or summary first when the result isn't obvious.
 
 ## Repository layout
@@ -215,7 +244,10 @@ Every `<kind>-sdk` repository follows this structure:
 - **Build and language:** Vite 8 and TypeScript in strict mode.
 - **Code checks:** Biome, stylelint and `dependency-cruiser`.
 - **Tests:** Vitest, Playwright and `@axe-core/playwright`.
+- **Browser tests run in the pinned browser test image,** locally as in CI, through `sdk-config`'s `hm-in-image`, such as `"test:browser": "hm-in-image vitest run --project browser"`. On a host, Docker's network changes abort Chromium's requests ([ADR 0049](docs/adr/0049-local-browser-tests-in-the-pinned-image.md)).
 - **Packaging and API:** `size-limit`, `api-extractor`, `publint` and `@arethetypeswrong/cli`.
+  - Every entry point's api-extractor configuration extends `sdk-config`'s preset. A package with more than one entry point runs `hm-check-api-reports` after api-extractor, and never turns `ae-forgotten-export` off ([ADR 0033](docs/adr/0033-api-reports-for-several-entry-points.md)).
+- **Visual regression:** every SDK's editor and element are compared with committed screenshots of their designed states, in light and dark and both densities, on Chromium inside the pinned browser test image. `pnpm test:visual` runs them and `pnpm test:visual:update` rewrites them, both only in that image, and an intentional visual change commits its new screenshots in the same pull request ([ADR 0048](docs/adr/0048-visual-regression-for-sdk-editors.md)).
 - **Component catalogue (`ui`):** Storybook 10 with the React and Vite builder, axe checks and stories run as Vitest browser tests ([ADR 0022](docs/adr/0022-storybook-for-the-component-catalogue.md)).
 - **Git hooks:** Husky with lint-staged.
 
@@ -224,7 +256,7 @@ Each repository extends the presets in `@hussmartinez/sdk-config` instead of cop
 ## Workflow ([ADR 0015](docs/adr/0015-verification-and-releases.md), [ADR 0016](docs/adr/0016-git-hooks-and-merge-guards.md), [ADR 0021](docs/adr/0021-version-and-release-with-changesets.md), [ADR 0023](docs/adr/0023-verify-releases-in-an-unprivileged-job.md))
 
 - **Verification:**
-  - `pnpm verify` runs code checks, build, unit tests, browser tests, size budgets, the API report and package checks;
+  - `pnpm verify` runs code checks, build, unit tests, browser tests, end-to-end and visual tests, size budgets, the API report and package checks;
   - `pnpm verify:fast` runs the one-minute subset: types, unit tests, dependency rules and the API report.
 - **Git hooks** (Husky; budgets in ADR 0016):
   - `pre-commit` lints staged files and scans them for secrets;
@@ -247,9 +279,9 @@ Each repository extends the presets in `@hussmartinez/sdk-config` instead of cop
 - **ADRs:** significant decisions get an ADR in the owning repository.
 - **Versioning** ([ADR 0021](docs/adr/0021-version-and-release-with-changesets.md)):
   - semver, with `0.x` until the API settles, and each package versioned on its own;
-  - every pull request that changes a published package's source or `package.json` adds a changeset with `pnpm changeset`, describing the change for users; a required `changeset` check enforces it;
+  - every pull request that changes a published package's source or `package.json` adds a changeset, unless only `package.json`'s dev-only fields changed: `devDependencies`, `scripts`, `packageManager` and `devEngines` ([ADR 0027](docs/adr/0027-dev-only-package-json-changes-need-no-changeset.md)) with `pnpm changeset`, describing the change for users; a required `changeset` check enforces it;
   - Conventional Commits stay for history and pull request titles, but don't drive versions;
   - the release workflow keeps a `chore: version packages` pull request open with the pending changesets; merging it publishes;
-  - the same workflow then runs `pnpm verify` in its own read-only job, and only after it passes publishes to npm with trusted publishing and provenance, and creates a GitHub Release per package ([ADR 0023](docs/adr/0023-verify-releases-in-an-unprivileged-job.md));
+  - the same workflow then runs `pnpm verify` in its own read-only job, which also packs and checks the tarballs. Only after it passes does the publish job publish exactly those tarballs to npm, with trusted publishing and provenance, and create a GitHub Release per package ([ADR 0023](docs/adr/0023-verify-releases-in-an-unprivileged-job.md), [ADR 0041](docs/adr/0041-publish-the-verified-tarballs.md));
   - the tarball, standalone scripts and checksums are attached to the GitHub Release, with artifact attestations.
 - **Licence:** Apache-2.0, with a `NOTICE` file crediting bundled third-party code whose licence requires it.

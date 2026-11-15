@@ -29,6 +29,7 @@ throw new PdfError("FILE_TOO_LARGE", "The file exceeds the size limit.", {
 - **Subclasses** narrow `code` to their own union and set `name` explicitly, so it survives minification. They keep the base constructor's signature `(code, message, options)`, so errors can be rebuilt after crossing a worker boundary.
 - **`details`** accept JSON-compatible values only: strings, finite numbers, booleans, `null`, arrays and plain objects.
 - **`isSdkError(value, code?)`** narrows a caught value, optionally to one code. It recognises errors from other realms and from duplicate copies of sdk-core, where `instanceof` fails, through a shared brand. Errors that merely look similar, such as Node errors with a string `code`, aren't accepted.
+- **A second copy of sdk-core** in use on the page gets a warning, once, in development, naming both versions, because `instanceof SdkError` fails across copies ([ADR 0047](../../docs/adr/0047-one-copy-of-each-family-package.md)). Anything that evaluates sdk-core's module twice counts too, even with one install: test suites that call `vi.resetModules`, and some dev-server reloads, may warn "2 copies (0.4.1, 0.4.1)".
 
 ### Across a worker boundary
 
@@ -67,7 +68,7 @@ messages.t("pages.selected", { count: 3 });       // "3 pages selected"
 messages.error(error);                            // text for error.code, never error.message
 ```
 
-- **Placeholders:** `{name}` takes a string or a number. `{name, number}`, `{name, fileSize}` (decimal units), `{name, date}` and `{name, time}` are formatted with `Intl` for the locale. Unknown keys and missing or wrongly typed parameters are type errors.
+- **Placeholders:** `{name}` takes a string or a number. `{name, number}`, `{name, fileSize}` (decimal units), `{name, duration}` (milliseconds, shown as "3 hr, 5 min"), `{name, megapixels}` (pixels, shown in millions, such as "24.2"), `{name, date}` and `{name, time}` are formatted with `Intl` for the locale. Unknown keys and missing or wrongly typed parameters are type errors.
 - **Plurals:** plain objects, `{ "$plural": "count", "one": "…", "other": "…" }`, whose form is chosen with `Intl.PluralRules`. Translations may add forms, such as `few` and `many`.
 - **Errors:** `messages.error()` looks up `errors.<CODE>` with the error's `details` as parameters, and falls back to `errors.UNKNOWN`. Include `sdkCoreMessages` for sdk-core's own codes.
 - **Plain text only:** the output is a string, never markup, so render it as text.
@@ -145,13 +146,61 @@ const bitmap = await client.call("render", { bytes, page: 1 }, { signal, onProgr
 - **Errors:** handler errors arrive rebuilt with `deserializeError`, so `PdfError` codes survive. Errors that escape the handlers, and failures to start, arrive as `WORKER_CRASHED`, `WORKER_START_FAILED` or `WORKER_PROTOCOL_MISMATCH`.
 - **Crash reporting:** pass `onCrash` to hear about those three failures even when no call is pending. SDKs should forward it to their host's `onEvent` or error reporting. Expected shutdowns, such as the idle timeout, `destroy()` or a stuck call being stopped, don't trigger it.
 
+## Timelines
+
+Pure helpers for a sequence of items, such as the clips of an audio or video timeline, over whole units like samples or frames, never seconds ([ADR 0042](../../docs/adr/0042-timeline-sequence-helpers.md)):
+
+```ts
+import { locate, sequenceOffsets, snap } from "@hussmartinez/sdk-core";
+
+const offsets = sequenceOffsets([48_000, 24_000]); // [0, 48000, 72000]
+locate(offsets, 48_000); // { index: 1, within: 0 }
+locate(offsets, 72_000); // undefined: the total length is past the end
+snap(47_990, offsets, Math.round(8 * unitsPerPixel)); // 48000
+```
+
+- **`sequenceOffsets(lengths)`** returns every boundary, the starts and then the total, frozen. Lengths must be positive safe integers.
+- **`locate(offsets, position)`** finds the item under a position with a binary search. A position on a boundary belongs to the item that starts there, and the total length and beyond return `undefined`.
+- **`snap(position, targets, tolerance)`** returns the nearest target within the tolerance, the earlier one on a tie, or the position itself. The tolerance is in the same units, so a UI converts its pixel tolerance with its zoom.
+
+Invalid units throw `RangeError`.
+
+## Custom elements
+
+`@hussmartinez/sdk-core/element` builds an SDK's `<hm-<kind>-editor>` element from a definition and the SDK's own mount function, so `sdk-core` imports no framework ([ADR 0040](../../docs/adr/0040-editor-element-base.md)). Importing it touches no browser API.
+
+```ts
+import { createEditorElement } from "@hussmartinez/sdk-core/element";
+
+export const definePdfEditorElement = createEditorElement<PdfEditorProps, PdfEditorMethods>({
+  kind: "pdf",
+  attributes: { theme: "theme", locale: "locale" },
+  properties: ["file", "filePolicy"],
+  methods: ["undo", "redo"],
+  events: ["change", "error"],
+  mount: (host, props, { dispatch }) => mountPdfEditor(host, props, dispatch),
+});
+```
+
+- **Registration:** the returned `define(tagName?)` registers `hm-<kind>-editor`, or another name, and returns its class. On a server it throws `UNSUPPORTED_ENVIRONMENT`.
+- **Light DOM:** `mount` renders into the element itself, so the host's stylesheets apply as they do in React.
+- **Lifecycle:**
+  - properties set before the element was upgraded are applied;
+  - changes cause one `update` per microtask;
+  - the editor mounts on connect, and unmounts after a removal but not after a move.
+- **Methods and events:** methods throw `InvalidStateError` while the element is disconnected. `dispatch(name, detail)` fires `hm-<kind>-editor-<name>`.
+
+Standalone scripts use `adoptSharedStyleSheet({ name, version, cssText })` to adopt `ui`'s styles and their own once per page, shared with other standalone scripts on the same `ui` minor.
+
 ## API report
 
-The public API is recorded in [`api/sdk-core.api.md`](api/sdk-core.api.md) by api-extractor ([ADR 0015](../../docs/adr/0015-verification-and-releases.md)). `pnpm check:api`, part of `verify` and `verify:fast`, fails when the API changes without the report. After an intended change, run `pnpm api:update` and commit the updated report with the change.
+The public API is recorded in [`api/sdk-core.api.md`](api/sdk-core.api.md) and [`api/sdk-core-element.api.md`](api/sdk-core-element.api.md) by api-extractor ([ADR 0015](../../docs/adr/0015-verification-and-releases.md)). `pnpm check:api`, part of `verify` and `verify:fast`, fails when the API changes without the report. After an intended change, run `pnpm api:update` and commit the updated report with the change.
 
 ## Tests
 
 `pnpm test` runs the unit tests in Node. `pnpm test:browser` runs the browser tests, with real workers, in Chromium. `pnpm test:browser:all` runs them in Chromium, Firefox and WebKit, as CI does. Install the browsers once with `pnpm exec playwright install`.
+
+`pnpm check:size` checks the size budgets in [`.size-limit.js`](.size-limit.js): the brotli size of the `.` and `./element` entries, each with the shared code it loads.
 
 ## License
 

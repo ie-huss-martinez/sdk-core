@@ -4,6 +4,10 @@
  * @packageDocumentation
  */
 
+export type { WindowReader, WindowReaderOptions } from "./bytes/window-reader.js";
+export { createWindowReader } from "./bytes/window-reader.js";
+export type { ErrorHelpers, ErrorHelpersOptions } from "./errors/helpers.js";
+export { createErrorHelpers } from "./errors/helpers.js";
 export type {
   ErrorDetails,
   ErrorDetailValue,
@@ -53,6 +57,37 @@ export type {
   ResolvedLimit,
 } from "./policy/limits.js";
 export { coreLimits, defineLimits } from "./policy/limits.js";
+export type { History, HistoryStep } from "./session/history.js";
+export { createHistory } from "./session/history.js";
+export type { Applied, Reducer } from "./session/reducer.js";
+export { applyCommands } from "./session/reducer.js";
+export type { Store } from "./session/store.js";
+export { createStore } from "./session/store.js";
+export type { Modifier, Platform } from "./shortcuts/chord.js";
+export type { FamilyAction, ShortcutChord } from "./shortcuts/family.js";
+export { familyShortcuts } from "./shortcuts/family.js";
+export type { NavigatorLike } from "./shortcuts/platform.js";
+export { platformOf } from "./shortcuts/platform.js";
+export type {
+  KeyboardEventLike,
+  ShortcutMatchOptions,
+  ShortcutPart,
+  ShortcutRegistry,
+  ShortcutRegistryOptions,
+  ShortcutSpec,
+} from "./shortcuts/registry.js";
+export { createShortcutRegistry } from "./shortcuts/registry.js";
+export type { SequenceLocation } from "./timeline/sequence.js";
+export { locate, sequenceOffsets, snap } from "./timeline/sequence.js";
+export type { ToolRegistry, ToolRegistryOptions } from "./tools/registry.js";
+export { createToolRegistry } from "./tools/registry.js";
+export type { Tool, ToolDefinition } from "./tools/tool.js";
+export { defineTool } from "./tools/tool.js";
+export {
+  type AssetsResolver,
+  createAssetsResolver,
+  resolveAssetsBase,
+} from "./worker/assets-url.js";
 export type {
   WorkerCallOptions,
   WorkerClient,

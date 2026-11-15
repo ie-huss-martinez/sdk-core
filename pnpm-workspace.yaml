@@ -14,13 +14,19 @@ catalog:
   "@commitlint/load": ^21.2.4
   "@commitlint/types": ^21.2.3
   "@microsoft/api-extractor": ^7.60.1
+  "@playwright/test": ^1.65.0
   "@secretlint/node": ^13.1.0
   "@secretlint/secretlint-rule-preset-recommend": ^13.1.0
+  "@size-limit/file": ^14.3.0
   "@types/node": ^24.19.2
   "@types/picomatch": ^4.0.3
+  "@types/react": ^19.3.0
+  "@types/react-dom": ^19.3.0
   "@vitest/browser-playwright": 5.1.0
+  ajv: ^8.20.0
   dependency-cruiser: ^18.7.2
   esbuild: ^0.28.2
+  fast-check: ^4.10.2
   husky: ^9.1.7
   lint-staged: ^17.6.0
   picomatch: ^4.0.7
@@ -29,11 +35,15 @@ catalog:
   postcss-value-parser: ^4.2.0
   postcss: ^8.5.31
   publint: ^0.3.25
+  react: ^19.3.0
+  react-dom: ^19.3.0
   secretlint: ^13.1.0
+  size-limit: ^14.3.0
   stylelint: ^18.0.0
   typescript: ^6.0.3
   vite: ^8.3.6
   vitest: ^5.1.0
+  yaml: ^2.9.1
 
 # Supply-chain hardening (ADR 0012).
 # Dependency install scripts are blocked unless allowlisted here.
@@ -43,9 +53,20 @@ allowBuilds:
   esbuild: false
 # Fail the install when an unapproved package wants to run a build script.
 strictDepBuilds: true
-# Don't resolve versions published less than a day ago.
+# Don't resolve versions published less than a day ago, except the family's
+# own, which provenance, trustPolicy and the reviewer's check cover (ADR 0044).
 minimumReleaseAge: 1440
+minimumReleaseAgeExclude:
+  - "@hussmartinez/*"
 # Refuse a version with weaker publish provenance than an earlier one.
 trustPolicy: no-downgrade
 # Transitive dependencies must come from the registry, not git or tarball URLs.
 blockExoticSubdeps: true
+
+# Transitive versions forced past a known advisory, each with when to remove it.
+overrides:
+  # GHSA-g3hv-75wg-m249, fixed in minimatch 11.0.1. API Extractor, up to
+  # 7.60.1, pins minimatch 10.2.3. It calls only minimatch(name, pattern),
+  # for bundledPackages, which neither package's configuration sets. Remove
+  # once API Extractor depends on minimatch 11.
+  "@microsoft/api-extractor>minimatch": ^11.0.1

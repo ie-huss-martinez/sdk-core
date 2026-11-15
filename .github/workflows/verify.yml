@@ -28,7 +28,7 @@ jobs:
       ref: ${{ steps.image.outputs.ref }}
     steps:
       - id: image
-        uses: ie-huss-martinez/sdk-ci/image@4fd30ccfb06f8854b3744201dccaaf000567af4b # v1.0.0
+        uses: ie-huss-martinez/sdk-ci/image@ace414beadabbad28a5e2609ebdf731a2cac473b # v2.1.0
 
   verify:
     name: verify
@@ -46,13 +46,16 @@ jobs:
       image: ${{ needs.image.outputs.ref || 'the-image-job-failed@sha256:0000000000000000000000000000000000000000000000000000000000000000' }}
       options: --user 1001 --ipc=host --init
     env:
+      # The job runs in the browser test image, so hm-in-image runs the
+      # browser tests directly (ADR 0049).
+      HM_VISUAL_CONTAINER: "1"
       HUSKY: "0"
     steps:
-      - uses: ie-huss-martinez/sdk-ci/verify@4fd30ccfb06f8854b3744201dccaaf000567af4b # v1.0.0
+      - uses: ie-huss-martinez/sdk-ci/verify@ace414beadabbad28a5e2609ebdf731a2cac473b # v2.1.0
 
       # This repository's workflows must match the skeleton of the sdk-ci
       # version it pins (ADR 0026).
-      - uses: ie-huss-martinez/sdk-ci/check-workflows@4fd30ccfb06f8854b3744201dccaaf000567af4b # v1.0.0
+      - uses: ie-huss-martinez/sdk-ci/check-workflows@ace414beadabbad28a5e2609ebdf731a2cac473b # v2.1.0
 
   # The version pull request consumes changesets by design, so it's skipped.
   changeset:
@@ -61,4 +64,4 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: ie-huss-martinez/sdk-ci/changeset@4fd30ccfb06f8854b3744201dccaaf000567af4b # v1.0.0
+      - uses: ie-huss-martinez/sdk-ci/changeset@ace414beadabbad28a5e2609ebdf731a2cac473b # v2.1.0

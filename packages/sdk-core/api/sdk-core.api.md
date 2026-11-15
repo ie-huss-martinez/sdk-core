@@ -4,6 +4,21 @@
 
 ```ts
 
+// @public
+export interface Applied<S, C> {
+    readonly inverse: C;
+    readonly state: S;
+}
+
+// @public
+export function applyCommands<S, C>(reducer: Reducer<S, C>, state: S, commands: readonly C[]): {
+    readonly state: S;
+    readonly inverses: C[];
+};
+
+// @public
+export type AssetsResolver = (path: string) => string;
+
 // Warning: (ae-forgotten-export) The symbol "ParamNames" needs to be exported by the entry point index.d.ts
 //
 // @public
@@ -46,7 +61,20 @@ export const coreLimits: {
 };
 
 // @public
+export function createAssetsResolver(assetsUrl: string | URL): AssetsResolver;
+
+// @public
 export function createDecodedSizeBudget(policy: FilePolicy<CoreLimits>): DecodedSizeBudget;
+
+// @public
+export function createErrorHelpers<Code extends string, ErrorType extends SdkError<Code>>(errorClass: new (code: Code, message: string, options?: SdkErrorOptions) => ErrorType, options: ErrorHelpersOptions<NoInfer<Code>> & ("ABORTED" | "TIMEOUT" extends Code ? unknown : {
+    readonly fallbackCode: "The error class's codes must include ABORTED and TIMEOUT.";
+})): ErrorHelpers<ErrorType>;
+
+// @public
+export function createHistory<C extends {
+    readonly type: string;
+}>(): History_2<C>;
 
 // @public
 export function createMessages<const Catalogue extends MessageCatalogue & {
@@ -58,6 +86,18 @@ export interface CreateMessagesOptions<Overrides> {
     readonly locale?: string;
     readonly overrides?: Overrides;
 }
+
+// @public
+export function createShortcutRegistry(options: ShortcutRegistryOptions): ShortcutRegistry;
+
+// @public
+export function createStore<S>(initial: S): Store<S>;
+
+// @public
+export function createToolRegistry<T extends Tool<never, never, unknown>>(tools: readonly T[], options?: ToolRegistryOptions): ToolRegistry<T>;
+
+// @public
+export function createWindowReader(file: Blob, options?: WindowReaderOptions): WindowReader;
 
 // @public
 export function createWorkerClient<Contract extends WorkerContract<Contract>>(options: WorkerClientOptions): WorkerClient<Contract>;
@@ -80,6 +120,9 @@ export interface DefineLimitsOptions {
 export function defineMessages<const Catalogue extends MessageCatalogue>(catalogue: Catalogue): Catalogue;
 
 // @public
+export function defineTool<State = unknown, Context = unknown, View = unknown>(definition: ToolDefinition<State, Context, View>): Tool<State, Context, View>;
+
+// @public
 export function deserializeError(data: unknown, options?: DeserializeErrorOptions): SdkError;
 
 // @public
@@ -99,13 +142,38 @@ export type ErrorDetailValue = string | number | boolean | null | readonly Error
 };
 
 // @public
+export interface ErrorHelpers<ErrorType extends SdkError> {
+    abortError(signal: AbortSignal): ErrorType;
+    adapt(reason: unknown, message?: string): ErrorType;
+    throwIfAborted(signal: AbortSignal | undefined): void;
+}
+
+// @public
+export interface ErrorHelpersOptions<Code extends string> {
+    readonly fallbackCode: Code;
+    readonly fallbackMessage: string;
+}
+
+// @public
 export function exposeWorker<Contract extends WorkerContract<Contract>>(handlers: WorkerHandlers<Contract>, options?: ExposeWorkerOptions): void;
 
 // @public
 export interface ExposeWorkerOptions {
     readonly includeStack?: boolean;
+    readonly packageVersion?: string;
     readonly scope?: WorkerScope;
 }
+
+// @public
+export type FamilyAction = "undo" | "redo" | "delete" | "select-all" | "zoom-in" | "zoom-out" | "zoom-reset" | "cancel" | "play-pause";
+
+// @public
+export const familyShortcuts: {
+    readonly [Action in FamilyAction]: {
+        readonly all: readonly ShortcutChord[];
+        readonly other?: readonly ShortcutChord[];
+    };
+};
 
 // @public
 export interface FilePolicy<Definitions extends LimitDefinitions> {
@@ -122,7 +190,48 @@ export type FilePolicyOverrides<Definitions extends LimitDefinitions> = {
 };
 
 // @public
+interface History_2<C extends {
+    readonly type: string;
+}> {
+    readonly canRedo: boolean;
+    readonly canUndo: boolean;
+    clear(): void;
+    drop(count: number): void;
+    readonly dropOrder: readonly HistoryStep<C>[];
+    group<T>(fn: () => T): T;
+    push(step: HistoryStep<C>): void;
+    redo(): HistoryStep<C> | undefined;
+    restore(direction: "undo" | "redo"): void;
+    readonly steps: readonly HistoryStep<C>[];
+    readonly trimmed: boolean;
+    undo(): HistoryStep<C> | undefined;
+}
+export { History_2 as History }
+
+// @public
+export interface HistoryStep<C> {
+    readonly commands: readonly C[];
+    readonly inverses: readonly C[];
+}
+
+// @public
 export function isSdkError<Code extends string = string>(value: unknown, code?: Code): value is SdkError<Code>;
+
+// @public
+export interface KeyboardEventLike {
+    readonly altKey?: boolean;
+    readonly code?: string;
+    composedPath?(): readonly unknown[];
+    readonly ctrlKey?: boolean;
+    readonly currentTarget?: unknown;
+    readonly defaultPrevented?: boolean;
+    readonly isComposing?: boolean;
+    readonly key: string;
+    readonly metaKey?: boolean;
+    readonly repeat?: boolean;
+    readonly shiftKey?: boolean;
+    readonly target?: unknown;
+}
 
 // @public
 export type LimitCheck = "warning" | undefined;
@@ -153,7 +262,10 @@ export type LimitSetting = number | {
 };
 
 // @public
-export type LimitUnit = "bytes" | "count" | "milliseconds" | "pixels";
+export type LimitUnit = "bytes" | "count" | "milliseconds" | "pixels" | "hertz" | "bitsPerSecond";
+
+// @public
+export function locate(offsets: readonly number[], position: number): SequenceLocation | undefined;
 
 // @public
 export type MessageArgs<Message extends MessageValue> = keyof MessageParams<Message> extends never ? [] : [params: MessageParams<Message>];
@@ -167,7 +279,9 @@ export type MessageCatalogue = {
 export interface MessageFormats {
     readonly date: Date | number;
     readonly default: string | number;
+    readonly duration: number;
     readonly fileSize: number;
+    readonly megapixels: number;
     readonly number: number;
     readonly time: Date | number;
 }
@@ -197,6 +311,24 @@ export interface Messages<Catalogue extends MessageCatalogue> {
 export type MessageValue = string | PluralMessage;
 
 // @public
+export type Modifier = "Control" | "Alt" | "Shift" | "Meta";
+
+// @public
+export interface NavigatorLike {
+    readonly platform?: string;
+    readonly userAgent?: string;
+    readonly userAgentData?: {
+        readonly platform?: string;
+    } | undefined;
+}
+
+// @public
+export type Platform = "apple" | "other";
+
+// @public
+export function platformOf(navigatorLike: NavigatorLike | undefined): Platform;
+
+// @public
 export function plural<const Selector extends string, const Forms extends {
     readonly other: string;
 } & {
@@ -215,6 +347,12 @@ export type PluralMessage = {
 } & {
     readonly [Category in Exclude<PluralCategory, "other">]?: string;
 };
+
+// @public
+export type Reducer<S, C> = (state: S, command: C) => Applied<S, C>;
+
+// @public
+export function resolveAssetsBase(assetsUrl: string | URL): string;
 
 // @public
 export interface ResolvedLimit {
@@ -250,6 +388,28 @@ export const sdkCoreMessages: {
     readonly "warnings.maxFiles": "Adding {actual} files at once may be slow.";
     readonly "warnings.maxDecodedSize": "This file is very large once opened and may be slow to process.";
     readonly "warnings.maxProcessingTime": "This is taking longer than usual.";
+    readonly "keys.control": "Ctrl";
+    readonly "keys.alt": "Alt";
+    readonly "keys.shift": "Shift";
+    readonly "keys.meta": "Meta";
+    readonly "keys.apple.control": "⌃";
+    readonly "keys.apple.alt": "⌥";
+    readonly "keys.apple.shift": "⇧";
+    readonly "keys.apple.meta": "⌘";
+    readonly "keys.space": "Space";
+    readonly "keys.enter": "Enter";
+    readonly "keys.escape": "Esc";
+    readonly "keys.tab": "Tab";
+    readonly "keys.delete": "Delete";
+    readonly "keys.backspace": "Backspace";
+    readonly "keys.arrowUp": "↑";
+    readonly "keys.arrowDown": "↓";
+    readonly "keys.arrowLeft": "←";
+    readonly "keys.arrowRight": "→";
+    readonly "keys.home": "Home";
+    readonly "keys.end": "End";
+    readonly "keys.pageUp": "Page Up";
+    readonly "keys.pageDown": "Page Down";
 };
 
 // @public
@@ -270,6 +430,15 @@ export interface SdkErrorOptions {
 }
 
 // @public
+export interface SequenceLocation {
+    readonly index: number;
+    readonly within: number;
+}
+
+// @public
+export function sequenceOffsets(lengths: readonly number[]): readonly number[];
+
+// @public
 export interface SerializedError {
     readonly cause?: SerializedError;
     readonly code: string;
@@ -286,6 +455,99 @@ export function serializeError(error: unknown, options?: SerializeErrorOptions):
 export interface SerializeErrorOptions {
     readonly includeStack?: boolean;
     readonly maxDepth?: number;
+}
+
+// @public
+export interface ShortcutChord {
+    readonly inEditable?: boolean;
+    readonly keys: string;
+    readonly repeat?: boolean;
+}
+
+// @public
+export interface ShortcutMatchOptions {
+    readonly root?: unknown;
+}
+
+// @public
+export interface ShortcutPart {
+    readonly kind: "modifier" | "key";
+    readonly message?: `keys.${string}`;
+    readonly value: string;
+}
+
+// @public
+export interface ShortcutRegistry {
+    ariaKeyShortcuts(id: string): string | undefined;
+    describe(id: string): readonly (readonly ShortcutPart[])[];
+    match(event: KeyboardEventLike, options?: ShortcutMatchOptions): string | undefined;
+    register(id: string, shortcuts: ShortcutSpec): void;
+}
+
+// @public
+export interface ShortcutRegistryOptions {
+    readonly platform: Platform;
+    readonly tools?: readonly {
+        readonly id: string;
+        readonly shortcuts?: ShortcutSpec;
+    }[];
+}
+
+// @public
+export type ShortcutSpec = FamilyAction | readonly (string | ShortcutChord)[];
+
+// @public
+export function snap(position: number, targets: Iterable<number>, tolerance: number): number;
+
+// @public
+export interface Store<S> {
+    getSnapshot(): S;
+    set(next: S | ((current: S) => S)): void;
+    subscribe(listener: () => void): () => void;
+}
+
+// @public
+export type Tool<State = unknown, Context = unknown, View = unknown> = Readonly<ToolDefinition<State, Context, View>>;
+
+// @public
+export interface ToolDefinition<State = unknown, Context = unknown, View = unknown> {
+    readonly group: string;
+    readonly icon: string;
+    readonly id: string;
+    readonly isActive?: (state: State) => boolean;
+    readonly isAvailable?: (state: State) => boolean;
+    readonly isEnabled?: (state: State) => boolean;
+    readonly label: string;
+    readonly requires?: readonly string[];
+    readonly run: (context: Context) => void | Promise<void>;
+    readonly shortcuts?: ShortcutSpec;
+    readonly view?: View;
+}
+
+// @public
+export interface ToolRegistry<T extends Tool<never, never, unknown>> {
+    get(id: string): T | undefined;
+    readonly omitted: readonly string[];
+    readonly toolbar: readonly (readonly T[])[];
+    readonly tools: readonly T[];
+}
+
+// @public
+export interface ToolRegistryOptions {
+    readonly capabilities?: Iterable<string>;
+    readonly toolbar?: readonly (readonly string[])[];
+    readonly tools?: readonly string[];
+}
+
+// @public
+export interface WindowReader {
+    bytes(offset: number, length: number): Promise<Uint8Array>;
+    readonly size: number;
+}
+
+// @public
+export interface WindowReaderOptions {
+    readonly windowSize?: number;
 }
 
 // @public
@@ -323,7 +585,9 @@ export interface WorkerClientOptions {
     readonly errorClasses?: DeserializeErrorOptions["errorClasses"];
     readonly idleTimeout?: number;
     readonly onCrash?: (error: SdkError<SdkCoreErrorCode>) => void;
+    readonly packageVersion?: string;
     readonly startTimeout?: number;
+    readonly workerAsset?: string;
 }
 
 // @public

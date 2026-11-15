@@ -1,6 +1,13 @@
 import { isSdkError } from "../errors/sdk-error.js";
 import { warnInDevelopment } from "../internal/development.js";
-import { dateTimeFormat, formatFileSize, numberFormat, pluralRules } from "./intl.js";
+import { checkSingleCopy } from "../internal/single-copy.js";
+import {
+  dateTimeFormat,
+  formatDuration,
+  formatFileSize,
+  numberFormat,
+  pluralRules,
+} from "./intl.js";
 import {
   type CompiledMessage,
   compileMessage,
@@ -16,6 +23,8 @@ import type {
   MessageValue,
   PluralCategory,
 } from "./types.js";
+
+declare const process: { readonly env: { readonly NODE_ENV?: string } };
 
 /**
  * Declares a message catalogue, keeping its literal types so that
@@ -139,6 +148,7 @@ export function createMessages<
   catalogue: Catalogue,
   options: CreateMessagesOptions<Overrides & CheckedOverrides<Catalogue, Overrides>> = {},
 ): Messages<Catalogue> {
+  checkSingleCopy();
   const locale = resolveLocale(options.locale);
   const compiled = new Map<string, CompiledMessage>();
 
@@ -155,20 +165,30 @@ export function createMessages<
     for (const [key, value] of Object.entries(overrides)) {
       const english = compiled.get(key);
       if (english === undefined || !Object.hasOwn(catalogue, key)) {
-        warnInDevelopment(`Ignoring the message override "${key}": the catalogue has no such key.`);
+        if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+          warnInDevelopment(
+            `Ignoring the message override "${key}": the catalogue has no such key.`,
+          );
+        }
         continue;
       }
       const message = compileMessage(value);
       if (message === undefined) {
-        warnInDevelopment(`Ignoring the message override "${key}": it's malformed. Using English.`);
+        if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+          warnInDevelopment(
+            `Ignoring the message override "${key}": it's malformed. Using English.`,
+          );
+        }
         continue;
       }
       const allowed = parameterNames(english);
       const unknown = [...parameterNames(message)].filter((name) => !allowed.has(name));
       if (unknown.length > 0) {
-        warnInDevelopment(
-          `Ignoring the message override "${key}": it uses ${unknown.map((name) => `{${name}}`).join(", ")}, which the English message doesn't have. Using English.`,
-        );
+        if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+          warnInDevelopment(
+            `Ignoring the message override "${key}": it uses ${unknown.map((name) => `{${name}}`).join(", ")}, which the English message doesn't have. Using English.`,
+          );
+        }
         continue;
       }
       compiled.set(key, message);
@@ -178,7 +198,9 @@ export function createMessages<
   const render = (key: string, params: unknown): string => {
     const message = compiled.get(key);
     if (message === undefined) {
-      warnInDevelopment(`There's no message "${key}".`);
+      if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+        warnInDevelopment(`There's no message "${key}".`);
+      }
       return key;
     }
     if (message.kind === "text") {
@@ -186,9 +208,11 @@ export function createMessages<
     }
     const count = readParam(params, message.selector);
     if (typeof count !== "number" || !Number.isFinite(count)) {
-      warnInDevelopment(
-        `The message "${key}" needs the number "${message.selector}" to choose a plural form.`,
-      );
+      if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+        warnInDevelopment(
+          `The message "${key}" needs the number "${message.selector}" to choose a plural form.`,
+        );
+      }
       // One warning per mistake: the selector renders as empty, not as a
       // second missing parameter.
       const withSelector = {
@@ -232,7 +256,9 @@ function resolveLocale(locale: string | undefined): string {
   } catch {
     // An invalid tag falls through to the warning.
   }
-  warnInDevelopment(`"${locale}" isn't a valid locale. Using "en".`);
+  if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+    warnInDevelopment(`"${locale}" isn't a valid locale. Using "en".`);
+  }
   return "en";
 }
 
@@ -257,7 +283,9 @@ function renderTemplate(key: string, template: Template, params: unknown, locale
     const formatted =
       value === undefined || value === null ? undefined : formatValue(value, part.format, locale);
     if (formatted === undefined) {
-      warnInDevelopment(`The message "${key}" is missing a valid "${part.name}" parameter.`);
+      if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+        warnInDevelopment(`The message "${key}" is missing a valid "${part.name}" parameter.`);
+      }
       continue;
     }
     text += formatted;
@@ -277,6 +305,14 @@ function formatValue(value: unknown, format: Format, locale: string): string | u
     case "fileSize":
       return typeof value === "number" && Number.isFinite(value)
         ? formatFileSize(locale, value)
+        : undefined;
+    case "megapixels":
+      return typeof value === "number" && Number.isFinite(value) && value >= 0
+        ? numberFormat(locale, { maximumFractionDigits: 1 }).format(value / 1_000_000)
+        : undefined;
+    case "duration":
+      return typeof value === "number" && Number.isFinite(value) && value >= 0
+        ? formatDuration(locale, value)
         : undefined;
     case "date":
     case "time": {
