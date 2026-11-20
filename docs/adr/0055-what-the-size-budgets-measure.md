@@ -61,7 +61,7 @@ No application ships a whole entry. Its bundler keeps what it imports. `ui`'s [A
 
 ## Options
 
-**A. Keep measuring the built files, and write down what that means.** The entry budget is a ceiling on the entry and the chunks it loads statically: an upper bound on what an application can ship of those files, about a fifth above their minified size. No repository changes. The cost is the name-length effect above, and a number that isn't what ships.
+**A. Keep measuring the built files, and write down what that means.** The entry budget is a ceiling on the entry and the chunks it loads statically: an upper bound on the brotli-compressed size of those files in an application, about a fifth above their minified size. No repository changes. The cost is the name-length effect above, and a number that isn't what ships.
 
 **B. Measure the entries minified.** `sdk-config` would provide a helper that minifies each built file and hands `size-limit` the copies, and every repository would switch to it and reset its budgets, to about 80% of today's.
 - **Gain:** the number is what a host that imported the whole entry would ship, and names stop counting.
@@ -77,7 +77,7 @@ No application ships a whole entry. Its bundler keeps what it imports. `ui`'s [A
 
 The question assumed that comments count against a budget. They don't: the build drops them. What separates the built size from the minified one is a constant factor that every entry shares. Switching measures (B) would change every number, catch no change to code that isn't caught today, and only stop counting the length of local names, for a pull request in each repository and a minifier in the loop.
 
-- **An entry budget is a ceiling, measured on the built files:** the brotli size of the entry and the chunks it loads statically. It bounds what any application can ship of those files, and is about a fifth above their minified size. It doesn't cover chunks loaded later with `import()`: each of those has a budget of its own, and an application that loads one receives both.
+- **An entry budget is a ceiling, measured on the built files:** the brotli size of the entry and the chunks it loads statically. It bounds the brotli-compressed size of those files in any application, and is about a fifth above their minified size. Brotli is the unit, as in every budget in the family: a host that serves them with gzip, or uncompressed, transfers more bytes than the number says. It doesn't cover chunks loaded later with `import()`: each of those has a budget of its own, and an application that loads one receives both.
 - **A budget is never met by shortening names or restructuring for the measure.** A pull request that needs more raises the budget, with a table of before and after and the reason, as today.
 - **Size is judged where applications feel it:** in budgets for what an application imports, bundled and minified, as `ui` and audio-sdk have. Bringing those to every repository is the next decision, an amendment to ADR 0015 from `ui`'s ADR 0012 and audio-sdk's experience. It's the change that would have told image-sdk#79's reviewers what its 3 kB cost an application.
 
