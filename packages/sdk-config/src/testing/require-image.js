@@ -14,9 +14,28 @@
 export const CONTAINER_ENV = "HM_VISUAL_CONTAINER";
 
 /**
+ * The environment variable that lets browser tests start on a host: set it
+ * to `1` to debug with a headed browser there. Never for gating: a run on a
+ * host can fail at random, so it proves nothing about a change.
+ */
+export const ALLOW_HOST_ENV = "HM_ALLOW_HOST_BROWSER";
+
+/**
+ * Whether the environment asks for browser tests on the host, outside the
+ * image and CI.
+ *
+ * @param {Record<string, string | undefined>} env
+ * @returns {boolean}
+ */
+function hostAllowed(env) {
+  return env[ALLOW_HOST_ENV] === "1";
+}
+
+/**
  * Says why browser tests can't run in this environment, if they can't. They
- * can in the browser test image, where `HM_VISUAL_CONTAINER=1`, and in CI,
- * where `CI` is set to anything but an empty string, `0` or `false`.
+ * can in the browser test image, where `HM_VISUAL_CONTAINER=1`; in CI, where
+ * `CI` is set to anything but an empty string, `0` or `false`; and on a
+ * host that asks for it with `HM_ALLOW_HOST_BROWSER=1`, for debugging.
  *
  * @param {Record<string, string | undefined>} [env] The environment,
  *   `process.env` by default.
@@ -24,8 +43,7 @@ export const CONTAINER_ENV = "HM_VISUAL_CONTAINER";
  *   browser tests can run.
  */
 export function browserTestImageProblem(env = process.env) {
-  const ci = env["CI"];
-  if (env[CONTAINER_ENV] === "1" || (ci !== undefined && !["", "0", "false"].includes(ci))) {
+  if (inImageOrCi(env) || hostAllowed(env)) {
     return undefined;
   }
   return [
@@ -33,7 +51,17 @@ export function browserTestImageProblem(env = process.env) {
     "On a host, Docker's network changes make Chromium abort requests, and tests fail at random.",
     'Run them through hm-in-image, as the package scripts do: "pnpm test:browser" or "pnpm test:e2e",',
     'or "pnpm exec hm-in-image <command>" for another command.',
+    `To debug with a headed browser on this machine, set ${ALLOW_HOST_ENV}=1 for that run. Never use it to check a change.`,
   ].join("\n");
+}
+
+/**
+ * @param {Record<string, string | undefined>} env
+ * @returns {boolean} Whether this is the browser test image, or CI.
+ */
+function inImageOrCi(env) {
+  const ci = env["CI"];
+  return env[CONTAINER_ENV] === "1" || (ci !== undefined && !["", "0", "false"].includes(ci));
 }
 
 /**
@@ -52,9 +80,16 @@ export function browserTestImageProblem(env = process.env) {
  *
  * @returns {void}
  * @throws `Error` outside the browser test image and CI, with what to run
- *   instead and no stack trace.
+ *   instead and no stack trace, unless `HM_ALLOW_HOST_BROWSER=1`, which
+ *   prints a notice instead.
  */
 export default function requireBrowserTestImage() {
+  if (!inImageOrCi(process.env) && hostAllowed(process.env)) {
+    process.stderr.write(
+      `${ALLOW_HOST_ENV}=1: browser tests are running on this machine, outside the pinned browser test image. They can fail at random here, so use this run for debugging only.\n`,
+    );
+    return;
+  }
   const problem = browserTestImageProblem();
   if (problem !== undefined) {
     const error = new Error(problem);

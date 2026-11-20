@@ -229,6 +229,7 @@ Error: Browser tests run only in the pinned browser test image (sdk-core ADR 004
 On a host, Docker's network changes make Chromium abort requests, and tests fail at random.
 Run them through hm-in-image, as the package scripts do: "pnpm test:browser" or "pnpm test:e2e",
 or "pnpm exec hm-in-image <command>" for another command.
+To debug with a headed browser on this machine, set HM_ALLOW_HOST_BROWSER=1 for that run. Never use it to check a change.
 ```
 
 List it by its package path, in every configuration that starts a browser:
@@ -253,8 +254,15 @@ export default defineConfig({
 
 - **It runs only when a browser project starts.** A global setup belongs to its project, so `vitest run --project unit` on a host never reaches it, and the configuration itself loads anywhere, as editors and `tsc` need.
 - **It allows the image and CI:** `HM_VISUAL_CONTAINER=1`, which `hm-in-image` and CI's verify jobs set, or `CI` set to anything but an empty string, `0` or `false`.
+- **`HM_ALLOW_HOST_BROWSER=1` lets them start on a host, for debugging only,** such as watching a headed browser, which needs your display:
+
+  ```sh
+  HM_ALLOW_HOST_BROWSER=1 pnpm exec vitest --project browser --browser.headless=false
+  ```
+
+  The guard prints a notice when it's used. It changes nothing else, unlike setting `CI`, which also switches engines, retries and reporters. A run on a host can fail at random, so it never shows that a change works: don't put the variable in a script, a hook or a workflow. `hm-in-image` doesn't pass it on.
 - **The visual configuration needs nothing added:** `defineVisualConfig` already refuses outside the image, and more strictly, because baselines must never be written anywhere else.
-- **`browserTestImageProblem(env)`** returns the same message, or `undefined`, for a script of your own that starts a browser.
+- **`browserTestImageProblem(env)`** returns the same message, or `undefined`, for a script of your own that starts a browser. `CONTAINER_ENV` and `ALLOW_HOST_ENV` are the two variables' names.
 
 It needs nothing installed.
 
