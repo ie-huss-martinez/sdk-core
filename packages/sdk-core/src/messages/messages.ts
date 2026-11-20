@@ -21,6 +21,7 @@ import type {
   MessageCatalogue,
   MessageOverrides,
   MessageValue,
+  MessageWarning,
   PluralCategory,
 } from "./types.js";
 
@@ -112,15 +113,41 @@ export interface Messages<Catalogue extends MessageCatalogue> {
    */
   t<Key extends keyof Catalogue & string>(key: Key, ...args: MessageArgs<Catalogue[Key]>): string;
   /**
-   * The user-facing text for an error, looked up by its `SdkError` code under
-   * `errors.<CODE>`, with the error's `details` as parameters. Anything else,
-   * including an unknown code, gets `errors.UNKNOWN`. The error's own
-   * `message` is never shown, because it's for developers and may contain
-   * file-derived text.
+   * The user-facing text for an error, looked up by its `SdkError` code, with
+   * the error's `details` as parameters. The first of these the catalogue
+   * has is used (ADR 0050):
+   *
+   * 1. `errors.<CODE>.<reason>`, when `details.reason` is a string, for a
+   *    code whose text depends on why it happened;
+   * 2. `errors.<CODE>`;
+   * 3. `errors.UNKNOWN`, which anything that isn't an `SdkError` gets too.
+   *
+   * The error's own `message` is never shown, because it's for developers
+   * and may contain file-derived text.
    *
    * @param error - Any caught value.
    */
   error(error: unknown): string;
+  /**
+   * The user-facing text for a warning in the family's shape (ADR 0050),
+   * with the warning's own fields as parameters:
+   *
+   * - `{ type: "limit", limit, actual }`, a value at or above a limit's
+   *   warning threshold, gets `warnings.<limit>`;
+   * - any other `{ type }` gets `warnings.<type>`.
+   *
+   * The catalogue must have the key, which the types check. Like `t()`, it
+   * never throws: a warning without text renders as its key, with a
+   * development-only warning.
+   *
+   * @example
+   * ```ts
+   * for (const warning of snapshot.warnings) announce(messages.warning(warning));
+   * ```
+   *
+   * @param warning - The warning.
+   */
+  warning<Warning extends MessageWarning<Catalogue>>(warning: Warning): string;
 }
 
 /**
@@ -230,12 +257,25 @@ export function createMessages<
     t: (key, ...args) => render(key, args[0]),
     error(error) {
       if (isSdkError(error)) {
+        const details = error.details ?? {};
         const key = `errors.${error.code}`;
+        const reason = readParam(details, "reason");
+        if (typeof reason === "string" && compiled.has(`${key}.${reason}`)) {
+          return render(`${key}.${reason}`, details);
+        }
         if (compiled.has(key)) {
-          return render(key, error.details ?? {});
+          return render(key, details);
         }
       }
       return render("errors.UNKNOWN", {});
+    },
+    warning(warning) {
+      const limit = readParam(warning, "limit");
+      const name =
+        readParam(warning, "type") === "limit" && typeof limit === "string"
+          ? limit
+          : readParam(warning, "type");
+      return render(`warnings.${typeof name === "string" ? name : ""}`, warning);
     },
   };
 }

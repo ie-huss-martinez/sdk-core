@@ -179,3 +179,39 @@ export type CheckedOverrides<
 export type MessageArgs<Message extends MessageValue> = keyof MessageParams<Message> extends never
   ? []
   : [params: MessageParams<Message>];
+
+/**
+ * The names a catalogue has warning text for: `Name` for each
+ * `warnings.<Name>` key.
+ *
+ * @public
+ */
+export type WarningName<Catalogue extends MessageCatalogue> = keyof Catalogue extends infer Key
+  ? Key extends `warnings.${infer Name}`
+    ? Name
+    : never
+  : never;
+
+/**
+ * A warning that {@link Messages.warning} has text for, in the family's
+ * shape: a `type`, and for a value at or above a limit's warning threshold,
+ * `type: "limit"` with the limit's name and the value. An SDK's own warning
+ * type, such as `{ type: "truncated", frames: number }`, fits when the
+ * catalogue has `warnings.<limit>` for each of its limits and
+ * `warnings.<type>` for each other type. Further fields, such as the source
+ * a warning is about, are allowed, and are the text's parameters.
+ *
+ * @public
+ */
+export type MessageWarning<Catalogue extends MessageCatalogue> =
+  | {
+      readonly type: "limit";
+      /** The limit's name, as in the file policy. */
+      readonly limit: WarningName<Catalogue>;
+      /** The value, in the limit's unit. */
+      readonly actual: number;
+    }
+  | {
+      /** The warning's type, which names its text. */
+      readonly type: Exclude<WarningName<Catalogue>, "limit">;
+    };

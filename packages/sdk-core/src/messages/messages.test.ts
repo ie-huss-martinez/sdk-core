@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "v
 import { SdkError } from "../errors/sdk-error.js";
 import { sdkCoreMessages } from "./core-messages.js";
 import { clearIntlCache } from "./intl.js";
-import { createMessages, defineMessages, plural } from "./messages.js";
-import type { MessageOverrides, MessageParams } from "./types.js";
+import { createMessages, defineMessages, type Messages, plural } from "./messages.js";
+import type { MessageOverrides, MessageParams, MessageWarning, WarningName } from "./types.js";
 
 const en = defineMessages({
   ...sdkCoreMessages,
@@ -19,7 +19,31 @@ const en = defineMessages({
     other: "{count} pages selected",
   }),
   "errors.FILE_TOO_LARGE": "This file is {actual, fileSize}. The limit is {maximum, fileSize}.",
+  "errors.UNSUPPORTED_ENVIRONMENT.autoplay-blocked": "Press Play to hear sound.",
+  "errors.DURATION_TOO_LONG": "This recording is too long.",
+  "errors.DURATION_TOO_LONG.plan-too-long":
+    "This would make the recording {actual, duration} long, which is over the limit.",
+  "warnings.maxClips": plural("actual", {
+    one: "{actual} clip may be slow to edit.",
+    other: "{actual} clips may be slow to edit.",
+  }),
+  "warnings.truncated": "This recording was cut short: it has {frames} of {declaredFrames} frames.",
 });
+
+/** An SDK's warnings, in the family's shape, as audio-sdk and video-sdk declare theirs. */
+type EditorWarning =
+  | {
+      readonly type: "limit";
+      readonly limit: "maxFileSize" | "maxClips" | "maxProcessingTime";
+      readonly actual: number;
+      readonly source?: string;
+    }
+  | {
+      readonly type: "truncated";
+      readonly source: string;
+      readonly frames: number;
+      readonly declaredFrames: number;
+    };
 
 let warnings: string[];
 
@@ -323,6 +347,170 @@ describe("createMessages", () => {
 
       expect(text).toBe("Something went wrong. Please try again.");
       expect(text).not.toContain("internal detail");
+    });
+  });
+
+  describe("errors with a reason", () => {
+    it("prefer the text for the code and details.reason, with details as parameters", () => {
+      const messages = createMessages(en);
+
+      expect(
+        messages.error(
+          new SdkError("UNSUPPORTED_ENVIRONMENT", "x", { details: { reason: "autoplay-blocked" } }),
+        ),
+      ).toBe("Press Play to hear sound.");
+      expect(
+        messages.error(
+          new SdkError("DURATION_TOO_LONG", "x", {
+            details: { reason: "plan-too-long", actual: 7_260_000 },
+          }),
+        ),
+      ).toBe("This would make the recording 2 hr, 1 min long, which is over the limit.");
+    });
+
+    it.each([
+      ["a reason the catalogue doesn't word", { reason: "source-too-long" }],
+      ["no reason", {}],
+      ["a reason that isn't a string", { reason: 7 }],
+      ["a reason named like a prototype member", { reason: "__proto__" }],
+      ["an empty reason", { reason: "" }],
+    ])("fall back to the code's text for %s", (_label, details) => {
+      expect(createMessages(en).error(new SdkError("DURATION_TOO_LONG", "x", { details }))).toBe(
+        "This recording is too long.",
+      );
+      expect(warnings).toEqual([]);
+    });
+
+    it("read the reason only as an own property of details", () => {
+      const details = Object.create({ reason: "plan-too-long" }) as Record<string, never>;
+
+      expect(createMessages(en).error(new SdkError("DURATION_TOO_LONG", "x", { details }))).toBe(
+        "This recording is too long.",
+      );
+    });
+
+    it("fall back to errors.UNKNOWN when the catalogue has neither text", () => {
+      expect(
+        createMessages(en).error(
+          new SdkError("NOT_IN_THE_CATALOGUE", "internal detail", { details: { reason: "why" } }),
+        ),
+      ).toBe("Something went wrong. Please try again.");
+    });
+
+    it("let a host override the text for one reason", () => {
+      const messages = createMessages(en, {
+        overrides: { "errors.DURATION_TOO_LONG.plan-too-long": "Zu lang: {actual, duration}." },
+        locale: "de",
+      });
+
+      expect(
+        messages.error(
+          new SdkError("DURATION_TOO_LONG", "x", {
+            details: { reason: "plan-too-long", actual: 60_000 },
+          }),
+        ),
+      ).toBe("Zu lang: 1 Min..");
+      expect(messages.error(new SdkError("DURATION_TOO_LONG", "x"))).toBe(
+        "This recording is too long.",
+      );
+    });
+  });
+
+  describe("warnings", () => {
+    it("look up a limit's text by its name, with the value as actual", () => {
+      const messages = createMessages(en);
+
+      expect(messages.warning({ type: "limit", limit: "maxFileSize", actual: 73_400_320 })).toBe(
+        "This file is 73.4 MB. Large files may be slow to process.",
+      );
+      expect(messages.warning({ type: "limit", limit: "maxClips", actual: 1 })).toBe(
+        "1 clip may be slow to edit.",
+      );
+      expect(messages.warning({ type: "limit", limit: "maxClips", actual: 1_200 })).toBe(
+        "1,200 clips may be slow to edit.",
+      );
+    });
+
+    it("ignore fields a limit's text doesn't use", () => {
+      const warning: EditorWarning = {
+        type: "limit",
+        limit: "maxProcessingTime",
+        actual: 90_000,
+        source: "a",
+      };
+
+      expect(createMessages(en).warning(warning)).toBe("This is taking longer than usual.");
+      expect(warnings).toEqual([]);
+    });
+
+    it("look up any other warning by its type, with its fields as parameters", () => {
+      const warning: EditorWarning = {
+        type: "truncated",
+        source: "a",
+        frames: 44_100,
+        declaredFrames: 88_200,
+      };
+
+      expect(createMessages(en).warning(warning)).toBe(
+        "This recording was cut short: it has 44,100 of 88,200 frames.",
+      );
+    });
+
+    it("use the host's overrides and locale", () => {
+      const messages = createMessages(en, {
+        locale: "de",
+        overrides: { "warnings.maxFileSize": "Große Datei: {actual, fileSize}." },
+      });
+
+      expect(messages.warning({ type: "limit", limit: "maxFileSize", actual: 73_400_320 })).toBe(
+        "Große Datei: 73,4 MB.",
+      );
+    });
+
+    it("accept an SDK's warning type whose every limit and type has text", () => {
+      expectTypeOf<EditorWarning>().toExtend<MessageWarning<typeof en>>();
+      expectTypeOf<WarningName<typeof en>>().toEqualTypeOf<
+        | "maxFileSize"
+        | "maxFiles"
+        | "maxDecodedSize"
+        | "maxProcessingTime"
+        | "maxClips"
+        | "truncated"
+      >();
+    });
+
+    it("keep a larger catalogue's messages usable as a smaller one's (ADR 0046)", () => {
+      const smaller = defineMessages({ "errors.UNKNOWN": "Unknown.", "dialog.close": "Close" });
+      const larger = defineMessages({ ...en, ...smaller });
+
+      expectTypeOf<Messages<typeof larger>>().toExtend<Messages<typeof smaller>>();
+      expectTypeOf<Messages<typeof larger>>().toExtend<Messages<typeof sdkCoreMessages>>();
+    });
+
+    it("reject a limit or a type the catalogue has no text for", () => {
+      const messages = createMessages(en);
+
+      // @ts-expect-error The catalogue has no "warnings.maxPages".
+      messages.warning({ type: "limit", limit: "maxPages", actual: 1 });
+      // @ts-expect-error The catalogue has no "warnings.corrupt".
+      messages.warning({ type: "corrupt" });
+      // @ts-expect-error A limit warning needs its value.
+      messages.warning({ type: "limit", limit: "maxClips" });
+      expect(warnings).toHaveLength(3);
+    });
+
+    it.each([
+      ["an unknown limit", { type: "limit", limit: "maxPages", actual: 1 }, "warnings.maxPages"],
+      ["an unknown type", { type: "corrupt" }, "warnings.corrupt"],
+      ["a limit without a name", { type: "limit" }, "warnings.limit"],
+      ["a prototype member's name", { type: "__proto__" }, "warnings.__proto__"],
+      ["no type", {}, "warnings."],
+      ["a value that isn't an object", null, "warnings."],
+    ])("never throw at runtime for %s: the key, with a warning", (_label, warning, key) => {
+      const loose = createMessages(en) as unknown as { warning(warning: unknown): string };
+
+      expect(loose.warning(warning)).toBe(key);
+      expect(warnings).toHaveLength(1);
     });
   });
 

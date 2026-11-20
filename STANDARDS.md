@@ -185,12 +185,13 @@ Programmatic control goes through a ref handle, such as `open(file)`, `export()`
   - native `<dialog>` with `showModal()`;
   - `aria-live` announcements for results;
   - target sizes of at least 24 px, and 44 px on touch.
-- **No inline text** ([ADR 0019](docs/adr/0019-message-catalogues.md), [ADR 0046](docs/adr/0046-ui-text-through-the-sdk.md)):
+- **No inline text** ([ADR 0019](docs/adr/0019-message-catalogues.md), [ADR 0046](docs/adr/0046-ui-text-through-the-sdk.md), [ADR 0050](docs/adr/0050-error-text-by-reason-and-warning-text.md)):
   - every visible string and accessible name comes from the typed message catalogue in `src/messages/en.ts`, declared with `defineMessages` and including `sdkCoreMessages`;
   - messages are plain text with `{name}` and `{name, format}` placeholders, plurals are `{ "$plural": … }` objects, and output is never markup;
   - hosts override them with `messages`, and numbers, sizes and dates use `Intl` for the `locale` the host passes;
   - an SDK that renders `ui`'s components also spreads `uiMessages` into its catalogue and passes its single `Messages` object to `UiMessagesProvider`, so a host's overrides reach `ui`'s strings too; a test checks that the SDK's own keys don't collide with `sdkCoreMessages` or `uiMessages`;
-  - error text is looked up by code under `errors.<CODE>`, never taken from `error.message`.
+  - error text comes from `messages.error()`, never from `error.message`: `errors.<CODE>.<reason>` when the error's `details.reason` has text of its own, and otherwise `errors.<CODE>`;
+  - warnings have the shape `{ type: "limit", limit, actual }` or `{ type: <other> }`, and their text comes from `messages.warning()`: `warnings.<limit>` or `warnings.<type>`. SDKs add no text helpers of their own.
 - **Automated checks:** `@axe-core/playwright` runs in every end-to-end suite.
 
 ## UX
@@ -280,6 +281,9 @@ Each repository extends the presets in `@hussmartinez/sdk-config` instead of cop
 - **ADRs:** significant decisions get an ADR in the owning repository.
 - **Versioning** ([ADR 0021](docs/adr/0021-version-and-release-with-changesets.md)):
   - semver, with `0.x` until the API settles, and each package versioned on its own;
+  - during `0.x`, a change that breaks existing callers bumps the minor; additive API and fixes bump the patch:
+    - adding a member to an interface that the package creates and callers only receive, such as `Messages`, counts as additive, and the changeset says that a hand-written object of that type, such as a test double, must add it;
+    - adding a required member to an interface that hosts implement and pass in, such as `WorkerLike`, breaks them, and bumps the minor;
   - every pull request that changes a published package's source or `package.json` adds a changeset, unless only `package.json`'s dev-only fields changed: `devDependencies`, `scripts`, `packageManager` and `devEngines` ([ADR 0027](docs/adr/0027-dev-only-package-json-changes-need-no-changeset.md)) with `pnpm changeset`, describing the change for users; a required `changeset` check enforces it;
   - Conventional Commits stay for history and pull request titles, but don't drive versions;
   - the release workflow keeps a `chore: version packages` pull request open with the pending changesets; merging it publishes;
