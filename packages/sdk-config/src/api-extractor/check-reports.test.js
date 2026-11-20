@@ -59,7 +59,52 @@ describe("exportedSymbols", () => {
       Tools: "namespace",
       SdkError: "reexport",
       SdkErrorCode: "reexport",
+      Original: "reexport",
       Renamed: "reexport",
+    });
+  });
+});
+
+describe("exportedSymbols, for declarations renamed away from a global", () => {
+  it("lists both names of `export { Local as Name }`, with the declaration's kind", () => {
+    const report = [
+      "// @public",
+      "type AudioSampleFormat_2 = 'f32' | 's16';",
+      "export { AudioSampleFormat_2 as AudioSampleFormat }",
+      "",
+      "// @public",
+      "class Scheduler_2 {",
+      "}",
+      "export { Scheduler_2 as Scheduler }",
+      "",
+      "// @public",
+      "interface Options_2 {",
+      "}",
+      "abstract class Base_2 {",
+      "}",
+      "export { type Options_2 as Options, Base_2 as Base, Elsewhere_2 as Elsewhere }",
+    ].join("\n");
+
+    expect(Object.fromEntries(exportedSymbols(report))).toEqual({
+      AudioSampleFormat_2: "type",
+      AudioSampleFormat: "type",
+      Scheduler_2: "class",
+      Scheduler: "class",
+      Options_2: "interface",
+      Options: "interface",
+      Base_2: "class",
+      Base: "class",
+      Elsewhere_2: "reexport",
+      Elsewhere: "reexport",
+    });
+  });
+
+  it("keeps an exported declaration's kind over an export list's", () => {
+    const report = ["export class Session {", "export { Other as Session }"].join("\n");
+
+    expect(Object.fromEntries(exportedSymbols(report))).toEqual({
+      Session: "class",
+      Other: "reexport",
     });
   });
 });
@@ -330,6 +375,86 @@ describe("checkApiReports", () => {
     expect(await readFile(join(trimmed, "api/index.api.md"), "utf8").catch(() => "")).not.toContain(
       "ae-incompatible-release-tags",
     );
+  });
+
+  describe("with types that share a name with a global", () => {
+    // TypeScript's default libraries declare `AudioSampleFormat` (WebCodecs),
+    // `Scheduler` and `AudioData`, so API Extractor renames these to
+    // `AudioSampleFormat_2` and so on, in every report and rollup.
+    /** @type {string} */
+    let clashing;
+    /** @type {string} */
+    let report;
+    beforeAll(async () => {
+      clashing = await fixture({
+        ...PACKAGE,
+        "types/model.d.ts": [
+          "/** @public */",
+          "export type AudioSampleFormat = 'f32' | 's16';",
+          "/** @public */",
+          "export declare class Scheduler { readonly id: string; }",
+          "/** @public */",
+          "export declare class AudioData { #private; readonly id: string; }",
+          "",
+        ].join("\n"),
+        "types/index.d.ts": [
+          'export type { AudioSampleFormat } from "./model.js";',
+          'export { AudioData, Scheduler } from "./model.js";',
+          "",
+        ].join("\n"),
+        "types/react.d.ts": [
+          'import type { AudioSampleFormat, Scheduler } from "./model.js";',
+          "/** @public */",
+          "export declare function useFormat(scheduler: Scheduler): AudioSampleFormat;",
+          "",
+        ].join("\n"),
+        "types/element.d.ts": [
+          'import type { AudioData } from "./model.js";',
+          "/** @public */",
+          "export declare function read(): AudioData;",
+          "",
+        ].join("\n"),
+      });
+      expect(await extract(clashing, "index")).toEqual([]);
+      expect(await extract(clashing, "react")).toEqual([]);
+      expect(await extract(clashing, "element")).toEqual([]);
+      report = await readFile(join(clashing, "api/index.api.md"), "utf8");
+    });
+
+    const paths = () => ({
+      main: join(clashing, "api/index.api.md"),
+      types: join(clashing, "dist/index.d.ts"),
+    });
+
+    it("has the renamed exports this checks for", async () => {
+      expect(report).toContain("export { AudioSampleFormat_2 as AudioSampleFormat }");
+      expect(report).toContain("export { Scheduler_2 as Scheduler }");
+      expect(await readFile(join(clashing, "api/react.api.md"), "utf8")).toContain(
+        'The symbol "AudioSampleFormat_2" needs to be exported',
+      );
+    });
+
+    it("passes a secondary entry that copies them under their local names", async () => {
+      const react = join(clashing, "api/react.api.md");
+
+      expect(await checkApiReports({ ...paths(), secondary: [react] })).toEqual({
+        exitCode: EXIT_OK,
+        problems: [],
+      });
+    });
+
+    it("still fails for a renamed class with #private members", async () => {
+      const element = join(clashing, "api/element.api.md");
+
+      const result = await checkApiReports({ ...paths(), secondary: [element] });
+
+      expect(result.exitCode).toBe(EXIT_FAILED);
+      expect(result.problems).toEqual([
+        expect.stringContaining(
+          'the class "AudioData_2" is copied, and its non-public members (`#private`)',
+        ),
+      ]);
+    });
   });
 
   it("throws a UsageError for a file it can't read", async () => {

@@ -145,6 +145,8 @@ For each symbol that another entry point's report lists as copied, it checks tha
 - **the main entry point exports it,** so users can name the type, and a copy never hides a type the package forgot to export;
 - **it isn't a class with `private`, `protected` or `#private` members.** TypeScript treats two declarations of such a class as different types, even when one is a copy of the other, so a value typed with the copy couldn't be passed where the original is expected. API reports leave those members out, so the command reads the main entry point's declaration rollup.
 
+A type that shares its name with a global, such as the DOM's `Scheduler` or WebCodecs' `AudioSampleFormat`, is renamed by api-extractor in every report: the main report has `export { Scheduler_2 as Scheduler }`, and other entry points refer to `Scheduler_2`. The command counts both names as exported, and checks a renamed class like any other.
+
 ```text
 Usage: hm-check-api-reports --main <report> --types <rollup> [<report>...]
 ```
