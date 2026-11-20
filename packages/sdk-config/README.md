@@ -15,6 +15,7 @@ Install, as devDependencies, the tools for the presets you use. They are optiona
 | `tsconfig/*` | `typescript` (and `@types/node` for `tsconfig/node`) |
 | `biome` | `@biomejs/biome` |
 | `hm-check-hidden-unicode` | Nothing, but it lists files with git |
+| `size` | Nothing for `entryFiles`; `vite` for `measureEntry` and `hm-size` |
 | `stylelint` | `stylelint` |
 | `dependency-cruiser`, `hm-lint-deps` | `dependency-cruiser` |
 | `commitlint` | `@commitlint/cli` |
@@ -487,6 +488,56 @@ Usage: hm-in-image [--] <command> [<argument>...]
 | The command's | The command ran |
 | 1 | Docker isn't available, or the image didn't build |
 | 2 | Usage error, or a repository it can't read |
+
+### Size budgets: `entryFiles` and `hm-size`
+
+Every package has a size budget per entry point, measured by `size-limit` on the built files ([ADR 0015](../../docs/adr/0015-verification-and-releases.md), [ADR 0055](../../docs/adr/0055-what-the-size-budgets-measure.md)). `entryFiles` gives a budget the files to count: the built entry and every chunk it imports statically, directly or through other chunks.
+
+```js
+// .size-limit.js
+import { globSync } from "node:fs";
+import { entryFiles } from "@hussmartinez/sdk-config/size";
+
+export default [
+  { name: "Core (.)", path: entryFiles("dist/index.js"), brotli: true, limit: "17 kB" },
+  { name: "React (./react)", path: entryFiles("dist/react.js"), brotli: true, limit: "24 kB" },
+  // A chunk loaded later with import() has a budget of its own, counted the
+  // same way: the chunk and what it imports statically. Its name has a hash.
+  {
+    name: "Worker (lazy)",
+    path: globSync("dist/lazy/worker-*.js").flatMap(entryFiles),
+    brotli: true,
+    limit: "60 kB",
+  },
+];
+```
+
+- **Only what the entry loads up front:** a chunk that only another entry imports isn't counted, and neither is one loaded later with `import()`, which an application receives only when it uses what the chunk holds.
+- **A lazy chunk is an entry of its own.** Give it a budget through `entryFiles` too, as above, so the budget covers the chunk and whatever it imports statically. A plain glob counts only the files it matches, which is the whole cost only when the chunk imports nothing, as a worker inlined as a string does.
+- **It replaces a copied function.** If your `.size-limit.js` has its own `loadedFiles`, delete it: `entryFiles("dist/index.js")` returns what `loadedFiles("index.js")` did.
+- **It fails clearly before a build:** `dist/index.js doesn't exist. Build the package first.`
+
+**The budget is a ceiling, measured on the files as built,** which are unminified so that applications' bundlers can tree-shake and minify them. Measured across the family, the same files minified are a fifth to a quarter smaller, in every entry. The build already drops comments, so documentation never counts. Local names do, by tens of bytes: never shorten names to meet a budget. Raise it, with a table of before and after and the reason.
+
+`hm-size` prints both numbers, for that table:
+
+```text
+$ pnpm exec hm-size dist/index.js dist/element.js
+dist/index.js: 15.57 kB as built, 11.72 kB minified (25% less), in 2 files
+dist/element.js: 2.78 kB as built, 2.14 kB minified (23% less), in 2 files
+```
+
+```text
+Usage: hm-size <entry>...
+```
+
+- **The first number is what the budget counts.** It matches `size-limit`'s.
+- **The second is information only.** It's the same files through Vite's minifier, as an application built with Vite would ship them if it used the whole entry. It's never a budget, and `hm-size` never fails because of a size. `measureEntry(entry)` returns both numbers to a script.
+
+| Exit code | Meaning |
+|---|---|
+| 0 | The entries were measured |
+| 2 | Usage error, or an entry that isn't built |
 
 ### `hm-check-hidden-unicode`
 

@@ -14,6 +14,7 @@
     "outDir": "src"
   },
   "files": [
+    "src/size/entry.js",
     "src/testing/audio-output.js",
     "src/testing/browser-instances.js",
     "src/testing/conformance.js",
