@@ -6,11 +6,20 @@ let lastFreshBuffer: ArrayBuffer | undefined;
 
 const sleep = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(resolve, ms);
-    signal.addEventListener("abort", () => {
-      clearTimeout(timer);
+    // A listener added to an aborted signal never fires, so check first.
+    if (signal.aborted) {
       reject(signal.reason);
-    });
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        reject(signal.reason);
+      },
+      { once: true },
+    );
   });
 
 exposeWorker<TestWorker>({
