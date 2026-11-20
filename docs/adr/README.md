@@ -24,7 +24,7 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0016](0016-git-hooks-and-merge-guards.md) | Git hooks and merge guards | Accepted |
 | [0017](0017-core-errors-and-shared-runtime-imports.md) | Where `core/errors` and `@hussmartinez/sdk-core` sit in the core layers | Accepted; `ui`'s place outside the core extended by [0036](0036-ui-as-a-dependency-of-the-sdks.md) |
 | [0018](0018-worker-rpc-protocol.md) | The worker RPC protocol, its errors and its buffer rules | Accepted; its abort-reason rule is superseded by [0020](0020-file-policy.md); refined for engines' own workers by [0028](0028-third-party-engines.md) |
-| [0019](0019-message-catalogues.md) | Message catalogues as typed, plain-text data | Accepted |
+| [0019](0019-message-catalogues.md) | Message catalogues as typed, plain-text data | Accepted; its error and warning lookups refined by [0050](0050-error-text-by-reason-and-warning-text.md) |
 | [0020](0020-file-policy.md) | File policy: typed limits with warnings, shared by every SDK | Accepted; supersedes [0018](0018-worker-rpc-protocol.md)'s abort-reason rule; refined for page-only decoders by [0031](0031-platform-decoders-on-the-page.md) |
 | [0021](0021-version-and-release-with-changesets.md) | Version and release with Changesets | Accepted; supersedes [0015](0015-verification-and-releases.md)'s release tooling; the App credentials' location superseded by [0024](0024-github-organisation-for-the-sdk-family.md); the rule for `package.json` changes narrowed by [0027](0027-dev-only-package-json-changes-need-no-changeset.md) |
 | [0022](0022-storybook-for-the-component-catalogue.md) | Storybook for the component catalogue | Accepted |
@@ -55,3 +55,4 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0047](0047-one-copy-of-each-family-package.md) | Check that every repository installs one copy of each family package | Accepted; refines [0036](0036-ui-as-a-dependency-of-the-sdks.md) |
 | [0048](0048-visual-regression-for-sdk-editors.md) | Visual regression tests for every SDK's editor | Accepted; refines [0039](0039-test-applications-in-each-repository.md) |
 | [0049](0049-local-browser-tests-in-the-pinned-image.md) | Local browser tests run in the pinned image | Accepted; refines [0025](0025-one-browser-test-image-in-one-place.md) and [0048](0048-visual-regression-for-sdk-editors.md) |
+| [0050](0050-error-text-by-reason-and-warning-text.md) | Error text by reason, and text for warnings | Accepted; refines [0019](0019-message-catalogues.md) |

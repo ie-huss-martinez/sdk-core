@@ -305,10 +305,20 @@ export interface Messages<Catalogue extends MessageCatalogue> {
     error(error: unknown): string;
     readonly locale: string;
     t<Key extends keyof Catalogue & string>(key: Key, ...args: MessageArgs<Catalogue[Key]>): string;
+    warning<Warning extends MessageWarning<Catalogue>>(warning: Warning): string;
 }
 
 // @public
 export type MessageValue = string | PluralMessage;
+
+// @public
+export type MessageWarning<Catalogue extends MessageCatalogue> = {
+    readonly type: "limit";
+    readonly limit: WarningName<Catalogue>;
+    readonly actual: number;
+} | {
+    readonly type: Exclude<WarningName<Catalogue>, "limit">;
+};
 
 // @public
 export type Modifier = "Control" | "Alt" | "Shift" | "Meta";
@@ -538,6 +548,9 @@ export interface ToolRegistryOptions {
     readonly toolbar?: readonly (readonly string[])[];
     readonly tools?: readonly string[];
 }
+
+// @public
+export type WarningName<Catalogue extends MessageCatalogue> = keyof Catalogue extends infer Key ? Key extends `warnings.${infer Name}` ? Name : never : never;
 
 // @public
 export interface WindowReader {

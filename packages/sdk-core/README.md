@@ -66,11 +66,14 @@ const messages = createMessages(en, { locale: props.locale, overrides: props.mes
 messages.t("result.saved", { size: 1_300_000 }); // "Saved 1.3 MB"
 messages.t("pages.selected", { count: 3 });       // "3 pages selected"
 messages.error(error);                            // text for error.code, never error.message
+messages.warning(warning);                        // text for a limit's or another warning
 ```
 
 - **Placeholders:** `{name}` takes a string or a number. `{name, number}`, `{name, fileSize}` (decimal units), `{name, duration}` (milliseconds, shown as "3 hr, 5 min"), `{name, megapixels}` (pixels, shown in millions, such as "24.2"), `{name, date}` and `{name, time}` are formatted with `Intl` for the locale. Unknown keys and missing or wrongly typed parameters are type errors.
 - **Plurals:** plain objects, `{ "$plural": "count", "one": "…", "other": "…" }`, whose form is chosen with `Intl.PluralRules`. Translations may add forms, such as `few` and `many`.
 - **Errors:** `messages.error()` looks up `errors.<CODE>` with the error's `details` as parameters, and falls back to `errors.UNKNOWN`. Include `sdkCoreMessages` for sdk-core's own codes.
+  - **By reason:** when a code needs more than one text, give the error a `details.reason` token and add `errors.<CODE>.<reason>`, such as `"errors.DURATION_TOO_LONG.plan-too-long"`. It's used when the catalogue has it, and a reason without text gets its code's text ([ADR 0050](../../docs/adr/0050-error-text-by-reason-and-warning-text.md)).
+- **Warnings:** `messages.warning()` takes the family's warning shape. `{ type: "limit", limit, actual }` gets `warnings.<limit>`, and any other `{ type }` gets `warnings.<type>`, with the warning's fields as parameters. A limit or type without text in the catalogue is a type error.
 - **Plain text only:** the output is a string, never markup, so render it as text.
 - **Locale:** it defaults to `"en"`. Always pass the host's `locale`, and never read it from the browser, because server and client must render the same text.
 - **Overrides are checked at runtime too.** Unknown keys are ignored, and malformed messages fall back to English, with warnings in development. `t()` never throws.
@@ -87,7 +90,7 @@ export const pdfLimits = defineLimits(
 
 const policy = pdfLimits.resolve(props.filePolicy); // such as { maxFileSize: 300_000_000 }
 if (checkFile(policy, file) === "warning") {
-  announce(messages.t("warnings.maxFileSize", { actual: file.size }));
+  announce(messages.warning({ type: "limit", limit: "maxFileSize", actual: file.size }));
 }
 policy.check("maxPages", pageCount);                 // throws PdfError("TOO_MANY_PAGES") above 2,000
 await withProcessingTime(policy, (signal) => client.call("open", { bytes }, { signal }), { signal });

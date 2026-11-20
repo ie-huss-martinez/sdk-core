@@ -33,8 +33,10 @@ export type {
   MessageOverrides,
   MessageParams,
   MessageValue,
+  MessageWarning,
   PluralCategory,
   PluralMessage,
+  WarningName,
 } from "./messages/types.js";
 export type { DecodedSizeBudget, WithProcessingTimeOptions } from "./policy/checks.js";
 export {
