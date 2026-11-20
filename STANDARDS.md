@@ -281,6 +281,7 @@ Each repository extends the presets in `@hussmartinez/sdk-config` instead of cop
 - **ADRs:** significant decisions get an ADR in the owning repository.
 - **Versioning** ([ADR 0021](docs/adr/0021-version-and-release-with-changesets.md)):
   - semver, with `0.x` until the API settles, and each package versioned on its own;
+  - during `0.x`, a change that breaks existing callers bumps the minor; additive API and fixes bump the patch. Adding a member to an interface that hosts implement counts as additive, and the changeset says so;
   - every pull request that changes a published package's source or `package.json` adds a changeset, unless only `package.json`'s dev-only fields changed: `devDependencies`, `scripts`, `packageManager` and `devEngines` ([ADR 0027](docs/adr/0027-dev-only-package-json-changes-need-no-changeset.md)) with `pnpm changeset`, describing the change for users; a required `changeset` check enforces it;
   - Conventional Commits stay for history and pull request titles, but don't drive versions;
   - the release workflow keeps a `chore: version packages` pull request open with the pending changesets; merging it publishes;

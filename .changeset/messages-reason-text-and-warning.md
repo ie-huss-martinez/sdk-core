@@ -12,4 +12,4 @@ messages.error(new AudioError("DURATION_TOO_LONG", "…", { details: { reason: "
 for (const warning of snapshot.warnings) announce(messages.warning(warning));
 ```
 
-`Messages` has a new member, so an object you wrote by hand and typed as `Messages`, such as a test double, needs a `warning` method. Objects from `createMessages` already have it.
+This is additive: existing calls keep working. `Messages` has a new member, though, so an object you wrote by hand and typed as `Messages`, such as a test double, needs a `warning` method. Objects from `createMessages` already have it.
