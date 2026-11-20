@@ -3,7 +3,7 @@ import { entryFiles } from "@hussmartinez/sdk-config/size";
 /**
  * Size budgets per entry point (ADR 0015, ADR 0055): the brotli size of each
  * built entry, with the chunks it loads statically. They measure the files
- * as built, a ceiling: about a fifth above their minified size, and
+ * as built, a ceiling: minified, they're about a quarter less, and
  * applications ship less still, because their bundler drops what they don't
  * import. `pnpm exec hm-size dist/index.js dist/element.js` prints both.
  *

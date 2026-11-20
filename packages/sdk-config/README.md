@@ -509,7 +509,7 @@ export default [
 - **It replaces a copied function.** If your `.size-limit.js` has its own `loadedFiles`, delete it: `entryFiles("dist/index.js")` returns what `loadedFiles("index.js")` did.
 - **It fails clearly before a build:** `dist/index.js doesn't exist. Build the package first.`
 
-**The budget is a ceiling, measured on the files as built,** which are unminified so that applications' bundlers can tree-shake and minify them. Measured across the family, that's a fifth to a quarter above the same files minified, in every entry. The build already drops comments, so documentation never counts. Local names do, by tens of bytes: never shorten names to meet a budget. Raise it, with a table of before and after and the reason.
+**The budget is a ceiling, measured on the files as built,** which are unminified so that applications' bundlers can tree-shake and minify them. Measured across the family, the same files minified are a fifth to a quarter smaller, in every entry. The build already drops comments, so documentation never counts. Local names do, by tens of bytes: never shorten names to meet a budget. Raise it, with a table of before and after and the reason.
 
 `hm-size` prints both numbers, for that table:
 
