@@ -1,8 +1,15 @@
 ---
-"@hussmartinez/sdk-config": patch
+"@hussmartinez/sdk-config": minor
 ---
 
-Add two source checks for the whole family (sdk-core ADR 0052).
+Add two source checks for the whole family (sdk-core ADR 0052). Both are on as soon as you update, through the lint-staged and Biome presets, so this is a minor release: take it in a pull request of its own, and expect to fix or list what it finds.
+
+**What to expect when you update:**
+
+- **Commits are checked for hidden characters** at once, by the lint-staged preset. `pnpm lint` checks the whole repository once you add the command to it.
+- **`biome check` may report `"abort"` listeners** you have today, through the preset's new plugin.
+- **Repositories with hidden characters on 2026-11-21:** image-sdk (19: its conformance vectors, two regular expressions in `src/core`, and three layer tests) and learn-sdk (130: its conformance vectors and two test generators). pdf-sdk, audio-sdk, video-sdk, ui, editor-apps and chat-example have none.
+- **How to settle each finding:** in source and tests, write the character as an escape, which changes nothing at run time. Conformance vectors and other test data that must hold the characters go in `.hm-hidden-unicode-ignore`, or their generator writes escapes.
 
 **`hm-check-hidden-unicode`,** a new command. It fails when a tracked text file of any type holds a character that an editor and a diff don't show, or that reorders the text around it: bidirectional formatting characters, zero-width and other invisible characters, line and paragraph separators, and tag characters. Each is reported with its place, its name and the escape to write instead:
 
