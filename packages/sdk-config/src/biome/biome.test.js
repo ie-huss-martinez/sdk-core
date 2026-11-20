@@ -72,3 +72,121 @@ describe("Biome preset", () => {
     expect(`${stdout}${stderr}`).not.toContain("schema version does not match");
   });
 });
+
+describe("noUncheckedAbortListener (ADR 0052)", () => {
+  /**
+   * The lines the rule reports in a snippet, 1-based.
+   *
+   * @param {string[]} lines
+   * @returns {Promise<number[]>}
+   */
+  async function reported(lines) {
+    await writeFile(join(project, "probe.ts"), `${lines.join("\n")}\n`);
+    const { stdout } = spawnSync(
+      BIOME,
+      ["lint", "--reporter=json", "--only=lint/plugin", "probe.ts"],
+      { cwd: project, encoding: "utf8" },
+    );
+    /** @type {{ diagnostics: Array<{ category: string, location: { start: { line: number } } }> }} */
+    const report = JSON.parse(stdout);
+    return report.diagnostics
+      .filter((diagnostic) => diagnostic.category === "plugin")
+      .map((diagnostic) => diagnostic.location.start.line);
+  }
+
+  it("reports a listener whose function never looks at the signal", async () => {
+    await expect(
+      reported([
+        "export function declared(signal: AbortSignal, stop: () => void) {",
+        '  signal.addEventListener("abort", stop);',
+        "}",
+        "export const arrow = (signal: AbortSignal, stop: () => void) => {",
+        '  signal.addEventListener("abort", stop, { once: true });',
+        "};",
+        "export const expression = (signal: AbortSignal, stop: () => void) =>",
+        '  signal.addEventListener("abort", stop);',
+        "export const optional = (signal: AbortSignal | undefined, stop: () => void) => {",
+        '  signal?.addEventListener("abort", stop);',
+        "};",
+        "export class Job {",
+        "  run(options: { signal: AbortSignal }, stop: () => void) {",
+        "    options.signal.addEventListener('abort', stop);",
+        "  }",
+        "}",
+        "declare const outside: AbortSignal;",
+        'outside.addEventListener("abort", () => undefined);',
+      ]),
+    ).resolves.toEqual([2, 5, 8, 10, 14, 18]);
+  });
+
+  it("reports a listener when the check is on another signal", async () => {
+    await expect(
+      reported([
+        "export function mixed(mine: AbortSignal, theirs: AbortSignal, stop: () => void) {",
+        "  if (mine.aborted) return;",
+        '  theirs.addEventListener("abort", stop);',
+        "}",
+      ]),
+    ).resolves.toEqual([3]);
+  });
+
+  it("accepts a listener whose function, or one around it, checks the same signal", async () => {
+    await expect(
+      reported([
+        "declare function throwIfAborted(signal: AbortSignal | undefined): void;",
+        "export function checked(signal: AbortSignal, stop: () => void) {",
+        "  if (signal.aborted) return;",
+        '  signal.addEventListener("abort", stop, { once: true });',
+        "}",
+        "export const optional = (signal: AbortSignal | undefined, stop: () => void) => {",
+        "  if (signal?.aborted) return;",
+        '  signal?.addEventListener("abort", stop);',
+        "};",
+        "export function thrown(signal: AbortSignal, stop: () => void) {",
+        "  signal.throwIfAborted();",
+        '  signal.addEventListener("abort", stop);',
+        "}",
+        "export function helper(signal: AbortSignal, stop: () => void) {",
+        "  throwIfAborted(signal);",
+        '  signal.addEventListener("abort", stop);',
+        "}",
+        "export function member(options: { signal: AbortSignal }, stop: () => void) {",
+        "  if (options.signal.aborted) return;",
+        '  options.signal.addEventListener("abort", stop);',
+        "}",
+        "export function around(signal: AbortSignal) {",
+        "  if (signal.aborted) return Promise.resolve();",
+        "  return new Promise<void>((resolve) => {",
+        '    signal.addEventListener("abort", () => resolve(), { once: true });',
+        "  });",
+        "}",
+        "export function afterwards(signal: AbortSignal, stop: () => void) {",
+        '  signal.addEventListener("abort", stop, { once: true });',
+        "  if (signal.aborted) stop();",
+        "}",
+      ]),
+    ).resolves.toEqual([]);
+  });
+
+  it("leaves other events and other methods alone", async () => {
+    await expect(
+      reported([
+        "export function other(target: EventTarget, signal: AbortSignal, stop: () => void) {",
+        '  target.addEventListener("click", stop);',
+        '  signal.removeEventListener("abort", stop);',
+        "}",
+      ]),
+    ).resolves.toEqual([]);
+  });
+
+  it("can be suppressed by name, with the reason", async () => {
+    await expect(
+      reported([
+        "export function trusted(signal: AbortSignal, stop: () => void) {",
+        "  // biome-ignore lint/plugin/noUncheckedAbortListener: the caller refuses an aborted signal.",
+        '  signal.addEventListener("abort", stop);',
+        "}",
+      ]),
+    ).resolves.toEqual([]);
+  });
+});

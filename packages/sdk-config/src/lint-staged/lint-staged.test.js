@@ -45,4 +45,11 @@ describe("lint-staged preset", () => {
       expect(commands[0]).toBe("secretlint --maskSecrets");
     }
   });
+
+  it("checks every staged file for hidden characters, before Biome rewrites it", () => {
+    for (const commands of Object.values(config)) {
+      expect(commands[1]).toBe("hm-check-hidden-unicode");
+      expect(commands.findIndex((command) => command.startsWith("biome"))).toBeGreaterThan(1);
+    }
+  });
 });

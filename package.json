@@ -12,7 +12,7 @@
     "prepare": "husky",
     "changeset": "changeset",
     "create-sdk-repo": "node scripts/create-sdk-repo.mjs",
-    "lint": "biome check .",
+    "lint": "biome check . && hm-check-hidden-unicode",
     "lint:css": "stylelint \"**/*.css\" --allow-empty-input",
     "lint:deps": "hm-lint-deps packages",
     "typecheck": "pnpm -r typecheck",

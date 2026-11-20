@@ -27,6 +27,9 @@
       }
     }
   },
+  // The family's own rules (sdk-core ADR 0052). "config" resolves the path
+  // from this file, so it works from the repository that extends it.
+  "plugins": [{ "path": "./plugins/noUncheckedAbortListener.grit", "resolutionKind": "config" }],
   // Recommended rules, plus the ones that keep public code explicit about
   // types, imports and side effects.
   "linter": {
