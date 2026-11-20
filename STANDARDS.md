@@ -135,7 +135,7 @@ Programmatic control goes through a ref handle, such as `open(file)`, `export()`
 - **Conformance vectors:** each SDK keeps `conformance/`, JSON cases of its deterministic logic that its own tests run. Rejections are checked by error code and `details.reason`, never message text.
 - **Shared rejection codes:** `UNSUPPORTED_FORMAT` (`unknown-format`, `unknown-format-version`), `INVALID_DOCUMENT` and `INVALID_COMMAND`. Schemas and readers are strict, refusing unknown fields, and vectors include hostile keys (`__proto__`, `constructor`, `toString`). `formats/` ships in each package; `conformance/` doesn't. Length limits count Unicode code points (`[...text].length`, as `maxLength` does), never UTF-16 units.
 
-## Security and privacy ([ADR 0012](docs/adr/0012-hostile-input-and-no-network.md), [ADR 0020](docs/adr/0020-file-policy.md), [ADR 0028](docs/adr/0028-third-party-engines.md), [ADR 0035](docs/adr/0035-ai-core-and-host-configured-network.md))
+## Security and privacy ([ADR 0012](docs/adr/0012-hostile-input-and-no-network.md), [ADR 0020](docs/adr/0020-file-policy.md), [ADR 0028](docs/adr/0028-third-party-engines.md), [ADR 0035](docs/adr/0035-ai-core-and-host-configured-network.md), [ADR 0051](docs/adr/0051-clean-file-names.md))
 
 - **Treat every file as hostile** ([ADR 0020](docs/adr/0020-file-policy.md)):
   - parse only in workers, except with a browser decoder that only exists on the page, such as `decodeAudioData`, and then only for files a worker has probed and bounded, with the decoded output checked against that bound ([ADR 0031](docs/adr/0031-platform-decoders-on-the-page.md));
@@ -148,6 +148,10 @@ Programmatic control goes through a ref handle, such as `open(file)`, `export()`
   - link protocols are allowlisted;
   - links get `rel="noopener noreferrer"`.
 - **Never insert file-derived strings as HTML.** Sanitise SVG, or display it only through `<img>`.
+- **A file's name is hostile input too** ([ADR 0051](docs/adr/0051-clean-file-names.md)):
+  - clean it once, where it enters the SDK, with `cleanFileName` from `sdk-core`, and store and expose only the clean name;
+  - a name a host gives, such as a download name, is cleaned the same way;
+  - a clean name is text content or a download's name, never markup, a parsed attribute or part of a URL, and it never reaches `onEvent`. A test opens files with distinctive names and asserts that no event contains them.
 - **No network requests** by default. End-to-end tests fail on any request to an origin the test didn't configure.
   - No `@hussmartinez` SDK, and neither `sdk-core` nor `ui`, makes any request.
   - None of them imports `@hussmartinez/ai-core`, for code or types: the `sdk-config` dependency-cruiser preset forbids it, with no opt-in. An SDK that needs AI defines its own provider port, and the host passes a provider ([ADR 0035](docs/adr/0035-ai-core-and-host-configured-network.md)).

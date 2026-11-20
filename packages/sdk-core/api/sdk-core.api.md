@@ -33,6 +33,9 @@ export function checkFile(policy: FilePolicy<CoreLimits>, file: Blob): LimitChec
 export function checkFiles(policy: FilePolicy<CoreLimits>, files: ArrayLike<Blob> | Iterable<Blob>): LimitCheck;
 
 // @public
+export function cleanFileName(raw: unknown): string | undefined;
+
+// @public
 export type CoreLimits = typeof coreLimits;
 
 // @public
@@ -266,6 +269,9 @@ export type LimitUnit = "bytes" | "count" | "milliseconds" | "pixels" | "hertz" 
 
 // @public
 export function locate(offsets: readonly number[], position: number): SequenceLocation | undefined;
+
+// @public
+export const MAX_FILE_NAME_LENGTH = 128;
 
 // @public
 export type MessageArgs<Message extends MessageValue> = keyof MessageParams<Message> extends never ? [] : [params: MessageParams<Message>];

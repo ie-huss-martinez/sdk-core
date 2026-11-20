@@ -111,6 +111,22 @@ await withProcessingTime(policy, (signal) => client.call("open", { bytes }, { si
 - **Settings:** each is a number or `{ maximum, warning }`. `Infinity` disables a limit, which removes a protection, or disables a warning. Unknown limit names throw, so a typo can't leave a default in place.
 - **Text:** violations have text under `errors.<CODE>` and warnings under `warnings.<limit>` in `sdkCoreMessages`.
 
+### File names
+
+A file's name is chosen by whoever made the file, so it's hostile input like the bytes ([ADR 0051](../../docs/adr/0051-clean-file-names.md)). Clean it once, where it enters the SDK, and keep only the result:
+
+```ts
+const name = cleanFileName(options.name ?? (blob instanceof File ? blob.name : undefined));
+
+cleanFileName("C:\\Users\\me\\report.pdf"); // "report.pdf"
+cleanFileName("invoice\u202Efdp.exe");       // "invoicefdp.exe": the override that showed it as "invoiceexe.pdf" is gone
+cleanFileName("../..");                      // undefined: nothing is left
+```
+
+- **What comes out:** one path segment of well-formed Unicode in NFC, without control or bidirectional formatting characters, without the characters Windows refuses (`< > : " | ? *`), without leading dots or whitespace at either end, and at most `MAX_FILE_NAME_LENGTH` (128) code points. Anything that isn't a string, or a name with nothing left, gives `undefined`.
+- **Where it may go:** text content, or a download's name. It isn't escaped for markup or URLs, and file names never go into usage events.
+- **Download names from a host** are cleaned the same way.
+
 ## Workers
 
 `createWorkerClient` and `exposeWorker` are a small, typed, versioned RPC layer for SDK workers ([ADR 0011](../../docs/adr/0011-worker-messaging-and-assets.md), [ADR 0018](../../docs/adr/0018-worker-rpc-protocol.md)). One interface describes the methods, and both sides are checked against it:
