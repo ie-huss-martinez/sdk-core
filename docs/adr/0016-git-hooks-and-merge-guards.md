@@ -1,6 +1,6 @@
 # 0016. Git hooks and merge guards
 
-- **Status:** Accepted
+- **Status:** Accepted; its note that the full `pnpm verify` runs before a pull request is marked ready is superseded by [0053](0053-ci-is-the-merge-gate.md)
 - **Date:** 2026-11-06
 
 ## Context

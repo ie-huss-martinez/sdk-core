@@ -264,17 +264,21 @@ Every `<kind>-sdk` repository follows this structure:
 
 Each repository extends the presets in `@hussmartinez/sdk-config` instead of copying configuration.
 
-## Workflow ([ADR 0015](docs/adr/0015-verification-and-releases.md), [ADR 0016](docs/adr/0016-git-hooks-and-merge-guards.md), [ADR 0021](docs/adr/0021-version-and-release-with-changesets.md), [ADR 0023](docs/adr/0023-verify-releases-in-an-unprivileged-job.md))
+## Workflow ([ADR 0015](docs/adr/0015-verification-and-releases.md), [ADR 0016](docs/adr/0016-git-hooks-and-merge-guards.md), [ADR 0021](docs/adr/0021-version-and-release-with-changesets.md), [ADR 0023](docs/adr/0023-verify-releases-in-an-unprivileged-job.md), [ADR 0053](docs/adr/0053-ci-is-the-merge-gate.md))
 
 - **Verification:**
   - `pnpm verify` runs code checks, build, unit tests, browser tests, end-to-end and visual tests, size budgets, the API report and package checks;
   - `pnpm verify:fast` runs the one-minute subset: types, unit tests, dependency rules and the API report.
 - **Git hooks** (Husky; budgets in ADR 0016):
-  - `pre-commit` lints staged files and scans them for secrets;
+  - `pre-commit` lints staged files, scans them for secrets and checks them for hidden characters;
   - `commit-msg` checks Conventional Commits;
   - `pre-push` runs `pnpm verify:fast`;
   - `--no-verify` is never used.
-- **Before a pull request is ready:** run `pnpm verify` locally, using Chromium, and report the result in the description.
+- **The hooks are the local bar, and CI is the merge gate** ([ADR 0053](docs/adr/0053-ci-is-the-merge-gate.md)):
+  - a pull request needs nothing run locally beyond the hooks. The full `pnpm verify` and the browser suites are run locally to diagnose a failure, to reproduce one from CI, or to capture screenshots, not as a step before every pull request;
+  - a pull request is ready when every required check is green on its current head and no review thread is open;
+  - a failure that only shows in CI is real until its cause is found. It's never answered with a looser assertion, a retry or a rerun;
+  - the description says what was run locally and what was left to CI.
 - **CI:**
   - every pull request and push to `main` runs `pnpm verify`, with browser tests on Chromium, Firefox and WebKit, in the pinned Playwright image, read from its only copy in `ci/Dockerfile` ([ADR 0023](docs/adr/0023-verify-releases-in-an-unprivileged-job.md), [ADR 0025](docs/adr/0025-one-browser-test-image-in-one-place.md));
   - `verify` and `pr-title` are required checks, and branches must be up to date;
@@ -285,8 +289,12 @@ Each repository extends the presets in `@hussmartinez/sdk-config` instead of cop
   - squash merges only, with linear history on `main`;
   - Conventional Commits, and pull request titles become commit titles;
   - commits are signed;
-  - the author never merges: a separate reviewer checks the full diff against `STANDARDS.md` and the ADRs, requires green CI, runs `pnpm verify` independently for code changes, and merges nothing "almost right";
-  - coding agents open one pull request at a time, stop and report, and never review or merge their own; author and reviewer are always different sessions.
+  - the author never merges: a separate reviewer checks the full diff against `STANDARDS.md` and the ADRs, requires green CI on the current head, and merges nothing "almost right";
+  - CodeRabbit reviews every pull request, and each thread it opens is fixed or answered, then resolved, before the merge;
+  - coding agents open one pull request at a time, stop and report once it's green and its threads are resolved, and never review or merge their own; author and reviewer are always different sessions.
+- **Agents' state** ([ADR 0053](docs/adr/0053-ci-is-the-merge-gate.md)):
+  - the state of the task in hand lives in `.local/HANDOFF.md` in the checkout, which git ignores, kept current after every step so that another agent can take over;
+  - what outlives the task lives in the maintainer's knowledge base, in the family's agent memory, not in a tool's private memory and not in the repository.
 - **ADRs:** significant decisions get an ADR in the owning repository.
 - **Versioning** ([ADR 0021](docs/adr/0021-version-and-release-with-changesets.md)):
   - semver, with `0.x` until the API settles, and each package versioned on its own;

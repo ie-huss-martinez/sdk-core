@@ -10,6 +10,8 @@ test-results/
 .DS_Store
 temp/
 .vitest/
+# An agent's notes on the task in hand (AGENTS.md). Never committed.
+.local/
 # Scratch workspaces of sdk-config's tests, removed after each test.
 .tmp-*/
 # Release files. The release workflow writes them to $RUNNER_TEMP, but a
