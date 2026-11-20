@@ -45,6 +45,7 @@ export {
   createDecodedSizeBudget,
   withProcessingTime,
 } from "./policy/checks.js";
+export { cleanFileName, MAX_FILE_NAME_LENGTH } from "./policy/file-name.js";
 export type {
   CoreLimits,
   DefineLimitsOptions,

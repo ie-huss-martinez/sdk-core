@@ -56,3 +56,4 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0048](0048-visual-regression-for-sdk-editors.md) | Visual regression tests for every SDK's editor | Accepted; refines [0039](0039-test-applications-in-each-repository.md) |
 | [0049](0049-local-browser-tests-in-the-pinned-image.md) | Local browser tests run in the pinned image | Accepted; refines [0025](0025-one-browser-test-image-in-one-place.md) and [0048](0048-visual-regression-for-sdk-editors.md) |
 | [0050](0050-error-text-by-reason-and-warning-text.md) | Error text by reason, and text for warnings | Accepted; refines [0019](0019-message-catalogues.md) |
+| [0051](0051-clean-file-names.md) | Clean file names once, with `cleanFileName` | Accepted; refines [0012](0012-hostile-input-and-no-network.md) |
