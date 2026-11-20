@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-14
 - **Refines:** [0025](0025-one-browser-test-image-in-one-place.md), by using the browser test image for local runs too, and [0048](0048-visual-regression-for-sdk-editors.md), whose runner becomes the general one
+- **Amended:** 2026-11-21, to refuse browser tests outside the image, and to fix which environment variables reach the container
 
 ## Context
 
@@ -34,6 +35,25 @@ The evidence, from a harness that loads 150 slow modules in Chromium for 12 roun
 - **Docker is a prerequisite of local `pnpm verify`,** as [ADR 0048](0048-visual-regression-for-sdk-editors.md) already made it. Without it, the command fails with a one-line message saying how to fix it; it never skips.
 - **Git hooks don't change:** `pre-push` runs `verify:fast`, which has no browser tests.
 
+### Amendment, 2026-11-21: a guard, and the container's environment
+
+The decision above only changed the package scripts. Two gaps showed in use.
+
+**Nothing stopped a browser test from starting on a host.** `vitest run --project browser` or `playwright test`, typed directly or run by an editor, still ran there, and failed at random with the `ERR_NETWORK_CHANGED` symptoms above ([audio-sdk#73](https://github.com/ie-huss-martinez/audio-sdk/issues/73)). Each such failure costs an investigation before anyone notices how the tests were started.
+
+- **Every configuration that starts a browser lists a guard,** `@hussmartinez/sdk-config/testing/require-image`, as a global setup: the browser project of each Vitest configuration, and each Playwright end-to-end configuration. Outside the image it fails at once, saying to use `hm-in-image`.
+- **It's allowed where the tests are known to work:** in the image, where `HM_VISUAL_CONTAINER=1`, and in CI, where `CI` is set. CI's verify jobs already run in the image; `CI` covers jobs that run browsers on a fresh runner with no other containers, where the network doesn't change.
+- **It fires only when a browser project starts,** never while a configuration is loaded. A Vitest configuration holds the unit project too, and editors and type checkers load configurations everywhere. A check inside the configuration, as the visual preset has, would break `pnpm test` on a host.
+- **The visual preset keeps its own, stricter check:** it has no `CI` exception, because baselines must only ever be written in the image ([ADR 0048](0048-visual-regression-for-sdk-editors.md)).
+- **There's no switch to turn the guard off.** A developer who needs a headed browser on the host for debugging can set `CI=1` for that run, knowing the failures it may bring; a named bypass would end up in scripts.
+
+**`hm-in-image` passed only `CI` and `DEBUG` into the container.** End-to-end and smoke suites choose their target from the environment, and the browser diagnostics take their folder from it, so those settings were silently dropped ([audio-sdk#75](https://github.com/ie-huss-martinez/audio-sdk/pull/75)).
+
+- **The list is fixed and short:** `CI`, `DEBUG`, `HM_BROWSER_DIAGNOSTICS`, `PLAYWRIGHT_BASE_URL`, `SMOKE_BASE_URL`, `SMOKE_ENGINES` and `SMOKE_ANALYTICS`. A new variable is added here, in `sdk-config`, not per repository.
+- **Nothing else crosses,** so tokens and other secrets in a developer's shell never reach the tests, and a run doesn't depend on what one machine happens to export. That's why the list isn't a prefix such as `SMOKE_*`, and why there's no flag to pass arbitrary variables.
+- **Variables are passed by name,** so their values don't appear in the `docker` command line.
+- **`HM_BROWSER_DIAGNOSTICS` is a folder, so it must be inside the checkout,** the only part of the host the container sees. It's passed as that folder's path in the container, and a folder outside the checkout is a usage error before anything is built, instead of logs that vanish with the container.
+
 ## Alternatives considered
 
 - **A Chromium flag that ignores network changes:** none exists. Chromium's switches and features include nothing that stops its network-change notifier, nor anything that ignores particular interfaces such as Docker's bridges.
@@ -48,3 +68,5 @@ The evidence, from a harness that loads 150 slow modules in Chromium for 12 roun
 - Each browser step pays for starting a container: about 3 seconds per package once the image and volumes are warm. The first run builds the image and installs the dependencies into the volumes.
 - Every repository's CI verify jobs set `HM_VISUAL_CONTAINER: "1"`, an environment variable that `check-workflows` allows as an addition. Its name predates this decision; it marks the browser test image for every command.
 - SDKs adopt it in their own pull requests, by changing their browser scripts and their workflows' environment, and drop scripts such as video-sdk's `test:browser:image`.
+- Since the amendment, a browser test started the wrong way fails in a second with the command to use, and each SDK adds one line to each configuration that starts a browser. Debugging with a headed browser on the host needs `CI=1`.
+- Since the amendment, a suite that reads a new environment variable needs a release of `sdk-config` before it works through `hm-in-image`.

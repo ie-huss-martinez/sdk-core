@@ -17,6 +17,7 @@
     "src/testing/audio-output.js",
     "src/testing/browser-instances.js",
     "src/testing/conformance.js",
+    "src/testing/require-image.js",
     "src/testing/visual.js"
   ]
 }

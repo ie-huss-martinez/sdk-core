@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, join, posix, relative, sep } from "node:path";
+import { dirname, isAbsolute, join, posix, relative, sep } from "node:path";
 import { parse, parseAllDocuments } from "yaml";
 
 /** Exit code when the command succeeded. */
@@ -277,8 +277,62 @@ export function shellQuote(word) {
   return /^[A-Za-z0-9_./:=@%+,-]+$/.test(word) ? word : `'${word.replaceAll("'", "'\\''")}'`;
 }
 
-/** Variables passed into the container when they're set: what CI and debugging read. */
-const PASSED_ENV = ["CI", "DEBUG"];
+/** The variable whose value is a folder, which only exists in the container when it's inside the checkout. */
+const DIAGNOSTICS_ENV = "HM_BROWSER_DIAGNOSTICS";
+
+/**
+ * The variables passed into the container when they're set. Nothing else of
+ * the host's environment reaches it.
+ *
+ * - `CI`, `DEBUG`: what CI and debugging read.
+ * - `HM_BROWSER_DIAGNOSTICS`: the folder for `browserInstances`' net logs.
+ * - `PLAYWRIGHT_BASE_URL`, `SMOKE_BASE_URL`, `SMOKE_ENGINES`,
+ *   `SMOKE_ANALYTICS`: what the family's end-to-end and smoke suites read to
+ *   choose their target.
+ */
+export const PASSED_ENV = Object.freeze([
+  "CI",
+  "DEBUG",
+  DIAGNOSTICS_ENV,
+  "PLAYWRIGHT_BASE_URL",
+  "SMOKE_ANALYTICS",
+  "SMOKE_BASE_URL",
+  "SMOKE_ENGINES",
+]);
+
+/**
+ * The `--env` arguments of `docker run` for the variables in
+ * {@link PASSED_ENV} that are set. Each is passed by name, so its value
+ * never appears in the arguments, except `HM_BROWSER_DIAGNOSTICS`: it names
+ * a folder, and the container sees the checkout at `/work`, so it's passed
+ * as that folder's path there.
+ *
+ * @param {{ root: string, workdir: string, env: Record<string, string | undefined> }} options
+ *   `workdir` is the folder the command runs in, relative to the root.
+ * @returns {string[]}
+ * @throws {UsageError} When `HM_BROWSER_DIAGNOSTICS` is a folder outside the
+ *   checkout, which the container can't write to.
+ */
+export function passedEnvArgs({ root, workdir, env }) {
+  return PASSED_ENV.flatMap((name) => {
+    const value = env[name];
+    if (value === undefined) {
+      return [];
+    }
+    if (name !== DIAGNOSTICS_ENV || value === "") {
+      return ["--env", name];
+    }
+    const inCheckout = relative(root, isAbsolute(value) ? value : join(root, workdir, value))
+      .split(sep)
+      .join("/");
+    if (inCheckout === ".." || inCheckout.startsWith("../") || isAbsolute(inCheckout)) {
+      throw new UsageError(
+        `${DIAGNOSTICS_ENV} must be a folder inside the checkout, because the container sees nothing else of the host: ${value}. Use a folder such as test-results/diagnostics.`,
+      );
+    }
+    return ["--env", `${name}=${posix.join("/work", inCheckout)}`];
+  });
+}
 
 /**
  * The arguments of `docker run`: the checkout mounted at `/work`, its own
@@ -287,9 +341,10 @@ const PASSED_ENV = ["CI", "DEBUG"];
  * checkout, such as new screenshots and results, handed back to the caller.
  *
  * @param {{ root: string, tag: string, dirs: string[], owner: string, workdir: string, command: string[], env?: Record<string, string | undefined> }} options
- *   `workdir` is relative to the root; `env` is where `CI` and `DEBUG` are
- *   passed on from, `process.env` by default.
+ *   `workdir` is relative to the root; `env` is where the variables in
+ *   {@link PASSED_ENV} are passed on from, `process.env` by default.
  * @returns {string[]}
+ * @throws {UsageError} As {@link passedEnvArgs} does.
  */
 export function dockerRunArgs({ root, tag, dirs, owner, workdir, command, env = process.env }) {
   const volume = (/** @type {string} */ name, /** @type {string} */ path) => [
@@ -314,7 +369,7 @@ export function dockerRunArgs({ root, tag, dirs, owner, workdir, command, env = 
     "--ipc=host",
     "--env",
     "HUSKY=0",
-    ...PASSED_ENV.flatMap((name) => (env[name] === undefined ? [] : ["--env", name])),
+    ...passedEnvArgs({ root, workdir, env }),
     "--volume",
     `${root}:/work`,
     ...volume("root-modules", "node_modules"),
@@ -394,9 +449,12 @@ export function runInImage({
     return run(program, args, { cwd });
   }
   const root = findRoot(cwd);
+  const workdir = relative(root, cwd).split(sep).join("/");
   const image = readImage(root);
   const { name, pnpm: version } = readWorkspace(root);
   const pnpm = readPinnedPnpm(root, version);
+  // Checked before anything is built, so a wrong folder fails at once.
+  passedEnvArgs({ root, workdir, env });
   if (run("docker", ["info", "--format", "{{.ServerVersion}}"], { cwd: root, quiet: true }) !== 0) {
     log(
       "Docker isn't available. Install Docker (https://docs.docker.com/get-docker/), start it, and run this again.",
@@ -413,7 +471,6 @@ export function runInImage({
     log("the browser test image didn't build.");
     return EXIT_FAILED;
   }
-  const workdir = relative(root, cwd).split(sep).join("/");
   const dirs = workspacePackageDirs(root);
   return run("docker", dockerRunArgs({ root, tag, dirs, owner, workdir, command, env }), {
     cwd: root,

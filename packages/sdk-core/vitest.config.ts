@@ -23,6 +23,8 @@ export default defineConfig(({ mode }) => {
           test: {
             name: "browser",
             include: ["src/**/*.browser.test.ts"],
+            // Refuses to start outside the browser test image (ADR 0049).
+            globalSetup: ["@hussmartinez/sdk-config/testing/require-image"],
             browser: {
               enabled: true,
               headless: true,
