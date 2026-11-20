@@ -88,8 +88,14 @@ That's why some of the 1/255 pairs pass even at 0, and it means no threshold mak
 - **The preset sets `threshold: 0.0038`** beside `maxDiffPixelRatio: 0`: a pixel counts as changed from the smallest difference above one level per channel, and no changed pixel is allowed. That's what ADR 0048's "no tolerance" can mean on a renderer that differs from itself by one level.
 - **A test pins the meaning of the number.** It runs Playwright's comparison on small generated images, and asserts that a difference of 1/255 passes while 2/255 on all channels, a colour token one step apart, and a light 1 px border moved by 1 px all fail. An upgrade of Playwright that changes its comparison then fails `sdk-config`'s tests, not an SDK's baselines.
 - **The threshold isn't raised to make a test pass.** A capture that differs by more than this is a finding: a real change, or nondeterminism to remove at its source or mask ([ADR 0048](0048-visual-regression-for-sdk-editors.md)'s masks and its per-state allowance for codec frames are unchanged).
-- **An update keeps every committed baseline that its new capture still matches.** It captures as it does today: the baselines are moved aside and every state is captured afresh, so a capture must be stable to be written, and baselines no state produces any more disappear. Then each new capture is compared with the committed file it would replace, by Playwright's own comparison with the preset's settings, and where they match, the committed file is put back. A re-capture within the threshold leaves the repository unchanged, so every image in a pull request's diff is one the comparison itself calls different.
+- **An update keeps every committed baseline that its own assertion still accepts.** "Accepts" means what it means in a test run: Playwright's comparison with that assertion's effective settings, the preset's or, for a codec frame, the state's own allowance. A re-capture the test would pass leaves the repository unchanged, so every image in a pull request's diff is one its test calls different.
 - **An update never writes an unstable capture.** A state whose consecutive screenshots don't settle fails the update, as it fails a test, and the previous baselines are restored.
+- **An update still removes stale baselines,** those no state produces any more.
+- **How, in two passes over the suite,** which takes seconds:
+  1. with the committed baselines in place, Playwright decides, assertion by assertion, which ones the new capture no longer matches;
+  2. with the baselines moved aside, as today, every state is captured afresh, which must be stable, and shows which baselines are still produced.
+
+  The result is the fresh capture for each baseline the first pass rejected or that is new, the committed file for every other baseline still produced, and nothing for the rest.
 - **The anti-aliasing exception is accepted for now, and written down.** Changes confined to edge pixels can pass. If one is ever missed in practice, option D's comparator is the next step, and this record is superseded.
 - **Option E is worth an investigation of its own,** not a condition of this decision: if rendering can be made deterministic, the threshold drops to 0 in a later record.
 
@@ -103,7 +109,8 @@ Beyond the options above:
 
 - **`threshold: 0` with a few differing pixels allowed,** such as `maxDiffPixels: 100`: it absorbs the noise by count, not by size, so a 10 × 10 icon could change completely. The noise is small in size and unpredictable in count, which is the opposite shape.
 - **Playwright's other comparator, `ssim-cie94`:** it's reached through an underscore-prefixed, undocumented option, so it can change or go without notice. It wasn't measured for this record.
-- **Playwright's `--update-snapshots=changed` for the update:** it looks like exactly the wanted mode, but with a baseline in place it writes the last capture and passes even when consecutive captures never matched each other, where a capture without a baseline must be stable (read in Playwright 1.65.0's `toHaveScreenshot` and `expectScreenshot`). It would commit a baseline from a page that hadn't settled, silently. Capturing afresh and comparing afterwards keeps the stability check.
+- **Playwright's `--update-snapshots=changed` alone for the update:** it looks like exactly the wanted mode, but with a baseline in place it writes the last capture and passes even when consecutive captures never matched each other, where a capture without a baseline must be stable (read in Playwright 1.65.0's `toHaveScreenshot` and `expectScreenshot`). It would commit a baseline from a page that hadn't settled, silently, and it leaves stale baselines behind. It's used only as the first pass above, to decide what changed; what gets written comes from the second.
+- **Comparing the new and committed files afterwards, with the preset's settings:** simpler, but it would ignore a state's own allowance, and rewrite a codec frame's baseline that its test accepts.
 - **Retrying a failed comparison:** it would pass noise eventually, and pass a real difference never, at the cost of a slower and less honest test.
 
 ## Consequences
