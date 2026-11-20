@@ -10,7 +10,7 @@ Every package has a size budget per entry point: a ceiling on the entry's built 
 
 Two repositories already answer it. `ui`'s [ADR 0012](https://github.com/ie-huss-martinez/ui/blob/main/docs/adr/0012-size-budgets-per-import.md) added budgets for what an application imports from its React entry, bundled and minified as a host's bundler would, after seven pull requests in two days had each raised the entry's budget without anyone learning what an application paid. audio-sdk has the same for its core entry: eight scenarios, from one factory to "an editor's set". The other packages, sdk-core included, have ceilings only.
 
-For this record, every entry in the family was measured the way those budgets measure: an application's import from the built entry, bundled and minified with esbuild, with packages (React, `ui`, sdk-core) left out and lazy chunks excluded, then compressed with brotli. The method reproduces `ui`'s own numbers: `Button` at 0.76 kB, as its ADR 0012 has it.
+For this record, every entry in the family was measured the way those budgets measure: an application's import from the built entry, bundled and minified with esbuild, with packages (React, `ui`, sdk-core) left out and lazy chunks excluded, by marking both as external to the bundle, then compressed with brotli. The method reproduces `ui`'s own numbers: `Button` at 0.76 kB, as its ADR 0012 has it.
 
 ### What applications ship, against what the ceilings count
 
@@ -67,13 +67,18 @@ Measured from each repository's local build, at sdk-core 589ea92, ui 917a4a9, pd
 ### How they're measured
 
 - **As an application ships it:** the import bundled and minified, through `size-limit` with `@size-limit/esbuild` and its `import` option, compressed with brotli.
-- **Without what the host already has:** other packages are left out, meaning React, `ui`, sdk-core and any third-party dependency, each of which has budgets of its own or is the host's. Chunks loaded later with `import()` are left out too, and have their own budgets.
+- **Without what's counted elsewhere,** and only that:
+  - **the host's own packages,** `react` and `react-dom`;
+  - **the family's packages,** such as `ui` and sdk-core, which have budgets of their own and are installed once ([ADR 0047](0047-one-copy-of-each-family-package.md));
+  - **chunks loaded later with `import()`,** which have budgets of their own. A bundler without code splitting would inline them, so each scenario lists them to leave out, as the measurements here did.
+- **Everything else an import brings is counted,** including a third-party runtime dependency, if a package ever has one. Today the family's packages bundle their engines into lazy chunks ([ADR 0028](0028-third-party-engines.md)) and have no other runtime dependency, so nothing escapes both lists. A pull request that adds one sees it in its scenarios.
 - **One bundler is enough.** `ui` measured esbuild and Rolldown within 0.31 kB of each other in every scenario, neither consistently larger.
 - **`sdk-config` provides the helper,** beside `entryFiles`: a function that returns a scenario's `size-limit` entry from its name, the built entry, the imports and the limit, with the family's list of what to leave out. Two repositories have written that function already, differently.
 
 ### How they're used in review
 
 - **Every budget is raised in the pull request that needs it,** to its measurement rounded up to the next 0.5 kB, with a table of the scenarios that moved, before and after, and the reason. That's the rule `ui` and the SDKs already follow for ceilings.
+- **A floor's limit is tighter: its measurement rounded up to the next 0.1 kB.** A floor exists to notice small leaks, and half a kilobyte of slack would hide one. The table shows every floor's measured size, moved or not, because a limit only bounds a change and the measurement shows it.
 - **A scenario's budget is never raised for code the scenario doesn't import.** If adding a component moves the floor, or another component's scenario, the change leaked, and the leak is fixed.
 - **Review reads the scenarios; the ceiling is the backstop.** When a pull request raises an entry's ceiling and only the scenarios that import the new code move, the raise is expected growth, and the table shows it.
 - **`build.test.ts` keeps checking which code ships.** A scenario can stay within budget while shipping the wrong code, so the size budgets don't replace those tests.
@@ -82,7 +87,7 @@ Measured from each repository's local build, at sdk-core 589ea92, ui 917a4a9, pd
 
 They're findings, for image-sdk, audio-sdk and video-sdk, and adopting this rule doesn't wait for them:
 
-- **Each adopts with its floor as measured today,** so it can't get worse, and with an issue that names the calls holding the code.
+- **Each adopts with its floor as measured today,** rounded up to the next 0.1 kB, so it can't grow by more than that unnoticed, and with an issue that names the calls holding the code.
 - **The likely fix is the one sdk-core uses:** mark top-level calls that have no side effects, such as `defineTool(…)` and `createContext(…)`, as `/* @__PURE__ */`, or move them into the function that needs them. It hasn't been tried in those repositories; the floor scenario is what will show whether it worked, and its budget comes down in the pull request that fixes it.
 
 ## Alternatives considered
