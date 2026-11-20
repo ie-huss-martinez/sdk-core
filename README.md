@@ -19,8 +19,8 @@ You need Node 24 (see [`.node-version`](.node-version)) and pnpm. The exact pnpm
 
 ```sh
 pnpm install       # also installs the git hooks
-pnpm verify        # everything CI runs
 pnpm verify:fast   # the subset the pre-push hook runs
+pnpm verify        # everything CI runs; it needs Docker for the browser tests
 ```
 
 `pnpm verify` runs, in order:

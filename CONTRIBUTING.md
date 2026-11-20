@@ -16,11 +16,13 @@ You need Node 24 (see [`.node-version`](.node-version)) and pnpm. pnpm switches 
 
 ```sh
 pnpm install       # also installs the git hooks
-pnpm verify        # everything CI runs
 pnpm verify:fast   # the subset the pre-push hook runs
+pnpm verify        # everything CI runs; it needs Docker for the browser tests
 ```
 
-The git hooks run on their own: a secret scan and lint of staged files on commit, a Conventional Commits check of each message, and `pnpm verify:fast` on push. Don't bypass them with `--no-verify`. If a hook is wrong or too slow, fix it in its own pull request.
+The git hooks run on their own: a secret scan, a hidden-character check and lint of staged files on commit, a Conventional Commits check of each message, and `pnpm verify:fast` on push. Don't bypass them with `--no-verify`. If a hook is wrong or too slow, fix it in its own pull request.
+
+**The hooks are the local bar, and CI is the merge gate** ([ADR 0053](docs/adr/0053-ci-is-the-merge-gate.md)). You don't need to run the full `pnpm verify` before opening a pull request: CI runs it on every push, on all three browser engines. Run it, or part of it, when you want to diagnose a failure or reproduce one from CI.
 
 ## Make a change
 
@@ -35,9 +37,11 @@ The git hooks run on their own: a secret scan and lint of staged files on commit
 - **A browser test that fails without a reason,** such as "The iframe … did not become ready" or a module worker that "failed to load": rerun it with Chromium's diagnostics, and attach the failed requests to the issue ([video-sdk#55](https://github.com/ie-huss-martinez/video-sdk/issues/55)). Repositories whose `browser.instances` come from `sdk-config`'s `browserInstances` support this:
 
   ```sh
-  HM_BROWSER_DIAGNOSTICS=/tmp/hm-diagnostics DEBUG=pw:browser pnpm test:browser 2>&1 | tee /tmp/hm-diagnostics/run.log
-  pnpm exec hm-netlog-errors /tmp/hm-diagnostics/*.netlog.json
+  HM_BROWSER_DIAGNOSTICS=test-results/diagnostics DEBUG=pw:browser pnpm test:browser 2>&1 | tee diagnostics.log
+  pnpm exec hm-netlog-errors test-results/diagnostics/*.netlog.json
   ```
+
+  The folder must be inside the checkout, because the tests run in the browser test image.
 - **Public API:** fully typed, with TSDoc on every export.
 - **Dependencies:** add one only when it's clearly worth it, and justify it in the pull request.
 - **Docs:** keep the READMEs accurate.
@@ -46,21 +50,23 @@ The git hooks run on their own: a secret scan and lint of staged files on commit
 ## Open a pull request
 
 - **Title:** a Conventional Commit of at most 65 characters, because it becomes the commit title on `main`, followed by ` (#NNN)`, and that must fit in 72. Put explanations in the description. The `pr-title` check enforces both.
-- **Description:** fill in the template: what changed, why, and how you tested it, including the result of `pnpm verify`. Be as detailed as is useful; the description doesn't go into git history.
+- **Description:** fill in the template: what changed, why, and how you tested it, including what you ran locally and what you left to CI. Be as detailed as is useful; the description doesn't go into git history.
 - **Changeset:** add one if the pull request changes what a package publishes. See [Changesets](#changesets).
-- **Checks:** `verify`, `changeset` and `pr-title` must pass, and the branch must be up to date with `main`.
+- **Checks:** `verify`, `changeset` and `pr-title` must pass on the current head, and the branch must be up to date with `main`.
+- **Automated review:** CodeRabbit reviews every pull request, and reviews again after each push. Its check on the pull request shows when the review of the current head has finished. Fix or answer each thread it opens, then resolve it.
 
-Mark the pull request ready once `pnpm verify` passes locally. CI is the final gate, not a substitute for running it yourself.
+The pull request is ready once it's up to date with `main`, the checks are green, the automated review of the current head has finished, and no review thread is open. A check that fails only in CI is a real failure: find its cause, and don't loosen the test or rerun until it passes.
 
 ## How pull requests are reviewed
 
 **The author of a pull request never merges it.** A separate reviewer does, after reviewing it:
 
 - **The diff:** the reviewer reads the full diff and checks it against `STANDARDS.md` and the ADRs.
-- **The checks:** CI must be green. For any change to code, the reviewer also runs `pnpm verify` independently, rather than relying on the author's result.
+- **The checks:** CI must be green on the pull request's current head, and that's the gate ([ADR 0053](docs/adr/0053-ci-is-the-merge-gate.md)). The reviewer runs checks locally to investigate a failure or a doubt, not as a second gate.
+- **The review threads:** none is open. Each was fixed, or answered with a reason.
 - **Not "almost right":** if the scope, title or quality isn't right, the pull request is fixed before it's merged.
 
-**Coding agents** open one pull request at a time. After opening it, they stop and report the link, a short summary and their `pnpm verify` result. They start the next change only after the pull request is merged, from an up-to-date `main`. An agent never reviews or merges a pull request it wrote; author and reviewer are always different sessions.
+**Coding agents** open one pull request at a time. Once it's up to date with `main`, its checks are green, the automated review of its current head has finished and its review threads are resolved, they stop and report the link, the head commit, the CI run and a short summary. They start the next change only after the pull request is merged, from an up-to-date `main`. An agent never reviews or merges a pull request it wrote; author and reviewer are always different sessions.
 
 ## How pull requests are merged
 
