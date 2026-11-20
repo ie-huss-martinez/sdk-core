@@ -22,8 +22,8 @@ export function applyVisualVariant(page: import("@playwright/test").Page, varian
  * - Chromium only, in a 1280 × 800 viewport at a device scale factor of 1,
  *   with the `en-US` locale, the `UTC` time zone and reduced motion.
  * - Screenshots without animations or carets, compared with
- *   {@link visualComparison}: no pixel may differ by more than one level per
- *   channel.
+ *   {@link visualComparison}: no pixel may be further from its baseline than
+ *   one level on every channel is.
  * - Baselines in `e2e/visual/__screenshots__/<spec>/`, named
  *   `<name>-chromium-linux.png`, and never written by a plain run.
  *
@@ -52,17 +52,26 @@ export function defineVisualConfig({ baseURL, webServer }: VisualConfigOptions):
 export const VISUAL_CONTAINER_ENV: "HM_VISUAL_CONTAINER";
 /**
  * How strictly a screenshot is compared with its baseline (sdk-core ADR
- * 0054): no pixel may differ, and a pixel differs from the smallest
- * difference above one level per channel.
+ * 0054): no pixel may differ, and a pixel differs when its colour is further
+ * from the baseline's than one level (1/255) on every channel is.
  *
- * Playwright counts a pixel when its YIQ colour distance from the baseline's
- * is over `35215 × threshold²`. One level (1/255) on every channel measures
- * 0.5053, and `35215 × 0.0038² = 0.5085`, so 0.0038 is the smallest
- * threshold, to four decimal places, that doesn't count it. Two levels on
- * every channel measure 2.02 and are counted. The pinned browser test image
- * renders the same page with differences of one level on some anti-aliased
- * edges, so a threshold of 0 fails unchanged pages, and Playwright's default,
- * 0.2, doesn't count a colour token one step apart.
+ * "Further" is Playwright's measure, not a bound per channel: a distance in
+ * YIQ colour space, which weighs channels as the eye does. Playwright counts
+ * a pixel when that distance is over `35215 × threshold²`. One level on every
+ * channel measures 0.5053, and `35215 × 0.0038² = 0.5085`, so 0.0038 is the
+ * smallest threshold, to four decimal places, that doesn't count it.
+ *
+ * What that accepts and refuses, as measured:
+ * - accepted: one level on any one channel, and 24 of the 26 ways to move
+ *   the three channels by at most one level; two levels on blue alone, to
+ *   which the eye is least sensitive;
+ * - refused: red one level one way with green and blue one level the other;
+ *   two levels on red, on green, or on every channel; three on blue.
+ *
+ * The pinned browser test image renders the same page with differences of
+ * one level on some anti-aliased edges, so a threshold of 0 fails unchanged
+ * pages, and Playwright's default, 0.2, doesn't count a colour token one
+ * step apart.
  *
  * `visual-comparison.test.js` is this number's specification: it runs
  * Playwright's own comparison, and fails if an upgrade changes what these

@@ -78,6 +78,13 @@ const cases = [
   ["text a few shades lighter", fill([0, 0, 0]), fill([52, 52, 52]), visualComparison],
   ["a light border moved by a pixel", line(20, [0xe2, 0xe8, 0xf0]), line(21, [0xe2, 0xe8, 0xf0]), visualComparison],
   ["a single pixel two levels off", grey(128), png(W, H, (x, y) => (x === 7 && y === 9 ? [130, 130, 130] : [128, 128, 128])), visualComparison],
+  // The edges of the measure: a colour distance, not a bound per channel.
+  ["two levels on blue alone", fill([128, 128, 128]), fill([128, 128, 130]), visualComparison],
+  ["three levels on blue alone", fill([128, 128, 128]), fill([128, 128, 131]), visualComparison],
+  ["two levels on green alone", fill([128, 128, 128]), fill([128, 130, 128]), visualComparison],
+  ["one level, red against green and blue", fill([128, 128, 128]), fill([129, 127, 127]), visualComparison],
+  ["one level, green and blue against red", fill([128, 128, 128]), fill([127, 129, 129]), visualComparison],
+  ["one level, red and green against blue", fill([128, 128, 128]), fill([129, 129, 127]), visualComparison],
   ["identical images", grey(128), grey(128), visualComparison],
   // What Playwright's default lets through, which is why the preset sets its own.
   ["default: a colour token one step apart", fill([0x25, 0x63, 0xeb]), fill([0x3b, 0x82, 0xf6]), { maxDiffPixelRatio: 0 }],
@@ -155,8 +162,17 @@ describe("the visual preset's comparison, as Playwright applies it (ADR 0054)", 
     "text a few shades lighter",
     "a light border moved by a pixel",
     "a single pixel two levels off",
+    "two levels on green alone",
+    "three levels on blue alone",
   ])("refuses %s", (name) => {
     expect(outcome[name]).toBe("failed");
+  });
+
+  it("measures colour distance, not each channel: blue weighs least, and red against green and blue most", () => {
+    expect(outcome["two levels on blue alone"]).toBe("passed");
+    expect(outcome["one level, red and green against blue"]).toBe("passed");
+    expect(outcome["one level, red against green and blue"]).toBe("failed");
+    expect(outcome["one level, green and blue against red"]).toBe("failed");
   });
 
   it("is needed: Playwright's default accepts a token step and a moved light border", () => {
@@ -169,6 +185,6 @@ describe("the visual preset's comparison, as Playwright applies it (ADR 0054)", 
   });
 
   it("ran every case", () => {
-    expect(Object.keys(outcome)).toHaveLength(13);
+    expect(Object.keys(outcome)).toHaveLength(19);
   });
 });

@@ -4,7 +4,7 @@
 
 Compare screenshots strictly, and keep unchanged baselines when updating (sdk-core ADR 0054). This is a minor release because it can fail visual tests that pass today: take it in a pull request of its own.
 
-**The visual preset now sets `threshold: 0.0038`** beside `maxDiffPixelRatio: 0`, exported as `visualComparison`. Until now it left Playwright's default threshold of 0.2, under which a colour token one step apart, text a few shades lighter, or a light border moved by a pixel counted as no difference at all. Now a pixel differs from the smallest difference above one level (1/255) per channel, which is the noise the browser test image shows between two captures of the same page.
+**The visual preset now sets `threshold: 0.0038`** beside `maxDiffPixelRatio: 0`, exported as `visualComparison`. Until now it left Playwright's default threshold of 0.2, under which a colour token one step apart, text a few shades lighter, or a light border moved by a pixel counted as no difference at all. Now a pixel counts as changed when its colour is further from the baseline's than one level (1/255) on every channel is, by the perceived-colour distance Playwright measures (YIQ colour space). It isn't a bound per channel: one level on any channel passes, and so does two levels on blue alone, while two levels on red, on green or on every channel are refused. One level is the noise the browser test image shows between two captures of the same page.
 
 **What to expect when you update:** run `pnpm test:visual`. Every failure is a difference the old threshold was hiding. For each one, look at the diff image in `e2e/test-results/visual/`:
 

@@ -290,6 +290,67 @@ describe("runInContainer with --update (ADR 0054)", () => {
       expect(await baselines(root)).toEqual({ empty: "empty-v1", open: "open-v2" });
     });
 
+    it("ignores a backup that was cut short while being copied, and keeps the baselines", async () => {
+      const root = await repository({
+        [`${DIR}/${name("empty")}`]: "empty-v1",
+        [`${DIR}/${name("open")}`]: "open-v1",
+        // Only one of the two files had been copied.
+        [`${BASELINES}.previous-incomplete/editor.spec.ts/${name("empty")}`]: "empty-v1",
+      });
+      /** @type {string[]} */
+      const messages = [];
+
+      expect(
+        runInContainer({ root, update: false, run: () => 0, log: (m) => messages.push(m) }),
+      ).toBe(0);
+      expect(await baselines(root)).toEqual({ empty: "empty-v1", open: "open-v1" });
+      expect(await readdir(join(root, "e2e", "visual"))).toEqual(["__screenshots__"]);
+      expect(messages).toEqual([]);
+    });
+
+    it("keeps a proven result when the old backup's deletion was cut short", async () => {
+      const root = await repository({
+        [`${DIR}/${name("empty")}`]: "empty-v2",
+        [`${DIR}/${name("open")}`]: "open-v2",
+        // Half of the old baselines, left behind while being deleted.
+        [`${BASELINES}.discard/editor.spec.ts/${name("open")}`]: "open-v1",
+        [`${BASELINES}.fresh/editor.spec.ts/${name("empty")}`]: "empty-v2",
+      });
+
+      expect(runInContainer({ root, update: false, run: () => 0 })).toBe(0);
+      expect(await baselines(root)).toEqual({ empty: "empty-v2", open: "open-v2" });
+      expect(await readdir(join(root, "e2e", "visual"))).toEqual(["__screenshots__"]);
+    });
+
+    it("only ever restores from a complete backup: it's renamed into place, and out of it", async () => {
+      const root = await committed({ empty: "empty-v1", open: "open-v1" });
+      const capture = { empty: "empty-v2", open: "open-v1" };
+      /** @type {string[][]} */
+      const seen = [];
+      const { run } = playwright({ captures: [capture, capture, capture] });
+
+      const status = runInContainer({
+        root,
+        update: true,
+        run: (command, args, options) => {
+          // During every pass, the backup is complete and under its final name.
+          seen.push(readdirSync(join(root, "e2e", "visual")).sort());
+          expect(readdirSync(join(root, `${BASELINES}.previous`, "editor.spec.ts")).sort()).toEqual(
+            [name("empty"), name("open")],
+          );
+          return run(command, args, options);
+        },
+      });
+
+      expect(status).toBe(0);
+      expect(seen).toEqual([
+        ["__screenshots__", "__screenshots__.previous"],
+        ["__screenshots__.previous"],
+        ["__screenshots__", "__screenshots__.fresh", "__screenshots__.previous"],
+      ]);
+      expect(await readdir(join(root, "e2e", "visual"))).toEqual(["__screenshots__"]);
+    });
+
     it("removes the leftovers of an interrupted first capture, which had no baselines before it", async () => {
       const root = await repository({
         [`${DIR}/${name("empty")}`]: "half-written",

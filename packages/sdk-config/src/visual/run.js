@@ -77,8 +77,17 @@ function filesIn(dir) {
  */
 export function runInContainer({ root, update, run = defaultRun, log = () => {} }) {
   const baselines = join(root, BASELINES);
-  /** The baselines as they were when the update started. Its presence marks an unfinished update. */
+  /**
+   * The baselines as they were when the update started. Its presence marks an
+   * unfinished update, and it's what a restore puts back, so it only ever
+   * exists complete: it's built under `incomplete` and renamed, and renamed
+   * to `discard` before it's deleted.
+   */
   const previous = `${baselines}.previous`;
+  /** A backup still being copied. Never restored from. */
+  const incomplete = `${baselines}.previous-incomplete`;
+  /** A backup that's no longer needed, being deleted. Never restored from. */
+  const discard = `${baselines}.discard`;
   /** The second pass's captures. */
   const fresh = `${baselines}.fresh`;
   const restore = () => {
@@ -93,19 +102,26 @@ export function runInContainer({ root, update, run = defaultRun, log = () => {} 
       }
     }
   };
-  if (existsSync(previous) || existsSync(fresh)) {
+  // Folders that only ever hold copies: an update stopped while making its
+  // backup, or after its result was proven. The baselines are whole either way.
+  rmSync(incomplete, { recursive: true, force: true });
+  rmSync(discard, { recursive: true, force: true });
+  if (existsSync(previous)) {
     log("an earlier update didn't finish; the baselines are put back as they were before it.");
-    restore();
   }
+  restore();
   if (!update) {
     return run("pnpm", PLAYWRIGHT, { cwd: root });
   }
 
   const before = filesIn(baselines);
-  mkdirSync(previous, { recursive: true });
+  // Copied under another name and renamed once complete, so a copy that's cut
+  // short is never mistaken for the baselines to put back.
+  mkdirSync(incomplete, { recursive: true });
   if (before.length > 0) {
-    cpSync(baselines, previous, { recursive: true });
+    cpSync(baselines, incomplete, { recursive: true });
   }
+  renameSync(incomplete, previous);
   const fail = (/** @type {number} */ status, /** @type {string} */ message) => {
     restore();
     log(`${message} The baselines are unchanged.`);
@@ -158,7 +174,10 @@ export function runInContainer({ root, update, run = defaultRun, log = () => {} 
       "the updated baselines didn't pass a test run: a state renders differently from one run to the next by more than its assertion allows.",
     );
   }
-  rmSync(previous, { recursive: true, force: true });
+  // The result is proven. The backup leaves the name a restore looks for in
+  // one step, so a deletion that's cut short can't bring back half of it.
+  renameSync(previous, discard);
+  rmSync(discard, { recursive: true, force: true });
   rmSync(fresh, { recursive: true, force: true });
   const removed = before.filter((file) => !produced.includes(file)).length;
   log(

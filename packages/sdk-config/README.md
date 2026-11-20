@@ -369,7 +369,9 @@ for (const variant of visualVariants) {
 
 Baselines go to `e2e/visual/__screenshots__/<spec>/<state>-<theme>-<density>-chromium-linux.png`. Mask content that varies by nature with `toHaveScreenshot`'s `mask` option. A state may set `maxDiffPixelRatio` up to `0.001` only for a frame drawn by a codec that can't be masked, with a comment naming the cause.
 
-**How strictly they're compared** ([ADR 0054](../../docs/adr/0054-visual-comparison-tolerance.md)): no pixel may differ, and a pixel differs from the smallest difference above one level (1/255) per channel. The preset sets `maxDiffPixelRatio: 0` and `threshold: 0.0038`, exported as `visualComparison`.
+**How strictly they're compared** ([ADR 0054](../../docs/adr/0054-visual-comparison-tolerance.md)): no pixel may differ, and a pixel counts as changed when its colour is further from the baseline's than one level (1/255) on every channel is, by the perceived-colour distance Playwright measures. The preset sets `maxDiffPixelRatio: 0` and `threshold: 0.0038`, exported as `visualComparison`.
+
+- **It's a colour distance, not a bound per channel.** Playwright measures distance in YIQ space, which weighs channels as the eye does. Measured: one level on any channel passes, as do 24 of the 26 ways to move the three channels by at most one level, and two levels on blue alone. Red one level one way with green and blue the other is refused, and so are two levels on red, on green or on every channel.
 
 - **Why not Playwright's default threshold, 0.2:** it doesn't count a colour token one step apart, text a few shades lighter, or a light border moved by a pixel.
 - **Why not 0:** the same page, captured twice in the same image, differs by one level on some anti-aliased edges, so tests would fail at random.
