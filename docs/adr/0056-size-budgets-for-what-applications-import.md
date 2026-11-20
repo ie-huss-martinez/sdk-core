@@ -31,6 +31,8 @@ For this record, every entry in the family was measured the way those budgets me
 | learn-sdk | core | 15.68 kB | 11.15 kB | `emptyProgress`: 0.26 kB | `createLearnPlayer`: 4.93 kB |
 | learn-sdk | React | 14.28 kB | 10.66 kB | `playerCatalogue`: 3.60 kB | `LearnPlayer`: 10.56 kB |
 
+The measurements left every package out, so learn-sdk's rows don't include `ts-fsrs`, which the rule below would count.
+
 Measured from each repository's local build, at sdk-core 589ea92, ui 917a4a9, pdf-sdk b992a00, audio-sdk 785d2fc, video-sdk 6cafcc7, image-sdk d97a998 and learn-sdk e2afec8, without changing them.
 
 ### What this shows
@@ -71,7 +73,7 @@ Measured from each repository's local build, at sdk-core 589ea92, ui 917a4a9, pd
   - **the host's own packages,** `react` and `react-dom`;
   - **the family's packages,** such as `ui` and sdk-core, which have budgets of their own and are installed once ([ADR 0047](0047-one-copy-of-each-family-package.md));
   - **chunks loaded later with `import()`,** which have budgets of their own. A bundler without code splitting would inline them, so each scenario lists them to leave out, as the measurements here did.
-- **Everything else an import brings is counted,** including a third-party runtime dependency, if a package ever has one. Today the family's packages bundle their engines into lazy chunks ([ADR 0028](0028-third-party-engines.md)) and have no other runtime dependency, so nothing escapes both lists. A pull request that adds one sees it in its scenarios.
+- **Everything else an import brings is counted,** including a third-party runtime dependency. The family's packages bundle their engines into lazy chunks ([ADR 0028](0028-third-party-engines.md)), and one has a runtime dependency beside the family's: learn-sdk's `ts-fsrs`. Its scenarios count it, and a pull request that adds such a dependency anywhere sees it in its scenarios.
 - **One bundler is enough.** `ui` measured esbuild and Rolldown within 0.31 kB of each other in every scenario, neither consistently larger.
 - **`sdk-config` provides the helper,** beside `entryFiles`: a function that returns a scenario's `size-limit` entry from its name, the built entry, the imports and the limit, with the family's list of what to leave out. Two repositories have written that function already, differently.
 
