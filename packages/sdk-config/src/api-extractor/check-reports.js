@@ -53,13 +53,25 @@ function readExports(report) {
   const kinds = new Map();
   /** @type {Map<string, string>} */
   const locals = new Map();
+  // A class merged with a namespace or an interface of the same name is
+  // declared more than once. It stays a class, which is the kind that's
+  // checked for private members.
+  const add = (
+    /** @type {Map<string, string>} */ map,
+    /** @type {string} */ name,
+    /** @type {string} */ kind,
+  ) => {
+    if (map.get(name) !== "class") {
+      map.set(name, kind);
+    }
+  };
   for (const [, kind = "", name = ""] of report.matchAll(EXPORTED_DECLARATION)) {
-    kinds.set(name, kind);
+    add(kinds, name, kind);
   }
   /** @type {Map<string, string>} */
   const declared = new Map();
   for (const [, kind = "", name = ""] of report.matchAll(LOCAL_DECLARATION)) {
-    declared.set(name, kind);
+    add(declared, name, kind);
   }
   for (const [, list = ""] of report.matchAll(EXPORT_LIST)) {
     for (const entry of list.split(",")) {

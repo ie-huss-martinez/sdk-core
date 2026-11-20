@@ -99,6 +99,25 @@ describe("exportedSymbols, for declarations renamed away from a global", () => {
     });
   });
 
+  it("keeps a class a class when a namespace or interface merges with it", () => {
+    const report = [
+      "class Scheduler_2 {",
+      "}",
+      "namespace Scheduler_2 {",
+      "}",
+      "export { Scheduler_2 as Scheduler }",
+      "export interface Session {",
+      "export class Session {",
+      "export namespace Session {",
+    ].join("\n");
+
+    expect(Object.fromEntries(exportedSymbols(report))).toEqual({
+      Scheduler_2: "class",
+      Scheduler: "class",
+      Session: "class",
+    });
+  });
+
   it("keeps an exported declaration's kind over an export list's", () => {
     const report = ["export class Session {", "export { Other as Session }"].join("\n");
 
