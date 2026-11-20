@@ -91,11 +91,13 @@ That's why some of the 1/255 pairs pass even at 0, and it means no threshold mak
 - **An update keeps every committed baseline that its own assertion still accepts.** "Accepts" means what it means in a test run: Playwright's comparison with that assertion's effective settings, the preset's or, for a codec frame, the state's own allowance. A re-capture the test would pass leaves the repository unchanged, so every image in a pull request's diff is one its test calls different.
 - **An update never writes an unstable capture.** A state whose consecutive screenshots don't settle fails the update, as it fails a test, and the previous baselines are restored.
 - **An update still removes stale baselines,** those no state produces any more.
-- **How, in two passes over the suite,** which takes seconds:
-  1. with the committed baselines in place, Playwright decides, assertion by assertion, which ones the new capture no longer matches;
-  2. with the baselines moved aside, as today, every state is captured afresh, which must be stable, and shows which baselines are still produced.
+- **An update is all or nothing.** The committed baselines change only once every pass below has finished and passed. If a pass fails, or the update is cancelled or stopped part-way, the baselines are exactly as they were before it started; an update that finds a previous one's leftovers restores them first. Stale baselines are removed only at the end, never because a pass didn't reach a state.
+- **How, in three passes over the suite,** each of which takes seconds:
+  1. **What changed:** with the committed baselines in place, Playwright decides, assertion by assertion, which ones the new capture no longer matches.
+  2. **Fresh captures:** with the baselines moved aside, as today, every state is captured afresh, which must be stable, and shows which baselines are still produced.
+  3. **Proof:** the result is assembled, the fresh capture for each baseline the first pass rejected or that is new, the committed file for every other baseline still produced, and nothing for the rest, and the suite runs once more against it, as a plain test run. It must pass.
 
-  The result is the fresh capture for each baseline the first pass rejected or that is new, the committed file for every other baseline still produced, and nothing for the rest.
+  The third pass is what makes the result trustworthy: whatever the page did between the first two, the baselines that get committed are ones a test run has just accepted. If it fails, a state renders differently from one run to the next by more than its assertion allows, which is a finding, and the update fails without changing anything.
 - **The anti-aliasing exception is accepted for now, and written down.** Changes confined to edge pixels can pass. If one is ever missed in practice, option D's comparator is the next step, and this record is superseded.
 - **Option E is worth an investigation of its own,** not a condition of this decision: if rendering can be made deterministic, the threshold drops to 0 in a later record.
 
