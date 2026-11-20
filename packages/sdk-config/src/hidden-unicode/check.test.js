@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -192,12 +192,35 @@ describe("checkHiddenUnicode", () => {
     expect(result.checked).toBe(1);
   });
 
-  it("refuses a file outside the repository, or one it can't read", async () => {
+  it("skips tracked entries that aren't regular files: a submodule's folder and a symbolic link", async () => {
+    const inner = await repository({ "inner.ts": `x${ZWSP}\n` });
     const root = await repository({ "a.ts": "ok\n" });
+    // A gitlink entry, as a submodule is recorded, without cloning one. Git
+    // doesn't look the commit up, so any object name will do.
+    await mkdir(join(root, "vendor", "inner"), { recursive: true });
+    execFileSync(
+      "git",
+      ["update-index", "--add", "--cacheinfo", `160000,${"1".repeat(40)},vendor/inner`],
+      { cwd: root },
+    );
+    await symlink(join(inner, "inner.ts"), join(root, "link.ts"));
+    await symlink(join(root, "missing.ts"), join(root, "dangling.ts"));
+    execFileSync("git", ["add", "link.ts", "dangling.ts"], { cwd: root });
+
+    expect(checkHiddenUnicode({ root })).toEqual({ exitCode: 0, checked: 1, problems: [] });
+    expect(checkHiddenUnicode({ root, files: ["vendor/inner", "link.ts"] }).checked).toBe(0);
+  });
+
+  it("refuses a file outside the repository, or one it can't read", async () => {
+    const root = await repository({ "a.ts": "ok\n", "sub/b.ts": "ok\n" });
 
     expect(() => checkHiddenUnicode({ root, files: [join(root, "..", "elsewhere.ts")] })).toThrow(
       UsageError,
     );
+    expect(() => checkHiddenUnicode({ root, files: ["sub/../../elsewhere.ts"] })).toThrow(
+      /is outside/,
+    );
+    expect(checkHiddenUnicode({ root, files: ["sub/../a.ts", "./sub/b.ts"] }).checked).toBe(2);
     expect(() => checkHiddenUnicode({ root, files: ["missing.ts"] })).toThrow(/Can't read/);
   });
 

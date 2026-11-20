@@ -168,6 +168,31 @@ describe("noUncheckedAbortListener (ADR 0052)", () => {
     ).resolves.toEqual([]);
   });
 
+  it("doesn't count a check inside an abort handler, which is what never runs", async () => {
+    await expect(
+      reported([
+        "export function inside(signal: AbortSignal, stop: () => void) {",
+        '  signal.addEventListener("abort", () => {',
+        "    if (signal.aborted) stop();",
+        "  });",
+        "}",
+        "export function insideAnother(signal: AbortSignal, other: AbortSignal, stop: () => void) {",
+        "  if (other.aborted) return;",
+        '  other.addEventListener("abort", () => {',
+        "    if (signal.aborted) stop();",
+        "  });",
+        '  signal.addEventListener("abort", stop);',
+        "}",
+        "export function both(signal: AbortSignal, stop: () => void) {",
+        "  if (signal.aborted) return;",
+        '  signal.addEventListener("abort", () => {',
+        "    if (signal.aborted) stop();",
+        "  });",
+        "}",
+      ]),
+    ).resolves.toEqual([2, 11]);
+  });
+
   it("leaves other events and other methods alone", async () => {
     await expect(
       reported([

@@ -1,7 +1,8 @@
 // An "abort" listener added to a signal that has already aborted never fires
 // (sdk-core ADR 0052). So code that listens must also look: this reports a
 // listener unless a function around it reads the same signal's `aborted`, or
-// calls `throwIfAborted` on it or with it.
+// calls `throwIfAborted` on it or with it. A check inside an abort handler
+// doesn't count: on an aborted signal, the handler is what never runs.
 //
 // It can't see a check made by a caller. When that's the case, say so:
 //   // biome-ignore lint/plugin/noUncheckedAbortListener: call() refuses an aborted signal.
@@ -19,6 +20,11 @@ or {
       `$signal.throwIfAborted()`,
       `$signal?.throwIfAborted()`,
       `throwIfAborted($signal)`
+    } as $check where {
+      not $check <: within or {
+        `$_.addEventListener("abort", $...)`,
+        `$_?.addEventListener("abort", $...)`
+      }
     }
   },
   register_diagnostic(span=$listener, message="An abort listener never fires if its signal has already aborted. Check the signal's `aborted` in the same function, call `throwIfAborted`, or combine signals with `AbortSignal.any()` instead of listening.")

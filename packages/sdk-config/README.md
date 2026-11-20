@@ -59,13 +59,20 @@ function wait(ms: number, signal: AbortSignal): Promise<void> {
       reject(signal.reason);
       return;
     }
-    const timer = setTimeout(resolve, ms);
-    signal.addEventListener("abort", () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort); // or a long-lived signal keeps every finished wait's listener
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
   });
 }
 ```
 
-- **What counts as looking:** reading `signal.aborted`, calling `signal.throwIfAborted()`, or calling a `throwIfAborted(signal)` helper, such as sdk-core's, in the same function or one that encloses it. The signal must be written the same way in both places, such as `options.signal`.
+- **What counts as looking:** reading `signal.aborted`, calling `signal.throwIfAborted()`, or calling a `throwIfAborted(signal)` helper, such as sdk-core's, in the same function or one that encloses it. The signal must be written the same way in both places, such as `options.signal`. A check inside an abort handler doesn't count, because on an aborted signal the handler is what never runs.
 - **Better, don't listen:** `AbortSignal.any([signal, other])` combines signals without listeners, and `AbortSignal.timeout()` needs none.
 - **It can't see a check made by a caller.** When the function's contract is that it's never given an aborted signal, say so where the listener is:
 

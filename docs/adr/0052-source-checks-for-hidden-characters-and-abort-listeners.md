@@ -23,14 +23,14 @@ Both checks ship in `sdk-config`, so every repository gets the same ones.
   - invisible characters: U+00AD (soft hyphen), U+180E, U+200B–U+200D, U+2060–U+2064, U+FEFF (the byte order mark);
   - line and paragraph separators, U+2028 and U+2029, which only some tools break lines at;
   - tag characters, U+E0000–U+E007F, invisible copies of ASCII.
-- **Every tracked text file is checked,** not only code: Markdown, YAML, JSON and configuration are read by reviewers and by agents too. Binary files, meaning those with a NUL byte or that aren't valid UTF-8, are skipped.
+- **Every tracked text file is checked,** not only code: Markdown, YAML, JSON and configuration are read by reviewers and by agents too. Binary files, meaning those with a NUL byte or that aren't valid UTF-8, are skipped, and so is anything that isn't a regular file: a submodule's folder, or a symbolic link, whose target is checked where it lives.
 - **Source writes these characters as escapes,** such as `\u202E`, or builds them with `String.fromCodePoint()`. That includes emoji joined with U+200D.
 - **Only test data may hold them,** listed by path in `.hm-hidden-unicode-ignore` at the repository's root. There's no default list and no inline marker: an exception is a reviewed line in one file.
 - **It runs in two places:** in each repository's `lint` script, so `pnpm verify` and CI fail on it, and in the lint-staged preset, so a commit that adds one is refused where it's made.
 
 ### `noUncheckedAbortListener`: listen for `abort` only where the signal is checked
 
-- **The rule,** a GritQL plugin in the Biome preset: an `addEventListener("abort", …)` call is reported unless a function that contains it also reads the same signal's `aborted`, calls its `throwIfAborted()`, or passes it to a `throwIfAborted()` helper.
+- **The rule,** a GritQL plugin in the Biome preset: an `addEventListener("abort", …)` call is reported unless a function that contains it also reads the same signal's `aborted`, calls its `throwIfAborted()`, or passes it to a `throwIfAborted()` helper. A check inside an abort handler doesn't count, since the handler is what never runs.
 - **Prefer not to listen:** `AbortSignal.any()` combines signals, and `AbortSignal.timeout()` makes one, without listeners. [ADR 0020](0020-file-policy.md)'s `withProcessingTime` already works that way.
 - **A check made by a caller is invisible to the rule.** That case takes a `biome-ignore lint/plugin/noUncheckedAbortListener` comment with the reason, which a reviewer can then hold the code to.
 - **It's a plugin, not a separate command,** so it runs wherever Biome does (the editor, `lint`, the commit hook), and is suppressed the way every Biome rule is.

@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { isAbsolute, join, matchesGlob, relative, sep } from "node:path";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
+import { isAbsolute, join, matchesGlob, relative, resolve, sep } from "node:path";
 
 /** Exit code when no file has a hidden character. */
 export const EXIT_OK = 0;
@@ -114,14 +114,20 @@ export function findHiddenCharacters(text) {
 }
 
 /**
- * Reads a file as text, if it is text: valid UTF-8 without a NUL byte, which
- * is how git tells binary files too. Images, fonts and archives aren't
- * checked.
+ * Reads a file as text, if it is text: a regular file of valid UTF-8 without
+ * a NUL byte, which is how git tells binary files too. Images, fonts and
+ * archives aren't checked. Nor is anything else git can track: a submodule
+ * is a folder, and a symbolic link's target is checked where it lives, or
+ * is outside the repository.
  *
  * @param {string} path
- * @returns {string | undefined} The text, or `undefined` for a binary file.
+ * @returns {string | undefined} The text, or `undefined` for a binary file
+ *   or an entry that isn't a regular file.
  */
 export function readText(path) {
+  if (!lstatSync(path).isFile()) {
+    return undefined;
+  }
   const bytes = readFileSync(path);
   if (bytes.includes(0)) {
     return undefined;
@@ -181,7 +187,8 @@ export function readIgnoreFile(root) {
  */
 export function checkHiddenUnicode({ root, files, ignore = readIgnoreFile(root) }) {
   const paths = (files ?? trackedFiles(root)).map((file) => {
-    const path = (isAbsolute(file) ? relative(root, file) : file).split(sep).join("/");
+    // Resolved first, so a path that climbs out through ".." is seen as outside.
+    const path = relative(root, resolve(root, file)).split(sep).join("/");
     if (path === ".." || path.startsWith("../") || isAbsolute(path)) {
       throw new UsageError(`${file} is outside ${root}.`);
     }
