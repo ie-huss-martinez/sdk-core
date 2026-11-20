@@ -495,17 +495,25 @@ Every package has a size budget per entry point, measured by `size-limit` on the
 
 ```js
 // .size-limit.js
+import { globSync } from "node:fs";
 import { entryFiles } from "@hussmartinez/sdk-config/size";
 
 export default [
   { name: "Core (.)", path: entryFiles("dist/index.js"), brotli: true, limit: "17 kB" },
   { name: "React (./react)", path: entryFiles("dist/react.js"), brotli: true, limit: "24 kB" },
-  // A chunk loaded later with import() has a budget of its own.
-  { name: "Worker (lazy)", path: "dist/lazy/worker-*.js", brotli: true, limit: "60 kB" },
+  // A chunk loaded later with import() has a budget of its own, counted the
+  // same way: the chunk and what it imports statically. Its name has a hash.
+  {
+    name: "Worker (lazy)",
+    path: globSync("dist/lazy/worker-*.js").flatMap(entryFiles),
+    brotli: true,
+    limit: "60 kB",
+  },
 ];
 ```
 
 - **Only what the entry loads up front:** a chunk that only another entry imports isn't counted, and neither is one loaded later with `import()`, which an application receives only when it uses what the chunk holds.
+- **A lazy chunk is an entry of its own.** Give it a budget through `entryFiles` too, as above, so the budget covers the chunk and whatever it imports statically. A plain glob counts only the files it matches, which is the whole cost only when the chunk imports nothing, as a worker inlined as a string does.
 - **It replaces a copied function.** If your `.size-limit.js` has its own `loadedFiles`, delete it: `entryFiles("dist/index.js")` returns what `loadedFiles("index.js")` did.
 - **It fails clearly before a build:** `dist/index.js doesn't exist. Build the package first.`
 
