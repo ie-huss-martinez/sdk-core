@@ -104,10 +104,12 @@ So that any repository can repeat the numbers here, and check a fix:
 
 1. Build the package.
 2. Bundle a two-line module that imports the names from the built entry's file and uses them, such as `import { imageEditorMessages } from "./dist/react.js"; console.log(imageEditorMessages);`, with esbuild: `bundle`, `minify`, `format: "esm"`, tree shaking on.
-3. Mark as external every import that isn't a relative path, which leaves out packages, and every path under the package's lazy chunks.
+3. Mark as external what the rule above leaves out, and nothing else: `react`, `react-dom`, the family's packages (`@hussmartinez/*`), and every path under the package's lazy chunks. A third-party runtime dependency stays in the bundle and is counted, so a fix that moved code into one would show its real cost.
 4. Compress the output with brotli at quality 11, and read its length.
 
 Bundling the same module without `minify` and reading what's left at the top level shows which calls keep code alive.
+
+The table in this record left every package out, which gives the same numbers for every package but learn-sdk, the only one with such a dependency.
 
 `sdk-config` ships this as a command with the helper, so no repository writes it again: it prints what each export of a built entry costs on its own, cheapest first. Until that release, the four steps above are the method.
 
