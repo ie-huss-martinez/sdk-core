@@ -1,6 +1,6 @@
 # 0054. How strictly screenshots are compared
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-21
 - **Refines:** [ADR 0048](0048-visual-regression-for-sdk-editors.md)'s "no tolerance by default", by setting the per-pixel threshold that rule left at Playwright's default, and by making an update rewrite only the baselines that changed
 
@@ -83,10 +83,11 @@ That's why some of the 1/255 pairs pass even at 0, and it means no threshold mak
 
 ## Decision
 
-**Recommended: C, and the update change below. The reviewer rules before any code is written.**
+**Option C: a threshold of 0.0038, with no differing pixel allowed, and an update that keeps unchanged baselines.**
 
 - **The preset sets `threshold: 0.0038`** beside `maxDiffPixelRatio: 0`: a pixel counts as changed from the smallest difference above one level per channel, and no changed pixel is allowed. That's what ADR 0048's "no tolerance" can mean on a renderer that differs from itself by one level.
-- **A test pins the meaning of the number.** It runs Playwright's comparison on small generated images, and asserts that a difference of 1/255 passes while 2/255 on all channels, a colour token one step apart, and a light 1 px border moved by 1 px all fail. An upgrade of Playwright that changes its comparison then fails `sdk-config`'s tests, not an SDK's baselines.
+- **The number is written as a literal,** with its derivation in a comment beside it.
+- **A test is its specification.** It runs Playwright's comparison on small generated images, and asserts that a difference of 1/255 on every channel passes, while 2/255 on every channel, a colour token one step apart, and a light 1 px border moved by 1 px all fail. An upgrade of Playwright that changes its comparison then fails `sdk-config`'s tests, not an SDK's baselines.
 - **The threshold isn't raised to make a test pass.** A capture that differs by more than this is a finding: a real change, or nondeterminism to remove at its source or mask ([ADR 0048](0048-visual-regression-for-sdk-editors.md)'s masks and its per-state allowance for codec frames are unchanged).
 - **An update keeps every committed baseline that its own assertion still accepts.** "Accepts" means what it means in a test run: Playwright's comparison with that assertion's effective settings, the preset's or, for a codec frame, the state's own allowance. A re-capture the test would pass leaves the repository unchanged, so every image in a pull request's diff is one its test calls different.
 - **An update never writes an unstable capture.** A state whose consecutive screenshots don't settle fails the update, as it fails a test, and the previous baselines are restored.
@@ -98,12 +99,13 @@ That's why some of the 1/255 pairs pass even at 0, and it means no threshold mak
   3. **Proof:** the result is assembled, the fresh capture for each baseline the first pass rejected or that is new, the committed file for every other baseline still produced, and nothing for the rest, and the suite runs once more against it, as a plain test run. It must pass.
 
   The third pass is what makes the result trustworthy: whatever the page did between the first two, the baselines that get committed are ones a test run has just accepted. If it fails, a state renders differently from one run to the next by more than its assertion allows, which is a finding, and the update fails without changing anything.
-- **The anti-aliasing exception is accepted for now, and written down.** Changes confined to edge pixels can pass. If one is ever missed in practice, option D's comparator is the next step, and this record is superseded.
-- **Option E is worth an investigation of its own,** not a condition of this decision: if rendering can be made deterministic, the threshold drops to 0 in a later record.
+- **A known limit that no threshold fixes: anti-aliased pixels aren't compared.** Playwright leaves out every pixel its comparison classifies as anti-aliasing, at any threshold, and offers no setting for it. So a change confined to edge pixels, such as a slightly different rasterisation of text or of a rounded corner, can pass these tests. It's accepted, because closing it means replacing Playwright's comparison (option D). If such a change is ever missed in practice, that's the next step, in a record that supersedes this one.
+- **Deterministic rendering (option E) isn't pursued now.** It's a possible later step, if the noise ever grows beyond one level. Measuring it would take capturing every baseline many times in the browser test image, in each repository, under each candidate Chromium setting, and comparing the captures with each other: repeated heavy runs, which today's noise doesn't justify. If rendering were made deterministic, the threshold would drop to 0 in a later record.
 
 ### Adoption
 
-Each SDK updates `sdk-config`. Its existing baselines stay as they are: a baseline that passes today at 0.2 either passes at 0.0038, or was hiding a difference that should be looked at. The first run after the update shows which.
+- **The change ships as a minor release of `sdk-config`,** because it can fail an SDK's existing tests.
+- **Each SDK adopts it in a pull request of its own.** A baseline that passes today at 0.2 either passes at 0.0038, or was hiding a difference. The first run after the update shows which, and the adoption pull request settles each one: it fixes what the difference revealed, or re-captures the baseline when the committed one was simply out of date.
 
 ## Alternatives considered
 
