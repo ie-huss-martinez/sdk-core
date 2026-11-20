@@ -2,6 +2,13 @@
 // project's use of the testing entries, through the package's own exports, as
 // a repository imports them. A declaration that's missing or wrong fails
 // here, as TS7016 did before they shipped.
+
+import {
+  type EntrySize,
+  entryFiles,
+  formatKilobytes,
+  measureEntry,
+} from "@hussmartinez/sdk-config/size";
 import {
   type AudioOutput,
   audioOutput,
@@ -63,4 +70,11 @@ export function guard(): string | undefined {
   const problem: string | undefined = browserTestImageProblem({ [marker]: "1", [bypass]: "" });
   requireBrowserTestImage();
   return problem;
+}
+
+/** The size entry, as a repository's .size-limit.js and scripts use it. */
+export async function sizes(): Promise<string> {
+  const files: string[] = entryFiles("dist/index.js");
+  const size: EntrySize = await measureEntry("dist/index.js");
+  return `${files.length} files, ${formatKilobytes(size.built)}, ${formatKilobytes(size.minified)}`;
 }

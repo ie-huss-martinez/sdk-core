@@ -21,6 +21,7 @@
     "hm-in-image": "./src/image/cli.js",
     "hm-lint-deps": "./src/dependency-cruiser/cli.js",
     "hm-netlog-errors": "./src/netlog/cli.js",
+    "hm-size": "./src/size/cli.js",
     "hm-test-visual": "./src/visual/cli.js"
   },
   "exports": {
@@ -32,6 +33,10 @@
     "./lint-staged": "./src/lint-staged/index.js",
     "./package.json": "./package.json",
     "./secretlint": "./src/secretlint/index.js",
+    "./size": {
+      "types": "./src/size/entry.d.ts",
+      "default": "./src/size/entry.js"
+    },
     "./stylelint": "./src/stylelint/index.js",
     "./testing/audio-output": {
       "types": "./src/testing/audio-output.d.ts",
@@ -94,6 +99,7 @@
     "secretlint": "catalog:",
     "stylelint": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependenciesMeta": {
@@ -130,6 +136,9 @@
     "typescript": {
       "optional": true
     },
+    "vite": {
+      "optional": true
+    },
     "vitest": {
       "optional": true
     }
@@ -157,6 +166,7 @@
     "secretlint": "catalog:",
     "stylelint": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:"
   }
 }

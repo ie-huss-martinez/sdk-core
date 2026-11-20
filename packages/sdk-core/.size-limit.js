@@ -1,24 +1,26 @@
+import { entryFiles } from "@hussmartinez/sdk-config/size";
+
 /**
- * Size budgets per entry point (ADR 0015): the brotli size of each built
- * entry, with the shared chunks it loads. They measure the unminified files in
- * dist, an upper bound: applications ship less, because their bundler minifies
- * and drops what they don't import.
+ * Size budgets per entry point (ADR 0015, ADR 0055): the brotli size of each
+ * built entry, with the chunks it loads statically. They measure the files
+ * as built, a ceiling: about a fifth above their minified size, and
+ * applications ship less still, because their bundler drops what they don't
+ * import. `pnpm exec hm-size dist/index.js dist/element.js` prints both.
  *
- * The built JavaScript has no TSDoc comments, so these measure code. Each
- * budget leaves about 20% above the size when it was set. The element
- * entry's is tight on purpose: it ships inside every SDK's standalone script
- * (ADR 0040).
+ * The build drops comments, so these measure code. Each budget leaves about
+ * 20% above the size when it was set. The element entry's is tight on
+ * purpose: it ships inside every SDK's standalone script (ADR 0040).
  */
 export default [
   {
     name: "Headless runtime (.), with the shared code it loads",
-    path: ["dist/index.js", "dist/shared/*.js"],
+    path: entryFiles("dist/index.js"),
     brotli: true,
     limit: "17 kB",
   },
   {
     name: "Element base (./element), with the shared code it loads",
-    path: ["dist/element.js", "dist/shared/*.js"],
+    path: entryFiles("dist/element.js"),
     brotli: true,
     limit: "3 kB",
   },

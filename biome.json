@@ -2,6 +2,10 @@
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "extends": ["@hussmartinez/sdk-config/biome"],
   "files": {
-    "includes": ["**", "!packages/sdk-config/src/testing/*.d.ts"]
+    "includes": [
+      "**",
+      "!packages/sdk-config/src/testing/*.d.ts",
+      "!packages/sdk-config/src/size/*.d.ts"
+    ]
   }
 }
