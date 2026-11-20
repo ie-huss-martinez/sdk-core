@@ -96,7 +96,7 @@ They're findings, for image-sdk, audio-sdk and video-sdk, and adopting this rule
 
 Beyond the options above:
 
-- **Budgets for every export:** a number per export is a table nobody reads, and most are under 1 kB. The floor covers the small ones together, and the heavy ones are named.
+- **Budgets for every export:** a number per export is a table nobody reads, and most are under 1 kB. The heavy ones are named, and the small ones are left to the ceiling, with the limit that follows.
 - **Each editor application's real import list as the scenario:** that list changes in another repository, without a pull request here, and a budget here can't follow it. `ui` ruled the same.
 - **Counting the host's packages in:** a scenario would then move whenever `ui` or sdk-core releases, with no change in the package measured.
 
@@ -106,4 +106,5 @@ Beyond the options above:
 - A leak into everything fails a budget in the pull request that causes it. Three exist today, found only by measuring for this record.
 - Each repository adds `@size-limit/esbuild`, which brings esbuild as a development dependency. `ui` and audio-sdk have it.
 - Each repository gains a handful of budgets to keep. The rule that a floor isn't raised makes the important one cheap to keep.
+- **A small export that grows on its own isn't measured as an import.** The floor catches code that reaches every import, not growth inside one small export that no scenario imports: such an export could grow by half a kilobyte and move only the entry's ceiling. It gets a scenario of its own when it passes about 2 kB, and a package may add one sooner for an export it wants watched.
 - image-sdk, audio-sdk and video-sdk each have a fix to make before their React entries serve hosts that compose their own interface.
