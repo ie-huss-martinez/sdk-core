@@ -25,6 +25,7 @@ Install, as devDependencies, the tools for the presets you use. They are optiona
 | `hm-check-playwright-image` | Nothing |
 | `testing/visual`, `hm-test-visual` | `@playwright/test`, and Docker outside the browser test image |
 | `testing/browser-instances`, `hm-netlog-errors` | `@vitest/browser-playwright` |
+| `testing/require-image` | Nothing |
 
 ### TypeScript
 
@@ -211,11 +212,59 @@ browser: {
 - **`hm-netlog-errors <netlog>...`** lists the requests that failed, one line each: Chromium's error, such as `ERR_EMPTY_RESPONSE`, and the URL. It reads a log that a killed browser left unfinished, and leaves out WebSocket upgrades, which aren't failures. It exits with 0 once the logs are read, and with 2 for a usage error or a log it can't read.
 
 ```sh
-HM_BROWSER_DIAGNOSTICS=/tmp/hm-diagnostics DEBUG=pw:browser pnpm test:browser 2>&1 | tee /tmp/hm-diagnostics/run.log
-pnpm exec hm-netlog-errors /tmp/hm-diagnostics/*.netlog.json
+HM_BROWSER_DIAGNOSTICS=test-results/diagnostics DEBUG=pw:browser pnpm test:browser 2>&1 | tee diagnostics.log
+pnpm exec hm-netlog-errors test-results/diagnostics/*.netlog.json
 ```
 
+The folder must be inside the checkout, because `pnpm test:browser` runs in the browser test image through `hm-in-image`, and the container sees nothing else of the host. A relative folder is taken from where the command runs, so the net logs of a package's tests land in that package. `hm-in-image` refuses a folder outside the checkout before it starts anything.
+
 It's test code only: import it only from Vitest configurations.
+
+### Testing: `require-image`
+
+A global setup that refuses to start browser tests outside the pinned browser test image ([ADR 0049](../../docs/adr/0049-local-browser-tests-in-the-pinned-image.md)). On a host, Docker's network changes make Chromium abort requests, and tests fail at random with errors that say nothing about the change under test. With the guard, running them the wrong way fails at once, with what to run instead:
+
+```text
+Error: Browser tests run only in the pinned browser test image (sdk-core ADR 0049).
+On a host, Docker's network changes make Chromium abort requests, and tests fail at random.
+Run them through hm-in-image, as the package scripts do: "pnpm test:browser" or "pnpm test:e2e",
+or "pnpm exec hm-in-image <command>" for another command.
+To debug with a headed browser on this machine, set HM_ALLOW_HOST_BROWSER=1 for that run. Never use it to check a change.
+```
+
+List it by its package path, in every configuration that starts a browser:
+
+```ts
+// vitest.config.ts: in the browser project only.
+{
+  test: {
+    name: "browser",
+    include: ["src/**/*.browser.test.ts"],
+    globalSetup: ["@hussmartinez/sdk-config/testing/require-image"],
+    browser: { enabled: true, headless: true, provider: playwright(), instances: browserInstances(browsers) },
+  },
+}
+
+// e2e/playwright.config.ts
+export default defineConfig({
+  globalSetup: "@hussmartinez/sdk-config/testing/require-image",
+  // …
+});
+```
+
+- **It runs only when a browser project starts.** A global setup belongs to its project, so `vitest run --project unit` on a host never reaches it, and the configuration itself loads anywhere, as editors and `tsc` need.
+- **It allows the image and CI:** `HM_VISUAL_CONTAINER=1`, which `hm-in-image` and CI's verify jobs set, or `CI` set to anything but an empty string, `0` or `false`.
+- **`HM_ALLOW_HOST_BROWSER=1` lets them start on a host, for debugging only,** such as watching a headed browser, which needs your display:
+
+  ```sh
+  HM_ALLOW_HOST_BROWSER=1 pnpm exec vitest --project browser --browser.headless=false
+  ```
+
+  The guard prints a notice when it's used. It changes nothing else, unlike setting `CI`, which also switches engines, retries and reporters. A run on a host can fail at random, so it never shows that a change works: don't put the variable in a script, a hook or a workflow. `hm-in-image` doesn't pass it on.
+- **The visual configuration needs nothing added:** `defineVisualConfig` already refuses outside the image, and more strictly, because baselines must never be written anywhere else.
+- **`browserTestImageProblem(env)`** returns the same message, or `undefined`, for a script of your own that starts a browser. `CONTAINER_ENV` and `ALLOW_HOST_ENV` are the two variables' names.
+
+It needs nothing installed.
 
 ### Testing: `audioOutput`
 
@@ -369,7 +418,17 @@ Usage: hm-in-image [--] <command> [<argument>...]
   - it installs the locked dependencies into the container's own `node_modules` and pnpm store volumes, so the host's binaries never mix with the container's;
   - it runs the command through `pnpm exec`, in the same folder of the checkout, and hands every file the container wrote back to you.
 
-  `CI` and `DEBUG` are passed on. Without Docker, it fails with a one-line message saying how to fix it; it never skips.
+  Without Docker, it fails with a one-line message saying how to fix it; it never skips.
+- **Only these variables reach the container,** when they're set, and nothing else of your environment:
+
+  | Variable | For |
+  |---|---|
+  | `CI`, `DEBUG` | What CI and debugging read, such as `DEBUG=pw:browser` |
+  | `HM_BROWSER_DIAGNOSTICS` | The folder for [`browserInstances`](#testing-browserinstances)' net logs. It must be inside the checkout, and is passed as that folder's path in the container; a folder outside the checkout is a usage error |
+  | `PLAYWRIGHT_BASE_URL`, `SMOKE_BASE_URL` | The origin an end-to-end or smoke suite tests instead of its own server |
+  | `SMOKE_ENGINES`, `SMOKE_ANALYTICS` | Which engines a smoke suite runs, and whether it checks analytics |
+
+  A URL on your machine's `localhost` isn't reachable from the container, which has its own. Point these at a deployed origin, or let the suite start its server inside the container.
 - **Inside the image,** where `HM_VISUAL_CONTAINER=1`, it runs the command directly. CI's verify jobs set that variable, because they run in the image already.
 - **One image and one set of volumes per repository,** `hm-browser-<workspace name>`, shared with `hm-test-visual`.
 

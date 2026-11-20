@@ -26,6 +26,8 @@ export default defineConfig(({ mode }) => {
           test: {
             name: "browser",
             include: ["src/**/*.browser.test.js"],
+            // Refuses to start outside the browser test image (ADR 0049).
+            globalSetup: ["./src/testing/require-image.js"],
             browser: {
               enabled: true,
               headless: true,

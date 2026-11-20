@@ -19,6 +19,7 @@ it("ships declarations for the testing entries that match their JSDoc", async ()
       "audio-output.d.ts",
       "browser-instances.d.ts",
       "conformance.d.ts",
+      "require-image.d.ts",
       "visual.d.ts",
     ]) {
       const generated = await readFile(join(out, "testing", name), "utf8");

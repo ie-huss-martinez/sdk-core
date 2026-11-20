@@ -16,6 +16,11 @@ import {
   readConformance,
   schemaValidator,
 } from "@hussmartinez/sdk-config/testing/conformance";
+import requireBrowserTestImage, {
+  ALLOW_HOST_ENV,
+  browserTestImageProblem,
+  CONTAINER_ENV,
+} from "@hussmartinez/sdk-config/testing/require-image";
 import type { TestContext } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -49,4 +54,13 @@ export async function usage(): Promise<void> {
   const wrong: number = file.subject;
 
   void [skipped, ratio, errors, same, problem, wrong];
+}
+
+/** The guard, as a script of a repository's own would use it. */
+export function guard(): string | undefined {
+  const marker: "HM_VISUAL_CONTAINER" = CONTAINER_ENV;
+  const bypass: "HM_ALLOW_HOST_BROWSER" = ALLOW_HOST_ENV;
+  const problem: string | undefined = browserTestImageProblem({ [marker]: "1", [bypass]: "" });
+  requireBrowserTestImage();
+  return problem;
 }

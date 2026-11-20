@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmod, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,6 +12,8 @@ import {
   findRoot,
   imageTag,
   NATIVE_PNPM_CHECK,
+  PASSED_ENV,
+  passedEnvArgs,
   readImage,
   readPinnedPnpm,
   readWorkspace,
@@ -281,6 +283,115 @@ describe("dockerRunArgs", () => {
     expect(passed).toEqual(["HUSKY=0", "CI", "DEBUG"]);
   });
 
+  it("passes on what the end-to-end and smoke suites read, by name, so values stay out of the arguments", () => {
+    const env = {
+      SMOKE_ENGINES: "chromium,firefox",
+      SMOKE_BASE_URL: "https://pdf.example.test",
+      SMOKE_ANALYTICS: "1",
+      PLAYWRIGHT_BASE_URL: "https://staging.example.test",
+      NPM_TOKEN: "secret",
+      HOME: "/home/me",
+    };
+
+    expect(passedEnvArgs({ root: "/home/me/image-sdk", workdir: "", env })).toEqual([
+      "--env",
+      "PLAYWRIGHT_BASE_URL",
+      "--env",
+      "SMOKE_ANALYTICS",
+      "--env",
+      "SMOKE_BASE_URL",
+      "--env",
+      "SMOKE_ENGINES",
+    ]);
+    expect(PASSED_ENV).toEqual([
+      "CI",
+      "DEBUG",
+      "HM_BROWSER_DIAGNOSTICS",
+      "PLAYWRIGHT_BASE_URL",
+      "SMOKE_ANALYTICS",
+      "SMOKE_BASE_URL",
+      "SMOKE_ENGINES",
+    ]);
+  });
+
+  describe("HM_BROWSER_DIAGNOSTICS, a folder", () => {
+    const root = "/home/me/image-sdk";
+    /** @param {string} value @param {string} [workdir] */
+    const passed = (value, workdir = "packages/image-sdk") =>
+      passedEnvArgs({ root, workdir, env: { HM_BROWSER_DIAGNOSTICS: value } });
+
+    it.each([
+      ["test-results/diagnostics", "/work/packages/image-sdk/test-results/diagnostics"],
+      ["./netlog/", "/work/packages/image-sdk/netlog"],
+      ["../../netlog", "/work/netlog"],
+      ["/home/me/image-sdk/netlog", "/work/netlog"],
+      ["/home/me/image-sdk", "/work"],
+    ])("passes %j as the same folder in the container, %j", (value, inContainer) => {
+      expect(passed(value)).toEqual(["--env", `HM_BROWSER_DIAGNOSTICS=${inContainer}`]);
+    });
+
+    it.each([
+      ["/tmp/netlog"],
+      ["../../../netlog"],
+      ["/home/me/image-sdk-other/netlog"],
+      ["/home/me"],
+    ])("refuses %j, a folder outside the checkout", (value) => {
+      expect(() => passed(value)).toThrow(UsageError);
+      expect(() => passed(value)).toThrow(/must be a folder inside the checkout/);
+    });
+
+    describe("through symbolic links", () => {
+      /** A checkout with links: one out of it, one within it, and one to it from outside. */
+      async function linked() {
+        const base = await mkdtemp(join(tmpdir(), "hm-in-image-links-"));
+        scratch.push(base);
+        const checkout = join(base, "checkout");
+        await mkdir(join(checkout, "packages", "a", "results"), { recursive: true });
+        await mkdir(join(base, "elsewhere"));
+        await symlink(join(base, "elsewhere"), join(checkout, "out"));
+        await symlink(join(checkout, "packages", "a", "results"), join(checkout, "in"));
+        await symlink(checkout, join(base, "alias"));
+        return { base, checkout };
+      }
+      /** @param {string} root @param {string} value */
+      const through = (root, value) =>
+        passedEnvArgs({ root, workdir: "", env: { HM_BROWSER_DIAGNOSTICS: value } });
+
+      it("refuses a link in the checkout that points out of it, and folders beneath it", async () => {
+        const { checkout } = await linked();
+
+        expect(() => through(checkout, "out")).toThrow(/must be a folder inside the checkout/);
+        expect(() => through(checkout, "out/not-made-yet/netlog")).toThrow(UsageError);
+      });
+
+      it("passes a link within the checkout as the folder it points to", async () => {
+        const { checkout } = await linked();
+
+        expect(through(checkout, "in/netlog")).toEqual([
+          "--env",
+          "HM_BROWSER_DIAGNOSTICS=/work/packages/a/results/netlog",
+        ]);
+      });
+
+      it("accepts the checkout's folders when the checkout itself is reached through a link", async () => {
+        const { base, checkout } = await linked();
+
+        expect(through(join(base, "alias"), join(checkout, "netlog"))).toEqual([
+          "--env",
+          "HM_BROWSER_DIAGNOSTICS=/work/netlog",
+        ]);
+        expect(through(checkout, join(base, "alias", "netlog"))).toEqual([
+          "--env",
+          "HM_BROWSER_DIAGNOSTICS=/work/netlog",
+        ]);
+      });
+    });
+
+    it("passes an empty value on as it is, which leaves the diagnostics off", () => {
+      expect(passed("")).toEqual(["--env", "HM_BROWSER_DIAGNOSTICS"]);
+    });
+  });
+
   it("runs the command, quoted, in its folder, then hands root-owned files back without failing the run", () => {
     const script = /** @type {string} */ (args.at(-1));
     expect(script).toContain(
@@ -385,6 +496,34 @@ describe("runInImage", () => {
     });
     expect(status).toBe(1);
     expect(messages).toEqual([expect.stringMatching(/^Docker isn't available\. Install Docker/)]);
+  });
+
+  it("refuses a diagnostics folder outside the checkout before building anything", async () => {
+    const root = await repository();
+
+    expect(() =>
+      runInImage({
+        cwd: root,
+        command: ["vitest"],
+        owner: "1000:1000",
+        env: { HM_BROWSER_DIAGNOSTICS: "/tmp/netlog" },
+        run: recorder(),
+      }),
+    ).toThrow(UsageError);
+    expect(calls).toEqual([]);
+  });
+
+  it("passes the diagnostics folder on as its path in the container", async () => {
+    const root = await repository();
+    runInImage({
+      cwd: join(root, "packages", "image-sdk"),
+      command: ["vitest"],
+      owner: "1000:1000",
+      env: { HM_BROWSER_DIAGNOSTICS: "netlog" },
+      run: recorder(),
+    });
+
+    expect(calls[2]?.args).toContain("HM_BROWSER_DIAGNOSTICS=/work/packages/image-sdk/netlog");
   });
 
   it("needs a command", async () => {

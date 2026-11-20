@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { CONTAINER_ENV, EXIT_OK, EXIT_USAGE, runInImage, UsageError } from "./run.js";
+import { CONTAINER_ENV, EXIT_OK, EXIT_USAGE, PASSED_ENV, runInImage, UsageError } from "./run.js";
 
 const USAGE = `Usage: hm-in-image [--] <command> [<argument>...]
 
@@ -11,7 +11,12 @@ repository; the command runs in the same folder of the checkout.
 Outside the image it needs Docker: it builds the image with the repository's
 pnpm, installs the locked dependencies into the container's own volumes, and
 runs the command there. Inside it, as in CI's verify job, where
-${CONTAINER_ENV}=1, it runs the command directly. CI and DEBUG are passed on.
+${CONTAINER_ENV}=1, it runs the command directly.
+
+Only these variables are passed into the container, when they're set:
+  ${PASSED_ENV.join(", ")}
+HM_BROWSER_DIAGNOSTICS must be a folder inside the checkout. A URL on the
+host's localhost isn't reachable from the container.
 
   "test:browser": "hm-in-image vitest run --project browser"
 
