@@ -20,6 +20,8 @@ const FORGOTTEN_EXPORT =
 const EXPORTED_DECLARATION =
   /^export (?:declare )?(?:abstract )?(?:default )?(class|interface|type|function|const|let|var|enum|namespace) ([A-Za-z_$][\w$]*)/gm;
 const EXPORT_LIST = /^export (?:type )?\{([^}]*)\}/gm;
+const LOCAL_DECLARATION =
+  /^(?:declare )?(?:abstract )?(class|interface|type|function|const|let|var|enum|namespace) ([A-Za-z_$][\w$]*)/gm;
 
 /**
  * The symbols an API report flags as forgotten exports, in report order and
@@ -33,31 +35,79 @@ export function forgottenExports(report) {
 }
 
 /**
+ * What an API report exports: each name's kind, and the name its declaration
+ * has in the report and the declaration rollup.
+ *
+ * API Extractor renames a declaration that shares its name with a global,
+ * such as the DOM's `Scheduler` or WebCodecs' `AudioSampleFormat`, and
+ * exports it under its real name: `class Scheduler_2 {` and
+ * `export { Scheduler_2 as Scheduler }`. Other entry points' reports and the
+ * declaration rollup then use the local name, `Scheduler_2`. So both names
+ * count as exported, with the declaration's kind.
+ *
+ * @param {string} report The text of an `.api.md` file.
+ * @returns {{ kinds: Map<string, string>, locals: Map<string, string> }}
+ */
+function readExports(report) {
+  /** @type {Map<string, string>} */
+  const kinds = new Map();
+  /** @type {Map<string, string>} */
+  const locals = new Map();
+  // A class merged with a namespace or an interface of the same name is
+  // declared more than once. It stays a class, which is the kind that's
+  // checked for private members.
+  const add = (
+    /** @type {Map<string, string>} */ map,
+    /** @type {string} */ name,
+    /** @type {string} */ kind,
+  ) => {
+    if (map.get(name) !== "class") {
+      map.set(name, kind);
+    }
+  };
+  for (const [, kind = "", name = ""] of report.matchAll(EXPORTED_DECLARATION)) {
+    add(kinds, name, kind);
+  }
+  /** @type {Map<string, string>} */
+  const declared = new Map();
+  for (const [, kind = "", name = ""] of report.matchAll(LOCAL_DECLARATION)) {
+    add(declared, name, kind);
+  }
+  for (const [, list = ""] of report.matchAll(EXPORT_LIST)) {
+    for (const entry of list.split(",")) {
+      const names = entry
+        .trim()
+        .replace(/^type\s+/, "")
+        .split(/\s+as\s+/);
+      const local = names[0];
+      const name = names.at(-1);
+      if (!local || !name) {
+        continue;
+      }
+      const kind = declared.get(local) ?? "reexport";
+      for (const each of [local, name]) {
+        if (!kinds.has(each)) {
+          kinds.set(each, kind);
+          locals.set(each, local);
+        }
+      }
+    }
+  }
+  return { kinds, locals };
+}
+
+/**
  * The names an API report exports, mapped to their kind, such as `class` or
- * `interface`. Names in an `export { ... }` list have the kind `reexport`.
+ * `interface`. A name in an `export { ... }` list has the kind of its
+ * declaration in the report, or `reexport` when the report has none. For
+ * `export { Local as Name }`, both names are listed, because other reports
+ * refer to the declaration by its local name.
  *
  * @param {string} report The text of an `.api.md` file.
  * @returns {Map<string, string>}
  */
 export function exportedSymbols(report) {
-  /** @type {Map<string, string>} */
-  const exported = new Map();
-  for (const [, kind = "", name = ""] of report.matchAll(EXPORTED_DECLARATION)) {
-    exported.set(name, kind);
-  }
-  for (const [, list = ""] of report.matchAll(EXPORT_LIST)) {
-    for (const entry of list.split(",")) {
-      const name = entry
-        .trim()
-        .replace(/^type\s+/, "")
-        .split(/\s+as\s+/)
-        .at(-1);
-      if (name && !exported.has(name)) {
-        exported.set(name, "reexport");
-      }
-    }
-  }
-  return exported;
+  return readExports(report).kinds;
 }
 
 /**
@@ -208,7 +258,7 @@ export async function checkApiReports({ main, types, secondary = [] }) {
   };
   const mainReport = await read(main);
   const declarations = await read(types);
-  const exported = exportedSymbols(mainReport);
+  const { kinds: exported, locals } = readExports(mainReport);
   /** @type {string[]} */
   const problems = [];
 
@@ -224,7 +274,8 @@ export async function checkApiReports({ main, types, secondary = [] }) {
       if (kind !== "class") {
         continue;
       }
-      const members = nominalMembers(declarations, symbol);
+      // The rollup declares a renamed class under its local name.
+      const members = nominalMembers(declarations, locals.get(symbol) ?? symbol);
       if (members === undefined) {
         problems.push(`${path}: can't find the class "${symbol}" in ${types}.`);
       } else if (members.length > 0) {
