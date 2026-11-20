@@ -39,7 +39,7 @@ Each entry with the chunks it loads statically, compressed with brotli at qualit
 The as-built numbers reproduce each repository's own `size-limit` output where it has one, such as sdk-core's 15.57 kB and audio-sdk's 23.36 kB. They were measured at sdk-core 6eadcfe, ui 917a4a9, pdf-sdk b992a00, audio-sdk 785d2fc, video-sdk 6cafcc7, image-sdk d97a998 and learn-sdk e2afec8.
 
 - **The ratio barely varies:** 16% to 22% across 17 entries of very different size and content. About 8 points of it are whitespace, and the rest is local names and syntax.
-- **So the two measures move together.** image-sdk#79's growth was 3.08 kB as built and 2.27 kB minified, 26% less. A change that grows one grows the other in proportion, and a budget on either catches the same changes.
+- **So the two measures move together for code.** image-sdk#79's growth was 3.08 kB as built and 2.27 kB minified, 26% less. A change that adds or removes code grows or shrinks both in proportion, so a budget on either catches it. They part only for what minifying removes, which the next two sections measure: the length of local names moves the built size alone, by tens of bytes.
 
 ### Comments don't count
 
@@ -61,11 +61,11 @@ No application ships a whole entry. Its bundler keeps what it imports. `ui`'s [A
 
 ## Options
 
-**A. Keep measuring the built files, and write down what that means.** The entry budget is a ceiling: an upper bound on anything an application can ship from the entry, about a fifth above its minified size. No repository changes. The cost is the name-length effect above, and a number that isn't what ships.
+**A. Keep measuring the built files, and write down what that means.** The entry budget is a ceiling on the entry and the chunks it loads statically: an upper bound on what an application can ship of those files, about a fifth above their minified size. No repository changes. The cost is the name-length effect above, and a number that isn't what ships.
 
 **B. Measure the entries minified.** `sdk-config` would provide a helper that minifies each built file and hands `size-limit` the copies, and every repository would switch to it and reset its budgets, to about 80% of today's.
 - **Gain:** the number is what a host that imported the whole entry would ship, and names stop counting.
-- **Cost:** every budget in every repository is reset in a pull request each, and a minifier becomes part of the measurement, so an esbuild update can move every number by a few bytes with no change of ours. The budgets would catch exactly what they catch today.
+- **Cost:** every budget in every repository is reset in a pull request each, and a minifier becomes part of the measurement, so an esbuild update can move every number by a few bytes with no change of ours. The budgets would catch the same changes to code as today, and would stop moving when a local name gets longer.
 
 **C. Measure the entries bundled and minified,** with `@size-limit/esbuild`. It's what the import budgets do. For a whole entry it also bundles the entry's dependencies unless each is listed to ignore, so the number changes meaning as well as size, and it differs from B only where the entry's own chunks tree-shake against each other.
 
@@ -75,13 +75,13 @@ No application ships a whole entry. Its bundler keeps what it imports. `ui`'s [A
 
 **Option A: the budgets keep measuring the built files, and this record says what that counts. Two additions come with it.**
 
-The question assumed that comments count against a budget. They don't: the build drops them. What separates the built size from the minified one is a constant factor that every entry shares. Switching measures (B) would change every number and catch nothing new, for a pull request in each repository and a minifier in the loop.
+The question assumed that comments count against a budget. They don't: the build drops them. What separates the built size from the minified one is a constant factor that every entry shares. Switching measures (B) would change every number, catch no change to code that isn't caught today, and only stop counting the length of local names, for a pull request in each repository and a minifier in the loop.
 
-- **An entry budget is a ceiling, measured on the built files:** the brotli size of the entry and the chunks it loads statically. It bounds what any application can ship from that entry, and is about a fifth above the entry's minified size. Lazy chunks have budgets of their own.
+- **An entry budget is a ceiling, measured on the built files:** the brotli size of the entry and the chunks it loads statically. It bounds what any application can ship of those files, and is about a fifth above their minified size. It doesn't cover chunks loaded later with `import()`: each of those has a budget of its own, and an application that loads one receives both.
 - **A budget is never met by shortening names or restructuring for the measure.** A pull request that needs more raises the budget, with a table of before and after and the reason, as today.
 - **Size is judged where applications feel it:** in budgets for what an application imports, bundled and minified, as `ui` and audio-sdk have. Bringing those to every repository is the next decision, an amendment to ADR 0015 from `ui`'s ADR 0012 and audio-sdk's experience. It's the change that would have told image-sdk#79's reviewers what its 3 kB cost an application.
 
-Two additions, in one `sdk-config` change:
+Two additions, in one `sdk-config` pull request after this record, released as a patch:
 
 1. **`sdk-config` provides the list of files an entry loads.** Three repositories carry the same function for it, `loadedFiles`, copied with a comment saying so. One shared helper for `.size-limit.js` ends the copies.
 2. **`sdk-config` prints an entry's minified size,** for a pull request's table when the comparison helps. It's information only: it's never a budget, and it fails nothing.
