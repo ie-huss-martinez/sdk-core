@@ -74,7 +74,7 @@ That's why some of the 1/255 pairs pass even at 0, and it means no threshold mak
 
 **C. `threshold: 0.0038`, with no differing pixel allowed.** The smallest threshold at which a difference of 1/255 on every channel isn't counted (`35215 × 0.0038² = 0.5085`, and that difference measures 0.5053). A difference of 2/255 on every channel is counted (2.02). All 24 noise pairs pass, and every row of the first table is caught.
 - **It's a colour distance, not a bound per channel.** pixelmatch measures distance in YIQ space, which weighs channels as the eye does, so the limit is "no further than one level on every channel", not "at most one level on each". Measured:
-  - **accepted:** one level on any one channel; 24 of the 26 ways to move the three channels by at most one level; and two levels on blue, alone or with one level on red or green, since the eye is least sensitive to blue;
+  - **accepted:** one level on any one channel; 24 of the 26 ways to move the three channels by at most one level; and two levels on blue, since the eye is least sensitive to it: alone, with one level on red in either direction, or with one level on green in the opposite direction. Two levels on blue with one level on green in the same direction is refused;
   - **refused:** red one level one way with green and blue one level the other, the two mixes furthest apart in this measure; two levels on red, on green or on every channel; three levels on blue.
 - **All 24 noise pairs above pass,** so the two refused one-level mixes haven't occurred in practice. A threshold of 0.004 would accept all 26, and with them three levels on blue.
 - **Anti-aliased pixels aren't counted,** as in every option that uses Playwright's comparison.
