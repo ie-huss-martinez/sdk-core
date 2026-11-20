@@ -452,6 +452,13 @@ export function createWorkerClient<Contract extends WorkerContract<Contract>>(
     } catch (error) {
       return Promise.reject(error);
     }
+    // `createWorker` is the host's code and may have aborted the signal. A
+    // listener added to an aborted signal never fires, so check again
+    // before listening.
+    if (signal?.aborted) {
+      scheduleIdle(current);
+      return Promise.reject(abortError(signal.reason));
+    }
     const id = nextId++;
 
     return new Promise<unknown>((resolve, reject) => {

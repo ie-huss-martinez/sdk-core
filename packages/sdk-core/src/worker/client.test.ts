@@ -274,6 +274,40 @@ describe("createWorkerClient", () => {
     expect(workers[0]?.terminated).toBe(false);
   });
 
+  it("rejects a call whose signal aborts while its worker is being created", async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    const workers: FakeWorker[] = [];
+    const client = createWorkerClient<Echo>({
+      createWorker: () => {
+        const worker = new FakeWorker();
+        workers.push(worker);
+        // By now the call has checked its signal, and it hasn't listened yet.
+        controller.abort();
+        return worker;
+      },
+      idleTimeout: 1_000,
+    });
+    const add = vi.spyOn(controller.signal, "addEventListener");
+
+    const error = await rejection(client.call("echo", "x", { signal: controller.signal }));
+    workers[0]?.ready();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(isSdkError(error, "ABORTED")).toBe(true);
+    expect(workers[0]?.sent).toEqual([]);
+    expect(add).not.toHaveBeenCalled();
+    // The worker that was created stays usable, and still stops when idle.
+    const next = client.call("echo", "y");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(workers[0]?.calls()).toMatchObject([{ id: 1, input: "y" }]);
+    workers[0]?.respond(1, "y");
+    await expect(next).resolves.toBe("y");
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(workers[0]?.terminated).toBe(true);
+    expect(workers).toHaveLength(1);
+  });
+
   it("maps a TimeoutError reason to TIMEOUT and any other reason to ABORTED", async () => {
     const { client } = setup();
     const timeout = new DOMException("Too slow.", "TimeoutError");
