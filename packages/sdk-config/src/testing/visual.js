@@ -9,6 +9,28 @@
 export const VISUAL_CONTAINER_ENV = "HM_VISUAL_CONTAINER";
 
 /**
+ * How strictly a screenshot is compared with its baseline (sdk-core ADR
+ * 0054): no pixel may differ, and a pixel differs from the smallest
+ * difference above one level per channel.
+ *
+ * Playwright counts a pixel when its YIQ colour distance from the baseline's
+ * is over `35215 × threshold²`. One level (1/255) on every channel measures
+ * 0.5053, and `35215 × 0.0038² = 0.5085`, so 0.0038 is the smallest
+ * threshold, to four decimal places, that doesn't count it. Two levels on
+ * every channel measure 2.02 and are counted. The pinned browser test image
+ * renders the same page with differences of one level on some anti-aliased
+ * edges, so a threshold of 0 fails unchanged pages, and Playwright's default,
+ * 0.2, doesn't count a colour token one step apart.
+ *
+ * `visual-comparison.test.js` is this number's specification: it runs
+ * Playwright's own comparison, and fails if an upgrade changes what these
+ * settings accept.
+ *
+ * @type {Readonly<{ threshold: number, maxDiffPixelRatio: number }>}
+ */
+export const visualComparison = Object.freeze({ threshold: 0.0038, maxDiffPixelRatio: 0 });
+
+/**
  * @typedef {object} VisualVariant
  * @property {"light" | "dark"} theme The theme, set as `data-hm-theme`.
  * @property {"compact" | "comfortable"} density The density, set as `data-hm-density`.
@@ -60,7 +82,9 @@ export async function applyVisualVariant(page, variant) {
  *
  * - Chromium only, in a 1280 × 800 viewport at a device scale factor of 1,
  *   with the `en-US` locale, the `UTC` time zone and reduced motion.
- * - Screenshots without animations or carets, compared with no tolerance.
+ * - Screenshots without animations or carets, compared with
+ *   {@link visualComparison}: no pixel may differ by more than one level per
+ *   channel.
  * - Baselines in `e2e/visual/__screenshots__/<spec>/`, named
  *   `<name>-chromium-linux.png`, and never written by a plain run.
  *
@@ -103,7 +127,7 @@ export function defineVisualConfig({ baseURL, webServer }) {
     updateSnapshots: "none",
     expect: {
       toHaveScreenshot: {
-        maxDiffPixelRatio: 0,
+        ...visualComparison,
         animations: "disabled",
         caret: "hide",
         scale: "css",

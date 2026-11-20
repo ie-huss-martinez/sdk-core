@@ -351,7 +351,7 @@ export default defineVisualConfig({
 });
 ```
 
-The preset fixes the page: a 1280 × 800 viewport at a device scale factor of 1, `en-US`, `UTC` and reduced motion. Screenshots are taken without animations or carets and compared with no tolerance. Specs live in `e2e/visual/`, and each state is captured in every variant:
+The preset fixes the page: a 1280 × 800 viewport at a device scale factor of 1, `en-US`, `UTC` and reduced motion. Screenshots are taken without animations or carets. Specs live in `e2e/visual/`, and each state is captured in every variant:
 
 ```ts
 import { expect, test } from "@playwright/test";
@@ -368,6 +368,13 @@ for (const variant of visualVariants) {
 ```
 
 Baselines go to `e2e/visual/__screenshots__/<spec>/<state>-<theme>-<density>-chromium-linux.png`. Mask content that varies by nature with `toHaveScreenshot`'s `mask` option. A state may set `maxDiffPixelRatio` up to `0.001` only for a frame drawn by a codec that can't be masked, with a comment naming the cause.
+
+**How strictly they're compared** ([ADR 0054](../../docs/adr/0054-visual-comparison-tolerance.md)): no pixel may differ, and a pixel differs from the smallest difference above one level (1/255) per channel. The preset sets `maxDiffPixelRatio: 0` and `threshold: 0.0038`, exported as `visualComparison`.
+
+- **Why not Playwright's default threshold, 0.2:** it doesn't count a colour token one step apart, text a few shades lighter, or a light border moved by a pixel.
+- **Why not 0:** the same page, captured twice in the same image, differs by one level on some anti-aliased edges, so tests would fail at random.
+- **Never raise it to make a test pass.** A screenshot that differs by more is a real change, or content to mask.
+- **A known limit:** Playwright doesn't compare pixels it classifies as anti-aliasing, at any threshold. A change confined to the edges of text or of a rounded corner can pass.
 
 Run it through `hm-test-visual`, after building the examples:
 
@@ -386,12 +393,17 @@ Usage: hm-test-visual [--update]
 
 - **Outside the image,** it needs Docker. It builds an image from `ci/Dockerfile`'s `FROM` line and the pnpm version in `packageManager`, and runs itself there. pnpm and its native binary are installed from tarballs checked against the integrity that `pnpm-lock.yaml` records for them, so the lockfile must come from that pnpm version. The container gets its own `node_modules` and pnpm store volumes, and hands every file it writes back to you. Without Docker, it fails with a one-line message saying how to fix it; it never skips.
 - **Inside the image,** where `HM_VISUAL_CONTAINER=1`, as in CI's verify job, it runs Playwright directly. The preset refuses to run anywhere else, so baselines can't be written outside the image.
-- **`--update`** writes every baseline afresh, so screenshots that no state produces any more are removed. A failed run keeps the previous baselines.
+- **`--update`** rewrites the baselines that changed, and keeps the others byte for byte, so every image in a pull request's diff is one its own test calls different. It also adds new states' baselines and removes those no state produces any more. It runs the suite three times, which takes seconds each:
+  1. with the committed baselines in place, to see which ones each assertion no longer accepts, by that assertion's own settings;
+  2. with no baselines, to capture every state afresh, which Playwright only accepts once two captures in a row agree;
+  3. against the result, as a plain test run, which must pass.
+
+  It's all or nothing: unless all three pass, the baselines are left exactly as they were, and it says why. If an update is cancelled part-way, the next run of `hm-test-visual` puts them back first.
 - **Failures** leave the expected, actual and diff images in `e2e/test-results/visual/`.
 
 | Exit code | Meaning |
 |---|---|
-| 0 | Every screenshot matches, or the baselines were written |
+| 0 | Every screenshot matches, or the baselines were updated |
 | 1 | A screenshot differs, a test fails, or Docker isn't available |
 | 2 | Usage error, or a repository it can't read |
 

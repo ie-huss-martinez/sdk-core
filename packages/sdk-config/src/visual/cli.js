@@ -15,12 +15,14 @@ pnpm and runs itself there. Inside it, as in CI's verify job, where
 ${CONTAINER_ENV}=1, it runs the tests directly.
 
 Options:
-  -u, --update  write the baselines in e2e/visual/__screenshots__ afresh, and
-                remove those no test produces; a failed run keeps the old ones
+  -u, --update  rewrite the baselines in e2e/visual/__screenshots__ that
+                changed, keep the others byte for byte, and remove those no
+                test produces. It runs the suite three times, and changes
+                nothing unless all three pass (sdk-core ADR 0054)
   -h, --help    show this help
 
 Exit codes:
-  0  every screenshot matches, or the baselines were written
+  0  every screenshot matches, or the baselines were updated
   1  a screenshot differs, a test fails, or Docker isn't available
   2  usage error, or a repository this can't read
 `;
@@ -52,7 +54,11 @@ const root = process.cwd();
 try {
   process.exitCode =
     process.env[CONTAINER_ENV] === "1"
-      ? runInContainer({ root, update: args.update })
+      ? runInContainer({
+          root,
+          update: args.update,
+          log: (message) => process.stderr.write(`hm-test-visual: ${message}\n`),
+        })
       : runInDocker({
           root,
           update: args.update,

@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { chmod, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmod, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
@@ -34,53 +35,271 @@ describe("runInContainer", () => {
       ],
     ]);
   });
+});
 
-  it("writes the baselines afresh with --update, so stale ones disappear", async () => {
-    const root = await repository({
-      [`${BASELINES}/editor.spec.ts/empty-light-compact-chromium-linux.png`]: "old",
-      [`${BASELINES}/editor.spec.ts/removed-state-light-compact-chromium-linux.png`]: "stale",
+describe("runInContainer with --update (ADR 0054)", () => {
+  const DIR = `${BASELINES}/editor.spec.ts`;
+  const name = (/** @type {string} */ state) => `${state}-light-compact-chromium-linux.png`;
+
+  /**
+   * Stands in for Playwright. Each pass captures `captures[pass]`, a map of
+   * state to content, and `accepts` says whether an assertion takes a capture
+   * for its baseline, as a threshold or a state's own allowance would.
+   *
+   * - `--update-snapshots=changed` rewrites the baselines it doesn't accept,
+   *   and writes missing ones.
+   * - `--update-snapshots=all`, with no baselines, writes every capture.
+   * - A plain run fails if a baseline is missing or isn't accepted.
+   *
+   * @param {{
+   *   captures: Array<Record<string, string>>,
+   *   accepts?: (baseline: string, capture: string) => boolean,
+   *   status?: Partial<Record<"changed" | "all" | "plain", number>>,
+   * }} options
+   */
+  function playwright({ captures, accepts = (baseline, capture) => baseline === capture, status }) {
+    /** @type {string[]} */
+    const modes = [];
+    /** @type {import("../image/run.js").Run} */
+    const run = (_command, args, { cwd }) => {
+      const flag = args.find((arg) => arg.startsWith("--update-snapshots="));
+      const mode = /** @type {"changed" | "all" | "plain"} */ (flag ? flag.split("=")[1] : "plain");
+      const capture = captures[modes.length] ?? {};
+      modes.push(mode);
+      const dir = join(cwd, DIR);
+      let result = 0;
+      for (const [state, content] of Object.entries(capture)) {
+        const file = join(dir, name(state));
+        const baseline = existsSync(file) ? readFileSync(file, "utf8") : undefined;
+        if (mode === "plain") {
+          if (baseline === undefined || !accepts(baseline, content)) {
+            result = 1;
+          }
+        } else if (baseline === undefined || !accepts(baseline, content)) {
+          mkdirSync(dir, { recursive: true });
+          writeFileSync(file, content);
+        }
+      }
+      return status?.[mode] ?? result;
+    };
+    return { run, modes };
+  }
+
+  /** @param {string} root @returns {Promise<Record<string, string>>} The baselines, by state. */
+  async function baselines(root) {
+    /** @type {Record<string, string>} */
+    const found = {};
+    for (const file of await readdir(join(root, DIR)).catch(() => [])) {
+      found[file.replace("-light-compact-chromium-linux.png", "")] = await readFile(
+        join(root, DIR, file),
+        "utf8",
+      );
+    }
+    return found;
+  }
+
+  /** @param {Record<string, string>} states */
+  const committed = (states) =>
+    repository(
+      Object.fromEntries(
+        Object.entries(states).map(([state, content]) => [`${DIR}/${name(state)}`, content]),
+      ),
+    );
+
+  /** Noise: captures that differ only after the "~" are within the threshold. */
+  const withinThreshold = (/** @type {string} */ a, /** @type {string} */ b) =>
+    a.split("~")[0] === b.split("~")[0];
+
+  it("rewrites what changed, keeps the rest byte for byte, adds new states and removes stale ones", async () => {
+    const root = await committed({ empty: "empty~a", open: "open-v1~a", removed: "gone~a" });
+    const capture = { empty: "empty~b", open: "open-v2~b", added: "added~b" };
+    const { run, modes } = playwright({
+      captures: [capture, capture, capture],
+      accepts: withinThreshold,
     });
-    /** @type {string[][]} */
-    const calls = [];
-    const status = runInContainer({
-      root,
-      update: true,
-      run: (command, args, { cwd }) => {
-        calls.push([command, ...args]);
-        // Playwright writes only the states that exist, into an empty folder.
-        spawnSync("bash", [
-          "-c",
-          `mkdir -p "${cwd}/${BASELINES}/editor.spec.ts" && echo new > "${cwd}/${BASELINES}/editor.spec.ts/empty-light-compact-chromium-linux.png"`,
-        ]);
-        return 0;
-      },
+    /** @type {string[]} */
+    const messages = [];
+
+    expect(runInContainer({ root, update: true, run, log: (m) => messages.push(m) })).toBe(0);
+
+    expect(modes).toEqual(["changed", "all", "plain"]);
+    expect(await baselines(root)).toEqual({
+      // Within the threshold: the committed bytes stay, not the re-capture's.
+      empty: "empty~a",
+      open: "open-v2~b",
+      added: "added~b",
     });
-    expect(status).toBe(0);
-    expect(calls[0]?.at(-1)).toBe("--update-snapshots=all");
-    expect(await readdir(join(root, BASELINES, "editor.spec.ts"))).toEqual([
-      "empty-light-compact-chromium-linux.png",
-    ]);
+    expect(await readdir(join(root, "e2e", "visual"))).toEqual(["__screenshots__"]);
+    expect(messages).toEqual(["2 baselines written, 1 unchanged, 1 removed."]);
+  });
+
+  it("leaves the repository untouched when nothing changed beyond the threshold", async () => {
+    const root = await committed({ empty: "empty~a", open: "open~a" });
+    const { run } = playwright({
+      captures: [
+        { empty: "empty~b", open: "open~c" },
+        { empty: "empty~d", open: "open~e" },
+        { empty: "empty~f", open: "open~g" },
+      ],
+      accepts: withinThreshold,
+    });
+
+    expect(runInContainer({ root, update: true, run })).toBe(0);
+    expect(await baselines(root)).toEqual({ empty: "empty~a", open: "open~a" });
+  });
+
+  it("decides by each assertion's own settings, so a codec state's allowance is honoured", async () => {
+    const root = await committed({ frame: "frame:100", empty: "empty:100" });
+    // The frame's assertion allows a difference of up to 5; the preset's allows none.
+    const accepts = (/** @type {string} */ baseline, /** @type {string} */ capture) => {
+      const [state, was] = baseline.split(":");
+      const [, is] = capture.split(":");
+      return Math.abs(Number(was) - Number(is)) <= (state === "frame" ? 5 : 0);
+    };
+    const capture = { frame: "frame:103", empty: "empty:103" };
+    const { run } = playwright({ captures: [capture, capture, capture], accepts });
+
+    expect(runInContainer({ root, update: true, run })).toBe(0);
+    expect(await baselines(root)).toEqual({ frame: "frame:100", empty: "empty:103" });
+  });
+
+  it("writes the fresh, stable capture, never what the first pass wrote", async () => {
+    const root = await committed({ open: "open-v1" });
+    const { run } = playwright({
+      captures: [{ open: "unsettled" }, { open: "open-v2" }, { open: "open-v2" }],
+    });
+
+    expect(runInContainer({ root, update: true, run })).toBe(0);
+    expect(await baselines(root)).toEqual({ open: "open-v2" });
+  });
+
+  it("captures the first baselines of a repository that has none", async () => {
+    const root = await repository();
+    const capture = { empty: "empty" };
+    const { run, modes } = playwright({ captures: [capture, capture] });
+
+    expect(runInContainer({ root, update: true, run })).toBe(0);
+    expect(modes).toEqual(["all", "plain"]);
+    expect(await baselines(root)).toEqual({ empty: "empty" });
     expect(await readdir(join(root, "e2e", "visual"))).toEqual(["__screenshots__"]);
   });
 
-  it("keeps the previous baselines when the update fails", async () => {
-    const file = `${BASELINES}/editor.spec.ts/empty-light-compact-chromium-linux.png`;
-    const root = await repository({ [file]: "old" });
-    const status = runInContainer({
-      root,
-      update: true,
-      run: (_command, _args, { cwd }) => {
-        spawnSync("bash", [
-          "-c",
-          `mkdir -p "${cwd}/${BASELINES}/half" && echo x > "${cwd}/${BASELINES}/half/a.png"`,
-        ]);
-        return 1;
-      },
+  describe("is all or nothing", () => {
+    const before = { empty: "empty-v1", open: "open-v1", removed: "gone" };
+    const capture = { empty: "empty-v2", open: "open-v2" };
+
+    it.each([
+      ["the first pass fails, as when a test errors", { changed: 1 }, 1],
+      ["a capture never settles in the second pass", { all: 1 }, 1],
+      ["Playwright is stopped by a signal", { all: 130 }, 130],
+    ])("changes nothing when %s", async (_label, status, exitCode) => {
+      const root = await committed(before);
+      const { run } = playwright({ captures: [capture, capture, capture], status });
+      /** @type {string[]} */
+      const messages = [];
+
+      expect(runInContainer({ root, update: true, run, log: (m) => messages.push(m) })).toBe(
+        exitCode,
+      );
+      expect(await baselines(root)).toEqual(before);
+      expect(await readdir(join(root, "e2e", "visual"))).toEqual(["__screenshots__"]);
+      expect(messages.at(-1)).toMatch(/The baselines are unchanged\.$/);
     });
-    expect(status).toBe(1);
-    expect(await readFile(join(root, file), "utf8")).toBe("old");
-    expect(await readdir(join(root, BASELINES))).toEqual(["editor.spec.ts"]);
-    expect(await readdir(join(root, "e2e", "visual"))).toEqual(["__screenshots__"]);
+
+    it("changes nothing when the result doesn't pass a plain run, because the page differs between runs", async () => {
+      const root = await committed(before);
+      const { run, modes } = playwright({
+        captures: [capture, capture, { empty: "empty-v3", open: "open-v2" }],
+      });
+      /** @type {string[]} */
+      const messages = [];
+
+      expect(runInContainer({ root, update: true, run, log: (m) => messages.push(m) })).toBe(1);
+      expect(modes).toEqual(["changed", "all", "plain"]);
+      expect(await baselines(root)).toEqual(before);
+      expect(messages.at(-1)).toContain("renders differently from one run to the next");
+    });
+
+    it("changes nothing when the second pass captures no screenshot at all", async () => {
+      const root = await committed(before);
+      const { run } = playwright({ captures: [capture, {}, {}] });
+
+      expect(runInContainer({ root, update: true, run })).toBe(1);
+      expect(await baselines(root)).toEqual(before);
+    });
+
+    it("never removes a baseline because a pass didn't reach its state", async () => {
+      const root = await committed(before);
+      // The second pass stops early: it captured one state, then failed.
+      const { run } = playwright({
+        captures: [capture, { empty: "empty-v2" }, capture],
+        status: { all: 1 },
+      });
+
+      expect(runInContainer({ root, update: true, run })).toBe(1);
+      expect(await baselines(root)).toEqual(before);
+    });
+  });
+
+  describe("after an update that didn't finish", () => {
+    /** A repository as a cancelled update leaves it: half-written baselines, and the earlier ones set aside. */
+    async function interrupted() {
+      return repository({
+        [`${DIR}/${name("empty")}`]: "half-written",
+        [`${BASELINES}.previous/editor.spec.ts/${name("empty")}`]: "empty-v1",
+        [`${BASELINES}.previous/editor.spec.ts/${name("open")}`]: "open-v1",
+        [`${BASELINES}.fresh/editor.spec.ts/${name("empty")}`]: "fresh",
+      });
+    }
+
+    it("puts the baselines back before comparing", async () => {
+      const root = await interrupted();
+      /** @type {Record<string, string>} */
+      let seen = {};
+      /** @type {string[]} */
+      const messages = [];
+      const status = runInContainer({
+        root,
+        update: false,
+        run: () => {
+          seen = Object.fromEntries(
+            readdirSync(join(root, DIR)).map((file) => [
+              file,
+              readFileSync(join(root, DIR, file), "utf8"),
+            ]),
+          );
+          return 0;
+        },
+        log: (m) => messages.push(m),
+      });
+
+      expect(status).toBe(0);
+      expect(seen).toEqual({ [name("empty")]: "empty-v1", [name("open")]: "open-v1" });
+      expect(await readdir(join(root, "e2e", "visual"))).toEqual(["__screenshots__"]);
+      expect(messages).toEqual([
+        "an earlier update didn't finish; the baselines are put back as they were before it.",
+      ]);
+    });
+
+    it("puts the baselines back before updating again", async () => {
+      const root = await interrupted();
+      const capture = { empty: "empty-v1", open: "open-v2" };
+      const { run } = playwright({ captures: [capture, capture, capture] });
+
+      expect(runInContainer({ root, update: true, run })).toBe(0);
+      expect(await baselines(root)).toEqual({ empty: "empty-v1", open: "open-v2" });
+    });
+
+    it("removes the leftovers of an interrupted first capture, which had no baselines before it", async () => {
+      const root = await repository({
+        [`${DIR}/${name("empty")}`]: "half-written",
+        [`${BASELINES}.previous/.keep`]: "",
+      });
+      await rm(join(root, `${BASELINES}.previous/.keep`));
+
+      expect(runInContainer({ root, update: false, run: () => 0 })).toBe(0);
+      expect(await readdir(join(root, "e2e", "visual"))).toEqual([]);
+    });
   });
 });
 
