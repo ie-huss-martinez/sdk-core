@@ -61,3 +61,4 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0053](0053-ci-is-the-merge-gate.md) | CI is the merge gate, and the hooks are the local bar | Accepted; supersedes the full local verify before a pull request in [0015](0015-verification-and-releases.md) and [0016](0016-git-hooks-and-merge-guards.md) |
 | [0054](0054-visual-comparison-tolerance.md) | How strictly screenshots are compared | Accepted; refines [0048](0048-visual-regression-for-sdk-editors.md) |
 | [0055](0055-what-the-size-budgets-measure.md) | What the size budgets measure | Accepted; refines [0015](0015-verification-and-releases.md) |
+| [0056](0056-size-budgets-for-what-applications-import.md) | Size budgets for what applications import | Proposed; amends [0015](0015-verification-and-releases.md); builds on [0055](0055-what-the-size-budgets-measure.md) |
