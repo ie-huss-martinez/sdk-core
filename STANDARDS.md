@@ -259,6 +259,8 @@ Every `<kind>-sdk` repository follows this structure:
 - **Packaging and API:** `size-limit`, `api-extractor`, `publint` and `@arethetypeswrong/cli`.
   - Every entry point's api-extractor configuration extends `sdk-config`'s preset. A package with more than one entry point runs `hm-check-api-reports` after api-extractor, and never turns `ae-forgotten-export` off ([ADR 0033](docs/adr/0033-api-reports-for-several-entry-points.md)).
 - **Visual regression:** every SDK's editor and element are compared with committed screenshots of their designed states, in light and dark and both densities, on Chromium inside the pinned browser test image. `pnpm test:visual` runs them and `pnpm test:visual:update` rewrites them, both only in that image, and an intentional visual change commits its new screenshots in the same pull request ([ADR 0048](docs/adr/0048-visual-regression-for-sdk-editors.md)).
+  - no pixel may differ, and a pixel differs when its colour is further from the baseline's than one level on every channel is, by Playwright's perceived-colour distance: the preset's `threshold` is `0.0038`, never raised to make a test pass ([ADR 0054](docs/adr/0054-visual-comparison-tolerance.md));
+  - `pnpm test:visual:update` keeps unchanged baselines byte for byte, so every changed image in a pull request is one its test calls different.
 - **Component catalogue (`ui`):** Storybook 10 with the React and Vite builder, axe checks and stories run as Vitest browser tests ([ADR 0022](docs/adr/0022-storybook-for-the-component-catalogue.md)).
 - **Git hooks:** Husky with lint-staged.
 

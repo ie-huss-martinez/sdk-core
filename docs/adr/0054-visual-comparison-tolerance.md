@@ -1,6 +1,7 @@
 # 0054. How strictly screenshots are compared
 
 - **Status:** Accepted
+- **Corrected:** 2026-11-21, while implementing it: what the threshold accepts was described as a bound of one level per channel. It's a colour distance, and the measured list is under option C. The decision is unchanged
 - **Date:** 2026-11-21
 - **Refines:** [ADR 0048](0048-visual-regression-for-sdk-editors.md)'s "no tolerance by default", by setting the per-pixel threshold that rule left at Playwright's default, and by making an update rewrite only the baselines that changed
 
@@ -72,7 +73,11 @@ That's why some of the 1/255 pairs pass even at 0, and it means no threshold mak
 **B. `threshold: 0`.** The strictest setting Playwright has. Nine of the 24 noise pairs would have failed, so tests would fail at random on unchanged pages, and each failure is investigated before anyone sees it's noise. Anti-aliased pixels are still not counted.
 
 **C. `threshold: 0.0038`, with no differing pixel allowed.** The smallest threshold at which a difference of 1/255 on every channel isn't counted (`35215 × 0.0038² = 0.5085`, and that difference measures 0.5053). A difference of 2/255 on every channel is counted (2.02). All 24 noise pairs pass, and every row of the first table is caught.
-- **What it still lets through,** measured: a difference of 1/255 on any channel or any mix of them, and 2/255 on blue alone, because pixelmatch's distance is perceptual, not per channel, and the eye is least sensitive to blue. Blue alone at 3/255, and red or green alone at 2/255, are counted. And anti-aliased pixels, as in every option that uses Playwright's comparison.
+- **It's a colour distance, not a bound per channel.** pixelmatch measures distance in YIQ space, which weighs channels as the eye does, so the limit is "no further than one level on every channel", not "at most one level on each". Measured:
+  - **accepted:** one level on any one channel; 24 of the 26 ways to move the three channels by at most one level; and two levels on blue, since the eye is least sensitive to it: alone, with one level on red in either direction, or with one level on green in the opposite direction. Two levels on blue with one level on green in the same direction is refused;
+  - **refused:** red one level one way with green and blue one level the other, the two mixes furthest apart in this measure; two levels on red, on green or on every channel; three levels on blue.
+- **All 24 noise pairs above pass,** so the two refused one-level mixes haven't occurred in practice. A threshold of 0.004 would accept all 26, and with them three levels on blue.
+- **Anti-aliased pixels aren't counted,** as in every option that uses Playwright's comparison.
 
 **D. Our own comparator: exact, per channel, with no anti-aliasing exception.** `sdk-config` would compare pixels itself, with a largest difference of 1 per channel, and count edges like any other pixel. It's the only option that is exact.
 - **Cost:** it replaces `toHaveScreenshot`, which also waits for the page to stop changing, writes the expected, actual and diff images that CI uploads, and manages baselines and their update. All of that would be rebuilt or wrapped.
@@ -85,9 +90,9 @@ That's why some of the 1/255 pairs pass even at 0, and it means no threshold mak
 
 **Option C: a threshold of 0.0038, with no differing pixel allowed, and an update that keeps unchanged baselines.**
 
-- **The preset sets `threshold: 0.0038`** beside `maxDiffPixelRatio: 0`: a pixel counts as changed from the smallest difference above one level per channel, and no changed pixel is allowed. That's what ADR 0048's "no tolerance" can mean on a renderer that differs from itself by one level.
+- **The preset sets `threshold: 0.0038`** beside `maxDiffPixelRatio: 0`: a pixel counts as changed when its colour is further from the baseline's than one level on every channel is, and no changed pixel is allowed. That's what ADR 0048's "no tolerance" can mean on a renderer that differs from itself by one level.
 - **The number is written as a literal,** with its derivation in a comment beside it.
-- **A test is its specification.** It runs Playwright's comparison on small generated images, and asserts that a difference of 1/255 on every channel passes, while 2/255 on every channel, a colour token one step apart, and a light 1 px border moved by 1 px all fail. An upgrade of Playwright that changes its comparison then fails `sdk-config`'s tests, not an SDK's baselines.
+- **A test is its specification.** It runs Playwright's comparison on small generated images, and asserts that a difference of 1/255 on every channel passes, while 2/255 on every channel, a colour token one step apart, and a light 1 px border moved by 1 px all fail. It also pins the edges of the measure named under option C. An upgrade of Playwright that changes its comparison then fails `sdk-config`'s tests, not an SDK's baselines.
 - **The threshold isn't raised to make a test pass.** A capture that differs by more than this is a finding: a real change, or nondeterminism to remove at its source or mask ([ADR 0048](0048-visual-regression-for-sdk-editors.md)'s masks and its per-state allowance for codec frames are unchanged).
 - **An update keeps every committed baseline that its own assertion still accepts.** "Accepts" means what it means in a test run: Playwright's comparison with that assertion's effective settings, the preset's or, for a codec frame, the state's own allowance. A re-capture the test would pass leaves the repository unchanged, so every image in a pull request's diff is one its test calls different.
 - **An update never writes an unstable capture.** A state whose consecutive screenshots don't settle fails the update, as it fails a test, and the previous baselines are restored.
@@ -122,5 +127,5 @@ Beyond the options above:
 - A token one step off, a light border one pixel off, and a text colour a few shades off all fail, which they don't today.
 - Re-captured baselines stop appearing in pull requests unless they changed by more than one level, so reviewers see only real image changes.
 - Tightening may fail some SDK's current baselines on the first run. Each such failure is a difference that 0.2 was hiding.
-- The comparison is still not exact: anti-aliased edges, and a blue-only difference of 2/255, pass. Both are recorded here, with what would close them.
+- The comparison is still not exact: anti-aliased edges, and a blue-only difference of 2/255, pass, and two of the 26 one-level mixes don't. All are recorded here, with what would close them.
 - The number is odd-looking. Its derivation is above, and a test holds it to its meaning.

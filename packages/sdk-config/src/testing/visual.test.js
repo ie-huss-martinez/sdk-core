@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { applyVisualVariant, defineVisualConfig, visualVariants } from "./visual.js";
+import {
+  applyVisualVariant,
+  defineVisualConfig,
+  visualComparison,
+  visualVariants,
+} from "./visual.js";
 
 const webServer = { command: "vite preview", url: "http://localhost:4320" };
 
@@ -29,6 +34,7 @@ describe("defineVisualConfig", () => {
       reducedMotion: "reduce",
     });
     expect(config.expect?.toHaveScreenshot).toEqual({
+      threshold: 0.0038,
       maxDiffPixelRatio: 0,
       animations: "disabled",
       caret: "hide",
@@ -40,6 +46,16 @@ describe("defineVisualConfig", () => {
       "{testDir}/__screenshots__/{testFilePath}/{arg}-{projectName}-{platform}{ext}",
     );
     expect(config.webServer).toBe(webServer);
+  });
+});
+
+describe("visualComparison", () => {
+  it("allows no differing pixel, at the threshold ADR 0054 derives, and can't be changed", () => {
+    expect(visualComparison).toEqual({ threshold: 0.0038, maxDiffPixelRatio: 0 });
+    expect(Object.isFrozen(visualComparison)).toBe(true);
+    // One level on every channel measures 0.5053 in pixelmatch's YIQ distance.
+    expect(35215 * visualComparison.threshold ** 2).toBeGreaterThan(0.5053);
+    expect(35215 * (visualComparison.threshold - 0.0001) ** 2).toBeLessThan(0.5053);
   });
 });
 

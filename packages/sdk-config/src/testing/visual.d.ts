@@ -21,7 +21,9 @@ export function applyVisualVariant(page: import("@playwright/test").Page, varian
  *
  * - Chromium only, in a 1280 × 800 viewport at a device scale factor of 1,
  *   with the `en-US` locale, the `UTC` time zone and reduced motion.
- * - Screenshots without animations or carets, compared with no tolerance.
+ * - Screenshots without animations or carets, compared with
+ *   {@link visualComparison}: no pixel may be further from its baseline than
+ *   one level on every channel is.
  * - Baselines in `e2e/visual/__screenshots__/<spec>/`, named
  *   `<name>-chromium-linux.png`, and never written by a plain run.
  *
@@ -48,6 +50,39 @@ export function applyVisualVariant(page: import("@playwright/test").Page, varian
 export function defineVisualConfig({ baseURL, webServer }: VisualConfigOptions): import("@playwright/test").PlaywrightTestConfig;
 /** The environment variable the browser test image sets, locally through hm-test-visual and in CI's verify job. */
 export const VISUAL_CONTAINER_ENV: "HM_VISUAL_CONTAINER";
+/**
+ * How strictly a screenshot is compared with its baseline (sdk-core ADR
+ * 0054): no pixel may differ, and a pixel differs when its colour is further
+ * from the baseline's than one level (1/255) on every channel is.
+ *
+ * "Further" is Playwright's measure, not a bound per channel: a distance in
+ * YIQ colour space, which weighs channels as the eye does. Playwright counts
+ * a pixel when that distance is over `35215 × threshold²`. One level on every
+ * channel measures 0.5053, and `35215 × 0.0038² = 0.5085`, so 0.0038 is the
+ * smallest threshold, to four decimal places, that doesn't count it.
+ *
+ * What that accepts and refuses, as measured:
+ * - accepted: one level on any one channel, and 24 of the 26 ways to move
+ *   the three channels by at most one level; two levels on blue alone, to
+ *   which the eye is least sensitive;
+ * - refused: red one level one way with green and blue one level the other;
+ *   two levels on red, on green, or on every channel; three on blue.
+ *
+ * The pinned browser test image renders the same page with differences of
+ * one level on some anti-aliased edges, so a threshold of 0 fails unchanged
+ * pages, and Playwright's default, 0.2, doesn't count a colour token one
+ * step apart.
+ *
+ * `visual-comparison.test.js` is this number's specification: it runs
+ * Playwright's own comparison, and fails if an upgrade changes what these
+ * settings accept.
+ *
+ * @type {Readonly<{ threshold: number, maxDiffPixelRatio: number }>}
+ */
+export const visualComparison: Readonly<{
+    threshold: number;
+    maxDiffPixelRatio: number;
+}>;
 /**
  * @typedef {object} VisualVariant
  * @property {"light" | "dark"} theme The theme, set as `data-hm-theme`.
