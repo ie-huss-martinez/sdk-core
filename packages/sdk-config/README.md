@@ -14,6 +14,7 @@ Install, as devDependencies, the tools for the presets you use. They are optiona
 |---|---|
 | `tsconfig/*` | `typescript` (and `@types/node` for `tsconfig/node`) |
 | `biome` | `@biomejs/biome` |
+| `hm-check-hidden-unicode` | Nothing, but it lists files with git |
 | `stylelint` | `stylelint` |
 | `dependency-cruiser`, `hm-lint-deps` | `dependency-cruiser` |
 | `commitlint` | `@commitlint/cli` |
@@ -46,6 +47,41 @@ Formatting and linting for code, JSON and CSS. Markdown isn't formatted, so tabl
 // biome.json
 { "extends": ["@hussmartinez/sdk-config/biome"] }
 ```
+
+#### `noUncheckedAbortListener`
+
+The preset includes one rule of the family's own, as a Biome plugin ([ADR 0052](../../docs/adr/0052-source-checks-for-hidden-characters-and-abort-listeners.md)). An `"abort"` listener added to a signal that has already aborted never fires, so the work it should have stopped runs on, and nothing reports it. The rule reports a listener unless a function around it also looks at the same signal:
+
+```ts
+function wait(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {                       // without this check, the rule reports the listener below
+      reject(signal.reason);
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort); // or a long-lived signal keeps every finished wait's listener
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+```
+
+- **What counts as looking:** reading `signal.aborted`, calling `signal.throwIfAborted()`, or calling a `throwIfAborted(signal)` helper, such as sdk-core's, in the same function or one that encloses it. The signal must be written the same way in both places, such as `options.signal`. A check inside an abort handler doesn't count, because on an aborted signal the handler is what never runs, unless the listener is inside that same handler.
+- **Better, don't listen:** `AbortSignal.any([signal, other])` combines signals without listeners, and `AbortSignal.timeout()` needs none.
+- **It can't see a check made by a caller.** When the function's contract is that it's never given an aborted signal, say so where the listener is:
+
+  ```ts
+  // biome-ignore lint/plugin/noUncheckedAbortListener: call() refuses an aborted signal first.
+  signal.addEventListener("abort", onAbort, { once: true });
+  ```
+
+It needs nothing set up: it comes with `extends`, and works with every Biome the preset supports.
 
 ### stylelint
 
@@ -438,6 +474,54 @@ Usage: hm-in-image [--] <command> [<argument>...]
 | 1 | Docker isn't available, or the image didn't build |
 | 2 | Usage error, or a repository it can't read |
 
+### `hm-check-hidden-unicode`
+
+Fails when a text file holds a character that an editor and a diff don't show, or that reorders the text around it ([ADR 0052](../../docs/adr/0052-source-checks-for-hidden-characters-and-abort-listeners.md)). A reviewer can't see what such a line really holds: a right-to-left override makes code read differently from what runs ("Trojan Source"), and a zero-width character makes two names that look the same differ. They also arrive by accident, when a tool that writes a file turns an escape such as `\u202E` into the character itself.
+
+```json
+{
+  "scripts": {
+    "lint": "biome check . && hm-check-hidden-unicode"
+  }
+}
+```
+
+```text
+Usage: hm-check-hidden-unicode [<file>...]
+```
+
+- **Without files,** it checks every file git tracks, of any type: source, Markdown, YAML, JSON. Binary files are skipped. Run it from the repository's root.
+- **With files,** it checks those, which is how the [lint-staged preset](#commitlint-lint-staged-and-secretlint) runs it on every commit.
+- **What it reports:**
+
+  | Characters | Why |
+  |---|---|
+  | U+061C, U+200E, U+200F, U+202A–U+202E, U+2066–U+2069 | Bidirectional formatting: they reorder what's shown |
+  | U+00AD, U+180E, U+200B–U+200D, U+2060–U+2064, U+FEFF | Invisible: the soft hyphen, zero-width characters and the byte order mark |
+  | U+2028, U+2029 | Line and paragraph separators, which only some tools break lines at |
+  | U+E0000–U+E007F | Tag characters: invisible copies of ASCII, which can carry text nobody sees |
+
+  Each one is reported with its place, name and the escape to write instead:
+
+  ```text
+  src/names.ts:12:27: hidden character U+202E RIGHT-TO-LEFT OVERRIDE. Write it as the escape \u202E, or remove it.
+  ```
+- **Write them as escapes** in source, such as `"\u202E"`, or build them with `String.fromCodePoint()`. Emoji that join with U+200D, such as a family, are written with the escape too.
+- **Test data may hold them.** List paths that are allowed to in `.hm-hidden-unicode-ignore` at the root, a glob per line, with `#` comments:
+
+  ```text
+  # Files as they arrive from users.
+  test/fixtures/**
+  ```
+
+  Keep the list to data. Source and documentation have no reason to be on it.
+
+| Exit code | Meaning |
+|---|---|
+| 0 | No hidden characters |
+| 1 | A file has a hidden character |
+| 2 | Usage error, or files that can't be read |
+
 ### `hm-check-single-copy`
 
 Fails when `pnpm-lock.yaml` resolves more than one version of any `@hussmartinez` package ([ADR 0047](../../docs/adr/0047-one-copy-of-each-family-package.md)), which [ADR 0036](../../docs/adr/0036-ui-as-a-dependency-of-the-sdks.md) forbids. Run it in `verify`:
@@ -468,7 +552,7 @@ Usage: hm-check-single-copy [--scope <scope>]... [<lockfile>]
 
 ### commitlint, lint-staged and secretlint
 
-The git hook rules of [ADR 0016](../../docs/adr/0016-git-hooks-and-merge-guards.md). commitlint accepts the same types and subject pattern as the `pr-title` workflow. lint-staged runs secretlint, Biome and stylelint on staged files.
+The git hook rules of [ADR 0016](../../docs/adr/0016-git-hooks-and-merge-guards.md). commitlint accepts the same types and subject pattern as the `pr-title` workflow. lint-staged runs secretlint, [`hm-check-hidden-unicode`](#hm-check-hidden-unicode), Biome and stylelint on staged files.
 
 ```js
 // commitlint.config.js

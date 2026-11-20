@@ -248,6 +248,9 @@ Every `<kind>-sdk` repository follows this structure:
 - **Runtime and package manager:** Node 24 and pnpm 12.
 - **Build and language:** Vite 8 and TypeScript in strict mode.
 - **Code checks:** Biome, stylelint and `dependency-cruiser`.
+- **Source checks of the family's own** ([ADR 0052](docs/adr/0052-source-checks-for-hidden-characters-and-abort-listeners.md)), both from `sdk-config`:
+  - no tracked text file holds a hidden character, such as a bidirectional override or a zero-width space: `hm-check-hidden-unicode` runs in `lint` and on every commit. Source writes them as escapes, and only test data is listed in `.hm-hidden-unicode-ignore`;
+  - an `"abort"` listener is added only where the same function also checks the signal's `aborted`, because a listener on an aborted signal never fires: the Biome preset's `noUncheckedAbortListener` reports the rest. Prefer `AbortSignal.any()` to listening.
 - **Tests:** Vitest, Playwright and `@axe-core/playwright`.
 - **Playwright is pinned exactly to the browser test image's version:** `playwright` and `@playwright/test` move together with `ci/Dockerfile`, in one pull request, and `hm-check-playwright-image` runs in `verify` and `verify:fast` ([ADR 0025](docs/adr/0025-one-browser-test-image-in-one-place.md)).
 - **Browser tests run in the pinned browser test image,** locally as in CI, through `sdk-config`'s `hm-in-image`, such as `"test:browser": "hm-in-image vitest run --project browser"`. On a host, Docker's network changes abort Chromium's requests ([ADR 0049](docs/adr/0049-local-browser-tests-in-the-pinned-image.md)).
