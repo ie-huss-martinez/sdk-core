@@ -276,7 +276,7 @@ Each repository extends the presets in `@hussmartinez/sdk-config` instead of cop
   - `--no-verify` is never used.
 - **The hooks are the local bar, and CI is the merge gate** ([ADR 0053](docs/adr/0053-ci-is-the-merge-gate.md)):
   - a pull request needs nothing run locally beyond the hooks. The full `pnpm verify` and the browser suites are run locally to diagnose a failure, to reproduce one from CI, or to capture screenshots, not as a step before every pull request;
-  - a pull request is ready when every required check is green on its current head and no review thread is open;
+  - a pull request is ready when every required check is green on its current head, the automated review of that head has finished, and no review thread is open;
   - a failure that only shows in CI is real until its cause is found. It's never answered with a looser assertion, a retry or a rerun;
   - the description says what was run locally and what was left to CI.
 - **CI:**
@@ -290,7 +290,7 @@ Each repository extends the presets in `@hussmartinez/sdk-config` instead of cop
   - Conventional Commits, and pull request titles become commit titles;
   - commits are signed;
   - the author never merges: a separate reviewer checks the full diff against `STANDARDS.md` and the ADRs, requires green CI on the current head, and merges nothing "almost right";
-  - CodeRabbit reviews every pull request, and each thread it opens is fixed or answered, then resolved, before the merge;
+  - CodeRabbit reviews every pull request, and again after each push. Its review of the current head has finished, and each thread it opened is fixed or answered, then resolved, before the merge;
   - coding agents open one pull request at a time, stop and report once it's green and its threads are resolved, and never review or merge their own; author and reviewer are always different sessions.
 - **Agents' state** ([ADR 0053](docs/adr/0053-ci-is-the-merge-gate.md)):
   - the state of the task in hand lives in `.local/HANDOFF.md` in the checkout, which git ignores, kept current after every step so that another agent can take over;

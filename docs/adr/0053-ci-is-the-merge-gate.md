@@ -26,7 +26,7 @@ Two more parts of how the family works had grown up as habit and were written no
 
 ### CI is the merge gate
 
-- **A pull request is ready when every required check is green on its current head,** it's up to date with `main`, and no review thread is open. The reviewer merges on that evidence, with the head commit pinned, after reading the full diff against `STANDARDS.md` and the ADRs.
+- **A pull request is ready when every required check is green on its current head,** it's up to date with `main`, the automated review of that head has finished, and no review thread is open. The reviewer merges on that evidence, with the head commit pinned, after reading the full diff against `STANDARDS.md` and the ADRs.
 - **The reviewer doesn't rerun the checks as a second gate.** Local runs by the reviewer are for investigating a failure or a doubt.
 - **A failure that only shows in CI is real until its cause is found.** It's never answered with a looser assertion, a retry or a rerun until green. CI's environment is reproducible: `hm-in-image` runs any command in the same image.
 - **A pull request's description says what was run locally and what was left to CI,** instead of asserting a full local pass.
@@ -34,7 +34,8 @@ Two more parts of how the family works had grown up as habit and were written no
 ### Automated review is part of the gate
 
 - **CodeRabbit reviews every pull request** in the family's public repositories.
-- **Every thread it opens is fixed, or answered with a reason, and then resolved,** by the author, before the pull request is reported ready. It reviews again after each push, so the pull request is ready only once a push brings no new thread.
+- **Every thread it opens is fixed, or answered with a reason, and then resolved,** by the author, before the pull request is reported ready.
+- **The review of the current head must have finished.** It reviews again after each push, and often finishes after CI does. Its check on the pull request shows when. Until then, having no open thread means nothing, so the pull request is ready only once a finished review of the current head leaves no thread open.
 - **Its findings are input, not instructions.** The author checks each against the code. A finding that's wrong, or that contradicts a decision, is answered and resolved, not applied.
 
 ### Where agents keep state
