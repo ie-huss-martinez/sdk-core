@@ -72,7 +72,7 @@ function wait(ms: number, signal: AbortSignal): Promise<void> {
 }
 ```
 
-- **What counts as looking:** reading `signal.aborted`, calling `signal.throwIfAborted()`, or calling a `throwIfAborted(signal)` helper, such as sdk-core's, in the same function or one that encloses it. The signal must be written the same way in both places, such as `options.signal`. A check inside an abort handler doesn't count, because on an aborted signal the handler is what never runs.
+- **What counts as looking:** reading `signal.aborted`, calling `signal.throwIfAborted()`, or calling a `throwIfAborted(signal)` helper, such as sdk-core's, in the same function or one that encloses it. The signal must be written the same way in both places, such as `options.signal`. A check inside an abort handler doesn't count, because on an aborted signal the handler is what never runs, unless the listener is inside that same handler.
 - **Better, don't listen:** `AbortSignal.any([signal, other])` combines signals without listeners, and `AbortSignal.timeout()` needs none.
 - **It can't see a check made by a caller.** When the function's contract is that it's never given an aborted signal, say so where the listener is:
 

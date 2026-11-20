@@ -164,6 +164,24 @@ describe("noUncheckedAbortListener (ADR 0052)", () => {
         '  signal.addEventListener("abort", stop, { once: true });',
         "  if (signal.aborted) stop();",
         "}",
+        "export function bracket(signal: AbortSignal, stop: () => void) {",
+        '  if (signal["aborted"]) return;',
+        '  signal.addEventListener("abort", stop);',
+        "}",
+      ]),
+    ).resolves.toEqual([]);
+  });
+
+  it("accepts a guarded listener inside another signal's abort handler", async () => {
+    await expect(
+      reported([
+        "export function attach(signal: AbortSignal, other: AbortSignal, stop: () => void) {",
+        "  if (other.aborted) return;",
+        '  other.addEventListener("abort", () => {',
+        "    if (signal.aborted) return;",
+        '    signal.addEventListener("abort", stop);',
+        "  });",
+        "}",
       ]),
     ).resolves.toEqual([]);
   });

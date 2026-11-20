@@ -30,7 +30,7 @@ Both checks ship in `sdk-config`, so every repository gets the same ones.
 
 ### `noUncheckedAbortListener`: listen for `abort` only where the signal is checked
 
-- **The rule,** a GritQL plugin in the Biome preset: an `addEventListener("abort", …)` call is reported unless a function that contains it also reads the same signal's `aborted`, calls its `throwIfAborted()`, or passes it to a `throwIfAborted()` helper. A check inside an abort handler doesn't count, since the handler is what never runs.
+- **The rule,** a GritQL plugin in the Biome preset: an `addEventListener("abort", …)` call is reported unless a function that contains it also reads the same signal's `aborted`, calls its `throwIfAborted()`, or passes it to a `throwIfAborted()` helper. Reading it as `signal["aborted"]` counts too. A check inside an abort handler doesn't count, since the handler is what never runs, unless the listener is inside that same handler.
 - **Prefer not to listen:** `AbortSignal.any()` combines signals, and `AbortSignal.timeout()` makes one, without listeners. [ADR 0020](0020-file-policy.md)'s `withProcessingTime` already works that way.
 - **A check made by a caller is invisible to the rule.** That case takes a `biome-ignore lint/plugin/noUncheckedAbortListener` comment with the reason, which a reviewer can then hold the code to.
 - **It's a plugin, not a separate command,** so it runs wherever Biome does (the editor, `lint`, the commit hook), and is suppressed the way every Biome rule is.
