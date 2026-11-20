@@ -5,7 +5,7 @@ packages:
 # with `catalog:`, and pnpm writes the real ranges into published manifests.
 catalog:
   "@arethetypeswrong/cli": ^0.18.5
-  "@biomejs/biome": ^2.6.6
+  "@biomejs/biome": ^2.6.7
   "@changesets/changelog-github": ^1.0.1
   "@changesets/cli": ^3.0.3
   "@commitlint/cli": ^21.2.4
@@ -31,7 +31,7 @@ catalog:
   lint-staged: ^17.6.0
   picomatch: ^4.0.7
   playwright: 1.65.0
-  postcss-selector-parser: ^7.1.7
+  postcss-selector-parser: ^7.2.1
   postcss-value-parser: ^4.2.0
   postcss: ^8.5.31
   publint: ^0.3.25
@@ -41,7 +41,7 @@ catalog:
   size-limit: ^14.3.0
   stylelint: ^18.0.0
   typescript: ^6.0.3
-  vite: ^8.3.6
+  vite: ^8.3.8
   vitest: ^5.1.0
   yaml: ^2.9.1
 
