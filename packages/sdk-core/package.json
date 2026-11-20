@@ -43,6 +43,7 @@
     "@arethetypeswrong/cli": "catalog:",
     "@hussmartinez/sdk-config": "workspace:*",
     "@microsoft/api-extractor": "catalog:",
+    "@size-limit/esbuild": "catalog:",
     "@size-limit/file": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

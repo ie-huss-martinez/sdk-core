@@ -5,8 +5,13 @@
 
 import {
   type EntrySize,
+  entryBudget,
   entryFiles,
+  exportCosts,
   formatKilobytes,
+  importBudget,
+  importCost,
+  keptCode,
   measureEntry,
 } from "@hussmartinez/sdk-config/size";
 import {
@@ -77,4 +82,21 @@ export async function sizes(): Promise<string> {
   const files: string[] = entryFiles("dist/index.js");
   const size: EntrySize = await measureEntry("dist/index.js");
   return `${files.length} files, ${formatKilobytes(size.built)}, ${formatKilobytes(size.minified)}`;
+}
+
+/** The budgets and the import measurements, as a .size-limit.js and a script use them. */
+export async function budgets(): Promise<number> {
+  const checks = [
+    entryBudget({ name: "Core (.)", entry: "dist/index.js", limit: "17 kB" }),
+    importBudget({
+      name: "Import: floor",
+      entry: "dist/index.js",
+      imports: "{ a }",
+      limit: "1 kB",
+    }),
+  ];
+  const { size } = await importCost("dist/index.js", "{ a }");
+  const [floor] = await exportCosts("dist/index.js");
+  const { functions, calls } = await keptCode("dist/index.js", "{ a }");
+  return checks.length + size + (floor?.size ?? 0) + functions + calls.length;
 }

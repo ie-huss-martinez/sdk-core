@@ -22,6 +22,8 @@ it("ships declarations for the testing and size entries that match their JSDoc",
       "testing/require-image.d.ts",
       "testing/visual.d.ts",
       "size/entry.d.ts",
+      "size/imports.d.ts",
+      "size/index.d.ts",
     ]) {
       const generated = await readFile(join(out, name), "utf8");
       const committed = await readFile(join(ROOT, "src", name), "utf8");

@@ -17,6 +17,8 @@ catalog:
   "@playwright/test": 1.65.0
   "@secretlint/node": ^13.1.0
   "@secretlint/secretlint-rule-preset-recommend": ^13.1.0
+  # The same version as size-limit: each plugin pins it exactly as a peer.
+  "@size-limit/esbuild": ^14.3.0
   "@size-limit/file": ^14.3.0
   "@types/node": ^24.19.2
   "@types/picomatch": ^4.0.3
