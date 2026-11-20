@@ -10,7 +10,7 @@ This repository is part of the `@hussmartinez` SDK family and is public. Treat i
 ## Making changes
 
 - **Pull requests:** work on a branch and open one focused pull request per change. Never push to `main`; it is protected.
-- **One pull request at a time:** after opening a pull request, wait until CI is green on its current head, the automated review of that head has finished, and every review thread is resolved. Then stop and report its link, its head commit, the CI run and a short summary. Start the next change only once it's merged, from an up-to-date `main`.
+- **One pull request at a time:** after opening a pull request, wait until the branch is up to date with `main`, CI is green on its current head, the automated review of that head has finished, and every review thread is resolved. If `main` moves first, merge it in and wait again. Then stop and report its link, its head commit, the CI run and a short summary. Start the next change only once it's merged, from an up-to-date `main`.
 - **Never merge your own pull request:** a separate reviewer reads the full diff, requires green CI on the current head, and squash-merges it. An agent that wrote a pull request never reviews or merges it. See [How pull requests are reviewed](CONTRIBUTING.md#how-pull-requests-are-reviewed).
 - **Pull request descriptions:** cover what changed, why, and how it was tested. They can be as detailed as useful, because they don't go into git history.
 - **Squash commits:** the merger writes the commit message on `main`. Its title is the pull request title plus `(#N)`, and its body is 2–6 lines of plain prose. See [How pull requests are merged](CONTRIBUTING.md#how-pull-requests-are-merged).

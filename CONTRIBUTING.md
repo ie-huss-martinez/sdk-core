@@ -55,7 +55,7 @@ The git hooks run on their own: a secret scan, a hidden-character check and lint
 - **Checks:** `verify`, `changeset` and `pr-title` must pass on the current head, and the branch must be up to date with `main`.
 - **Automated review:** CodeRabbit reviews every pull request, and reviews again after each push. Its check on the pull request shows when the review of the current head has finished. Fix or answer each thread it opens, then resolve it.
 
-The pull request is ready once the checks are green, the automated review of the current head has finished, and no review thread is open. A check that fails only in CI is a real failure: find its cause, and don't loosen the test or rerun until it passes.
+The pull request is ready once it's up to date with `main`, the checks are green, the automated review of the current head has finished, and no review thread is open. A check that fails only in CI is a real failure: find its cause, and don't loosen the test or rerun until it passes.
 
 ## How pull requests are reviewed
 
@@ -66,7 +66,7 @@ The pull request is ready once the checks are green, the automated review of the
 - **The review threads:** none is open. Each was fixed, or answered with a reason.
 - **Not "almost right":** if the scope, title or quality isn't right, the pull request is fixed before it's merged.
 
-**Coding agents** open one pull request at a time. Once its checks are green, the automated review of its current head has finished and its review threads are resolved, they stop and report the link, the head commit, the CI run and a short summary. They start the next change only after the pull request is merged, from an up-to-date `main`. An agent never reviews or merges a pull request it wrote; author and reviewer are always different sessions.
+**Coding agents** open one pull request at a time. Once it's up to date with `main`, its checks are green, the automated review of its current head has finished and its review threads are resolved, they stop and report the link, the head commit, the CI run and a short summary. They start the next change only after the pull request is merged, from an up-to-date `main`. An agent never reviews or merges a pull request it wrote; author and reviewer are always different sessions.
 
 ## How pull requests are merged
 

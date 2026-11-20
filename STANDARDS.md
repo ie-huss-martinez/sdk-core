@@ -276,7 +276,7 @@ Each repository extends the presets in `@hussmartinez/sdk-config` instead of cop
   - `--no-verify` is never used.
 - **The hooks are the local bar, and CI is the merge gate** ([ADR 0053](docs/adr/0053-ci-is-the-merge-gate.md)):
   - a pull request needs nothing run locally beyond the hooks. The full `pnpm verify` and the browser suites are run locally to diagnose a failure, to reproduce one from CI, or to capture screenshots, not as a step before every pull request;
-  - a pull request is ready when every required check is green on its current head, the automated review of that head has finished, and no review thread is open;
+  - a pull request is ready when it's up to date with `main`, every required check is green on its current head, the automated review of that head has finished, and no review thread is open;
   - a failure that only shows in CI is real until its cause is found. It's never answered with a looser assertion, a retry or a rerun;
   - the description says what was run locally and what was left to CI.
 - **CI:**
