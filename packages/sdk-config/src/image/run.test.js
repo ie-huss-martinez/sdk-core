@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmod, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -338,6 +338,53 @@ describe("dockerRunArgs", () => {
     ])("refuses %j, a folder outside the checkout", (value) => {
       expect(() => passed(value)).toThrow(UsageError);
       expect(() => passed(value)).toThrow(/must be a folder inside the checkout/);
+    });
+
+    describe("through symbolic links", () => {
+      /** A checkout with links: one out of it, one within it, and one to it from outside. */
+      async function linked() {
+        const base = await mkdtemp(join(tmpdir(), "hm-in-image-links-"));
+        scratch.push(base);
+        const checkout = join(base, "checkout");
+        await mkdir(join(checkout, "packages", "a", "results"), { recursive: true });
+        await mkdir(join(base, "elsewhere"));
+        await symlink(join(base, "elsewhere"), join(checkout, "out"));
+        await symlink(join(checkout, "packages", "a", "results"), join(checkout, "in"));
+        await symlink(checkout, join(base, "alias"));
+        return { base, checkout };
+      }
+      /** @param {string} root @param {string} value */
+      const through = (root, value) =>
+        passedEnvArgs({ root, workdir: "", env: { HM_BROWSER_DIAGNOSTICS: value } });
+
+      it("refuses a link in the checkout that points out of it, and folders beneath it", async () => {
+        const { checkout } = await linked();
+
+        expect(() => through(checkout, "out")).toThrow(/must be a folder inside the checkout/);
+        expect(() => through(checkout, "out/not-made-yet/netlog")).toThrow(UsageError);
+      });
+
+      it("passes a link within the checkout as the folder it points to", async () => {
+        const { checkout } = await linked();
+
+        expect(through(checkout, "in/netlog")).toEqual([
+          "--env",
+          "HM_BROWSER_DIAGNOSTICS=/work/packages/a/results/netlog",
+        ]);
+      });
+
+      it("accepts the checkout's folders when the checkout itself is reached through a link", async () => {
+        const { base, checkout } = await linked();
+
+        expect(through(join(base, "alias"), join(checkout, "netlog"))).toEqual([
+          "--env",
+          "HM_BROWSER_DIAGNOSTICS=/work/netlog",
+        ]);
+        expect(through(checkout, join(base, "alias", "netlog"))).toEqual([
+          "--env",
+          "HM_BROWSER_DIAGNOSTICS=/work/netlog",
+        ]);
+      });
     });
 
     it("passes an empty value on as it is, which leaves the diagnostics off", () => {

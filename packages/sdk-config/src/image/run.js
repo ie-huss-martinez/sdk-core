@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, isAbsolute, join, posix, relative, sep } from "node:path";
+import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, posix, relative, sep } from "node:path";
 import { parse, parseAllDocuments } from "yaml";
 
 /** Exit code when the command succeeded. */
@@ -301,11 +301,36 @@ export const PASSED_ENV = Object.freeze([
 ]);
 
 /**
+ * A path with its symbolic links resolved, as far as it exists: the folder
+ * for diagnostics is usually created later, so the links of its nearest
+ * existing ancestor are resolved and the rest is kept.
+ *
+ * @param {string} path An absolute path.
+ * @returns {string}
+ */
+function realPath(path) {
+  /** @type {string[]} */
+  const rest = [];
+  for (let dir = path; ; dir = dirname(dir)) {
+    try {
+      return join(realpathSync(dir), ...rest);
+    } catch {
+      if (dirname(dir) === dir) {
+        return path;
+      }
+      rest.unshift(basename(dir));
+    }
+  }
+}
+
+/**
  * The `--env` arguments of `docker run` for the variables in
  * {@link PASSED_ENV} that are set. Each is passed by name, so its value
  * never appears in the arguments, except `HM_BROWSER_DIAGNOSTICS`: it names
  * a folder, and the container sees the checkout at `/work`, so it's passed
- * as that folder's path there.
+ * as that folder's path there. Symbolic links are resolved first, so a link
+ * in the checkout that points out of it is refused, since the container
+ * would follow it to a folder of its own.
  *
  * @param {{ root: string, workdir: string, env: Record<string, string | undefined> }} options
  *   `workdir` is the folder the command runs in, relative to the root.
@@ -322,7 +347,10 @@ export function passedEnvArgs({ root, workdir, env }) {
     if (name !== DIAGNOSTICS_ENV || value === "") {
       return ["--env", name];
     }
-    const inCheckout = relative(root, isAbsolute(value) ? value : join(root, workdir, value))
+    const inCheckout = relative(
+      realPath(root),
+      realPath(isAbsolute(value) ? value : join(root, workdir, value)),
+    )
       .split(sep)
       .join("/");
     if (inCheckout === ".." || inCheckout.startsWith("../") || isAbsolute(inCheckout)) {
