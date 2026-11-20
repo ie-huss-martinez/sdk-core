@@ -1,6 +1,6 @@
 # 0015. Verification, releases and trusted publishing
 
-- **Status:** Accepted; release tooling superseded by [0021](0021-version-and-release-with-changesets.md); the full local `pnpm verify` before a pull request superseded by [0053](0053-ci-is-the-merge-gate.md)
+- **Status:** Accepted; release tooling superseded by [0021](0021-version-and-release-with-changesets.md); the full local `pnpm verify` before a pull request superseded by [0053](0053-ci-is-the-merge-gate.md); what its size budgets measure is set out in [0055](0055-what-the-size-budgets-measure.md)
 - **Date:** 2026-11-06
 
 ## Context
