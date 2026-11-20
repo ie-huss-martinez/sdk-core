@@ -53,9 +53,10 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0045](0045-portable-formats-and-conformance-vectors.md) | Portable formats and language-neutral conformance vectors | Accepted |
 | [0046](0046-ui-text-through-the-sdk.md) | `ui`'s text through the SDK's messages | Accepted; refines [0019](0019-message-catalogues.md) and [0036](0036-ui-as-a-dependency-of-the-sdks.md) |
 | [0047](0047-one-copy-of-each-family-package.md) | Check that every repository installs one copy of each family package | Accepted; refines [0036](0036-ui-as-a-dependency-of-the-sdks.md) |
-| [0048](0048-visual-regression-for-sdk-editors.md) | Visual regression tests for every SDK's editor | Accepted; refines [0039](0039-test-applications-in-each-repository.md) |
+| [0048](0048-visual-regression-for-sdk-editors.md) | Visual regression tests for every SDK's editor | Accepted; refines [0039](0039-test-applications-in-each-repository.md); its comparison threshold set by [0054](0054-visual-comparison-tolerance.md) |
 | [0049](0049-local-browser-tests-in-the-pinned-image.md) | Local browser tests run in the pinned image | Accepted; refines [0025](0025-one-browser-test-image-in-one-place.md) and [0048](0048-visual-regression-for-sdk-editors.md); amended with a guard and the container's environment |
 | [0050](0050-error-text-by-reason-and-warning-text.md) | Error text by reason, and text for warnings | Accepted; refines [0019](0019-message-catalogues.md) |
 | [0051](0051-clean-file-names.md) | Clean file names once, with `cleanFileName` | Accepted; refines [0012](0012-hostile-input-and-no-network.md) |
 | [0052](0052-source-checks-for-hidden-characters-and-abort-listeners.md) | Source checks for hidden characters and abort listeners | Accepted; refines [0015](0015-verification-and-releases.md) and [0016](0016-git-hooks-and-merge-guards.md) |
 | [0053](0053-ci-is-the-merge-gate.md) | CI is the merge gate, and the hooks are the local bar | Accepted; supersedes the full local verify before a pull request in [0015](0015-verification-and-releases.md) and [0016](0016-git-hooks-and-merge-guards.md) |
+| [0054](0054-visual-comparison-tolerance.md) | How strictly screenshots are compared | Accepted; refines [0048](0048-visual-regression-for-sdk-editors.md) |

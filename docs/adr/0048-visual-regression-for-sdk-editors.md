@@ -1,6 +1,6 @@
 # 0048. Visual regression tests for every SDK's editor
 
-- **Status:** Accepted
+- **Status:** Accepted; the comparison threshold that "no tolerance" left at Playwright's default is set by [0054](0054-visual-comparison-tolerance.md)
 - **Date:** 2026-11-14
 - **Refines:** [0039](0039-test-applications-in-each-repository.md), by adding screenshots to the end-to-end suite; follows `ui`'s ADR 0002 and ADR 0004
 
