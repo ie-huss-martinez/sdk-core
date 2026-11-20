@@ -59,3 +59,4 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0051](0051-clean-file-names.md) | Clean file names once, with `cleanFileName` | Accepted; refines [0012](0012-hostile-input-and-no-network.md) |
 | [0052](0052-source-checks-for-hidden-characters-and-abort-listeners.md) | Source checks for hidden characters and abort listeners | Accepted; refines [0015](0015-verification-and-releases.md) and [0016](0016-git-hooks-and-merge-guards.md) |
 | [0053](0053-ci-is-the-merge-gate.md) | CI is the merge gate, and the hooks are the local bar | Accepted; supersedes the full local verify before a pull request in [0015](0015-verification-and-releases.md) and [0016](0016-git-hooks-and-merge-guards.md) |
+| [0054](0054-visual-comparison-tolerance.md) | How strictly screenshots are compared | Proposed; refines [0048](0048-visual-regression-for-sdk-editors.md) |
