@@ -239,6 +239,41 @@ describe("createWorkerClient", () => {
     expect(workers).toHaveLength(0);
   });
 
+  it("rejects an already aborted call on a running worker without posting a message", async () => {
+    const { client, workers } = setup();
+    void client.start();
+    const worker = workers[0];
+    worker?.ready();
+    await flush();
+    // An "abort" listener added to an aborted signal never fires, so the
+    // call must be refused before anything is sent or listened for.
+    const signal = AbortSignal.abort();
+    const add = vi.spyOn(signal, "addEventListener");
+
+    const error = await rejection(client.call("echo", "x", { signal }));
+    await flush();
+
+    expect(isSdkError(error, "ABORTED")).toBe(true);
+    expect(worker?.sent).toEqual([]);
+    expect(add).not.toHaveBeenCalled();
+    expect(workers).toHaveLength(1);
+    expect(worker?.terminated).toBe(false);
+  });
+
+  it("posts nothing for a call aborted before the worker is ready", async () => {
+    const { client, workers } = setup();
+    const controller = new AbortController();
+    const call = rejection(client.call("echo", "x", { signal: controller.signal }));
+
+    controller.abort();
+    expect(isSdkError(await call, "ABORTED")).toBe(true);
+    workers[0]?.ready();
+    await flush();
+
+    expect(workers[0]?.sent).toEqual([]);
+    expect(workers[0]?.terminated).toBe(false);
+  });
+
   it("maps a TimeoutError reason to TIMEOUT and any other reason to ABORTED", async () => {
     const { client } = setup();
     const timeout = new DOMException("Too slow.", "TimeoutError");

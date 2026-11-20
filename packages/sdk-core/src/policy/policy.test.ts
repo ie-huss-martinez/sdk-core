@@ -22,6 +22,11 @@ const pdfLimits = defineLimits(
 /** Settles only when the signal aborts, like a cooperative worker call. */
 function untilAborted(signal: AbortSignal): Promise<never> {
   return new Promise((_resolve, reject) => {
+    // A listener added to an aborted signal never fires, so check first.
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
     signal.addEventListener("abort", () => reject(signal.reason), { once: true });
   });
 }
