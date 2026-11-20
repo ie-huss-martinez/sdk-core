@@ -1,6 +1,6 @@
 # 0056. Size budgets for what applications import
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-21
 - **Amends:** [ADR 0015](0015-verification-and-releases.md)'s "bundle budgets: `size-limit`, per entry point", by adding a second kind of budget beside the entry's. Builds on [ADR 0055](0055-what-the-size-budgets-measure.md), which says what the entry's budget is
 
@@ -55,16 +55,17 @@ Measured from each repository's local build, at sdk-core 589ea92, ui 917a4a9, pd
 
 ## Decision
 
-**Recommended: B. The reviewer rules before any code is written.**
+**Option B: import budgets are a family rule, with a helper in `sdk-config`.**
 
 ### Which entries, and which scenarios
 
-- **An entry gets import budgets when its exports can be used apart:** a package's core entry and its React entry. An entry that ships whole gets none: a stylesheet, a worker, and an element entry, whose one export mounts the whole editor. Its ceiling is its real cost.
+- **An entry gets import budgets when its exports can be used apart:** a package's core entry and its React entry. An entry that loads whole by design gets none and keeps its ceiling only: a stylesheet, a worker, and an element or standalone entry, whose one export mounts the whole editor. Its ceiling is its real cost.
 - **Each such entry has at least these scenarios:**
   - **A floor:** the cheapest import a host would really make, such as the error class or the message catalogue. It catches code that leaks into everything. A floor that moves is a regression to fix, never a budget to raise.
   - **Each heavy piece on its own:** an export over about 2 kB by itself, such as a session, an engine, or a timeline.
   - **What a typical application imports:** for a core entry, the factories an editor uses together, as audio-sdk's "an editor's set"; for a React entry, the editor component.
 - **A new export over about 2 kB adds its scenario in the pull request that adds it.**
+- **sdk-core starts with these,** from the measurements above: the floor, `SdkError`; each piece over 2 kB, `createWorkerClient`, `exposeWorker`, `createShortcutRegistry`, and `createMessages` with `sdkCoreMessages`; and from the element base, `createEditorElement`, which the SDKs' element entries build on.
 
 ### How they're measured
 
@@ -85,12 +86,30 @@ Measured from each repository's local build, at sdk-core 589ea92, ui 917a4a9, pd
 - **Review reads the scenarios; the ceiling is the backstop.** When a pull request raises an entry's ceiling and only the scenarios that import the new code move, the raise is expected growth, and the table shows it.
 - **`build.test.ts` keeps checking which code ships.** A scenario can stay within budget while shipping the wrong code, so the size budgets don't replace those tests.
 
-### The three entries that don't come apart
+### The three entries that don't come apart: fix first, then adopt
 
-They're findings, for image-sdk, audio-sdk and video-sdk, and adopting this rule doesn't wait for them:
+A floor set at 40 kB would record the defect as the norm. So for image-sdk, video-sdk and audio-sdk, the order is:
 
-- **Each adopts with its floor as measured today,** rounded up to the next 0.1 kB, so it can't grow by more than that unnoticed, and with an issue that names the calls holding the code.
-- **The likely fix is the one sdk-core uses:** mark top-level calls that have no side effects, such as `defineTool(…)` and `createContext(…)`, as `/* @__PURE__ */`, or move them into the function that needs them. It hasn't been tried in those repositories; the floor scenario is what will show whether it worked, and its budget comes down in the pull request that fixes it.
+1. **Fix,** in a `fix:` pull request in each repository: mark the top-level calls that have no side effects, such as `defineTool(…)` and `createContext(…)`, as `/* @__PURE__ */`, which is what sdk-core does, or restructure where an annotation wouldn't be honest, because the call really has an effect. Whether that's enough hasn't been tried; the measurement below is what shows it.
+2. **Verify** with the same measurement as this record: the cheapest import from the React entry, before and after.
+3. **Adopt** the budgets in a later pull request, with the floor at the fixed number.
+
+If a fix can't bring an entry fully apart, that package adopts at its measured number, with the reason in an ADR of its own.
+
+Every other package adopts when it next touches its size configuration, since its floors are already small.
+
+### How to measure one import
+
+So that any repository can repeat the numbers here, and check a fix:
+
+1. Build the package.
+2. Bundle a two-line module that imports the names from the built entry's file and uses them, such as `import { imageEditorMessages } from "./dist/react.js"; console.log(imageEditorMessages);`, with esbuild: `bundle`, `minify`, `format: "esm"`, tree shaking on.
+3. Mark as external every import that isn't a relative path, which leaves out packages, and every path under the package's lazy chunks.
+4. Compress the output with brotli at quality 11, and read its length.
+
+Bundling the same module without `minify` and reading what's left at the top level shows which calls keep code alive.
+
+`sdk-config` ships this as a command with the helper, so no repository writes it again: it prints what each export of a built entry costs on its own, cheapest first. Until that release, the four steps above are the method.
 
 ## Alternatives considered
 
@@ -107,4 +126,4 @@ Beyond the options above:
 - Each repository adds `@size-limit/esbuild`, which brings esbuild as a development dependency. `ui` and audio-sdk have it.
 - Each repository gains a handful of budgets to keep. The rule that a floor isn't raised makes the important one cheap to keep.
 - **A small export that grows on its own isn't measured as an import.** The floor catches code that reaches every import, not growth inside one small export that no scenario imports: such an export could grow by half a kilobyte and move only the entry's ceiling. It gets a scenario of its own when it passes about 2 kB, and a package may add one sooner for an export it wants watched.
-- image-sdk, audio-sdk and video-sdk each have a fix to make before their React entries serve hosts that compose their own interface.
+- image-sdk, audio-sdk and video-sdk each have a fix to make before they adopt, and before their React entries serve hosts that compose their own interface.
