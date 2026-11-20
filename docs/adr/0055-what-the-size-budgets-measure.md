@@ -1,6 +1,6 @@
 # 0055. What the size budgets measure
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-21
 - **Refines:** [ADR 0015](0015-verification-and-releases.md)'s "bundle budgets: `size-limit`, per entry point", which doesn't say what is measured
 
@@ -73,18 +73,18 @@ No application ships a whole entry. Its bundler keeps what it imports. `ui`'s [A
 
 ## Decision
 
-**Recommended: A, with the two additions below. The reviewer rules before any code is written.**
+**Option A: the budgets keep measuring the built files, and this record says what that counts. Two additions come with it.**
 
-This goes against the lean of the backlog item that asked the question, so the reasoning matters: the item assumed that comments and names make up about a quarter of what the budgets count. Measured, comments are none of it, and the quarter is a constant factor that every entry shares. Switching measures (B) would change every number and catch nothing new, for a pull request in each repository and a minifier in the loop.
+The question assumed that comments count against a budget. They don't: the build drops them. What separates the built size from the minified one is a constant factor that every entry shares. Switching measures (B) would change every number and catch nothing new, for a pull request in each repository and a minifier in the loop.
 
 - **An entry budget is a ceiling, measured on the built files:** the brotli size of the entry and the chunks it loads statically. It bounds what any application can ship from that entry, and is about a fifth above the entry's minified size. Lazy chunks have budgets of their own.
 - **A budget is never met by shortening names or restructuring for the measure.** A pull request that needs more raises the budget, with a table of before and after and the reason, as today.
-- **Size is judged where applications feel it:** in budgets for what an application imports, bundled and minified, as `ui` and audio-sdk have. Bringing those to every repository is its own decision, an amendment to ADR 0015 from `ui`'s ADR 0012, and it's the change that would have told image-sdk#79's reviewers what its 3 kB cost an application.
+- **Size is judged where applications feel it:** in budgets for what an application imports, bundled and minified, as `ui` and audio-sdk have. Bringing those to every repository is the next decision, an amendment to ADR 0015 from `ui`'s ADR 0012 and audio-sdk's experience. It's the change that would have told image-sdk#79's reviewers what its 3 kB cost an application.
 
-Two additions, both small:
+Two additions, in one `sdk-config` change:
 
-1. **`sdk-config` provides the list of files an entry loads.** Three repositories carry the same function for it, `loadedFiles`, copied with a comment saying so. One shared helper for `.size-limit.js` ends the copies, whatever is measured.
-2. **`sdk-config` can print an entry's minified size** (option D's half), for a pull request's table when the comparison helps. It isn't a budget and fails nothing.
+1. **`sdk-config` provides the list of files an entry loads.** Three repositories carry the same function for it, `loadedFiles`, copied with a comment saying so. One shared helper for `.size-limit.js` ends the copies.
+2. **`sdk-config` prints an entry's minified size,** for a pull request's table when the comparison helps. It's information only: it's never a budget, and it fails nothing.
 
 ## Alternatives considered
 
@@ -97,4 +97,4 @@ Two additions, both small:
 - Nothing changes in any repository's budgets, and no budget is reset.
 - The family's documents stop saying, or implying, that documentation costs size.
 - The ceiling keeps overstating what ships by about a fifth, and a longer local name still costs it tens of bytes. Both are recorded here.
-- If the reviewer prefers B, the table above gives each entry's new starting number, and the cost is one pull request in each repository.
+- Three repositories replace their copy of `loadedFiles` with `sdk-config`'s helper, when they next touch their size configuration.
