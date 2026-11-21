@@ -152,7 +152,8 @@ export default await defineReactLint();
 
   Take that out in the pull request that turns the plugin's rule on, and move your `biome-ignore` comments for it to the plugin's.
 - **A suppression says why:** `// eslint-disable-next-line react-hooks/immutability -- <reason>`. `hm-lint-react` fails on one without a reason, and on one that suppresses nothing. A comment that configures a rule for its file, `/* eslint react-hooks/purity: "off" */`, is refused: rules change in the `off` list.
-- **A path you give it must hold something to lint.** `hm-lint-react src/componets` fails rather than pass on nothing.
+- **A path you give it must exist,** and a folder must hold something to lint: `hm-lint-react src/componets` fails rather than pass on nothing. **A file its configuration leaves out is skipped,** a test or a story for instance, as ESLint's `--no-warn-ignored` does, so a hook can pass it whatever is staged.
+- **In the commit hook,** add it with the lint-staged preset's `withReactLint`, [below](#commitlint-lint-staged-and-secretlint).
 - **The latest value of a prop,** for an effect or a handler, comes from `ui`'s `useLatest`, not from a ref written while rendering.
 - **It lints published source:** TypeScript files under `src` by default, without build output, fixtures, tests (`*.test.*`) or stories (`*.stories.*`). A test's own component may hand a value out through a variable, which the rules for published components would report. Give `defineReactLint` your own `files` and `ignores`, and `hm-lint-react` your own paths, for another layout.
 - **What it doesn't catch:** a direct read of the document while rendering, such as `document.activeElement`, and a changed prop. Those still need review.
@@ -973,6 +974,20 @@ export { default } from "@hussmartinez/sdk-config/commitlint";
 // lint-staged.config.js
 export { default } from "@hussmartinez/sdk-config/lint-staged";
 ```
+
+**A repository with React** adds [the React lint](#react-hm-lint-react) to the hook with `withReactLint`:
+
+```js
+// lint-staged.config.js
+import { withReactLint } from "@hussmartinez/sdk-config/lint-staged";
+
+export default withReactLint();
+```
+
+- **When it runs:** whenever a staged file is TypeScript under a `src` folder. After Biome, in the same list, so it reads what Biome left.
+- **What it runs:** `hm-lint-react`, with no file named, over the whole of `src`, as `pnpm lint` does. The lint needs every file to judge one, and a command built from staged file names breaks on a name with a space, since lint-staged splits a task's command at spaces.
+- **Your own configuration:** `withReactLint(yours)` adds the step to the end of its `"!(*.css)"` list, and returns a new object.
+- **Replacing a function of your own:** if your `lint-staged.config.js` has a hand-written function that runs plain `hm-lint-react`, delete it and use this. Keep yours if it passes options, such as `--config` or its own paths: this step runs the command with none, so it reads `eslint.config.js` and lints `src`.
 
 secretlint loads its configuration as CommonJS:
 
