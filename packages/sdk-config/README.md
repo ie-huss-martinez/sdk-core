@@ -337,11 +337,25 @@ List it by its package path, in every configuration that starts a browser:
 }
 
 // e2e/playwright.config.ts
+import { webServersFor } from "@hussmartinez/sdk-config/testing/require-image";
+
 export default defineConfig({
   globalSetup: "@hussmartinez/sdk-config/testing/require-image",
+  webServer: webServersFor([
+    {
+      command: "node node_modules/vite/bin/vite.js preview --port 4310 --strictPort",
+      cwd: "../examples/vite",
+      url: "http://localhost:4310",
+      reuseExistingServer: false,
+    },
+  ]),
   // …
 });
 ```
+
+**List an end-to-end configuration's web servers through `webServersFor`.** Playwright starts its web servers before the global setup. Without the helper, a run on a host builds and waits for every example's server before the guard speaks, or fails on a server first and never shows the guard's explanation. `webServersFor(servers)` returns the servers where browser tests can run, which is in the image, in CI and with `HM_ALLOW_HOST_BROWSER=1`, and an empty list where the guard will refuse. It takes one server, a list or `undefined`, always returns an array, and never throws, so the configuration loads anywhere.
+
+`defineVisualConfig` needs no helper: it refuses outside the image as the configuration loads, before any server starts.
 
 - **It runs only when a browser project starts.** A global setup belongs to its project, so `vitest run --project unit` on a host never reaches it, and the configuration itself loads anywhere, as editors and `tsc` need.
 - **It allows the image and CI:** `HM_VISUAL_CONTAINER=1`, which `hm-in-image` and CI's verify jobs set, or `CI` set to anything but an empty string, `0` or `false`.

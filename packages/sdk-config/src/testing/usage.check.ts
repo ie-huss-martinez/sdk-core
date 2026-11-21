@@ -32,6 +32,7 @@ import requireBrowserTestImage, {
   ALLOW_HOST_ENV,
   browserTestImageProblem,
   CONTAINER_ENV,
+  webServersFor,
 } from "@hussmartinez/sdk-config/testing/require-image";
 import {
   browserTimeouts,
@@ -80,6 +81,17 @@ export function guard(): string | undefined {
   const problem: string | undefined = browserTestImageProblem({ [marker]: "1", [bypass]: "" });
   requireBrowserTestImage();
   return problem;
+}
+
+/** The web servers of a Playwright configuration: one, several or none, typed as given. */
+export function guardedServers(): {
+  webServer: { command: string; url: string; timeout: number }[];
+} {
+  const vite = { command: "vite preview", url: "http://localhost:4310", timeout: 60_000 };
+  const several: { command: string; url: string; timeout: number }[] = webServersFor([vite, vite]);
+  const one: { command: string; url: string; timeout: number }[] = webServersFor(vite, {});
+  const none: (typeof vite)[] = webServersFor<typeof vite>(undefined);
+  return { webServer: [...several, ...one, ...none] };
 }
 
 /** The size entry, as a repository's .size-limit.js and scripts use it. */

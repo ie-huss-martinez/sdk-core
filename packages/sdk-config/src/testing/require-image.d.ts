@@ -11,6 +11,41 @@
  */
 export function browserTestImageProblem(env?: Record<string, string | undefined>): string | undefined;
 /**
+ * The web servers a Playwright configuration lists: the ones given where
+ * browser tests can run, and none where the guard will refuse them.
+ *
+ * Playwright starts its web servers before the global setup. Without this,
+ * a run on a host builds and waits for every example's server, and only
+ * then hears from the guard, or fails on a server first and never does.
+ * With no servers listed, the guard's explanation is the first and only
+ * thing shown. In the image, in CI and with `HM_ALLOW_HOST_BROWSER=1`, the
+ * list is returned as given.
+ *
+ * It never throws, so the configuration loads anywhere: refusing is the
+ * global setup's job, which is listed beside it.
+ *
+ * @example
+ * ```ts
+ * // e2e/playwright.config.ts
+ * import { webServersFor } from "@hussmartinez/sdk-config/testing/require-image";
+ *
+ * export default defineConfig({
+ *   globalSetup: "@hussmartinez/sdk-config/testing/require-image",
+ *   webServer: webServersFor([
+ *     { command: "vite preview --port 4310 --strictPort", url: "http://localhost:4310" },
+ *   ]),
+ * });
+ * ```
+ *
+ * @template Server
+ * @param {Server | readonly Server[] | undefined} servers The
+ *   configuration's `webServer`: one server, a list of them, or none.
+ * @param {Record<string, string | undefined>} [env] The environment,
+ *   `process.env` by default.
+ * @returns {Server[]} The servers to list, as a new array.
+ */
+export function webServersFor<Server>(servers: Server | readonly Server[] | undefined, env?: Record<string, string | undefined>): Server[];
+/**
  * The global setup, for Vitest's browser projects and for Playwright's
  * end-to-end configurations. List it by its package path; nothing is
  * imported into the configuration.
@@ -23,6 +58,9 @@ export function browserTestImageProblem(env?: Record<string, string | undefined>
  * // e2e/playwright.config.ts
  * export default defineConfig({ globalSetup: "@hussmartinez/sdk-config/testing/require-image", … });
  * ```
+ *
+ * A Playwright configuration with web servers lists them through
+ * {@link webServersFor}, so none starts before this refuses.
  *
  * @returns {void}
  * @throws `Error` outside the browser test image and CI, with what to run
