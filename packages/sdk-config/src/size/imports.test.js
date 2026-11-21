@@ -985,7 +985,13 @@ describe("a budget whose own esbuild settings were replaced", () => {
       await mkdir(dirname(join(root, path)), { recursive: true });
       await writeFile(join(root, path), content);
     }
-    const result = spawnSync(process.execPath, [SIZE_LIMIT], { cwd: root, encoding: "utf8" });
+    const result = spawnSync(process.execPath, [SIZE_LIMIT], {
+      cwd: root,
+      encoding: "utf8",
+      // Plain text, wherever this runs: CI asks for colour, and its codes
+      // would sit inside the lines these tests read.
+      env: { ...process.env, NO_COLOR: "1", FORCE_COLOR: "0" },
+    });
     return { status: result.status, output: `${result.stdout}${result.stderr}` };
   }
 
