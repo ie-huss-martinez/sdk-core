@@ -987,7 +987,7 @@ export default withReactLint();
 - **When it runs:** whenever a staged file is TypeScript under a `src` folder. After Biome, in the same list, so it reads what Biome left.
 - **What it runs:** `hm-lint-react`, with no file named, over the whole of `src`, as `pnpm lint` does. The lint needs every file to judge one, and a command built from staged file names breaks on a name with a space, since lint-staged splits a task's command at spaces.
 - **Your own configuration:** `withReactLint(yours)` adds the step to the end of its `"!(*.css)"` list, and returns a new object.
-- **Replacing a function of your own:** if your `lint-staged.config.js` has a hand-written function that runs `hm-lint-react`, delete it and use this.
+- **Replacing a function of your own:** if your `lint-staged.config.js` has a hand-written function that runs plain `hm-lint-react`, delete it and use this. Keep yours if it passes options, such as `--config` or its own paths: this step runs the command with none, so it reads `eslint.config.js` and lints `src`.
 
 secretlint loads its configuration as CommonJS:
 
