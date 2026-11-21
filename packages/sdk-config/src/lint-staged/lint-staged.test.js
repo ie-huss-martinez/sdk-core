@@ -91,6 +91,80 @@ describe("withReactLint", () => {
   });
 });
 
+describe("withReactLint, in a repository whose source isn't under src", () => {
+  const PATHS = ["packages/ui/src", "apps/catalogue/src"];
+  const task = /** @type {(files: readonly string[]) => string[]} */ (
+    withReactLint(undefined, { paths: PATHS })["!(*.css)"]?.at(-1)
+  );
+
+  it("runs hm-lint-react on those folders when a staged file is under one", () => {
+    for (const file of [
+      "/repo/packages/ui/src/components/button/Button.tsx",
+      "/repo/apps/catalogue/src/main.ts",
+      "C:\\repo\\packages\\ui\\src\\components\\Button.tsx",
+    ]) {
+      expect(task(["/repo/README.md", file])).toEqual([
+        "hm-lint-react packages/ui/src apps/catalogue/src",
+      ]);
+    }
+  });
+
+  it("runs nothing for a file outside them, a root src included", () => {
+    for (const file of [
+      "/repo/src/index.ts",
+      "/repo/packages/ui/vite.config.ts",
+      "/repo/packages/ui-extra/src/index.ts",
+      "/repo/other/packages/ui/srcs/index.ts",
+      "/repo/packages/ui/src/styles.css",
+    ]) {
+      expect(task([file])).toEqual([]);
+      expect(isReactSource(file, PATHS)).toBe(false);
+    }
+  });
+
+  it.each(["./packages/ui/src", "packages/ui/src/", "./packages/ui/src/", "packages\\ui\\src"])(
+    "matches staged files, and names the folder with forward slashes, when it's written as %s",
+    (path) => {
+      const written = /** @type {(files: readonly string[]) => string[]} */ (
+        withReactLint(undefined, { paths: [path] })["!(*.css)"]?.at(-1)
+      );
+
+      expect(written(["/repo/packages/ui/src/Button.tsx"])).toEqual([
+        "hm-lint-react packages/ui/src",
+      ]);
+      expect(written(["/repo/packages/ui-extra/src/Button.tsx"])).toEqual([]);
+    },
+  );
+
+  it.each([".", "./"])("lints from the repository's root when the folder is %s", (path) => {
+    const written = /** @type {(files: readonly string[]) => string[]} */ (
+      withReactLint(undefined, { paths: [path] })["!(*.css)"]?.at(-1)
+    );
+
+    expect(written(["/repo/app/page.tsx"])).toEqual(["hm-lint-react ."]);
+    expect(written(["C:\\repo\\app\\page.tsx"])).toEqual(["hm-lint-react ."]);
+    expect(written(["/repo/README.md"])).toEqual([]);
+  });
+
+  it("keeps the step after Biome, and the preset as it was", () => {
+    const withLint = withReactLint(undefined, { paths: PATHS });
+
+    expect(withLint["!(*.css)"]?.slice(0, -1)).toEqual(config["!(*.css)"]);
+    expect(withReactLint()["!(*.css)"]?.at(-1)).toBe(reactLintTask);
+  });
+
+  it.each([
+    ["no folder", []],
+    ["an empty name", [""]],
+    ["a name with a space, which lint-staged would split the command at", ["packages/my ui/src"]],
+    ["something that isn't a list", "packages/ui/src"],
+  ])("refuses %s", (_label, paths) => {
+    expect(() => withReactLint(undefined, { paths: /** @type {never} */ (paths) })).toThrow(
+      TypeError,
+    );
+  });
+});
+
 describe("the React lint's task", () => {
   it.each([
     "/repo/src/react/Editor.tsx",
@@ -146,8 +220,13 @@ describe("under lint-staged itself", () => {
    * be there, and `hm-lint-react` is the real one, from this package.
    *
    * @param {Record<string, string>} staged The files, by path.
+   * @param {{ lintStaged?: string, eslint?: string }} [configured] The two
+   *   configurations' default exports, as source.
    */
-  async function commit(staged) {
+  async function commit(
+    staged,
+    { lintStaged = 'withReactLint({ "!(*.css)": [] })', eslint = "defineReactLint()" } = {},
+  ) {
     // Inside the package, so lint-staged finds hm-lint-react and the lint its packages.
     const root = await mkdtemp(join(PACKAGE, ".tmp-lint-staged-"));
     roots.push(root);
@@ -159,11 +238,11 @@ describe("under lint-staged itself", () => {
     git("config", "commit.gpgsign", "false");
     await writeFile(
       join(root, "lint-staged.config.js"),
-      `import { withReactLint } from ${JSON.stringify(PRESET)};\nexport default withReactLint({ "!(*.css)": [] });\n`,
+      `import { withReactLint } from ${JSON.stringify(PRESET)};\nexport default ${lintStaged};\n`,
     );
     await writeFile(
       join(root, "eslint.config.js"),
-      `import { defineReactLint } from ${JSON.stringify(REACT_LINT)};\nexport default await defineReactLint();\n`,
+      `import { defineReactLint } from ${JSON.stringify(REACT_LINT)};\nexport default await ${eslint};\n`,
     );
     await writeFile(join(root, "package.json"), '{ "type": "module" }\n');
     git("add", "lint-staged.config.js", "eslint.config.js", "package.json");
@@ -203,6 +282,20 @@ describe("under lint-staged itself", () => {
     // The test file does the same and isn't reported: the lint leaves tests out.
     expect(output).toContain("My Editor.tsx");
     expect(output).not.toContain("Editor.test.tsx");
+  });
+
+  it("lints a monorepo's folder, named with paths, where a bare run would find no src", async () => {
+    const { status, output } = await commit(
+      { "packages/ui/src/My Button.tsx": IMPURE },
+      {
+        lintStaged: 'withReactLint({ "!(*.css)": [] }, { paths: ["packages/ui/src"] })',
+        eslint: 'defineReactLint({ files: ["packages/*/src/**/*.{ts,tsx}"] })',
+      },
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("react-hooks/purity");
+    expect(output).toContain("My Button.tsx");
   });
 
   it("doesn't run it when nothing staged is source", async () => {

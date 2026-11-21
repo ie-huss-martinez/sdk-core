@@ -25,17 +25,53 @@ export default config;
 /** The glob whose files may hold React: everything but CSS. */
 const NOT_CSS = "!(*.css)";
 
-/** TypeScript under a `src` folder, in a path with either kind of separator. */
-const REACT_SOURCE = /(?:^|[\\/])src[\\/].*\.[cm]?tsx?$/;
+/** Where the React lint looks, unless a repository says otherwise. */
+const DEFAULT_PATHS = Object.freeze(["src"]);
+
+/** A TypeScript file's extension. */
+const TYPESCRIPT = /\.[cm]?tsx?$/;
+
+/** @param {string} text */
+const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
- * Whether a staged file is one the React lint reads: TypeScript under
- * `src`. lint-staged gives absolute paths, with backslashes on Windows.
+ * Whether a staged file is one the React lint reads: TypeScript under one
+ * of the folders it lints, `src` by default. lint-staged gives absolute
+ * paths, with backslashes on Windows; a folder is matched as a run of whole
+ * path segments, with either separator.
  *
  * @param {string} file
+ * @param {readonly string[]} [paths] The folders the lint reads, from the
+ *   repository's root, such as `["packages/ui/src"]`.
  * @returns {boolean}
  */
-export const isReactSource = (file) => REACT_SOURCE.test(file);
+export function isReactSource(file, paths = DEFAULT_PATHS) {
+  const normal = file.replaceAll("\\", "/");
+  return (
+    TYPESCRIPT.test(normal) &&
+    paths.some((path) => {
+      const folder = folderOf(path);
+      // The repository's root holds every file.
+      return folder === "" || new RegExp(`(?:^|/)${escaped(folder)}/`).test(normal);
+    })
+  );
+}
+
+/**
+ * A folder as its path's segments, from the repository's root: with forward
+ * slashes, and without a leading `./` or a trailing slash, so that
+ * `./packages/ui/src/` is `packages/ui/src`. The root itself, `.` or `./`,
+ * is the empty text.
+ *
+ * @param {string} path
+ * @returns {string}
+ */
+const folderOf = (path) =>
+  path
+    .replaceAll("\\", "/")
+    .replace(/^(?:\.\/)+/, "")
+    .replace(/\/+$/, "")
+    .replace(/^\.$/, "");
 
 /**
  * The React lint's step (sdk-core ADR 0063), as a lint-staged task: when a
@@ -50,7 +86,8 @@ export const isReactSource = (file) => REACT_SOURCE.test(file);
  * @param {readonly string[]} files The staged files that matched the glob.
  * @returns {string[]} The commands to run.
  */
-export const reactLintTask = (files) => (files.some(isReactSource) ? ["hm-lint-react"] : []);
+export const reactLintTask = (files) =>
+  files.some((file) => isReactSource(file)) ? ["hm-lint-react"] : [];
 
 /**
  * Adds the React lint to a lint-staged configuration, after Biome, for a
@@ -65,20 +102,50 @@ export const reactLintTask = (files) => (files.some(isReactSource) ? ["hm-lint-r
  * export default withReactLint();
  * ```
  *
+ * A repository whose React source isn't under `src` at its root names where
+ * it is, and the step lints there:
+ *
+ * ```js
+ * export default withReactLint(undefined, { paths: ["packages/ui/src"] });
+ * ```
+ *
  * @param {Record<string, Array<string | ((files: readonly string[]) => string | string[])>>} [preset]
  *   The configuration to add it to, the family's by default. Its
  *   `"!(*.css)"` list gets the step at its end.
+ * @param {{ paths?: readonly string[] }} [options] `paths` are the folders
+ *   the lint reads, from the repository's root, `["src"]` by default. The
+ *   step runs when a staged TypeScript file is under one of them, and
+ *   passes them to `hm-lint-react`.
  * @returns {Record<string, Array<string | ((files: readonly string[]) => string | string[])>>}
  *   A new configuration; the one given isn't changed.
  * @throws {TypeError} If the configuration has no `"!(*.css)"` list to add
- *   it to.
+ *   it to, or a path is empty or has a space in it, which lint-staged would
+ *   split the command at.
  */
-export function withReactLint(preset = config) {
+export function withReactLint(preset = config, { paths } = {}) {
   const tasks = preset[NOT_CSS];
   if (!Array.isArray(tasks)) {
     throw new TypeError(
       `withReactLint adds its step to the "${NOT_CSS}" list, which this configuration doesn't have.`,
     );
   }
-  return { ...preset, [NOT_CSS]: [...tasks, reactLintTask] };
+  if (paths === undefined) {
+    return { ...preset, [NOT_CSS]: [...tasks, reactLintTask] };
+  }
+  if (!Array.isArray(paths) || paths.length === 0) {
+    throw new TypeError("withReactLint's paths must name at least one folder.");
+  }
+  for (const path of paths) {
+    if (typeof path !== "string" || path === "" || /\s/.test(path)) {
+      throw new TypeError(
+        `withReactLint's paths are folders without spaces in their names, since lint-staged splits a command at spaces; got ${JSON.stringify(path)}.`,
+      );
+    }
+  }
+  // With forward slashes, which every platform reads; as written, a
+  // backslash is part of a name anywhere but Windows.
+  const command = `hm-lint-react ${paths.map((path) => folderOf(path) || ".").join(" ")}`;
+  /** @param {readonly string[]} files */
+  const task = (files) => (files.some((file) => isReactSource(file, paths)) ? [command] : []);
+  return { ...preset, [NOT_CSS]: [...tasks, task] };
 }

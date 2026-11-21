@@ -50,6 +50,13 @@ const NOT_PUBLISHED = Object.freeze([
   "**/*.stories.*",
 ]);
 
+/**
+ * The name of the configuration object that says a repository may have no
+ * file for the lint to read, on purpose: `defineReactLint({ allowNoFiles:
+ * true })`. Without it, `hm-lint-react` fails when it reads none.
+ */
+export const ALLOW_NO_FILES = "@hussmartinez/sdk-config/eslint-react/allow-no-files";
+
 const PEERS = ["eslint", "eslint-plugin-react-hooks", "@typescript-eslint/parser"];
 
 /**
@@ -93,6 +100,10 @@ export async function loadPeer(name) {
  *   from the repository's root. Defaults to `src/**` TypeScript files.
  * @property {readonly string[]} [ignores] Globs to leave out, beside build
  *   output, fixtures, tests (`*.test.*`) and stories (`*.stories.*`).
+ * @property {boolean} [allowNoFiles] Says, on purpose, that there may be no
+ *   file for the lint to read, as in a repository whose React source hasn't
+ *   been written yet. Without it, `hm-lint-react` fails when it reads none:
+ *   a lint that looks in the wrong folder would otherwise pass for ever.
  * @property {readonly string[]} [off] Rules the repository still has
  *   findings for, by name without the `react-hooks/` prefix, from
  *   {@link MAY_BE_OFF}. Each is turned off, never set to warn. Name the
@@ -133,6 +144,7 @@ export async function defineReactLint({
   files = ["src/**/*.{ts,tsx,mts,cts}"],
   ignores = [],
   off = [],
+  allowNoFiles = false,
 } = {}) {
   if (!Array.isArray(off)) {
     throw new TypeError("off must be a list of rule names.");
@@ -158,6 +170,8 @@ export async function defineReactLint({
     rules[`react-hooks/${name}`] = off.includes(name) ? "off" : "error";
   }
   return [
+    // Read by hm-lint-react, which otherwise fails when it finds no file.
+    ...(allowNoFiles ? [{ name: ALLOW_NO_FILES }] : []),
     { ignores: [...NOT_PUBLISHED, ...ignores] },
     {
       name: "@hussmartinez/sdk-config/eslint-react",
