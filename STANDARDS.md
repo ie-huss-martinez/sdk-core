@@ -188,7 +188,8 @@ Programmatic control goes through a ref handle, such as `open(file)`, `export()`
   - visible focus;
   - native `<dialog>` with `showModal()`;
   - `aria-live` announcements for results;
-  - target sizes of at least 24 px, and 44 px on touch.
+  - target sizes of at least 24 px, and 44 px on touch;
+  - an editor that renders headings in the page takes `headingLevel`, 2 to 6 and 2 by default, on its component, its parts and its element (`heading-level`), with `ui`'s `HeadingLevel` type and `Heading` component. Headings nested inside follow from it. A dialog's title keeps its own `<h2>`, with headings in its content from 3 ([ADR 0058](docs/adr/0058-heading-levels-in-editors.md)).
 - **No inline text** ([ADR 0019](docs/adr/0019-message-catalogues.md), [ADR 0046](docs/adr/0046-ui-text-through-the-sdk.md), [ADR 0050](docs/adr/0050-error-text-by-reason-and-warning-text.md)):
   - every visible string and accessible name comes from the typed message catalogue in `src/messages/en.ts`, declared with `defineMessages` and including `sdkCoreMessages`;
   - messages are plain text with `{name}` and `{name, format}` placeholders, plurals are `{ "$plural": … }` objects, and output is never markup;

@@ -1,6 +1,6 @@
 # 0058. Heading levels in editors
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-21
 - **Refines:** [ADR 0014](0014-accessibility-and-translatable-text.md), by saying which level an editor's headings have on a page it doesn't own
 
@@ -39,7 +39,7 @@ Read from each repository's React sources on 2026-11-21:
 
 ## Decision
 
-**Recommended: B. The reviewer rules before any code is written.**
+**Option B: one rule and one name.**
 
 ### The rule
 
@@ -68,10 +68,14 @@ Read from each repository's React sources on 2026-11-21:
 
 ### Adoption
 
+Each is a follow-up in its own repository:
+
 - **`ui` adds `HeadingLevel` and `Heading`.**
 - **audio-sdk** switches to them, and keeps `AudioHeadingLevel` as a deprecated alias.
-- **learn-sdk** gives `LearnPlayer` the prop, in place of its fixed `<h2>`.
+- **learn-sdk** gives `LearnPlayer` the prop, in place of its fixed `<h2>`: it renders a heading, so the rule applies to it. Its default of 2 renders what it renders today.
 - **pdf-sdk, video-sdk and image-sdk** change nothing now. Each adds the prop with its first heading.
+
+This record's survey read the editors' sources. It didn't listen to them: what a screen reader announces is checked in the maintainer's manual pass with one, which comes after this record.
 
 ## Alternatives considered
 
