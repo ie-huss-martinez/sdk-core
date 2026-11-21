@@ -22,7 +22,40 @@ export class UsageError extends Error {
  * `/* eslint-env … *\/`, as opposed to `eslint-disable` and `eslint-enable`,
  * which suppress reports and say why.
  */
-const INLINE_CONFIGURATION = /\/\*\s*eslint(?:-env)?\s+[^-\s]/;
+const INLINE_CONFIGURATION = /^\s*eslint(?:-env)?\s+[^-\s]/;
+
+/**
+ * The lines of a file's comments that configure ESLint's rules. It reads the
+ * file's comments as the parser finds them, as ESLint does, so the same text
+ * inside a string isn't one.
+ *
+ * @param {{ parse(code: string, options: object): { comments?: Array<{ type: string, value: string, loc: { start: { line: number } } }> } }} parser
+ * @param {import("eslint").ESLint.LintResult} result
+ * @returns {number[]}
+ */
+function configurationComments(parser, result) {
+  const source = result.source ?? readFileSync(result.filePath, "utf8");
+  if (!source.includes("eslint")) {
+    return [];
+  }
+  /** @type {Array<{ type: string, value: string, loc: { start: { line: number } } }>} */
+  let comments;
+  try {
+    comments =
+      parser.parse(source, {
+        comment: true,
+        loc: true,
+        ecmaFeatures: { jsx: /\.[cm]?[jt]sx$/.test(result.filePath) },
+        filePath: result.filePath,
+      }).comments ?? [];
+  } catch {
+    // A file that doesn't parse is already reported by ESLint itself.
+    return [];
+  }
+  return comments
+    .filter(({ type, value }) => type === "Block" && INLINE_CONFIGURATION.test(value))
+    .map(({ loc }) => loc.start.line);
+}
 
 /**
  * @typedef {object} LintReactOptions
@@ -99,6 +132,7 @@ export async function lintReact({
     );
   }
 
+  const parser = await loadPeer("@typescript-eslint/parser");
   /** @type {string[]} */
   const unexplained = [];
   for (const result of results) {
@@ -106,13 +140,10 @@ export async function lintReact({
     // rule for its file before the rule runs, so nothing is reported and
     // nothing counts as suppressed. Rules change in one place, the `off`
     // list, with the backlog item beside it.
-    const source = result.source ?? readFileSync(result.filePath, "utf8");
-    for (const [index, text] of source.split("\n").entries()) {
-      if (INLINE_CONFIGURATION.test(text)) {
-        unexplained.push(
-          `${result.filePath}:${index + 1}  A comment that configures ESLint's rules isn't allowed. Turn a rule off in defineReactLint's off list, or suppress one report with "eslint-disable-next-line <rule> -- <reason>".`,
-        );
-      }
+    for (const line of configurationComments(parser, result)) {
+      unexplained.push(
+        `${result.filePath}:${line}  A comment that configures ESLint's rules isn't allowed. Turn a rule off in defineReactLint's off list, or suppress one report with "eslint-disable-next-line <rule> -- <reason>".`,
+      );
     }
     for (const message of result.suppressedMessages) {
       if (message.suppressions.some(({ justification }) => justification.trim() === "")) {

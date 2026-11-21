@@ -258,6 +258,23 @@ describe("lintReact", () => {
     expect((await lintReact({ cwd: env })).report).toContain("isn't allowed");
   });
 
+  it("reads comments as the parser finds them: the same text in a string or a line comment isn't one", async () => {
+    const root = await repository({
+      "src/a.tsx": [
+        `export const example = '/* eslint react-hooks/purity: "off" */';`,
+        '// eslint react-hooks/purity: "off" (a line comment configures nothing)',
+        "export const template = `/* eslint-env browser */`;",
+        "/* eslint-disable-next-line react-hooks/purity -- a suppression, not a configuration */",
+        "export const id = Math.random();",
+        "",
+      ].join("\n"),
+    });
+
+    const { report } = await lintReact({ cwd: root });
+
+    expect(report).not.toContain("configures ESLint's rules");
+  });
+
   it("refuses a path it's given that isn't there, or holds nothing it reads", async () => {
     const root = await repository({ ...CLEAN, "docs/notes.md": "# Notes\n" });
 
