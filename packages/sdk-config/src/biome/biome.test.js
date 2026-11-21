@@ -16,11 +16,12 @@ let project;
  * consuming repository does, and returns the diagnostic categories.
  *
  * @param {string} code
+ * @param {string} [file] The file's name, `probe.ts` by default.
  * @returns {Promise<string[]>}
  */
-async function lint(code) {
-  await writeFile(join(project, "probe.ts"), code);
-  const { stdout } = spawnSync(BIOME, ["lint", "--reporter=json", "probe.ts"], {
+async function lint(code, file = "probe.ts") {
+  await writeFile(join(project, file), code);
+  const { stdout } = spawnSync(BIOME, ["lint", "--reporter=json", file], {
     cwd: project,
     encoding: "utf8",
   });
@@ -52,6 +53,58 @@ describe("Biome preset", () => {
     await expect(lint("export const value: any = 1;\n")).resolves.toEqual([
       "lint/suspicious/noExplicitAny",
     ]);
+  });
+
+  describe("in a repository with React", () => {
+    // Biome turns its React rules on when the project's package.json lists
+    // react, as an SDK's does, as a peer dependency.
+    beforeAll(async () => {
+      await writeFile(
+        join(project, "package.json"),
+        JSON.stringify({ name: "sdk", peerDependencies: { react: ">=18.3" } }),
+      );
+    });
+    afterAll(async () => {
+      await rm(join(project, "package.json"), { force: true });
+      await writeFile(join(project, "biome.json"), JSON.stringify({ extends: [PRESET] }));
+    });
+
+    const missing =
+      'import { useEffect } from "react";\nexport function useTitle(title: string): void {\n  useEffect(() => {\n    document.title = title;\n  }, []);\n}\n';
+    const conditional =
+      'import { useState } from "react";\nexport function useMaybe(on: boolean): number {\n  if (on) {\n    const [value] = useState(0);\n    return value;\n  }\n  return 0;\n}\n';
+
+    it("still checks where hooks are called", async () => {
+      await expect(lint(conditional)).resolves.toEqual(["lint/correctness/useHookAtTopLevel"]);
+    });
+
+    it("leaves hook dependency lists to React's plugin (ADR 0063)", async () => {
+      await expect(lint(missing)).resolves.toEqual([]);
+    });
+
+    it("keeps checking dependency lists in tests and stories, which the plugin doesn't read", async () => {
+      await expect(lint(missing, "probe.test.ts")).resolves.toEqual([
+        "lint/correctness/useExhaustiveDependencies",
+      ]);
+      await expect(lint(missing, "probe.browser.test.tsx")).resolves.toEqual([
+        "lint/correctness/useExhaustiveDependencies",
+      ]);
+      await expect(lint(missing, "probe.stories.tsx")).resolves.toEqual([
+        "lint/correctness/useExhaustiveDependencies",
+      ]);
+    });
+
+    it("lets a repository turn the dependency rule back on, while its plugin rule is off", async () => {
+      await writeFile(
+        join(project, "biome.json"),
+        JSON.stringify({
+          extends: [PRESET],
+          linter: { rules: { correctness: { useExhaustiveDependencies: "error" } } },
+        }),
+      );
+
+      await expect(lint(missing)).resolves.toEqual(["lint/correctness/useExhaustiveDependencies"]);
+    });
   });
 
   it("doesn't pin a Biome schema version", async () => {

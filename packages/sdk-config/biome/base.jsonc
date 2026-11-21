@@ -42,7 +42,14 @@
       },
       "correctness": {
         "noUnusedImports": "error",
-        "noUnusedVariables": "error"
+        "noUnusedVariables": "error",
+        // Hook dependency lists in published source are checked by React's
+        // own plugin, through hm-lint-react, which also sees a dependency
+        // made anew on every render. One rule, so a deliberate exception is
+        // suppressed once (ADR 0063). A repository whose plugin rule is still
+        // off turns this back on in its own biome.json until it isn't. Tests
+        // and stories, which the plugin doesn't read, keep it: see overrides.
+        "useExhaustiveDependencies": "off"
       },
       "style": {
         "noNonNullAssertion": "error",
@@ -57,5 +64,20 @@
         "noExplicitAny": "error"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      // hm-lint-react reads published source only. Tests and stories keep
+      // Biome's check of hook dependency lists, so every file is checked by
+      // one of the two (ADR 0063).
+      "includes": ["**/*.test.*", "**/*.stories.*"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "useExhaustiveDependencies": "error"
+          }
+        }
+      }
+    }
+  ]
 }

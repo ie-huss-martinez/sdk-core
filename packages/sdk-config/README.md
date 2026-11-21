@@ -17,6 +17,7 @@ Install, as devDependencies, the tools for the presets you use. They are optiona
 | `hm-check-hidden-unicode` | Nothing, but it lists files with git |
 | `size`, `hm-size` | Nothing for `entryFiles` and `entryBudget`; `@size-limit/esbuild` for `importBudget`'s checks; `vite` for minified sizes; `esbuild` for import costs |
 | `stylelint` | `stylelint` |
+| `eslint-react`, `hm-lint-react` | `eslint`, `eslint-plugin-react-hooks`, `@typescript-eslint/parser` |
 | `dependency-cruiser`, `hm-lint-deps` | `dependency-cruiser` |
 | `hm-check-bundled-engines` | Nothing |
 | `commitlint` | `@commitlint/cli` |
@@ -107,6 +108,65 @@ export { default } from "@hussmartinez/sdk-config/stylelint";
 ```
 
 It ignores build output and tool caches: `dist/`, `temp/`, `coverage/`, `storybook-static/`, `node_modules/`, `.next/` and `dist-server/`, at any depth. Built CSS inlines the token values, so it would fail `hm/no-literal-values`. Stylelint resolves these globs against the config file that declares them, so they apply when your config re-exports the preset as above. A config that uses `extends` instead must list its own `ignoreFiles`.
+
+### React: `hm-lint-react`
+
+For repositories with React. Biome checks that hooks are called at the top level. It doesn't check what a component does while it renders, and React needs rendering to be pure: no reading or writing a ref, no impure call such as `Math.random()`, no setting state. Those mistakes pass every test until a host uses a concurrent feature. React's own lint plugin checks for them, with the analysis the React Compiler uses, and it needs ESLint to run. So ESLint runs that one plugin and nothing else ([ADR 0063](../../docs/adr/0063-a-lint-for-what-react-components-do-while-rendering.md)). Biome stays the linter and formatter.
+
+Install the three packages, pinned exactly, as the family's other tools are:
+
+```sh
+pnpm add --save-dev --save-exact eslint eslint-plugin-react-hooks @typescript-eslint/parser
+```
+
+```js
+// eslint.config.js
+import { defineReactLint } from "@hussmartinez/sdk-config/eslint-react";
+
+export default await defineReactLint();
+```
+
+```json
+{ "scripts": { "lint": "biome check . && hm-lint-react" } }
+```
+
+- **What it checks:** every rule the plugin recommends, as an error, except `rules-of-hooks`, which Biome already checks. That includes `refs`, `purity`, `set-state-in-render`, `immutability`, `set-state-in-effect` and `exhaustive-deps`.
+- **Hook dependency lists are this plugin's.** The Biome preset turns its own `useExhaustiveDependencies` off: the plugin also reports a dependency made anew on every render, such as `plan?.clips ?? []`, which Biome doesn't, and with one rule a deliberate exception is suppressed once.
+- **A rule is an error or it's off, never a warning.** A repository that still has findings for a rule turns it off by name, with the backlog item that fixes it beside it, and takes the name out in the pull request that fixes them:
+
+  ```js
+  export default await defineReactLint({
+    // Backlog item 12: the latest-ref pattern, once ui has useLatest.
+    off: ["refs"],
+  });
+  ```
+
+  Only `refs`, `immutability`, `set-state-in-effect`, `exhaustive-deps` and `preserve-manual-memoization` can be turned off. The others had no finding in any repository, so they stay on.
+- **Tests and stories keep Biome's dependency rule.** The plugin reads published source only, so the Biome preset leaves `useExhaustiveDependencies` on for `*.test.*` and `*.stories.*`. A file outside both, such as JavaScript under `src`, isn't checked by either: add it with `files` in `defineReactLint`.
+- **While `exhaustive-deps` is off, turn Biome's rule back on for published source too,** so its dependency lists are still checked:
+
+  ```jsonc
+  // biome.json
+  { "extends": ["@hussmartinez/sdk-config/biome"], "linter": { "rules": { "correctness": { "useExhaustiveDependencies": "error" } } } }
+  ```
+
+  Take that out in the pull request that turns the plugin's rule on, and move your `biome-ignore` comments for it to the plugin's.
+- **A suppression says why:** `// eslint-disable-next-line react-hooks/immutability -- <reason>`. `hm-lint-react` fails on one without a reason, and on one that suppresses nothing. A comment that configures a rule for its file, `/* eslint react-hooks/purity: "off" */`, is refused: rules change in the `off` list.
+- **A path you give it must hold something to lint.** `hm-lint-react src/componets` fails rather than pass on nothing.
+- **The latest value of a prop,** for an effect or a handler, comes from `ui`'s `useLatest`, not from a ref written while rendering.
+- **It lints published source:** TypeScript files under `src` by default, without build output, fixtures, tests (`*.test.*`) or stories (`*.stories.*`). A test's own component may hand a value out through a variable, which the rules for published components would report. Give `defineReactLint` your own `files` and `ignores`, and `hm-lint-react` your own paths, for another layout.
+- **What it doesn't catch:** a direct read of the document while rendering, such as `document.activeElement`, and a changed prop. Those still need review.
+- **Without the three packages,** the configuration and the command fail at once, saying what to install. A repository without React installs nothing and doesn't run it.
+
+```text
+Usage: hm-lint-react [--config <file>] [<path>...]
+```
+
+| Exit code | Meaning |
+|---|---|
+| 0 | Nothing reported |
+| 1 | A rule reported, or a suppression doesn't say why |
+| 2 | Usage error, a missing configuration, or ESLint isn't installed |
 
 ### dependency-cruiser
 

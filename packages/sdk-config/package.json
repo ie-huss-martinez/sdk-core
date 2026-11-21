@@ -21,6 +21,7 @@
     "hm-check-single-copy": "./src/single-copy/cli.js",
     "hm-in-image": "./src/image/cli.js",
     "hm-lint-deps": "./src/dependency-cruiser/cli.js",
+    "hm-lint-react": "./src/eslint-react/cli.js",
     "hm-netlog-errors": "./src/netlog/cli.js",
     "hm-size": "./src/size/cli.js",
     "hm-test-visual": "./src/visual/cli.js"
@@ -30,6 +31,7 @@
     "./biome": "./biome/base.jsonc",
     "./commitlint": "./src/commitlint/index.js",
     "./dependency-cruiser": "./src/dependency-cruiser/index.js",
+    "./eslint-react": "./src/eslint-react/index.js",
     "./formats/hm-conformance/v1.schema.json": "./formats/hm-conformance/v1.schema.json",
     "./lint-staged": "./src/lint-staged/index.js",
     "./package.json": "./package.json",
@@ -92,7 +94,7 @@
   "scripts": {
     "typecheck": "tsc",
     "test": "vitest run --project unit",
-    "check:package": "publint run --pack pnpm --strict && attw --pack . --profile esm-only --exclude-entrypoints ./biome ./commitlint ./dependency-cruiser ./lint-staged ./secretlint ./stylelint",
+    "check:package": "publint run --pack pnpm --strict && attw --pack . --profile esm-only --exclude-entrypoints ./biome ./commitlint ./dependency-cruiser ./eslint-react ./lint-staged ./secretlint ./stylelint",
     "test:browser": "node src/image/cli.js vitest run --project browser",
     "test:browser:all": "node src/image/cli.js vitest run --project browser --mode all-browsers",
     "types:update": "node -e \"const fs = require('node:fs'); for (const file of fs.globSync('src/{testing,size}/*.d.ts')) fs.rmSync(file);\" && tsc -p tsconfig.types.json"
@@ -109,10 +111,13 @@
     "@commitlint/cli": "catalog:",
     "@microsoft/api-extractor": "catalog:",
     "@playwright/test": "^1.65.0",
+    "@typescript-eslint/parser": "^8.73.0",
     "@vitest/browser-playwright": "catalog:",
     "ajv": "catalog:",
     "dependency-cruiser": "catalog:",
     "esbuild": "catalog:",
+    "eslint": "^10.15.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "lint-staged": "catalog:",
     "secretlint": "catalog:",
     "stylelint": "catalog:",
@@ -133,6 +138,9 @@
     "@playwright/test": {
       "optional": true
     },
+    "@typescript-eslint/parser": {
+      "optional": true
+    },
     "@vitest/browser-playwright": {
       "optional": true
     },
@@ -143,6 +151,12 @@
       "optional": true
     },
     "esbuild": {
+      "optional": true
+    },
+    "eslint": {
+      "optional": true
+    },
+    "eslint-plugin-react-hooks": {
       "optional": true
     },
     "lint-staged": {
@@ -176,10 +190,13 @@
     "@secretlint/node": "catalog:",
     "@types/node": "catalog:",
     "@types/picomatch": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
     "@vitest/browser-playwright": "catalog:",
     "ajv": "catalog:",
     "dependency-cruiser": "catalog:",
     "esbuild": "catalog:",
+    "eslint": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
     "lint-staged": "catalog:",
     "picomatch": "catalog:",
     "playwright": "catalog:",
