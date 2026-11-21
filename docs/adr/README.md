@@ -61,7 +61,7 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0053](0053-ci-is-the-merge-gate.md) | CI is the merge gate, and the hooks are the local bar | Accepted; supersedes the full local verify before a pull request in [0015](0015-verification-and-releases.md) and [0016](0016-git-hooks-and-merge-guards.md) |
 | [0054](0054-visual-comparison-tolerance.md) | How strictly screenshots are compared | Accepted; refines [0048](0048-visual-regression-for-sdk-editors.md) |
 | [0055](0055-what-the-size-budgets-measure.md) | What the size budgets measure | Accepted; refines [0015](0015-verification-and-releases.md) |
-| [0056](0056-size-budgets-for-what-applications-import.md) | Size budgets for what applications import | Accepted; amends [0015](0015-verification-and-releases.md); builds on [0055](0055-what-the-size-budgets-measure.md) |
+| [0056](0056-size-budgets-for-what-applications-import.md) | Size budgets for what applications import | Accepted; amends [0015](0015-verification-and-releases.md); builds on [0055](0055-what-the-size-budgets-measure.md); corrected on unused import names |
 | [0057](0057-test-timeouts.md) | One set of test timeouts for the family | Accepted; refines [0015](0015-verification-and-releases.md) |
 | [0058](0058-heading-levels-in-editors.md) | Heading levels in editors | Accepted; refines [0014](0014-accessibility-and-translatable-text.md) |
 | [0059](0059-interface-text-outside-the-server-safe-entry.md) | Interface text stays out of the server-safe entry | Accepted; refines [0019](0019-message-catalogues.md) and [0046](0046-ui-text-through-the-sdk.md) |
