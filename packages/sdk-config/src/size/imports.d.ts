@@ -44,25 +44,6 @@ export function entryBudget({ name, entry, limit, ...others }: {
     disablePlugins: string[];
 };
 /**
- * The import budgets whose bundle size-limit built without their own
- * `modifyEsbuildConfig`: ones a configuration spread into a new object and
- * gave another hook, `{ ...importBudget(…), modifyEsbuildConfig }`. That
- * replaces the budget's hook rather than adding to it, so the bundle is
- * built as a script, without the production define, with the package's
- * tsconfig.json, and with every unused name still counted. Nothing in the
- * numbers says so.
- *
- * @returns {string[]} Their names.
- */
-export function budgetsWithoutTheirHook(): string[];
-/**
- * What to print for budgets measured without their own hook.
- *
- * @param {readonly string[]} names
- * @returns {string}
- */
-export function lostHookMessage(names: readonly string[]): string;
-/**
  * A size budget for what an application imports from an entry (ADR 0056), as
  * a `size-limit` check for its esbuild plugin: the import bundled and
  * minified, as the application's bundler would ship it, without the host's
@@ -98,7 +79,7 @@ export function lostHookMessage(names: readonly string[]): string;
  *   lazy chunks somewhere other than `lazy/` beside the entry.
  *   `modifyEsbuildConfig` changes the bundle's configuration after this
  *   has set its own.
- * @returns {{ name: string, path: string, import: Record<string, TracedImport>, ignore: string[], brotli: true, limit: string, modifyEsbuildConfig: (config: EsbuildConfig) => EsbuildConfig }}
+ * @returns {{ name: string, path: string, import: Record<string, import("./budget-hooks.js").TracedImport>, ignore: string[], brotli: true, limit: string, modifyEsbuildConfig: (config: EsbuildConfig) => EsbuildConfig }}
  */
 export function importBudget({ name, entry, imports, limit, ignore, modifyEsbuildConfig }: {
     name: string;
@@ -110,7 +91,7 @@ export function importBudget({ name, entry, imports, limit, ignore, modifyEsbuil
 }): {
     name: string;
     path: string;
-    import: Record<string, TracedImport>;
+    import: Record<string, import("./budget-hooks.js").TracedImport>;
     ignore: string[];
     brotli: true;
     limit: string;
@@ -216,24 +197,6 @@ export function keptCode(entry: string, imports: string): Promise<KeptCode>;
  * is counted, including a third-party runtime dependency.
  */
 export const HOST_PACKAGES: readonly string[];
-/**
- * An import clause that notes when size-limit builds its budget's bundle:
- * `{ a, b }`, as an object size-limit reads as text.
- */
-export type TracedImport = {
-    /**
-     * The clause.
-     */
-    toString: () => string;
-    /**
-     * The clause, for a report written as JSON.
-     */
-    toJSON: () => string;
-    /**
-     *   As a string's `replace`.
-     */
-    replace: (pattern: string | RegExp, replacement: string) => string;
-};
 export type ImportCost = {
     /**
      * The import clause that was measured.
@@ -265,18 +228,3 @@ export type KeptCode = {
  * The configuration `@size-limit/esbuild` builds a check's bundle with.
  */
 export type EsbuildConfig = import("esbuild").BuildOptions;
-export type BudgetRecord = {
-    /**
-     * The budget's name.
-     */
-    name: string;
-    /**
-     * Whether size-limit built this budget's bundle.
-     */
-    bundled: boolean;
-    /**
-     * Whether the budget's own
-     * `modifyEsbuildConfig` ran for it.
-     */
-    configured: boolean;
-};

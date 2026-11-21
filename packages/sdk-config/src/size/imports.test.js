@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
+import { budgetsWithoutTheirHook } from "./budget-hooks.js";
 import {
   entryBudget,
   exportCosts,
@@ -118,8 +119,53 @@ describe("entryBudget and importBudget", () => {
 
     expect(`${clause}`).toBe("{ a, b as c }");
     expect(String(clause)).toBe("{ a, b as c }");
-    expect(clause?.replace(/}|{/g, "").trim()).toBe("a, b as c");
     expect(JSON.stringify(check.import)).toBe('{"dist/index.js":"{ a, b as c }"}');
+    // Reading the names is what size-limit does as it bundles, so the
+    // budget's own hook follows, as it does in a real run: nothing is left
+    // looking bundled without it when this process ends.
+    expect(clause?.replace(/}|{/g, "").trim()).toBe("a, b as c");
+    check.modifyEsbuildConfig({});
+    expect(budgetsWithoutTheirHook()).toEqual([]);
+  });
+
+  it("writes a whole-module import as size-limit would have", () => {
+    const check = importBudget({
+      name: "all",
+      entry: "dist/index.js",
+      imports: "*",
+      limit: "1 kB",
+    });
+    const clause = check.import["dist/index.js"];
+
+    // size-limit writes: import ${clause} from "…"; console.log(${names})
+    expect(`${clause}`).toBe("* as all");
+    expect(clause?.replace(/}|{/g, "").trim()).toBe("all");
+    expect(JSON.stringify(check.import)).toBe('{"dist/index.js":"*"}');
+    check.modifyEsbuildConfig({});
+  });
+
+  it("counts a budget and a copy of it apart, though they share a clause", () => {
+    const base = importBudget({
+      name: "shared",
+      entry: "dist/index.js",
+      imports: "{ a }",
+      limit: "1 kB",
+    });
+    const copy = { ...base, modifyEsbuildConfig: (/** @type {object} */ config) => config };
+    const read = (/** @type {typeof base} */ check) =>
+      check.import["dist/index.js"]?.replace(/}|{/g, "");
+
+    // The budget itself, bundled with its own hook.
+    read(base);
+    base.modifyEsbuildConfig({});
+    expect(budgetsWithoutTheirHook()).toEqual([]);
+    // Its copy, bundled with the hook that replaced it.
+    read(copy);
+    copy.modifyEsbuildConfig({});
+    expect(budgetsWithoutTheirHook()).toEqual(["shared"]);
+    // Put right, so nothing is reported when this process ends.
+    base.modifyEsbuildConfig({});
+    expect(budgetsWithoutTheirHook()).toEqual([]);
   });
 
   it("makes an import scenario that leaves out the host's packages, the family's and lazy chunks", () => {
@@ -983,6 +1029,30 @@ describe("a budget whose own esbuild settings were replaced", () => {
 
     expect(status).toBe(1);
     expect(output).toContain("Import: bare");
+  });
+
+  it("fails for a copy with another hook, even beside the budget it was copied from", async () => {
+    const { status, output } = await sizeLimit(
+      `(() => { const base = ${GOOD}; return [base, { ...base, name: "Import: small, copied", modifyEsbuildConfig: (config) => config }]; })()`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("without importBudget's own esbuild settings");
+  });
+
+  it("measures a whole-module import, and still watches its hook", async () => {
+    const whole =
+      'importBudget({ name: "Import: everything", entry: "dist/index.js", imports: "*", limit: "1 kB" })';
+
+    // size-limit doesn't print the name of a run's only check.
+    const good = await sizeLimit(`[${whole}]`);
+    expect(good.output).toMatch(/Size:\s+\d+ B/);
+    expect(good.output).not.toContain("without importBudget's own esbuild settings");
+    expect(good.status).toBe(0);
+
+    const replaced = await sizeLimit(`[{ ...${whole}, modifyEsbuildConfig: (config) => config }]`);
+    expect(replaced.status).toBe(1);
+    expect(replaced.output).toContain("Import: everything");
   });
 
   it("isn't troubled by a ceiling, which bundles nothing", async () => {
