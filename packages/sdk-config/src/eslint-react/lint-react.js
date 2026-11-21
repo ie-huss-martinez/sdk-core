@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadPeer } from "./index.js";
 
@@ -62,8 +62,9 @@ function configurationComments(parser, result) {
 /**
  * @typedef {object} LintReactOptions
  * @property {string[]} [paths] Files and folders to lint, relative to `cwd`.
- *   Defaults to `src`. A path given here must exist and hold a file the
- *   lint reads.
+ *   Defaults to `src`. A path given here must exist. A file the
+ *   configuration leaves out, such as a test, is skipped; a folder must
+ *   hold a file the lint reads.
  * @property {string} [cwd] Working directory. Defaults to `process.cwd()`.
  * @property {string} [configFile] The ESLint configuration. Defaults to
  *   `eslint.config.js`.
@@ -117,6 +118,9 @@ export async function lintReact({
     cwd,
     overrideConfigFile: config,
     errorOnUnmatchedPattern: false,
+    // A file that's given and that the configuration leaves out is skipped,
+    // not reported: a commit hook passes whatever is staged.
+    warnIgnored: false,
   });
   /** @type {import("eslint").ESLint.LintResult[]} */
   let results;
@@ -129,6 +133,16 @@ export async function lintReact({
   }
 
   if (given && results.length === 0) {
+    // Files that were given, and that the lint leaves out: a test, a story,
+    // a stylesheet. There's nothing to lint, and that isn't a mistake.
+    if (targets.every((path) => statSync(resolve(cwd, path)).isFile())) {
+      const count = targets.length;
+      return {
+        exitCode: EXIT_OK,
+        report: `React lint: nothing to lint. The ${count === 1 ? "file" : `${count} files`} given ${count === 1 ? "isn't one" : "aren't ones"} it reads.\n`,
+      };
+    }
+    // A folder with nothing in it to read is more likely misspelt, or the wrong one.
     throw new UsageError(
       `No file under ${targets.join(", ")} is one the React lint reads, so nothing would be linted.`,
     );

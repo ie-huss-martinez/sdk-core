@@ -288,6 +288,53 @@ describe("lintReact", () => {
     expect((await lintReact({ cwd: root, paths: ["src"] })).exitCode).toBe(EXIT_OK);
   });
 
+  it("skips a file it's given that the configuration leaves out, as a commit hook passes whatever is staged", async () => {
+    const handsOut = `${IMPORTS}let seen: number | undefined;\nexport function Probe({ value }: { value: number }) {\n  seen = value;\n  return <div>{seen}</div>;\n}\n`;
+    const root = await repository({
+      ...CLEAN,
+      "src/Editor.test.tsx": handsOut,
+      "src/Editor.stories.tsx": handsOut,
+      "src/styles.css": ".a { color: red; }\n",
+      "src/purity.tsx": MISTAKES["src/purity.tsx"],
+    });
+
+    // Only files it leaves out: nothing to lint, and no failure.
+    expect(await lintReact({ cwd: root, paths: ["src/Editor.test.tsx"] })).toEqual({
+      exitCode: EXIT_OK,
+      report: "React lint: nothing to lint. The file given isn't one it reads.\n",
+    });
+    expect(
+      await lintReact({
+        cwd: root,
+        paths: ["src/Editor.test.tsx", "src/Editor.stories.tsx", "src/styles.css"],
+      }),
+    ).toEqual({
+      exitCode: EXIT_OK,
+      report: "React lint: nothing to lint. The 3 files given aren't ones it reads.\n",
+    });
+    // Beside a file it does read: that one is linted, the others are skipped without a word.
+    const clean = await lintReact({ cwd: root, paths: ["src/Editor.test.tsx", "src/clean.tsx"] });
+    expect(clean).toEqual({
+      exitCode: EXIT_OK,
+      report: "React lint: nothing reported in 1 file.\n",
+    });
+    const reported = await lintReact({
+      cwd: root,
+      paths: ["src/Editor.test.tsx", "src/purity.tsx"],
+    });
+    expect(reported.exitCode).toBe(EXIT_FAILED);
+    expect(reported.report).not.toContain("Editor.test.tsx");
+    expect(reported.report).not.toMatch(/ignored/i);
+  });
+
+  it("still refuses a file it's given that isn't there, beside ones that are", async () => {
+    const root = await repository(CLEAN);
+
+    await expect(
+      lintReact({ cwd: root, paths: ["src/clean.tsx", "src/Editro.tsx"] }),
+    ).rejects.toThrow(/src\/Editro.tsx doesn't exist/);
+  });
+
   it("passes with no src to read, by default, as a repository without React source does", async () => {
     const root = await repository({});
 
