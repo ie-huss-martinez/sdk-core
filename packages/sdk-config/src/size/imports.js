@@ -202,14 +202,19 @@ const localName = (/** @type {string} */ named) => named.split(/\s+as\s+/).pop()
  * the import keeps (ADR 0056). An application never pays for that list: its
  * bundler resolves the package, and the names are gone.
  *
- * Which names are unused is esbuild's own answer: read as TypeScript, whose
- * rule is that an import never used as a value is left out, the bundle comes
- * back without them. That copy is only read for its imports' names. The
- * bundle that's measured is the one esbuild built, with those names cut out
- * of its import statements, and a statement left with none removed. Nothing
- * else in it is touched, so its size can only go down.
+ * Which names are unused is esbuild's own answer: passed through it once
+ * more, as one file, the bundle comes back without them. That copy is only
+ * read for its imports' names. The bundle that's measured is the one esbuild
+ * built, with those names cut out of its import statements, and a statement
+ * left with none removed. Nothing else in it is touched, so its size can
+ * only go down.
  *
- * If the bundle can't be read that way, it's returned as it is.
+ * The copy is read as JavaScript, which the bundle is. Read as TypeScript,
+ * `a<b>(c)` is a call with a type argument rather than two comparisons, and
+ * a name used only as that `b` would be cut: a floor that measures too
+ * small hides the leaks it exists to catch.
+ *
+ * If the bundle can't be read, it's returned as it is.
  *
  * @param {Pick<typeof import("esbuild"), "transform">} esbuild
  * @param {string} code The bundle, as an ES module.
@@ -227,8 +232,13 @@ async function withoutUnusedImports(esbuild, code) {
   /** @type {Set<string>} */
   let used;
   try {
-    // Without minifying: local names stay as they are, so they can be matched.
-    const elided = await esbuild.transform(code, { loader: "ts", format: "esm" });
+    // Syntax only: that's what drops an unused import. Local names stay as
+    // they are, so they can be matched.
+    const elided = await esbuild.transform(code, {
+      loader: "js",
+      format: "esm",
+      minifySyntax: true,
+    });
     used = new Set(
       leadingImports(elided.code).statements.flatMap(({ defaultName, namespaceName, named }) => [
         ...(defaultName ? [defaultName] : []),
