@@ -68,4 +68,4 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0060](0060-leaving-inlined-workers-out-of-a-self-hosted-build.md) | Leaving inlined workers out of a self-hosted build | Accepted; refines [0011](0011-worker-messaging-and-assets.md) and [0038](0038-self-hosted-assets-and-worker-version.md) |
 | [0061](0061-bundled-engines-declared-to-the-dependency-rules.md) | Bundled engines are declared to the dependency rules | Accepted; refines [0008](0008-ports-adapters-and-session.md) and [0028](0028-third-party-engines.md); corrected on what pdf-sdk imports |
 | [0062](0062-fonts-in-browser-tests.md) | Fonts in browser tests | Accepted; refines [0048](0048-visual-regression-for-sdk-editors.md) and [0025](0025-one-browser-test-image-in-one-place.md) |
-| [0063](0063-a-lint-for-what-react-components-do-while-rendering.md) | A lint for what React components do while rendering | Proposed; refines [0015](0015-verification-and-releases.md) |
+| [0063](0063-a-lint-for-what-react-components-do-while-rendering.md) | A lint for what React components do while rendering | Accepted; refines [0015](0015-verification-and-releases.md) |

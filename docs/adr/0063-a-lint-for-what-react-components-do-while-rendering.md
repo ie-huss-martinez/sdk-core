@@ -1,6 +1,6 @@
 # 0063. A lint for what React components do while rendering
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-21
 - **Refines:** [ADR 0015](0015-verification-and-releases.md)'s code checks, by adding one for a class of mistake Biome doesn't look for
 
@@ -62,29 +62,39 @@ So it isn't a proof of purity. I couldn't find which of those the pdf-sdk mistak
 | | Option | In short |
 |---|---|---|
 | A | Leave it to review | Nothing new to install or run |
-| **B** | **Run the plugin, alone, through `sdk-config`** | **ESLint with this one plugin and nothing else. Recommended** |
+| **B** | **Run the plugin, alone, through `sdk-config`** | **ESLint with this one plugin and nothing else. Chosen** |
 | C | A Biome plugin of the family's own | No new dependencies; can only match shapes, not follow values |
 | D | Move the family's linting to ESLint | One linter again, by replacing the one that works |
 
 ## Decision
 
-**Recommended: B. The reviewer rules before any code is written.**
+**Option B: React's own plugin, alone, through `sdk-config`.** Writing a ref while rendering is a real bug under concurrent rendering, and 21 of them passed review, so a tool should catch them. The cost is in development only.
 
 - **ESLint runs one plugin, and only that.** `sdk-config` ships a preset with `eslint-plugin-react-hooks` and a parser for TypeScript, over the files that hold React. No other ESLint rule is turned on, now or later, without its own record: Biome stays the family's linter and formatter.
-- **A command, `hm-lint-react`,** runs it, as `hm-lint-deps` runs dependency-cruiser. A repository adds it to its `lint` script. ESLint and the plugin are `sdk-config`'s optional peer dependencies, which only repositories with React install.
+- **A command, `hm-lint-react`,** runs it, as `hm-lint-deps` runs dependency-cruiser. A repository adds it to its `lint` script.
+- **ESLint, the plugin and the parser are optional peer dependencies of `sdk-config`,** marked optional in `peerDependenciesMeta`, so only repositories with React install them. Without them, the preset and the command fail at once with a message that names what to install.
+- **They're pinned exactly** in each repository, and wait out the family's `minimumReleaseAge` like any other dependency. A second linter is 138 more packages to keep an eye on, and they get the same care as the rest.
 - **The rules, in two groups:**
   - **On from the start, as errors,** because no repository has a finding: `purity`, `set-state-in-render`, `static-components`, `error-boundaries`, `globals`, `use-memo`, `void-use-memo`, `incompatible-library`, `unsupported-syntax`, `config` and `gating`. They cost nothing to adopt and stop the mistakes that are plainly wrong.
-  - **On per repository, once it's clean:** `refs`, `immutability`, `set-state-in-effect`, `exhaustive-deps` and `preserve-manual-memoization`, which has `ui`'s one other finding. Each repository fixes its findings in its own pull requests, and turns the rule on in the one that reaches zero. Until then the rule reports as a warning there, so new findings are seen.
+  - **Off in a repository while it has findings for them, then on as errors:** `refs`, `immutability`, `set-state-in-effect`, `exhaustive-deps` and `preserve-manual-memoization`, which has `ui`'s one other finding. A repository turns off exactly the rules it has findings for, by name, where its configuration says which backlog item fixes them. The pull request that fixes a rule's findings turns it on. **Never as a warning:** a rule set to warn stays at warn for ever.
 - **`rules-of-hooks` stays Biome's.** It already checks that, and two reports of one mistake help nobody.
-- **`exhaustive-deps` runs in both.** They disagree: the plugin reports a dependency made anew on every render, and Biome doesn't. A deliberate exception then needs both suppressed, each with its reason.
-- **The latest-ref pattern gets one shared hook.** It's most of the 21 `refs` findings, in every repository. `ui` exports a hook that keeps the latest value of a prop in a ref, updated in an effect rather than while rendering, and the SDKs use it. React's own answer is `useEffectEvent`, but that needs React 19.2, and the family's packages support React from 18.3. The hook can become `useEffectEvent` when that minimum moves.
+- **`exhaustive-deps` is the plugin's alone.** The shared Biome preset turns `useExhaustiveDependencies` off. The plugin found six problems Biome's rule missed, and with one rule a deliberate exception has one suppression, with its reason. A repository's existing `biome-ignore` comments for that rule become the plugin's, in the pull request that adds the command.
+- **The latest-ref pattern gets one shared hook, `useLatest`, in `ui`.** It's most of the 21 `refs` findings, in every repository. `ui` exports it from `@hussmartinez/ui/react`, in a pull request and a patch of its own, and the SDKs use it. It returns a ref that holds the latest value of what it's given.
+  - **When the ref updates is part of its contract.** A child's layout effect, and an event handler that fires right after a commit, must both read the latest value. A passive `useEffect` is too late for either: it runs after layout effects, and can run after the browser has painted.
+  - **So it updates in `useInsertionEffect`.** Insertion effects run during the commit, before any component's layout effects. The hook exists in every React the family supports, from 18.3. Rendered on the server with React 18.3.1, a component that uses it logs nothing, where the same component with `useLayoutEffect` logs React's warning that the effect does nothing on the server.
+  - **`ui`'s pull request tests both:** a child's layout effect and a handler fired straight after a commit read the latest value, and rendering on the server with React 18.3 logs no warning. If either fails, the choice of effect comes back here.
+  - React's own answer is `useEffectEvent`, which needs React 19.2. The hook can become it when the family's minimum moves.
 - **A suppression says why,** on the line, as Biome's do: `// eslint-disable-next-line react-hooks/immutability -- <reason>`. One without a reason fails.
 
 ### Adoption
 
-- **`sdk-config`:** the preset, the command and its tests, in one pull request. A patch, since nothing changes for a repository until it adds the command.
-- **`ui` first,** then each SDK: add the command with the first group on, in one small pull request that changes no source. Then the second group, a rule at a time.
-- **learn-sdk is nearest:** four findings.
+In this order:
+
+1. **`sdk-config`:** the preset, the command and its tests, and `useExhaustiveDependencies` turned off in the Biome preset, in one pull request. A minor: a repository that takes it loses Biome's dependency check until it adds the command, so it adds the command in the same pull request.
+2. **`ui`:** `useLatest`, with its timing tests.
+3. **Each repository,** as its own backlog item: add the command, with the rules it has findings for turned off and listed; then fix them and turn each on. No source changes in the pull request that adds the command.
+
+learn-sdk is nearest, with four findings.
 
 ## Alternatives considered
 
@@ -93,7 +103,8 @@ So it isn't a proof of purity. I couldn't find which of those the pdf-sdk mistak
 - **D, moving all linting to ESLint:** one tool, and the plugin would be at home. It would also replace a linter and formatter that every repository runs in milliseconds, for the sake of one plugin, and add far more than 138 packages.
 - **The React Compiler itself, at build time:** it reports the same violations, by skipping the components it can't compile. The family doesn't compile its packages with it, and whether to is a larger question than a lint.
 - **All the plugin's rules as errors at once:** 57 findings would block every repository's next pull request on fixes unrelated to it.
-- **The second group never gating:** warnings that never become errors stop being read.
+- **Rules with findings set to warn until they're fixed,** as this record first proposed: a warning that's always there stops being read, and nothing forces it to become an error. A rule that's off, with a backlog item beside it, says plainly that it isn't checked yet.
+- **`exhaustive-deps` in both linters:** also first proposed. Every deliberate exception would need two suppressions that say the same thing.
 
 ## Consequences
 
