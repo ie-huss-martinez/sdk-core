@@ -84,10 +84,17 @@ export function importBudget({ name, entry, imports, limit, ignore }: {
     limit: string;
 };
 /**
- * The names a built entry exports, in the order it lists them. It follows
- * `export * from "./file.js"` into relative files, as far as they go, and
- * reads the files without running them. A star re-export of a package can't
- * be read this way, and is left out.
+ * The names a built entry exports, in the order it lists them, as an
+ * application can import them. It follows `export * from "./file.js"` into
+ * relative files, as far as they go, and reads the files without running
+ * them. As the language has it:
+ *
+ * - a name a module exports itself wins over one that arrives through `*`;
+ * - a name that arrives through two `*` from two different declarations is
+ *   ambiguous, can't be imported, and is left out;
+ * - `default` never passes through `*`, and isn't listed.
+ *
+ * A star re-export of a package can't be read this way, and is left out.
  *
  * @param {string} entry The built entry, such as `dist/index.js`.
  * @returns {string[]}

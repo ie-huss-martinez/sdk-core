@@ -108,26 +108,36 @@ export function importBudget({ name, entry, imports, limit, ignore = [] }) {
 }
 
 /**
- * The names a built entry exports, in the order it lists them. It follows
- * `export * from "./file.js"` into relative files, as far as they go, and
- * reads the files without running them. A star re-export of a package can't
- * be read this way, and is left out.
+ * The names a built entry exports, in the order it lists them, as an
+ * application can import them. It follows `export * from "./file.js"` into
+ * relative files, as far as they go, and reads the files without running
+ * them. As the language has it:
+ *
+ * - a name a module exports itself wins over one that arrives through `*`;
+ * - a name that arrives through two `*` from two different declarations is
+ *   ambiguous, can't be imported, and is left out;
+ * - `default` never passes through `*`, and isn't listed.
+ *
+ * A star re-export of a package can't be read this way, and is left out.
  *
  * @param {string} entry The built entry, such as `dist/index.js`.
  * @returns {string[]}
  * @throws {UsageError} If the entry, or a file it re-exports, isn't there.
  */
 export function exportNames(entry) {
-  /** @type {Set<string>} */
-  const names = new Set();
-  /** @type {Set<string>} */
-  const seen = new Set();
-  const read = (/** @type {string} */ path, /** @type {string | undefined} */ from) => {
+  /** Each file's names, with the file that declares each one. A file being read maps to nothing yet. */
+  /** @type {Map<string, Map<string, string> | undefined>} */
+  const modules = new Map();
+  const read = (
+    /** @type {string} */ path,
+    /** @type {string | undefined} */ from,
+  ) => /** @type {Map<string, string>} */ {
     const file = resolve(path);
-    if (seen.has(file)) {
-      return;
+    if (modules.has(file)) {
+      // Already read, or being read: a cycle adds nothing new.
+      return modules.get(file) ?? new Map();
     }
-    seen.add(file);
+    modules.set(file, undefined);
     if (!existsSync(file)) {
       throw new UsageError(
         from === undefined
@@ -136,6 +146,8 @@ export function exportNames(entry) {
       );
     }
     const code = readFileSync(file, "utf8");
+    /** @type {Map<string, string>} */
+    const own = new Map();
     for (const [, list = ""] of code.matchAll(/^export\s*\{([^}]*)\}/gm)) {
       for (const part of list.split(",")) {
         const name = part
@@ -143,27 +155,47 @@ export function exportNames(entry) {
           .split(/\s+as\s+/)
           .at(-1);
         if (name && name !== "default") {
-          names.add(name);
+          own.set(name, file);
         }
       }
     }
     for (const [, name = ""] of code.matchAll(
       /^export\s+(?:async\s+)?(?:const|let|var|function\*?|class)\s+([A-Za-z_$][\w$]*)/gm,
     )) {
-      names.add(name);
+      own.set(name, file);
     }
+    /** @type {Map<string, string>} */
+    const starred = new Map();
+    /** @type {Set<string>} */
+    const ambiguous = new Set();
     for (const [, namespace, specifier = ""] of code.matchAll(
       /^export\s*\*\s*(?:as\s+([A-Za-z_$][\w$]*)\s*)?from\s*["']([^"']+)["']/gm,
     )) {
       if (namespace !== undefined) {
-        names.add(namespace);
+        if (namespace !== "default") {
+          own.set(namespace, file);
+        }
       } else if (specifier.startsWith(".")) {
-        read(join(dirname(file), specifier), path);
+        for (const [name, origin] of read(join(dirname(file), specifier), path)) {
+          const earlier = starred.get(name);
+          if (earlier !== undefined && earlier !== origin) {
+            ambiguous.add(name);
+          }
+          starred.set(name, origin);
+        }
       }
     }
+    /** @type {Map<string, string>} */
+    const names = new Map(own);
+    for (const [name, origin] of starred) {
+      if (!own.has(name) && !ambiguous.has(name)) {
+        names.set(name, origin);
+      }
+    }
+    modules.set(file, names);
+    return names;
   };
-  read(entry, undefined);
-  return [...names];
+  return [...read(entry, undefined).keys()];
 }
 
 /**

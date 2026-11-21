@@ -180,6 +180,36 @@ describe("exportNames", () => {
     ]);
   });
 
+  it("lists what can be imported: own names win, ambiguous ones are left out, default never passes", async () => {
+    const root = await built({
+      "dist/index.js": [
+        'export * from "./a.js";',
+        'export * from "./b.js";',
+        'export * from "./also-a.js";',
+        'export * as default from "./tools.js";',
+        'export * as tools from "./tools.js";',
+        'export const overridden = "the own one";',
+      ].join("\n"),
+      // Each declares its own `clash`: importing it from the entry is an error.
+      "dist/a.js":
+        "export const clash = 1;\nexport const onlyA = 1;\nexport const overridden = 1;\nexport default 0;\n",
+      "dist/b.js": "export const clash = 2;\nexport const onlyB = 2;\n",
+      // The same declaration by two paths isn't ambiguous.
+      "dist/also-a.js": 'export * from "./a.js";\n',
+      "dist/tools.js": "export const hidden = 1;\n",
+    });
+    const entry = join(root, "dist/index.js");
+
+    expect(exportNames(entry).sort()).toEqual(["onlyA", "onlyB", "overridden", "tools"]);
+    // And every listed name really can be imported and measured.
+    expect((await exportCosts(entry)).map(({ name }) => name).sort()).toEqual([
+      "onlyA",
+      "onlyB",
+      "overridden",
+      "tools",
+    ]);
+  });
+
   it("says which file is missing when a re-exported file is gone", async () => {
     const root = await built({ "dist/index.js": 'export * from "./gone.js";\n' });
 
