@@ -78,21 +78,22 @@ So it isn't a proof of purity. I couldn't find which of those the pdf-sdk mistak
   - **On from the start, as errors,** because no repository has a finding: `purity`, `set-state-in-render`, `static-components`, `error-boundaries`, `globals`, `use-memo`, `void-use-memo`, `incompatible-library`, `unsupported-syntax`, `config` and `gating`. They cost nothing to adopt and stop the mistakes that are plainly wrong.
   - **Off in a repository while it has findings for them, then on as errors:** `refs`, `immutability`, `set-state-in-effect`, `exhaustive-deps` and `preserve-manual-memoization`, which has `ui`'s one other finding. A repository turns off exactly the rules it has findings for, by name, where its configuration says which backlog item fixes them. The pull request that fixes a rule's findings turns it on. **Never as a warning:** a rule set to warn stays at warn for ever.
 - **`rules-of-hooks` stays Biome's.** It already checks that, and two reports of one mistake help nobody.
-- **`exhaustive-deps` is the plugin's alone.** The shared Biome preset turns `useExhaustiveDependencies` off. The plugin found six problems Biome's rule missed, and with one rule a deliberate exception has one suppression, with its reason. A repository's existing `biome-ignore` comments for that rule become the plugin's, in the pull request that adds the command.
+- **`exhaustive-deps` is the plugin's alone.** The shared Biome preset turns `useExhaustiveDependencies` off. The plugin found six problems Biome's rule missed, and with one rule a deliberate exception has one suppression, with its reason. A repository's existing `biome-ignore` comments for that rule become the plugin's, in the pull request that turns the plugin's rule on.
+  - **No repository is left with neither.** video-sdk, audio-sdk and learn-sdk have `exhaustive-deps` findings, so the plugin's rule starts off there. Each turns Biome's rule back on in its own `biome.json`, in the pull request that adds the command, and takes that line out in the pull request that fixes its findings and turns the plugin's rule on. Dependency lists are checked by one of the two at every commit.
 - **The latest-ref pattern gets one shared hook, `useLatest`, in `ui`.** It's most of the 21 `refs` findings, in every repository. `ui` exports it from `@hussmartinez/ui/react`, in a pull request and a patch of its own, and the SDKs use it. It returns a ref that holds the latest value of what it's given.
   - **When the ref updates is part of its contract.** A child's layout effect, and an event handler that fires right after a commit, must both read the latest value. A passive `useEffect` is too late for either: it runs after layout effects, and can run after the browser has painted.
   - **So it updates in `useInsertionEffect`.** Insertion effects run during the commit, before any component's layout effects. The hook exists in every React the family supports, from 18.3. Rendered on the server with React 18.3.1, a component that uses it logs nothing, where the same component with `useLayoutEffect` logs React's warning that the effect does nothing on the server.
   - **`ui`'s pull request tests both:** a child's layout effect and a handler fired straight after a commit read the latest value, and rendering on the server with React 18.3 logs no warning. If either fails, the choice of effect comes back here.
-  - React's own answer is `useEffectEvent`, which needs React 19.2. The hook can become it when the family's minimum moves.
+  - React's own answer for effects is `useEffectEvent`, which needs React 19.2. When the family's minimum moves, a use that's only called from effects can become it. One that's called from an event handler can't: React doesn't allow an Effect Event to be called from a handler. Those keep `useLatest`.
 - **A suppression says why,** on the line, as Biome's do: `// eslint-disable-next-line react-hooks/immutability -- <reason>`. One without a reason fails.
 
 ### Adoption
 
 In this order:
 
-1. **`sdk-config`:** the preset, the command and its tests, and `useExhaustiveDependencies` turned off in the Biome preset, in one pull request. A minor: a repository that takes it loses Biome's dependency check until it adds the command, so it adds the command in the same pull request.
+1. **`sdk-config`:** the preset, the command and its tests, and `useExhaustiveDependencies` turned off in the Biome preset, in one pull request. A minor: a repository that takes it loses Biome's dependency check, so in the same pull request it adds the command, or turns Biome's rule back on in its own `biome.json` if it has `exhaustive-deps` findings.
 2. **`ui`:** `useLatest`, with its timing tests.
-3. **Each repository,** as its own backlog item: add the command, with the rules it has findings for turned off and listed; then fix them and turn each on. No source changes in the pull request that adds the command.
+3. **Each repository,** as its own backlog item: add the command, with the rules it has findings for turned off and listed; then fix them and turn each on. No source changes in the pull request that adds the command. Turning `refs` on needs the `ui` release with `useLatest`, so that step waits for it.
 
 learn-sdk is nearest, with four findings.
 
@@ -108,7 +109,7 @@ learn-sdk is nearest, with four findings.
 
 ## Consequences
 
-- A component that reads or writes a ref while rendering, calls something impure, or sets state fails `lint`, in every repository, once it has adopted the rule.
+- A component that reads or writes a ref while rendering, calls something the plugin knows to be impure, or sets state unconditionally fails `lint`, in every repository, once it has adopted the rule. The plugin allows a state update behind a condition, which is React's pattern for adjusting state when a prop changes, so not every state update during render is reported.
 - Six unstable `useMemo` dependencies that Biome can't see are found.
 - **Every repository with React installs ESLint beside Biome:** 138 packages that the family's supply-chain rules now have to cover, with their own updates.
 - **It doesn't make rendering provably pure.** A direct read of the document while rendering, and a changed prop, still need review.
