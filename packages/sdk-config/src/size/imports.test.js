@@ -15,6 +15,7 @@ import {
   keptCode,
   lazyChunks,
   UsageError,
+  withoutUnusedImports,
 } from "./index.js";
 
 const CLI = fileURLToPath(new URL("./cli.js", import.meta.url));
@@ -231,6 +232,7 @@ describe("entryBudget and importBudget", () => {
         bundle: true,
         external: ["react"],
         format: "esm",
+        tsconfigRaw: "{}",
         define: { VERSION: '"1"', "process.env.NODE_ENV": '"production"' },
         // A plugin already there stays, ahead of ours.
         plugins: [theirs, unusedImports],
@@ -245,6 +247,7 @@ describe("entryBudget and importBudget", () => {
         bundle: true,
         external: ["react"],
         format: "iife",
+        tsconfigRaw: "{}",
         define: { VERSION: '"1"', "process.env.NODE_ENV": '"production"', __DEV__: "false" },
         plugins: [theirs, unusedImports],
       });
@@ -528,6 +531,156 @@ describe("importedNames", () => {
 
   it.each(["", "{}", "{ a-b }", "a b"])("refuses %j", (clause) => {
     expect(() => importedNames(clause)).toThrow(UsageError);
+  });
+});
+
+describe("withoutUnusedImports", () => {
+  /** @param {string} code */
+  const trimmed = async (code) => withoutUnusedImports(await import("esbuild"), code);
+
+  it("cuts unused names from every import statement, wherever in the bundle it is", async () => {
+    // As esbuild writes a large bundle: a module's imports where its code starts.
+    const bundle =
+      'import{SdkError as e,cleanFileName as a}from"@hussmartinez/sdk-core";var E=class extends e{};' +
+      'import{useState as s,useMemo as m}from"react";import{jsx as j}from"react/jsx-runtime";' +
+      "function C(){let[v]=s(0);return v}console.log(E,C);";
+
+    expect(await trimmed(bundle)).toBe(
+      'import{SdkError as e}from"@hussmartinez/sdk-core";var E=class extends e{};' +
+        'import{useState as s}from"react";' +
+        "function C(){let[v]=s(0);return v}console.log(E,C);",
+    );
+  });
+
+  it("leaves a statement that loses no name exactly as it was written", async () => {
+    const used = 'import  {a as x , b as y}  from  "p" ;';
+    const bundle = `${used}import{c as z,d as w}from"q";console.log(x,y,z);`;
+
+    const result = await trimmed(bundle);
+
+    expect(result.startsWith(used)).toBe(true);
+    expect(result).toBe(`${used}import{c as z}from"q";console.log(x,y,z);`);
+  });
+
+  it("returns the bundle itself when there's nothing to cut", async () => {
+    const bundle = 'import{a as x}from"p";import"side-effects";console.log(x);';
+
+    expect(await trimmed(bundle)).toBe(bundle);
+  });
+
+  it.each([
+    [
+      "a default and names",
+      'import d,{a as x,b as y}from"p";console.log(d,x);',
+      'import d,{a as x}from"p";console.log(d,x);',
+    ],
+    [
+      "a default that isn't used",
+      'import d,{a as x}from"p";console.log(x);',
+      'import{a as x}from"p";console.log(x);',
+    ],
+    [
+      "names that aren't used, beside a default",
+      'import d,{a as x}from"p";console.log(d);',
+      'import d from"p";console.log(d);',
+    ],
+    [
+      "a namespace that isn't used",
+      'import*as n from"p";import{a as x}from"q";console.log(x);',
+      'import{a as x}from"q";console.log(x);',
+    ],
+    [
+      "a namespace that is",
+      'import*as n from"p";import{a as x}from"q";console.log(n);',
+      'import*as n from"p";console.log(n);',
+    ],
+    [
+      "a statement without its semicolon",
+      'import{a as x,b as y}from"p"\nconsole.log(x);',
+      'import{a as x}from"p"\nconsole.log(x);',
+    ],
+  ])("handles %s", async (_label, bundle, expected) => {
+    expect(await trimmed(bundle)).toBe(expected);
+  });
+
+  it("writes an unminified statement back with its spaces, and takes an emptied one's line", async () => {
+    const bundle = [
+      'import { a as x, b as y } from "p";',
+      'import { c as z } from "q";',
+      "console.log(x);",
+      "",
+    ].join("\n");
+
+    expect(await trimmed(bundle)).toBe('import { a as x } from "p";\nconsole.log(x);\n');
+  });
+
+  it("is never longer than the bundle", async () => {
+    const bundles = [
+      'import{a as x,b as y}from"p";console.log(x);',
+      'import d,{a as x}from"p";console.log(d);',
+      'import  {  a as x  ,  b as y  }  from  "p"  ;console.log(x);',
+      'import { a as x, b as y } from "p";\nconsole.log(x, y);\n',
+      'import{a as x}from"p";var t=[x];import{b as y,c as z}from"q";console.log(t,z);',
+      "console.log(1);",
+    ];
+    for (const bundle of bundles) {
+      const result = await trimmed(bundle);
+      expect(result.length, bundle).toBeLessThanOrEqual(bundle.length);
+    }
+  });
+
+  it("returns the bundle untouched when what it would cut isn't an import statement", async () => {
+    // The text of an import statement, inside a string the code uses.
+    const bundle =
+      'import{a as x,b as y}from"p";var s=\';import{zz as q}from"pkg";\';console.log(x,s);';
+
+    const result = await trimmed(bundle);
+
+    expect(result).toContain("var s=';import{zz as q}from\"pkg\";';");
+    expect(result.length).toBeLessThanOrEqual(bundle.length);
+  });
+
+  it("returns code it can't read as it is", async () => {
+    const broken = 'import{a as x}from"p";console.log(x;';
+
+    expect(await trimmed(broken)).toBe(broken);
+  });
+
+  it("doesn't take a dynamic import for a statement", async () => {
+    const bundle = 'import{a as x,b as y}from"p";var l=()=>import("./lazy.js");console.log(x,l);';
+
+    expect(await trimmed(bundle)).toBe(
+      'import{a as x}from"p";var l=()=>import("./lazy.js");console.log(x,l);',
+    );
+  });
+});
+
+describe("a package whose tsconfig.json maps an import to source", () => {
+  it("is measured from its built files, as an application's bundler reads it", async () => {
+    // As image-sdk has it: package.json's imports map a name to a built
+    // file, and tsconfig.json's paths map the same name to source, for the
+    // type checker. esbuild would find the tsconfig from the built entry.
+    const root = await built({
+      "package.json": JSON.stringify({
+        name: "paths-sdk",
+        type: "module",
+        imports: { "#inline-worker": "./dist/chunk/inline-worker.js" },
+      }),
+      "tsconfig.json": JSON.stringify({
+        compilerOptions: { paths: { "#inline-worker": ["./src/does-not-exist.ts"] } },
+      }),
+      "dist/index.js":
+        'import { start } from "#inline-worker";\nexport const run = () => start();\nexport const small = 1;\n',
+      "dist/chunk/inline-worker.js": 'export const start = () => "started";\n',
+    });
+    const entry = join(root, "dist/index.js");
+
+    const cost = await importCost(entry, "{ run }");
+    expect(cost.size).toBeGreaterThan(0);
+    expect((await exportCosts(entry)).map(({ name }) => name).sort()).toEqual(["run", "small"]);
+    // The check's own build has the same setting.
+    const check = importBudget({ name: "x", entry, imports: "{ run }", limit: "1 kB" });
+    expect(check.modifyEsbuildConfig({ bundle: true }).tsconfigRaw).toBe("{}");
   });
 });
 
