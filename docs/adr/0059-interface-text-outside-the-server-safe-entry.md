@@ -93,7 +93,7 @@ Each is a follow-up in its own repository, and a minor release before 1.0 where 
 - **pdf-sdk and image-sdk** already follow the rule. They export the type from `.` as well, and their own records point here.
 - **audio-sdk** already follows it.
 - **video-sdk** moves its 139 interface keys out of `videoMessages`, which should take what importing it costs from 3.48 kB down to the others' 0.81 to 1.13 kB. It exports `videoEditorMessages` from `./react`, and renames `VideoEditorCatalogue` to `VideoEditorMessageCatalogue`, keeping the old name as a deprecated alias.
-- **learn-sdk** moves `tools.*` into its player's text, and names `validation.` in its own record. Its three `content.*` strings describe content that can't be read, which only its player words today: they move with the player's text, or become `errors.<CODE>` text if its headless reader reports those cases as errors. It renames `playerCatalogue` to `learnPlayerMessages`, keeping the old name as a deprecated alias. It adds `LearnPlayerMessageCatalogue`.
+- **learn-sdk** moves `tools.*` into its player's text, and names `validation.` in its own record. Its three `content.*` strings describe content that can't be read, which only its player words today: they move with the player's text, or become `errors.<CODE>` text if its headless reader reports those cases as errors. Renaming them is breaking for a host that overrides them: its changeset then lists each old and new key, since an override under an old key no longer applies. It renames `playerCatalogue` to `learnPlayerMessages`, keeping the old name as a deprecated alias. It adds `LearnPlayerMessageCatalogue`.
 
 ## Alternatives considered
 
