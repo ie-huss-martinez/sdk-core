@@ -150,7 +150,16 @@ export function fonts(): { use: { launchOptions: { env: Record<string, string> }
 /** The Firefox guard, with Playwright's own `test` and one a repository extended. */
 export function firefoxGuard(): string {
   const guarded = withFirefoxLabelledByGuard(test);
-  const extended = withFirefoxLabelledByGuard(test.extend<{ editor: string }>({ editor: "pdf" }));
+  // A fixture of the repository's own that navigates before handing the page on.
+  const extended = withFirefoxLabelledByGuard(
+    test.extend<{ editor: string }>({
+      editor: "pdf",
+      page: async ({ page, editor }, use) => {
+        await page.goto(`/${editor}`);
+        await use(page);
+      },
+    }),
+  );
   guarded("a page", async ({ page }) => {
     await page.addInitScript(removeLabelledByElements);
   });

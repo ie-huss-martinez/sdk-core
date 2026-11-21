@@ -83,10 +83,10 @@ describe("withFirefoxLabelledByGuard", () => {
    */
   const base = { extend: (fixtures) => ({ extendedWith: fixtures }) };
 
-  /** Runs the `page` fixture as Playwright would, in a browser. */
+  /** Runs the `context` fixture as Playwright would, in a browser. */
   async function opened(/** @type {string} */ browserName) {
     const scripts = /** @type {Array<() => void>} */ ([]);
-    const playwrightPage = {
+    const playwrightContext = {
       addInitScript: async (/** @type {() => void} */ script) => {
         scripts.push(script);
       },
@@ -94,28 +94,37 @@ describe("withFirefoxLabelledByGuard", () => {
     const used = /** @type {unknown[]} */ ([]);
     // The stand-in's `extend` returns what it was given, whatever its type says.
     const { extendedWith } = /** @type {any} */ (withFirefoxLabelledByGuard(base));
-    await extendedWith.page(
-      { page: playwrightPage, browserName },
+    await extendedWith.context(
+      { context: playwrightContext, browserName },
       async (/** @type {unknown} */ given) => {
         used.push(given);
       },
     );
-    return { scripts, used, playwrightPage };
+    return { scripts, used, playwrightContext, fixtures: Object.keys(extendedWith) };
   }
 
-  it("adds the guard as an init script in Firefox, and hands the page on", async () => {
-    const { scripts, used, playwrightPage } = await opened("firefox");
+  it("adds the guard to the context as an init script in Firefox, and hands the context on", async () => {
+    const { scripts, used, playwrightContext } = await opened("firefox");
 
     expect(scripts).toEqual([removeLabelledByElements]);
-    expect(used).toEqual([playwrightPage]);
+    expect(used).toEqual([playwrightContext]);
   });
 
-  it.each(["chromium", "webkit"])("adds nothing in %s, and hands the page on", async (browser) => {
-    const { scripts, used, playwrightPage } = await opened(browser);
-
-    expect(scripts).toEqual([]);
-    expect(used).toEqual([playwrightPage]);
+  it("guards the context and leaves the page fixture alone, so a repository's own page fixture runs after it", async () => {
+    // Playwright builds `context` before `page`: a `page` fixture that
+    // navigates before handing the page on is already guarded.
+    expect((await opened("firefox")).fixtures).toEqual(["context"]);
   });
+
+  it.each(["chromium", "webkit"])(
+    "adds nothing in %s, and hands the context on",
+    async (browser) => {
+      const { scripts, used, playwrightContext } = await opened(browser);
+
+      expect(scripts).toEqual([]);
+      expect(used).toEqual([playwrightContext]);
+    },
+  );
 
   it("extends the test it's given, so a repository's own fixtures stay", () => {
     const extend = vi.fn(() => "extended");

@@ -49,9 +49,17 @@ export function removeLabelledByElements() {
 }
 
 /**
- * Returns Playwright's `test` with the guard: in Firefox, every page removes
- * `ariaLabelledByElements` before any of its scripts run. Give it the
- * repository's own `test`, so its other fixtures stay.
+ * Returns Playwright's `test` with the guard: in Firefox, every page of the
+ * test's browser context removes `ariaLabelledByElements` before any of its
+ * scripts run. Give it the repository's own `test`, so its other fixtures
+ * stay.
+ *
+ * The guard is on the `context` fixture, not on `page`. Playwright builds
+ * the context first, so the guard is in place before a `page` fixture of the
+ * repository's own opens a page or navigates, and it covers every page the
+ * context opens, such as a pop-up. A context that a test makes itself, with
+ * `browser.newContext()`, isn't covered: add
+ * `context.addInitScript(removeLabelledByElements)` to it.
  *
  * @example
  * ```ts
@@ -65,22 +73,22 @@ export function removeLabelledByElements() {
  *
  * @template {{ extend(fixtures: any): any }} Test
  * @param {Test} test Playwright's `test`, or one extended from it.
- * @returns {Test} A `test` of the same type: the guard changes the `page`
- *   fixture, and adds none.
+ * @returns {Test} A `test` of the same type: the guard changes the
+ *   `context` fixture, and adds none.
  */
 export function withFirefoxLabelledByGuard(test) {
   return test.extend({
-    page: async (
-      /** @type {{ page: { addInitScript(script: () => void): Promise<unknown> }, browserName: string }} */ {
-        page,
+    context: async (
+      /** @type {{ context: { addInitScript(script: () => void): Promise<unknown> }, browserName: string }} */ {
+        context,
         browserName,
       },
-      /** @type {(page: unknown) => Promise<void>} */ use,
+      /** @type {(context: unknown) => Promise<void>} */ use,
     ) => {
       if (browserName === "firefox") {
-        await page.addInitScript(removeLabelledByElements);
+        await context.addInitScript(removeLabelledByElements);
       }
-      await use(page);
+      await use(context);
     },
   });
 }

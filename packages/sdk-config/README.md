@@ -356,6 +356,7 @@ export const test = withFirefoxLabelledByGuard(base);
 export { expect } from "@playwright/test";
 ```
 
+- **It guards the browser context, not the page.** Playwright builds the context first, so the guard is in place before a `page` fixture of your own opens a page or navigates, and it covers every page the context opens. A context a test makes itself, with `browser.newContext()`, isn't covered: add `context.addInitScript(removeLabelledByElements)` to it.
 - **It's listed, not built in:** each repository names the guard where it applies, so it's visible and easy to take out.
 - **`removeLabelledByElements()`** is the function itself, for a runner that adds init scripts its own way. It uses nothing from outside itself, so it can be sent to a page as text.
 - **It comes out when Firefox is fixed.** `CRASHING_FIREFOX` records the build, revision 1572, version 159.0. A test in this package fails when the pinned Playwright installs another, saying to re-check ui#61 and remove the guard if the crash is gone. Remove your lines when a release of `sdk-config` drops the entry.
