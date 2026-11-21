@@ -152,7 +152,7 @@ export default await defineReactLint();
   Take that out in the pull request that turns the plugin's rule on, and move your `biome-ignore` comments for it to the plugin's.
 - **A suppression says why:** `// eslint-disable-next-line react-hooks/immutability -- <reason>`. `hm-lint-react` fails on one without a reason, and on one that suppresses nothing.
 - **The latest value of a prop,** for an effect or a handler, comes from `ui`'s `useLatest`, not from a ref written while rendering.
-- **It lints `src` by default,** TypeScript files, without fixtures or build output. Give `defineReactLint` your own `files` and `ignores`, and `hm-lint-react` your own paths, for another layout.
+- **It lints published source:** TypeScript files under `src` by default, without build output, fixtures, tests (`*.test.*`) or stories (`*.stories.*`). A test's own component may hand a value out through a variable, which the rules for published components would report. Give `defineReactLint` your own `files` and `ignores`, and `hm-lint-react` your own paths, for another layout.
 - **What it doesn't catch:** a direct read of the document while rendering, such as `document.activeElement`, and a changed prop. Those still need review.
 - **Without the three packages,** the configuration and the command fail at once, saying what to install. A repository without React installs nothing and doesn't run it.
 

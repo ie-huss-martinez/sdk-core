@@ -212,13 +212,33 @@ describe("lintReact", () => {
     expect(reportedRules((await lintReact({ cwd: root })).report)).not.toContain("rules-of-hooks");
   });
 
-  it("leaves tests' fixtures and build output out", async () => {
+  it("leaves out what never ships: fixtures, tests and stories", async () => {
+    // A test's own component hands a value out through a variable, which
+    // the plugin's globals rule reports in a published component.
+    const handsOut = `${IMPORTS}let seen: number | undefined;\nexport function Probe({ value }: { value: number }) {\n  seen = value;\n  return <div>{seen}</div>;\n}\n`;
     const root = await repository({
       "src/fixtures/bad.tsx": MISTAKES["src/purity.tsx"],
+      "src/Editor.test.tsx": handsOut,
+      "src/Editor.browser.test.tsx": handsOut,
+      "src/Editor.stories.tsx": handsOut,
       "src/clean.tsx": CLEAN["src/clean.tsx"],
     });
 
-    expect((await lintReact({ cwd: root })).exitCode).toBe(EXIT_OK);
+    expect(await lintReact({ cwd: root })).toEqual({
+      exitCode: EXIT_OK,
+      report: "React lint: nothing reported in 1 file.\n",
+    });
+  });
+
+  it("reports the same component when it's published source", async () => {
+    const root = await repository({
+      "src/Probe.tsx": `${IMPORTS}let seen: number | undefined;\nexport function Probe({ value }: { value: number }) {\n  seen = value;\n  return <div>{seen}</div>;\n}\n`,
+    });
+
+    const { exitCode, report } = await lintReact({ cwd: root });
+
+    expect(exitCode).toBe(EXIT_FAILED);
+    expect(reportedRules(report)).toContain("globals");
   });
 
   it("refuses a repository without the configuration, saying what to write", async () => {

@@ -35,6 +35,21 @@ export const MAY_BE_OFF = Object.freeze([
   "preserve-manual-memoization",
 ]);
 
+/**
+ * What's left out: build output, and code that never ships. Tests and
+ * stories render components their own way, such as one that hands a value
+ * to the test through a variable outside it, which the rules for published
+ * components would report.
+ */
+const NOT_PUBLISHED = Object.freeze([
+  "**/dist/**",
+  "**/coverage/**",
+  "**/temp/**",
+  "**/fixtures/**",
+  "**/*.test.*",
+  "**/*.stories.*",
+]);
+
 const PEERS = ["eslint", "eslint-plugin-react-hooks", "@typescript-eslint/parser"];
 
 /**
@@ -76,8 +91,8 @@ export async function loadPeer(name) {
  * @typedef {object} ReactLintOptions
  * @property {readonly string[]} [files] The files that hold React, as globs
  *   from the repository's root. Defaults to `src/**` TypeScript files.
- * @property {readonly string[]} [ignores] Globs to leave out, beside tests'
- *   fixtures and build output.
+ * @property {readonly string[]} [ignores] Globs to leave out, beside build
+ *   output, fixtures, tests (`*.test.*`) and stories (`*.stories.*`).
  * @property {readonly string[]} [off] Rules the repository still has
  *   findings for, by name without the `react-hooks/` prefix, from
  *   {@link MAY_BE_OFF}. Each is turned off, never set to warn. Name the
@@ -143,7 +158,7 @@ export async function defineReactLint({
     rules[`react-hooks/${name}`] = off.includes(name) ? "off" : "error";
   }
   return [
-    { ignores: ["**/dist/**", "**/coverage/**", "**/temp/**", "**/fixtures/**", ...ignores] },
+    { ignores: [...NOT_PUBLISHED, ...ignores] },
     {
       name: "@hussmartinez/sdk-config/eslint-react",
       files: [...files],
