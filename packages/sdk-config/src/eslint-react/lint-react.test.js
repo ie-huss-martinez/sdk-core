@@ -241,6 +241,45 @@ describe("lintReact", () => {
     expect(reportedRules(report)).toContain("globals");
   });
 
+  it("refuses a comment that configures a rule for its file, which nothing would report", async () => {
+    const configured = (/** @type {string} */ comment) =>
+      `${comment}\n${IMPORTS}export function Impure() {\n  const id = Math.random();\n  return <div>{id}</div>;\n}\n`;
+    const off = await repository({
+      "src/a.tsx": configured('/* eslint react-hooks/purity: "off" */'),
+    });
+    const env = await repository({ "src/a.tsx": configured("/* eslint-env browser */") });
+
+    const refused = await lintReact({ cwd: off });
+    expect(refused.exitCode).toBe(EXIT_FAILED);
+    expect(refused.report).toContain(
+      "a.tsx:1  A comment that configures ESLint's rules isn't allowed.",
+    );
+    expect(refused.report).toContain("defineReactLint's off list");
+    expect((await lintReact({ cwd: env })).report).toContain("isn't allowed");
+  });
+
+  it("refuses a path it's given that isn't there, or holds nothing it reads", async () => {
+    const root = await repository({ ...CLEAN, "docs/notes.md": "# Notes\n" });
+
+    await expect(lintReact({ cwd: root, paths: ["src/componets"] })).rejects.toThrow(
+      /src\/componets doesn't exist, so nothing would be linted/,
+    );
+    await expect(lintReact({ cwd: root, paths: ["docs"] })).rejects.toThrow(UsageError);
+    await expect(lintReact({ cwd: root, paths: ["docs"] })).rejects.toThrow(
+      /No file under docs is one the React lint reads/,
+    );
+    expect((await lintReact({ cwd: root, paths: ["src"] })).exitCode).toBe(EXIT_OK);
+  });
+
+  it("passes with no src to read, by default, as a repository without React source does", async () => {
+    const root = await repository({});
+
+    expect(await lintReact({ cwd: root })).toEqual({
+      exitCode: EXIT_OK,
+      report: "React lint: nothing reported in 0 files.\n",
+    });
+  });
+
   it("refuses a repository without the configuration, saying what to write", async () => {
     const root = await mkdtemp(join(PACKAGE, ".tmp-lint-react-"));
     roots.push(root);

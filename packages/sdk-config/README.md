@@ -142,7 +142,8 @@ export default await defineReactLint();
   ```
 
   Only `refs`, `immutability`, `set-state-in-effect`, `exhaustive-deps` and `preserve-manual-memoization` can be turned off. The others had no finding in any repository, so they stay on.
-- **While `exhaustive-deps` is off, turn Biome's rule back on,** so dependency lists are always checked by one of the two:
+- **Tests and stories keep Biome's dependency rule.** The plugin reads published source only, so the Biome preset leaves `useExhaustiveDependencies` on for `*.test.*` and `*.stories.*`. A file outside both, such as JavaScript under `src`, isn't checked by either: add it with `files` in `defineReactLint`.
+- **While `exhaustive-deps` is off, turn Biome's rule back on for published source too,** so its dependency lists are still checked:
 
   ```jsonc
   // biome.json
@@ -150,7 +151,8 @@ export default await defineReactLint();
   ```
 
   Take that out in the pull request that turns the plugin's rule on, and move your `biome-ignore` comments for it to the plugin's.
-- **A suppression says why:** `// eslint-disable-next-line react-hooks/immutability -- <reason>`. `hm-lint-react` fails on one without a reason, and on one that suppresses nothing.
+- **A suppression says why:** `// eslint-disable-next-line react-hooks/immutability -- <reason>`. `hm-lint-react` fails on one without a reason, and on one that suppresses nothing. A comment that configures a rule for its file, `/* eslint react-hooks/purity: "off" */`, is refused: rules change in the `off` list.
+- **A path you give it must hold something to lint.** `hm-lint-react src/componets` fails rather than pass on nothing.
 - **The latest value of a prop,** for an effect or a handler, comes from `ui`'s `useLatest`, not from a ref written while rendering.
 - **It lints published source:** TypeScript files under `src` by default, without build output, fixtures, tests (`*.test.*`) or stories (`*.stories.*`). A test's own component may hand a value out through a variable, which the rules for published components would report. Give `defineReactLint` your own `files` and `ignores`, and `hm-lint-react` your own paths, for another layout.
 - **What it doesn't catch:** a direct read of the document while rendering, such as `document.activeElement`, and a changed prop. Those still need review.

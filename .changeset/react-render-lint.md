@@ -22,8 +22,8 @@ Biome doesn't check that rendering is pure: no reading or writing a ref, no impu
 
 3. Add `hm-lint-react` to your `lint` script.
 4. Turn off, by name, exactly the rules you have findings for: `refs`, `immutability`, `set-state-in-effect`, `exhaustive-deps` or `preserve-manual-memoization`. A rule is an error or it's off, never a warning. Fix them in later pull requests, and take each name out in the one that fixes it. Change no source in this pull request.
-5. **If `exhaustive-deps` is in your `off` list,** turn Biome's rule back on in your own `biome.json`, `"correctness": { "useExhaustiveDependencies": "error" }`, until it isn't, so that dependency lists are always checked by one of the two.
+5. **If `exhaustive-deps` is in your `off` list,** turn Biome's rule back on in your own `biome.json`, `"correctness": { "useExhaustiveDependencies": "error" }`, until it isn't, so that published source's dependency lists are still checked.
 
-**What changed in the Biome preset:** `useExhaustiveDependencies` is off. The plugin's rule replaces it: it also reports a dependency made anew on every render, which Biome's doesn't, and with one rule a deliberate exception is suppressed once. When you turn the plugin's rule on, move your `biome-ignore lint/correctness/useExhaustiveDependencies` comments to `// eslint-disable-next-line react-hooks/exhaustive-deps -- <reason>`. `hm-lint-react` fails on a suppression without a reason.
+**What changed in the Biome preset:** `useExhaustiveDependencies` is off for published source. Tests (`*.test.*`) and stories (`*.stories.*`), which the plugin doesn't read, keep it. The plugin's rule replaces it: it also reports a dependency made anew on every render, which Biome's doesn't, and with one rule a deliberate exception is suppressed once. When you turn the plugin's rule on, move your `biome-ignore lint/correctness/useExhaustiveDependencies` comments to `// eslint-disable-next-line react-hooks/exhaustive-deps -- <reason>`. `hm-lint-react` fails on a suppression without a reason.
 
 **In a repository without React:** nothing to do, and nothing to install.
