@@ -283,7 +283,7 @@ describe("lintReact", () => {
     );
     await expect(lintReact({ cwd: root, paths: ["docs"] })).rejects.toThrow(UsageError);
     await expect(lintReact({ cwd: root, paths: ["docs"] })).rejects.toThrow(
-      /No file under docs is one the React lint reads/,
+      /The React lint read no file under docs, so nothing was linted/,
     );
     expect((await lintReact({ cwd: root, paths: ["src"] })).exitCode).toBe(EXIT_OK);
   });
@@ -335,13 +335,56 @@ describe("lintReact", () => {
     ).rejects.toThrow(/src\/Editro.tsx doesn't exist/);
   });
 
-  it("passes with no src to read, by default, as a repository without React source does", async () => {
-    const root = await repository({});
+  it("fails when it reads no file, saying where it looked, rather than pass on nothing", async () => {
+    // As at the root of a repository whose source is in packages/ui/src: no src here.
+    const monorepo = await repository({ "packages/ui/src/Button.tsx": CLEAN["src/clean.tsx"] });
+    // And with a src that holds nothing it reads.
+    const empty = await repository({
+      "src/notes.md": "# Notes\n",
+      "src/a.test.tsx": "export {};\n",
+    });
+
+    for (const root of [monorepo, empty]) {
+      await expect(lintReact({ cwd: root })).rejects.toThrow(UsageError);
+      await expect(lintReact({ cwd: root })).rejects.toThrow(
+        /The React lint read no file under src, so nothing was linted/,
+      );
+    }
+    await expect(lintReact({ cwd: monorepo })).rejects.toThrow(/hm-lint-react packages\/ui\/src/);
+    await expect(lintReact({ cwd: monorepo })).rejects.toThrow(/allowNoFiles: true/);
+  });
+
+  it("lints the folder it's told to, in a repository whose source isn't under src", async () => {
+    const root = await repository({
+      "eslint.config.js": `import { defineReactLint } from ${JSON.stringify(PRESET)};\nexport default await defineReactLint({ files: ["packages/*/src/**/*.{ts,tsx}"] });\n`,
+      "packages/ui/src/Button.tsx": CLEAN["src/clean.tsx"],
+      "packages/ui/src/Impure.tsx": MISTAKES["src/purity.tsx"],
+    });
+
+    const { exitCode, report } = await lintReact({ cwd: root, paths: ["packages/ui/src"] });
+
+    expect(exitCode).toBe(EXIT_FAILED);
+    expect(reportedRules(report)).toEqual(["purity"]);
+  });
+
+  it("passes with no file to read when the configuration says so on purpose", async () => {
+    const root = await repository({
+      "eslint.config.js": `import { defineReactLint } from ${JSON.stringify(PRESET)};\nexport default await defineReactLint({ allowNoFiles: true });\n`,
+    });
 
     expect(await lintReact({ cwd: root })).toEqual({
       exitCode: EXIT_OK,
-      report: "React lint: nothing reported in 0 files.\n",
+      report: "React lint: no file to read under src, which eslint.config.js allows.\n",
     });
+  });
+
+  it("still lints, and still reports, with allowNoFiles and files to read", async () => {
+    const root = await repository({
+      "eslint.config.js": `import { defineReactLint } from ${JSON.stringify(PRESET)};\nexport default await defineReactLint({ allowNoFiles: true });\n`,
+      "src/purity.tsx": MISTAKES["src/purity.tsx"],
+    });
+
+    expect((await lintReact({ cwd: root })).exitCode).toBe(EXIT_FAILED);
   });
 
   it("refuses a repository without the configuration, saying what to write", async () => {

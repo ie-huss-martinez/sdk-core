@@ -152,7 +152,10 @@ export default await defineReactLint();
 
   Take that out in the pull request that turns the plugin's rule on, and move your `biome-ignore` comments for it to the plugin's.
 - **A suppression says why:** `// eslint-disable-next-line react-hooks/immutability -- <reason>`. `hm-lint-react` fails on one without a reason, and on one that suppresses nothing. A comment that configures a rule for its file, `/* eslint react-hooks/purity: "off" */`, is refused: rules change in the `off` list.
-- **A path you give it must exist,** and a folder must hold something to lint: `hm-lint-react src/componets` fails rather than pass on nothing. **A file its configuration leaves out is skipped,** a test or a story for instance, as ESLint's `--no-warn-ignored` does, so a hook can pass it whatever is staged.
+- **A path you give it must exist:** `hm-lint-react src/componets` fails. **A file its configuration leaves out is skipped,** a test or a story for instance, as ESLint's `--no-warn-ignored` does, so a hook can pass it whatever is staged.
+- **Reading no file is a failure, not a pass.** Run bare where there's no `src`, as at the root of a repository whose source is in `packages/ui/src`, it used to print "nothing reported in 0 files" and exit 0: a lint that looks in the wrong place would pass for ever. It now fails, saying where it looked.
+  - **Source somewhere else:** name the folder, `hm-lint-react packages/ui/src`, and give `defineReactLint` matching `files`, such as `["packages/*/src/**/*.{ts,tsx}"]`.
+  - **Nothing to lint, on purpose:** say so, with `defineReactLint({ allowNoFiles: true })`.
 - **In the commit hook,** add it with the lint-staged preset's `withReactLint`, [below](#commitlint-lint-staged-and-secretlint).
 - **The latest value of a prop,** for an effect or a handler, comes from `ui`'s `useLatest`, not from a ref written while rendering.
 - **It lints published source:** TypeScript files under `src` by default, without build output, fixtures, tests (`*.test.*`) or stories (`*.stories.*`). A test's own component may hand a value out through a variable, which the rules for published components would report. Give `defineReactLint` your own `files` and `ignores`, and `hm-lint-react` your own paths, for another layout.
@@ -841,6 +844,8 @@ No application ships a whole entry: its bundler keeps what it imports. `importBu
   ```
 
   `entryBudget` refuses the option: a ceiling measures the built files and bundles nothing, so the function would never run.
+
+  The check reports after `size-limit` has printed its results, which look fine until then. It works by noticing when `size-limit` reads a budget's import clause, so it depends on how `size-limit` does that: this package's tests run the real `size-limit` on such a configuration, and an upgrade of `size-limit` has to keep them passing.
 - **Only what the import keeps:** names the bundle imports from a package left out of it, and never uses, are cut out of its import statements before it's measured, wherever in the bundle those statements are. esbuild leaves them in when their uses were tree-shaken away, so an import that used one thing from a shared chunk used to carry the chunk's whole list of names from `react` and the family's packages, which no application pays for. Nothing else in the bundle is changed, and a statement that loses no name stays as it was written, so the bundle never gets longer. Its compressed size usually goes down too, but can go up by a few bytes: a name that's cut may have been helping compress what follows. `hm-size --import` and `--exports` measure the same way.
 - **Without the package's `tsconfig.json`.** An application's bundler never reads it. esbuild would find it from the built entry and follow its `paths`, back into source if they map an import there, so both `importBudget` and `hm-size` bundle with an empty one. A wrapper that sets `tsconfigRaw: "{}"` yourself can go.
 - **Setting and raising one:** a limit is the measurement rounded up to the next 0.5 kB, raised in the pull request that needs it, with a table of the scenarios that moved.
@@ -996,6 +1001,13 @@ export default withReactLint();
 - **When it runs:** whenever a staged file is TypeScript under a `src` folder. After Biome, in the same list, so it reads what Biome left.
 - **What it runs:** `hm-lint-react`, with no file named, over the whole of `src`, as `pnpm lint` does. The lint needs every file to judge one, and a command built from staged file names breaks on a name with a space, since lint-staged splits a task's command at spaces.
 - **Your own configuration:** `withReactLint(yours)` adds the step to the end of its `"!(*.css)"` list, and returns a new object.
+- **Source that isn't under `src` at the root:** name where it is, and the step lints there, when a staged file is under one of those folders:
+
+  ```js
+  export default withReactLint(undefined, { paths: ["packages/ui/src"] });
+  ```
+
+  Without `paths`, the step runs bare `hm-lint-react`, which fails in such a repository because it reads no file. A folder's name can't have a space in it, since lint-staged splits a command at spaces.
 - **Replacing a function of your own:** if your `lint-staged.config.js` has a hand-written function that runs plain `hm-lint-react`, delete it and use this. Keep yours if it passes options, such as `--config` or its own paths: this step runs the command with none, so it reads `eslint.config.js` and lints `src`.
 
 secretlint loads its configuration as CommonJS:

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import { loadPeer } from "./index.js";
+import { pathToFileURL } from "node:url";
+import { ALLOW_NO_FILES, loadPeer } from "./index.js";
 
 /** Exit code when nothing is reported. */
 export const EXIT_OK = 0;
@@ -60,11 +61,32 @@ function configurationComments(parser, result) {
 }
 
 /**
+ * Whether a configuration says, on purpose, that there may be no file to
+ * lint: it came from `defineReactLint({ allowNoFiles: true })`.
+ *
+ * @param {string} config The configuration file.
+ * @returns {Promise<boolean>}
+ */
+async function allowsNoFiles(config) {
+  try {
+    const { default: objects } = await import(pathToFileURL(config).href);
+    return (
+      Array.isArray(objects) &&
+      objects.some(
+        (object) => object && typeof object === "object" && object.name === ALLOW_NO_FILES,
+      )
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * @typedef {object} LintReactOptions
  * @property {string[]} [paths] Files and folders to lint, relative to `cwd`.
  *   Defaults to `src`. A path given here must exist. A file the
- *   configuration leaves out, such as a test, is skipped; a folder must
- *   hold a file the lint reads.
+ *   configuration leaves out, such as a test, is skipped. Reading no file
+ *   at all is a failure, unless the configuration allows it.
  * @property {string} [cwd] Working directory. Defaults to `process.cwd()`.
  * @property {string} [configFile] The ESLint configuration. Defaults to
  *   `eslint.config.js`.
@@ -85,7 +107,8 @@ function configurationComments(parser, result) {
  * @param {LintReactOptions} [options]
  * @returns {Promise<LintReactResult>}
  * @throws {UsageError} If the configuration is missing, ESLint isn't
- *   installed, or a path that was given holds nothing to lint.
+ *   installed, a path that was given doesn't exist, or no file was read
+ *   and the configuration doesn't allow that.
  */
 export async function lintReact({
   paths,
@@ -93,7 +116,7 @@ export async function lintReact({
   configFile = "eslint.config.js",
 } = {}) {
   // A path the caller names must be there: a misspelt one would otherwise
-  // lint nothing and pass. The default, `src`, may be empty or missing.
+  // lint nothing.
   for (const path of paths ?? []) {
     if (!existsSync(resolve(cwd, path))) {
       throw new UsageError(`${path} doesn't exist, so nothing would be linted.`);
@@ -132,19 +155,31 @@ export async function lintReact({
     );
   }
 
-  if (given && results.length === 0) {
+  if (results.length === 0) {
     // Files that were given, and that the lint leaves out: a test, a story,
     // a stylesheet. There's nothing to lint, and that isn't a mistake.
-    if (targets.every((path) => statSync(resolve(cwd, path)).isFile())) {
+    if (given && targets.every((path) => statSync(resolve(cwd, path)).isFile())) {
       const count = targets.length;
       return {
         exitCode: EXIT_OK,
         report: `React lint: nothing to lint. The ${count === 1 ? "file" : `${count} files`} given ${count === 1 ? "isn't one" : "aren't ones"} it reads.\n`,
       };
     }
-    // A folder with nothing in it to read is more likely misspelt, or the wrong one.
+    const where = targets.join(", ");
+    if (await allowsNoFiles(config)) {
+      return {
+        exitCode: EXIT_OK,
+        report: `React lint: no file to read under ${where}, which ${configFile} allows.\n`,
+      };
+    }
+    // Reading nothing isn't passing: a lint that looks in the wrong folder,
+    // as in a repository whose source isn't under src, would pass for ever.
     throw new UsageError(
-      `No file under ${targets.join(", ")} is one the React lint reads, so nothing would be linted.`,
+      [
+        `The React lint read no file under ${where}, so nothing was linted.`,
+        `  If the React source is somewhere else, name it: hm-lint-react packages/ui/src, with files to match in ${configFile}.`,
+        "  If there's none to lint, on purpose, say so: defineReactLint({ allowNoFiles: true }).",
+      ].join("\n"),
     );
   }
 
