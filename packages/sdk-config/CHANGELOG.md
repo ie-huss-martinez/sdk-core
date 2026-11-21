@@ -1,5 +1,13 @@
 # @hussmartinez/sdk-config
 
+## 0.12.2
+
+### Patch Changes
+
+- [#175](https://github.com/ie-huss-martinez/sdk-core/pull/175) [`3aceb86`](https://github.com/ie-huss-martinez/sdk-core/commit/3aceb86f72252e67ecb213bb3a2866032fb628d2) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `importBudget` and `hm-size` no longer risk measuring an import too small. To find the names a bundle imports and never uses, they read the bundle as JavaScript, which it is, instead of as TypeScript.
+  
+  Read as TypeScript, `limit<maximum>(strict || 1)` is a call with a type argument rather than two comparisons, so a name used only in the middle of such an expression looked unused and was cut from the measurement. A floor that measures too small hides the leaks it exists to catch. It needed that exact shape in a minified bundle, so no budget is known to have been affected, and you have nothing to change.
+
 ## 0.12.1
 
 ### Patch Changes
