@@ -91,7 +91,7 @@ export default defineDependencyRules({
 Each SDK replaces its copy when it next takes an `sdk-config` release, in its own pull request:
 
 - **image-sdk and video-sdk:** one entry each, with the folder they have today. No change in what's allowed.
-- **pdf-sdk:** names the folder that wraps each engine, `adapters/pdfjs` and `adapters/qpdf`, in place of all adapters and workers. No code it has today imports an engine from outside those two. Its declaration file for pdf.js's minified builds, `src/types/modules.d.ts`, re-exports the engine's types: it moves beside the adapter, or `types` gets an entry of its own.
+- **pdf-sdk:** names the folder that wraps each engine, `adapters/pdfjs` and `adapters/qpdf`, in place of all adapters and workers. No code it has today imports an engine from outside those two. Its declaration file for pdf.js's minified builds, `src/types/modules.d.ts`, re-exports the engine's types: it moves into `src/adapters/pdfjs/`, beside the code that uses it.
 - **audio-sdk:** deletes its stylesheet exception, and goes back to the preset as it is.
 
 Copies keep working until then: the preset's rule names don't change in this release.
