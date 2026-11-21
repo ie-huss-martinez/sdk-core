@@ -7,6 +7,7 @@ import requireBrowserTestImage, {
   ALLOW_HOST_ENV,
   browserTestImageProblem,
   CONTAINER_ENV,
+  webServersFor,
 } from "./require-image.js";
 
 const PACKAGE = fileURLToPath(new URL("../..", import.meta.url));
@@ -54,6 +55,55 @@ describe("browserTestImageProblem", () => {
 
     vi.stubEnv(CONTAINER_ENV, "1");
     expect(browserTestImageProblem()).toBeUndefined();
+  });
+});
+
+describe("webServersFor", () => {
+  const vite = { command: "vite preview", url: "http://localhost:4310" };
+  const next = { command: "next start", url: "http://localhost:4311" };
+
+  it.each([
+    ["in the browser test image", { HM_VISUAL_CONTAINER: "1" }],
+    ["in CI", { CI: "true" }],
+    ["on a host that asks for it, to debug", { HM_ALLOW_HOST_BROWSER: "1" }],
+  ])("lists the servers as given %s", (_label, env) => {
+    const servers = [vite, next];
+
+    const listed = webServersFor(servers, env);
+
+    expect(listed).toEqual([vite, next]);
+    expect(listed).not.toBe(servers);
+    expect(listed[0]).toBe(vite);
+  });
+
+  it.each([
+    ["on a host", {}],
+    ["with CI turned off", { CI: "false" }],
+    ["with the host bypass set to anything but 1", { HM_ALLOW_HOST_BROWSER: "true" }],
+  ])("lists none %s, where the guard will refuse", (_label, env) => {
+    expect(browserTestImageProblem(env)).toBeDefined();
+    expect(webServersFor([vite, next], env)).toEqual([]);
+    expect(webServersFor(vite, env)).toEqual([]);
+  });
+
+  it("takes one server, as Playwright's configuration does", () => {
+    expect(webServersFor(vite, { CI: "true" })).toEqual([vite]);
+  });
+
+  it("lists none when the configuration has none, anywhere", () => {
+    expect(webServersFor(undefined, { CI: "true" })).toEqual([]);
+    expect(webServersFor(undefined, {})).toEqual([]);
+    expect(webServersFor([], { CI: "true" })).toEqual([]);
+  });
+
+  it("reads the process's environment by default, and never throws", () => {
+    vi.stubEnv("CI", "");
+    vi.stubEnv(CONTAINER_ENV, "");
+    vi.stubEnv(ALLOW_HOST_ENV, "");
+    expect(webServersFor([vite])).toEqual([]);
+
+    vi.stubEnv(ALLOW_HOST_ENV, "1");
+    expect(webServersFor([vite])).toEqual([vite]);
   });
 });
 
