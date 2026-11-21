@@ -6,6 +6,7 @@
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { budgetRecord, tracedImport } from "./budget-hooks.js";
 import { brotliSize, entryFiles, UsageError } from "./entry.js";
 import { withoutUnusedImports } from "./unused-imports.js";
 
@@ -66,8 +67,16 @@ export function lazyChunks(entry) {
  *   check's name, the built entry, and the limit, such as `"17 kB"`.
  * @returns {{ name: string, path: string[], brotli: true, limit: string, disablePlugins: string[] }}
  * @throws {UsageError} If the entry isn't built.
+ * @throws {TypeError} If it's given `modifyEsbuildConfig`: a ceiling
+ *   measures the files as built and bundles nothing, so the function would
+ *   never run. It belongs on {@link importBudget}.
  */
-export function entryBudget({ name, entry, limit }) {
+export function entryBudget({ name, entry, limit, ...others }) {
+  if ("modifyEsbuildConfig" in others) {
+    throw new TypeError(
+      `The ceiling "${name}" was given modifyEsbuildConfig, which would never run: an entry ceiling measures the built files and bundles nothing. Pass it to importBudget.`,
+    );
+  }
   return {
     name,
     path: entryFiles(entry),
@@ -113,17 +122,21 @@ export function entryBudget({ name, entry, limit }) {
  *   lazy chunks somewhere other than `lazy/` beside the entry.
  *   `modifyEsbuildConfig` changes the bundle's configuration after this
  *   has set its own.
- * @returns {{ name: string, path: string, import: string, ignore: string[], brotli: true, limit: string, modifyEsbuildConfig: (config: EsbuildConfig) => EsbuildConfig }}
+ * @returns {{ name: string, path: string, import: Record<string, import("./budget-hooks.js").TracedImport>, ignore: string[], brotli: true, limit: string, modifyEsbuildConfig: (config: EsbuildConfig) => EsbuildConfig }}
  */
 export function importBudget({ name, entry, imports, limit, ignore = [], modifyEsbuildConfig }) {
+  const record = budgetRecord(name);
   return {
     name,
     path: entry,
-    import: imports,
+    // The clause, as text that also notes when size-limit builds this
+    // budget's bundle: see tracedImport.
+    import: { [entry]: tracedImport(imports, record) },
     ignore: [...HOST_PACKAGES, ...lazyChunks(entry), ...ignore],
     brotli: true,
     limit,
     modifyEsbuildConfig(config) {
+      record.configured += 1;
       /** @type {EsbuildConfig} */
       const ours = {
         ...config,

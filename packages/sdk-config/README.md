@@ -832,6 +832,15 @@ No application ships a whole entry: its bundler keeps what it imports. `importBu
   - **what a typical application imports,** such as the factories an editor uses together, or the editor component.
 - **What's left out, and nothing else:** `react` and `react-dom`, the family's packages (`@hussmartinez/*`), and the entry's own lazy chunks, the `lazy/` folder beside it. Everything else an import brings is counted, including a third-party runtime dependency and anything inside it. Pass `ignore` for a package that puts its lazy chunks somewhere else.
 - **How it's bundled:** as an ES module, with `process.env.NODE_ENV` defined as `"production"`, as an application's production build is and as `hm-size --import` measures. `@size-limit/esbuild` sets neither by itself, so `importBudget` does. To change the bundle further, pass `modifyEsbuildConfig`: it receives the configuration with both set, and what it returns is used.
+- **Give it your own esbuild settings as an option, never by spreading.** `importBudget({ …, modifyEsbuildConfig })` runs your function after its own. Writing `{ ...importBudget(…), modifyEsbuildConfig }` instead replaces its own: the bundle is then a script, without the production define, read with your `tsconfig.json`, and with every unused name still counted, and the number says nothing about it. So `size-limit` fails when that happens, after printing its results:
+
+  ```text
+  An import budget was measured without importBudget's own esbuild settings (sdk-core ADR 0056): Import: PdfEditor.
+    A configuration that writes { ...importBudget(…), modifyEsbuildConfig } replaces them.
+    Pass the function to importBudget instead, which runs it after its own: importBudget({ …, modifyEsbuildConfig }).
+  ```
+
+  `entryBudget` refuses the option: a ceiling measures the built files and bundles nothing, so the function would never run.
 - **Only what the import keeps:** names the bundle imports from a package left out of it, and never uses, are cut out of its import statements before it's measured, wherever in the bundle those statements are. esbuild leaves them in when their uses were tree-shaken away, so an import that used one thing from a shared chunk used to carry the chunk's whole list of names from `react` and the family's packages, which no application pays for. Nothing else in the bundle is changed, and a statement that loses no name stays as it was written, so the bundle never gets longer. Its compressed size usually goes down too, but can go up by a few bytes: a name that's cut may have been helping compress what follows. `hm-size --import` and `--exports` measure the same way.
 - **Without the package's `tsconfig.json`.** An application's bundler never reads it. esbuild would find it from the built entry and follow its `paths`, back into source if they map an import there, so both `importBudget` and `hm-size` bundle with an empty one. A wrapper that sets `tsconfigRaw: "{}"` yourself can go.
 - **Setting and raising one:** a limit is the measurement rounded up to the next 0.5 kB, raised in the pull request that needs it, with a table of the scenarios that moved.
