@@ -1,6 +1,6 @@
 # 0062. Fonts in browser tests
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-21
 - **Refines:** [ADR 0048](0048-visual-regression-for-sdk-editors.md) and [ADR 0025](0025-one-browser-test-image-in-one-place.md), by saying which fonts the browser test image renders the family's text with
 
@@ -58,7 +58,7 @@ CI's jobs run in Microsoft's image as it is. `ci/Dockerfile` holds one `FROM` li
 | | Option | In short |
 |---|---|---|
 | A | Leave it | Baselines stay in a font with one weight |
-| **B** | **A fontconfig file, passed to the browser when it launches** | **The presets set it. No image change. Recommended** |
+| **B** | **A fontconfig file, passed to the browser when it launches** | **The presets set it. No image change. Chosen** |
 | C | The family's own image, with fonts installed | A published image to build, sign and keep up to date |
 | D | A web font injected by the tests | Tests render a font the components never ask for |
 | E | `ui` names a font the image has, ahead of `system-ui` | Changes what users see, to fix what tests see |
@@ -79,7 +79,7 @@ All three engines take it, and the strong weight gets a real bold face. The thre
 
 ## Decision
 
-**Recommended: B. The reviewer rules before any code is written.**
+**Option B: a fontconfig file, for every browser the presets launch in the image.**
 
 - **`sdk-config` ships a fontconfig file.** It includes the system's configuration, and prefers:
   - Liberation Sans for `system-ui` and `sans-serif`;
@@ -89,9 +89,10 @@ All three engines take it, and the strong weight gets a real bold face. The thre
   - `defineVisualConfig`, for screenshots;
   - `browserInstances`, for Vitest's browser projects;
   - a helper for an SDK's own Playwright configuration, for its end-to-end suite.
+- **A configuration that launches browsers its own way gets the same environment from the same place.** `sdk-config` exports the launch environment, as an object to pass as `launchOptions.env`, and the file's path. `ui`'s Vitest browser configuration and its catalogue's test runner don't go through the presets, so they use that export. No repository writes the variable's name or the file's path itself.
 
   So a layout assertion, an end-to-end test and a screenshot all see the same text.
-- **Liberation, because the image already has it,** in four styles, so the family ships no font and takes on no font's licence. It's metric-compatible with Arial, which is the last named font in `ui`'s stack and what a system without the others would use.
+- **Liberation Sans, Serif and Mono, because the image already has them,** in four styles, so the family ships no font and takes on no font's licence. They're metric-compatible with Arial, Times New Roman and Courier New. Arial is the last named font in `ui`'s stack, and what a system without the others would use.
 - **The image doesn't change.** `ci/Dockerfile` keeps its one `FROM` line, and CI and local runs stay the same by construction: the font rules travel with the preset, not with the machine.
 - **A test in `sdk-config` holds it:** in Chromium, text in `ui`'s stack is drawn in Liberation Sans, and at weight 600 in its bold face.
 - **Outside the image nothing breaks.** On a machine without Liberation, the preference names a font that isn't there and fontconfig falls through to what it would have chosen. macOS and Windows don't read the variable.
@@ -105,7 +106,7 @@ All three engines take it, and the strong weight gets a real bold face. The thre
 
 - **A minor release of `sdk-config`:** taking it changes every screenshot with text in it, so it turns a consumer's visual check red until the baselines are retaken.
 - **Each repository retakes its baselines in the pull request that takes the release,** with `pnpm test:visual:update`, and says in it that the font is the cause. A reviewer should see text change everywhere and nothing else move by more than the text's new width.
-- **`ui` goes first,** since its catalogue has the most text and its own comparator.
+- **`ui` goes first,** since its catalogue has the most text and its own comparator. Then each SDK, in its own adoption pull request, with its retaken baselines explained by this one cause.
 
 ## Alternatives considered
 
