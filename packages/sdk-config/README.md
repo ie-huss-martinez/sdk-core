@@ -31,6 +31,7 @@ Install, as devDependencies, the tools for the presets you use. They are optiona
 | `testing/require-image` | Nothing |
 | `testing/timeouts` | Nothing |
 | `testing/fonts` | Nothing |
+| `testing/firefox-labelled-by` | Nothing |
 
 ### TypeScript
 
@@ -324,6 +325,44 @@ pnpm exec hm-netlog-errors test-results/diagnostics/*.netlog.json
 The folder must be inside the checkout, because `pnpm test:browser` runs in the browser test image through `hm-in-image`, and the container sees nothing else of the host. A relative folder is taken from where the command runs, so the net logs of a package's tests land in that package. `hm-in-image` refuses a folder outside the checkout before it starts anything.
 
 It's test code only: import it only from Vitest configurations.
+
+### Testing: the Firefox `ariaLabelledByElements` guard
+
+Playwright's Firefox 159 crashes the page when an element's `ariaLabelledByElements` is read from two JavaScript worlds ([ui#61](https://github.com/ie-huss-martinez/ui/issues/61)). Playwright's role and label locators read it in their isolated world, as does Vitest's `userEvent`, which builds such locators. axe-core reads it in the page's world. So a click by accessible name and an axe run on the same page crash Firefox, in either order. Two lines reproduce it: `<button aria-labelledby="x"></button><span id="x">Undo</span>`.
+
+The guard removes the property from the page's world, in Firefox only, before any script runs. axe then resolves `aria-labelledby` by ID, as it does in browsers without the property, and reports the same results. Playwright's world keeps its own copy, and product code never reads the property.
+
+**In a Vitest browser project,** list the setup file:
+
+```ts
+// vitest.config.ts: in the browser project only.
+{
+  test: {
+    name: "browser",
+    setupFiles: ["@hussmartinez/sdk-config/testing/firefox-labelled-by/setup"],
+    browser: { /* … */ },
+  },
+}
+```
+
+**In Playwright's end-to-end tests,** wrap the repository's `test`, so its other fixtures stay:
+
+```ts
+// e2e/fixtures.ts
+import { test as base } from "@playwright/test";
+import { withFirefoxLabelledByGuard } from "@hussmartinez/sdk-config/testing/firefox-labelled-by";
+
+export const test = withFirefoxLabelledByGuard(base);
+export { expect } from "@playwright/test";
+```
+
+- **It's listed, not built in:** each repository names the guard where it applies, so it's visible and easy to take out.
+- **`removeLabelledByElements()`** is the function itself, for a runner that adds init scripts its own way. It uses nothing from outside itself, so it can be sent to a page as text.
+- **It comes out when Firefox is fixed.** `CRASHING_FIREFOX` records the build, revision 1572, version 159.0. A test in this package fails when the pinned Playwright installs another, saying to re-check ui#61 and remove the guard if the crash is gone. Remove your lines when a release of `sdk-config` drops the entry.
+- **It doesn't cover the Firefox your users have,** only the one tests run in. That's checked by hand.
+- **Replacing a copy:** delete your own `delete Element.prototype.ariaLabelledByElements` setup file or fixture, and use these.
+
+It's test code only: import it only from tests and their configurations.
 
 ### Testing: fonts
 

@@ -51,6 +51,14 @@
       "types": "./src/testing/conformance.d.ts",
       "default": "./src/testing/conformance.js"
     },
+    "./testing/firefox-labelled-by": {
+      "types": "./src/testing/firefox-labelled-by.d.ts",
+      "default": "./src/testing/firefox-labelled-by.js"
+    },
+    "./testing/firefox-labelled-by/setup": {
+      "types": "./src/testing/firefox-labelled-by-setup.d.ts",
+      "default": "./src/testing/firefox-labelled-by-setup.js"
+    },
     "./testing/fonts": {
       "types": "./src/testing/fonts.d.ts",
       "default": "./src/testing/fonts.js"

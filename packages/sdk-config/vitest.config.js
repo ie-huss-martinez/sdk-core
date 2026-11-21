@@ -31,6 +31,9 @@ export default defineConfig(({ mode }) => {
             include: ["src/**/*.browser.test.js"],
             // Refuses to start outside the browser test image (ADR 0049).
             globalSetup: ["./src/testing/require-image.js"],
+            // The guard against the Firefox crash (ui#61), by the path the
+            // family's repositories list it with.
+            setupFiles: ["@hussmartinez/sdk-config/testing/firefox-labelled-by/setup"],
             browser: {
               enabled: true,
               headless: true,

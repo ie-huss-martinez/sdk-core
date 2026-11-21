@@ -29,6 +29,11 @@ import {
   schemaValidator,
 } from "@hussmartinez/sdk-config/testing/conformance";
 import {
+  CRASHING_FIREFOX,
+  removeLabelledByElements,
+  withFirefoxLabelledByGuard,
+} from "@hussmartinez/sdk-config/testing/firefox-labelled-by";
+import {
   FONT_CONFIG_ENV,
   FONT_CONFIG_FILE,
   fontLaunchEnv,
@@ -45,6 +50,7 @@ import {
   endToEndTimeouts,
   unitTimeouts,
 } from "@hussmartinez/sdk-config/testing/timeouts";
+import { test } from "@playwright/test";
 import type { TestContext } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -139,4 +145,19 @@ export function fonts(): { use: { launchOptions: { env: Record<string, string> }
   const applies: boolean = usesFontRules({ HM_VISUAL_CONTAINER: "1" });
   const env: Record<string, string> = fontLaunchEnv();
   return { use: { launchOptions: { env: applies ? env : { ...env, [variable]: file } } } };
+}
+
+/** The Firefox guard, with Playwright's own `test` and one a repository extended. */
+export function firefoxGuard(): string {
+  const guarded = withFirefoxLabelledByGuard(test);
+  const extended = withFirefoxLabelledByGuard(test.extend<{ editor: string }>({ editor: "pdf" }));
+  guarded("a page", async ({ page }) => {
+    await page.addInitScript(removeLabelledByElements);
+  });
+  extended("a fixture of the repository's own", async ({ page, editor }) => {
+    await page.goto(`/${editor}`);
+  });
+  const { revision, browserVersion }: { revision: string; browserVersion: string } =
+    CRASHING_FIREFOX;
+  return `${revision} ${browserVersion}`;
 }

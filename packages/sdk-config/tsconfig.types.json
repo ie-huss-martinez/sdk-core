@@ -22,6 +22,8 @@
     "src/testing/audio-output.js",
     "src/testing/browser-instances.js",
     "src/testing/conformance.js",
+    "src/testing/firefox-labelled-by.js",
+    "src/testing/firefox-labelled-by-setup.js",
     "src/testing/fonts.js",
     "src/testing/require-image.js",
     "src/testing/timeouts.js",
