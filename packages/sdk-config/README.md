@@ -138,7 +138,7 @@ export default defineDependencyRules({
 });
 ```
 
-- **`bundledEngines`:** each entry names packages, exactly, and one folder below `src/`, under `adapters/` or `workers/`. An engine that two folders import gets two entries.
+- **`bundledEngines`:** each entry names packages, exactly, and one folder below `src/`, under `adapters/` or `workers/`. An engine that two folders import gets two entries, such as an adapter and the worker that loads the engine's own worker build.
   - **Only that folder imports the engine,** as a value or as a type. Anywhere else in `src/`, tests aside, it's reported as `engine-only-from-its-folder`. An engine's types in another layer would tie that layer to the engine, and in the package's public types they'd name a package applications don't have.
   - **That folder imports no other `devDependency`:** a build tool there is reported as `engine-folder-only-its-engines`.
 - **`virtualModules`:** exact names of modules the build generates, which can't be resolved from disk.
