@@ -4,7 +4,7 @@
 
 Add import budgets and import costs to `@hussmartinez/sdk-config/size` and `hm-size` (sdk-core ADR 0056).
 
-**`importBudget({ name, entry, imports, limit })`** writes a `size-limit` check for what an application ships when it imports part of an entry: bundled and minified, without `react`, `react-dom`, the family's packages and the entry's lazy chunks. Everything else the import brings is counted. It needs `@size-limit/esbuild` beside `size-limit`.
+**`importBudget({ name, entry, imports, limit })`** writes a `size-limit` check for what an application ships when it imports part of an entry: bundled and minified, without `react`, `react-dom`, the family's packages and the entry's own lazy chunks (the `lazy/` folder beside it). Everything else the import brings is counted, including a third-party dependency. It needs `@size-limit/esbuild` beside `size-limit`.
 
 **`entryBudget({ name, entry, limit })`** writes an entry's ceiling, as `entryFiles` did by hand, and turns the esbuild plugin off for it, so the ceiling keeps measuring the built files once that plugin is installed.
 

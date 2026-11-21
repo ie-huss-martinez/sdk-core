@@ -5,7 +5,7 @@
 // Tooling only: this entry is never imported by published runtime code.
 
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { brotliSize, entryFiles, UsageError } from "./entry.js";
 
 /**
@@ -24,12 +24,22 @@ export const HOST_PACKAGES = Object.freeze([
 ]);
 
 /**
- * Where the family's builds put chunks loaded later with `import()`, as
- * esbuild `external` patterns: beside the entry, and beside a shared chunk.
- * They have budgets of their own, and a bundler without code splitting
- * would otherwise inline them.
+ * The chunks an entry loads later with `import()`, as an esbuild `external`
+ * pattern: the family's builds put them in `lazy/` beside the entry. They
+ * have budgets of their own, and a bundler without code splitting would
+ * otherwise inline them.
+ *
+ * The pattern is the folder's absolute path, which esbuild matches against
+ * each import once it's resolved. So it leaves out this entry's own lazy
+ * chunks, whether the entry or a shared chunk imports them, and nothing
+ * else: a `lazy/` folder inside a dependency is still counted.
+ *
+ * @param {string} entry The built entry, such as `dist/index.js`.
+ * @returns {string[]}
  */
-export const LAZY_CHUNKS = Object.freeze(["./lazy/*", "../lazy/*"]);
+export function lazyChunks(entry) {
+  return [`${join(dirname(resolve(entry)), "lazy").replaceAll("\\", "/")}/*`];
+}
 
 /**
  * A size budget for an entry: a ceiling on the brotli size of the built
@@ -83,7 +93,7 @@ export function entryBudget({ name, entry, limit }) {
  * @param {{ name: string, entry: string, imports: string, limit: string, ignore?: readonly string[] }} options
  *   `imports` is the import clause, such as `"{ a, b }"`. `ignore` adds
  *   esbuild `external` patterns to leave out, for a package that puts its
- *   lazy chunks somewhere else.
+ *   lazy chunks somewhere other than `lazy/` beside the entry.
  * @returns {{ name: string, path: string, import: string, ignore: string[], brotli: true, limit: string }}
  */
 export function importBudget({ name, entry, imports, limit, ignore = [] }) {
@@ -91,42 +101,68 @@ export function importBudget({ name, entry, imports, limit, ignore = [] }) {
     name,
     path: entry,
     import: imports,
-    ignore: [...HOST_PACKAGES, ...LAZY_CHUNKS, ...ignore],
+    ignore: [...HOST_PACKAGES, ...lazyChunks(entry), ...ignore],
     brotli: true,
     limit,
   };
 }
 
 /**
- * The names a built entry exports, in the order it lists them.
+ * The names a built entry exports, in the order it lists them. It follows
+ * `export * from "./file.js"` into relative files, as far as they go, and
+ * reads the files without running them. A star re-export of a package can't
+ * be read this way, and is left out.
  *
  * @param {string} entry The built entry, such as `dist/index.js`.
  * @returns {string[]}
- * @throws {UsageError} If the entry isn't built.
+ * @throws {UsageError} If the entry, or a file it re-exports, isn't there.
  */
 export function exportNames(entry) {
-  if (!existsSync(entry)) {
-    throw new UsageError(`${entry} doesn't exist. Build the package first.`);
-  }
-  const code = readFileSync(entry, "utf8");
   /** @type {Set<string>} */
   const names = new Set();
-  for (const [, list = ""] of code.matchAll(/^export\s*\{([^}]*)\}/gm)) {
-    for (const part of list.split(",")) {
-      const name = part
-        .trim()
-        .split(/\s+as\s+/)
-        .at(-1);
-      if (name && name !== "default") {
-        names.add(name);
+  /** @type {Set<string>} */
+  const seen = new Set();
+  const read = (/** @type {string} */ path, /** @type {string | undefined} */ from) => {
+    const file = resolve(path);
+    if (seen.has(file)) {
+      return;
+    }
+    seen.add(file);
+    if (!existsSync(file)) {
+      throw new UsageError(
+        from === undefined
+          ? `${path} doesn't exist. Build the package first.`
+          : `${path}, which ${from} re-exports, doesn't exist. Build the package again.`,
+      );
+    }
+    const code = readFileSync(file, "utf8");
+    for (const [, list = ""] of code.matchAll(/^export\s*\{([^}]*)\}/gm)) {
+      for (const part of list.split(",")) {
+        const name = part
+          .trim()
+          .split(/\s+as\s+/)
+          .at(-1);
+        if (name && name !== "default") {
+          names.add(name);
+        }
       }
     }
-  }
-  for (const [, name = ""] of code.matchAll(
-    /^export\s+(?:async\s+)?(?:const|let|var|function\*?|class)\s+([A-Za-z_$][\w$]*)/gm,
-  )) {
-    names.add(name);
-  }
+    for (const [, name = ""] of code.matchAll(
+      /^export\s+(?:async\s+)?(?:const|let|var|function\*?|class)\s+([A-Za-z_$][\w$]*)/gm,
+    )) {
+      names.add(name);
+    }
+    for (const [, namespace, specifier = ""] of code.matchAll(
+      /^export\s*\*\s*(?:as\s+([A-Za-z_$][\w$]*)\s*)?from\s*["']([^"']+)["']/gm,
+    )) {
+      if (namespace !== undefined) {
+        names.add(namespace);
+      } else if (specifier.startsWith(".")) {
+        read(join(dirname(file), specifier), path);
+      }
+    }
+  };
+  read(entry, undefined);
   return [...names];
 }
 
@@ -147,9 +183,45 @@ export function exportNames(entry) {
  */
 
 /**
+ * The local names an import clause binds, to use each of them: `Thing` for a
+ * default import, `ns` for `* as ns`, and for `{ a, b as c }`, `a` and `c`.
+ *
+ * @param {string} imports The import clause.
+ * @returns {string[]}
+ * @throws {UsageError} If the clause binds no name.
+ */
+export function importedNames(imports) {
+  /** @type {string[]} */
+  const names = [];
+  const braces = /\{([^}]*)\}/.exec(imports);
+  const outside = imports.replace(/\{[^}]*\}/, "");
+  for (const part of outside.split(",")) {
+    const name = part.trim().replace(/^\*\s*as\s+/, "");
+    if (name !== "") {
+      names.push(name);
+    }
+  }
+  for (const part of (braces?.[1] ?? "").split(",")) {
+    const name = part
+      .trim()
+      .split(/\s+as\s+/)
+      .at(-1);
+    if (name) {
+      names.push(name);
+    }
+  }
+  if (names.length === 0 || names.some((name) => !/^[A-Za-z_$][\w$]*$/.test(name))) {
+    throw new UsageError(
+      `"${imports}" isn't an import clause, such as "{ a, b as c }", "Thing" or "* as all".`,
+    );
+  }
+  return names;
+}
+
+/**
  * Bundles one import from a built entry as an application's bundler would,
- * with esbuild, leaving out {@link HOST_PACKAGES} and the entry's lazy
- * chunks.
+ * with esbuild, leaving out {@link HOST_PACKAGES} and the entry's own lazy
+ * chunks ({@link lazyChunks}), as {@link importBudget}'s check does.
  *
  * @param {string} entry
  * @param {string} imports
@@ -168,7 +240,7 @@ async function bundle(entry, imports, minify) {
   if (!existsSync(file)) {
     throw new UsageError(`${entry} doesn't exist. Build the package first.`);
   }
-  const used = imports.replace(/[{}]/g, "").replace(/\*\s+as\s+/, "");
+  const used = importedNames(imports).join(", ");
   try {
     const result = await esbuild.build({
       stdin: {
@@ -182,19 +254,11 @@ async function bundle(entry, imports, minify) {
       treeShaking: true,
       write: false,
       logLevel: "silent",
-      external: [...HOST_PACKAGES],
-      plugins: [
-        {
-          name: "lazy-chunks",
-          setup(build) {
-            // Relative imports of a lazy chunk, from the entry or a shared chunk.
-            build.onResolve({ filter: /^\.{1,2}\/(?:.*\/)?lazy\// }, (args) => ({
-              path: args.path,
-              external: true,
-            }));
-          },
-        },
-      ],
+      external: [...HOST_PACKAGES, ...lazyChunks(entry)],
+      // The same in both bundles: esbuild would otherwise define "production"
+      // when it minifies and "development" when it doesn't, and keptCode
+      // would then look at code importCost never ships.
+      define: { "process.env.NODE_ENV": '"production"' },
     });
     return result.outputFiles[0]?.text ?? "";
   } catch (error) {

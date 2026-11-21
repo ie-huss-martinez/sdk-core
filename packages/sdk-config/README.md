@@ -537,8 +537,9 @@ No application ships a whole entry: its bundler keeps what it imports. `importBu
   - **a floor,** the cheapest import a host would really make, such as the error class or the message catalogue. It catches code that leaks into everything;
   - **each heavy piece on its own,** an export over about 2 kB by itself;
   - **what a typical application imports,** such as the factories an editor uses together, or the editor component.
-- **What's left out, and nothing else:** `react` and `react-dom`, the family's packages (`@hussmartinez/*`), and chunks under `lazy/`. Everything else an import brings is counted, including a third-party runtime dependency. Pass `ignore` for a package that puts its lazy chunks somewhere else.
-- **Raising one:** in the pull request that needs it, with a table of the scenarios that moved, to the measurement rounded up to the next 0.5 kB. A floor is tighter, to the next 0.1 kB, and the table shows every floor's size, moved or not.
+- **What's left out, and nothing else:** `react` and `react-dom`, the family's packages (`@hussmartinez/*`), and the entry's own lazy chunks, the `lazy/` folder beside it. Everything else an import brings is counted, including a third-party runtime dependency and anything inside it. Pass `ignore` for a package that puts its lazy chunks somewhere else.
+- **Setting and raising one:** a limit is the measurement rounded up to the next 0.5 kB, raised in the pull request that needs it, with a table of the scenarios that moved.
+- **A floor is different.** Its limit is set once, to its measurement rounded up to the next 0.1 kB, and then it isn't raised: a floor that grows means code has leaked into every import, which is fixed. It only moves down, in the pull request that makes the floor cheaper. The table shows every floor's size, moved or not.
 - **Never raise a budget for code its import doesn't use.** If adding a component moves the floor, or another component's scenario, the change leaked, and the leak is fixed.
 
 #### `hm-size`: what things cost

@@ -17,10 +17,11 @@ import { entryBudget, importBudget } from "@hussmartinez/sdk-config/size";
  *   raise. The others are each export over about 2 kB on its own. A budget is
  *   never raised for code its import doesn't use.
  *
- * Every budget is raised by the pull request that needs it, with a table of
- * what moved: the floor to its size rounded up to the next 0.1 kB, the others
- * to the next 0.5 kB. `pnpm exec hm-size --exports dist/index.js` prints what
- * every export costs.
+ * A ceiling or an import budget is raised by the pull request that needs it,
+ * to its size rounded up to the next 0.5 kB, with a table of what moved. The
+ * floor isn't raised: it was set to its size rounded up to the next 0.1 kB,
+ * and only moves down. `pnpm exec hm-size --exports dist/index.js` prints
+ * what every export costs.
  *
  * size-limit labels every check "with all dependencies, minified and
  * brotlied" once its esbuild plugin is installed. For the two ceilings that's

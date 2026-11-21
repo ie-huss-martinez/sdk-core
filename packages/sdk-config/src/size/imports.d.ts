@@ -1,4 +1,19 @@
 /**
+ * The chunks an entry loads later with `import()`, as an esbuild `external`
+ * pattern: the family's builds put them in `lazy/` beside the entry. They
+ * have budgets of their own, and a bundler without code splitting would
+ * otherwise inline them.
+ *
+ * The pattern is the folder's absolute path, which esbuild matches against
+ * each import once it's resolved. So it leaves out this entry's own lazy
+ * chunks, whether the entry or a shared chunk imports them, and nothing
+ * else: a `lazy/` folder inside a dependency is still counted.
+ *
+ * @param {string} entry The built entry, such as `dist/index.js`.
+ * @returns {string[]}
+ */
+export function lazyChunks(entry: string): string[];
+/**
  * A size budget for an entry: a ceiling on the brotli size of the built
  * entry and the chunks it loads statically (ADR 0055), as a `size-limit`
  * check. It measures the files as built, so it turns `size-limit`'s esbuild
@@ -51,7 +66,7 @@ export function entryBudget({ name, entry, limit }: {
  * @param {{ name: string, entry: string, imports: string, limit: string, ignore?: readonly string[] }} options
  *   `imports` is the import clause, such as `"{ a, b }"`. `ignore` adds
  *   esbuild `external` patterns to leave out, for a package that puts its
- *   lazy chunks somewhere else.
+ *   lazy chunks somewhere other than `lazy/` beside the entry.
  * @returns {{ name: string, path: string, import: string, ignore: string[], brotli: true, limit: string }}
  */
 export function importBudget({ name, entry, imports, limit, ignore }: {
@@ -69,13 +84,39 @@ export function importBudget({ name, entry, imports, limit, ignore }: {
     limit: string;
 };
 /**
- * The names a built entry exports, in the order it lists them.
+ * The names a built entry exports, in the order it lists them. It follows
+ * `export * from "./file.js"` into relative files, as far as they go, and
+ * reads the files without running them. A star re-export of a package can't
+ * be read this way, and is left out.
  *
  * @param {string} entry The built entry, such as `dist/index.js`.
  * @returns {string[]}
- * @throws {UsageError} If the entry isn't built.
+ * @throws {UsageError} If the entry, or a file it re-exports, isn't there.
  */
 export function exportNames(entry: string): string[];
+/**
+ * @typedef {object} ImportCost
+ * @property {string} imports The import clause that was measured.
+ * @property {number} size What an application ships for it, in bytes:
+ *   bundled, minified and compressed with brotli.
+ */
+/**
+ * @typedef {object} KeptCode
+ * @property {number} functions Function declarations left in the bundle.
+ * @property {Array<{ call: string, count: number }>} calls Calls at the top
+ *   level whose result is assigned, by what's called, most frequent first.
+ *   Unless a call is marked `/* @__PURE__ *\/`, a bundler keeps it, and
+ *   everything it refers to, whether or not the import uses it.
+ */
+/**
+ * The local names an import clause binds, to use each of them: `Thing` for a
+ * default import, `ns` for `* as ns`, and for `{ a, b as c }`, `a` and `c`.
+ *
+ * @param {string} imports The import clause.
+ * @returns {string[]}
+ * @throws {UsageError} If the clause binds no name.
+ */
+export function importedNames(imports: string): string[];
 /**
  * Measures what an application ships when it imports part of a built entry
  * (ADR 0056): the import bundled and minified with esbuild, without the
@@ -135,13 +176,6 @@ export function keptCode(entry: string, imports: string): Promise<KeptCode>;
  * is counted, including a third-party runtime dependency.
  */
 export const HOST_PACKAGES: readonly string[];
-/**
- * Where the family's builds put chunks loaded later with `import()`, as
- * esbuild `external` patterns: beside the entry, and beside a shared chunk.
- * They have budgets of their own, and a bundler without code splitting
- * would otherwise inline them.
- */
-export const LAZY_CHUNKS: readonly string[];
 export type ImportCost = {
     /**
      * The import clause that was measured.

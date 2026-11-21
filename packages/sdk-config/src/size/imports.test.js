@@ -11,8 +11,9 @@ import {
   HOST_PACKAGES,
   importBudget,
   importCost,
+  importedNames,
   keptCode,
-  LAZY_CHUNKS,
+  lazyChunks,
   UsageError,
 } from "./index.js";
 
@@ -110,8 +111,7 @@ describe("entryBudget and importBudget", () => {
         "react-dom",
         "react-dom/*",
         "@hussmartinez/*",
-        "./lazy/*",
-        "../lazy/*",
+        `${join(process.cwd(), "dist", "lazy")}/*`,
       ],
       brotli: true,
       limit: "0.9 kB",
@@ -127,8 +127,9 @@ describe("entryBudget and importBudget", () => {
       ignore: ["./workers/*"],
     });
 
-    expect(ignore).toEqual([...HOST_PACKAGES, ...LAZY_CHUNKS, "./workers/*"]);
-    expect(Object.isFrozen(HOST_PACKAGES) && Object.isFrozen(LAZY_CHUNKS)).toBe(true);
+    expect(ignore).toEqual([...HOST_PACKAGES, ...lazyChunks("dist/index.js"), "./workers/*"]);
+    expect(Object.isFrozen(HOST_PACKAGES)).toBe(true);
+    expect(lazyChunks("/work/pkg/dist/react.js")).toEqual(["/work/pkg/dist/lazy/*"]);
   });
 });
 
@@ -157,6 +158,54 @@ describe("exportNames", () => {
     ]);
     expect(() => exportNames(join(root, "dist/missing.js"))).toThrow(/Build the package first/);
   });
+
+  it("follows star re-exports into relative files, through a cycle, and names a namespace", async () => {
+    const root = await built({
+      "dist/index.js": [
+        'export * from "./shared/a.js";',
+        'export * as tools from "./shared/tools.js";',
+        'export * from "some-package";',
+        "export const own = 1;",
+      ].join("\n"),
+      "dist/shared/a.js": 'export * from "./b.js";\nexport const fromA = 1;\nexport default 0;\n',
+      "dist/shared/b.js": 'export * from "./a.js";\nexport function fromB() {}\n',
+      "dist/shared/tools.js": "export const hidden = 1;\n",
+    });
+
+    expect(exportNames(join(root, "dist/index.js")).sort()).toEqual([
+      "fromA",
+      "fromB",
+      "own",
+      "tools",
+    ]);
+  });
+
+  it("says which file is missing when a re-exported file is gone", async () => {
+    const root = await built({ "dist/index.js": 'export * from "./gone.js";\n' });
+
+    expect(() => exportNames(join(root, "dist/index.js"))).toThrow(
+      /gone\.js, which .*index\.js re-exports, doesn't exist/,
+    );
+  });
+});
+
+describe("importedNames", () => {
+  it.each([
+    ["{ a }", ["a"]],
+    ["{ a, b }", ["a", "b"]],
+    ["{ small as renamed }", ["renamed"]],
+    ["{ a, b as c, d }", ["a", "c", "d"]],
+    ["Thing", ["Thing"]],
+    ["* as all", ["all"]],
+    ["Thing, { a as b }", ["Thing", "b"]],
+    ["Thing, * as all", ["Thing", "all"]],
+  ])("reads the local names of %j", (clause, names) => {
+    expect(importedNames(clause)).toEqual(names);
+  });
+
+  it.each(["", "{}", "{ a-b }", "a b"])("refuses %j", (clause) => {
+    expect(() => importedNames(clause)).toThrow(UsageError);
+  });
 });
 
 describe("importCost", () => {
@@ -182,6 +231,56 @@ describe("importCost", () => {
     expect((await importCost(entry, "{ hook }")).size).toBeLessThan(300);
     // The lazy chunk holds 400 lines that would dwarf everything else.
     expect((await importCost(entry, "{ load }")).size).toBeLessThan(200);
+  });
+
+  it("measures an import written with an alias, a default or a namespace", async () => {
+    const root = await built({
+      ...APART,
+      "dist/index.js": `${APART["dist/index.js"]}\nexport default small;`,
+    });
+    const entry = join(root, "dist/index.js");
+    const plain = (await importCost(entry, "{ small }")).size;
+
+    // The same code; only the local name in the two-line module differs.
+    expect(Math.abs((await importCost(entry, "{ small as renamed }")).size - plain)).toBeLessThan(
+      8,
+    );
+    expect((await importCost(entry, "Small")).size).toBeGreaterThan(0);
+    expect((await importCost(entry, "* as all")).size).toBeGreaterThan(plain);
+    expect((await keptCode(entry, "{ small as renamed }")).calls).toEqual([]);
+  });
+
+  it("leaves out only the entry's own lazy chunks, not a dependency's lazy folder", async () => {
+    const root = await built({
+      "package.json": '{ "name": "with-lazy-dependency", "type": "module", "sideEffects": false }',
+      "dist/index.js":
+        'import { table } from "third-party";\nexport function plan() { return table(); }\nexport function alone() { return 1; }\n',
+      "node_modules/third-party/package.json":
+        '{ "name": "third-party", "type": "module", "main": "index.js", "sideEffects": false }',
+      "node_modules/third-party/index.js":
+        'import { TABLE } from "./lazy/table.js";\nexport function table() { return TABLE.length; }\n',
+      "node_modules/third-party/lazy/table.js": `export const TABLE = [\n${heavy("dependency", 150)}\n];\n`,
+    });
+    const entry = join(root, "dist/index.js");
+
+    expect((await importCost(entry, "{ plan }")).size).toBeGreaterThan(
+      (await importCost(entry, "{ alone }")).size * 5,
+    );
+  });
+
+  it("measures the same environment in both bundles, so keptCode sees what ships", async () => {
+    const root = await built({
+      "package.json": '{ "name": "with-development-code", "type": "module", "sideEffects": false }',
+      "dist/index.js": [
+        "function warn() { return 'only in development'; }",
+        "function devOnly() { return warn(); }",
+        'export function value() { return process.env.NODE_ENV !== "production" ? devOnly() : 1; }',
+      ].join("\n"),
+    });
+    const entry = join(root, "dist/index.js");
+
+    // Only value() itself is left: the development branch is gone, as in what ships.
+    expect((await keptCode(entry, "{ value }")).functions).toBe(1);
   });
 
   it("counts a third-party runtime dependency", async () => {
