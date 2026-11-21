@@ -66,7 +66,7 @@ Every editor accepts the same configuration props:
 | `file` + `onChange`, or `initialFile` | Controlled or uncontrolled document |
 | `onEvent` | Anonymous usage events. Never file names or contents |
 | `engine`, `processor` | Replace the default adapters |
-| `assetsUrl` | Where the host serves the package's `dist/assets/`, to self-host workers and WebAssembly ([ADR 0011](docs/adr/0011-worker-messaging-and-assets.md), [ADR 0038](docs/adr/0038-self-hosted-assets-and-worker-version.md)). A host that sets the `hm-self-hosted` resolve condition in its bundler builds without the inlined copies ([ADR 0060](docs/adr/0060-leaving-inlined-workers-out-of-a-self-hosted-build.md)) |
+| `assetsUrl` | Where the host serves the package's `dist/assets/`, to self-host workers and WebAssembly ([ADR 0011](docs/adr/0011-worker-messaging-and-assets.md), [ADR 0038](docs/adr/0038-self-hosted-assets-and-worker-version.md)). In an SDK that maps the `hm-self-hosted` resolve condition, which its README says, a host that sets it in its bundler builds without the inlined copies ([ADR 0060](docs/adr/0060-leaving-inlined-workers-out-of-a-self-hosted-build.md)) |
 | `filePolicy` | Resource limits ([ADR 0012](docs/adr/0012-hostile-input-and-no-network.md)) |
 | `tools`, `toolbar`, `features` | Which tools exist, their order and grouping, and which capabilities are on |
 | `theme` | Theme object or `"light"`, `"dark"` or `"system"` |
