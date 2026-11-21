@@ -1,6 +1,6 @@
 # 0057. One set of test timeouts for the family
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-21
 - **Refines:** [ADR 0015](0015-verification-and-releases.md)'s tests, by setting how long one may run before it's called hung
 
@@ -43,7 +43,25 @@ Slowdown is each test's time against its own idle time, for the 51 tests that ta
 - **A test can run nine times slower with nothing wrong.** The largest slowdowns were in tests that wait on timers or read files.
 - **Real load has been worse than this measurement.** image-sdk reported tests of about 0.3 s passing 5 s at a load of about 52, which is over 16 times slower. Busy loops take processor time only; real checks also take memory, disk and browser processes.
 - **None of these 581 tests came near 5 s,** because the slowest takes 0.8 s at idle. The default fails once a test takes about 0.3 s at idle and the machine is busy enough, which is the size of a property test or of a test that starts a process.
-- **Browser and end-to-end tests weren't measured.** Their load is what the measurement would add to a shared machine, in container starts and browsers. What's known is what the repositories set after their failures: 60 s for image-sdk's browser tests, 120 s for video-sdk's end-to-end tests.
+- **Browser and end-to-end tests weren't measured under load.** Their load is what the measurement would add to a shared machine, in container starts and browsers. What's known is what the repositories set after their failures, 60 s for image-sdk's browser tests and 120 s for video-sdk's end-to-end tests, and how long they take in CI, below.
+
+### How long browser tests take in CI
+
+CI runs on a machine doing nothing else, so its times are each test's own. From the latest passing `verify` run on each repository's `main`, on 2026-11-21, across the three engines:
+
+| Repository | Slowest browser test | What it does | End-to-end runs |
+|---|---|---|---|
+| sdk-core | 6.9 s | waits on a real clock, to detect one that doesn't run at real time | none |
+| ui | 2.5 s | a dialog whose content changes after opening | 36 tests in 66 s |
+| pdf-sdk | 4.4 s | layout of the thumbnails as they start to overflow | 27 in 41 s, 44 in 38 s |
+| audio-sdk | 1.9 s | an export, then the download | 138 in 56 s, 64 in 41 s |
+| video-sdk | 16.6 s | the element opens a video file and fires its events | 45 in 60 s, 32 in 18 s |
+| image-sdk | 30.2 s | cancels an export that doesn't cooperate, waiting out a real deadline | 267 in 96 s, 108 in 36 s |
+| learn-sdk | 1.0 s | the player's summary | 15 in 24 s, 36 in 15 s |
+
+- **Ordinary browser tests take a few seconds:** five of the seven repositories' slowest is under 7 s.
+- **Two are long by design,** and are the kind that keeps a limit of its own: image-sdk's waits for a 30 s deadline to pass, and video-sdk's decodes a real file through the element.
+- **The end-to-end logs give totals, not each test's time:** Playwright's reporter in CI doesn't print them. Every run averages under 2.5 s a test.
 
 ### Where tests run now
 
@@ -67,23 +85,23 @@ So the limit only has to be longer than any honest run, and its cost is how long
 
 ## Decision
 
-**Recommended: B. The reviewer rules before any code is written.**
+**Option B: one set of limits for the family, from `sdk-config`.**
 
 ### The limits
 
 | Tests | Test | Hook | From |
 |---|---|---|---|
-| Unit (Vitest, Node) | 30 s | 30 s | measured: the slowest unit test here takes 0.8 s; 16 times slower is 13 s |
-| Browser (Vitest browser mode) | 60 s | 60 s | image-sdk's, set after its failures; not measured here |
-| End-to-end and visual (Playwright) | 60 s, assertions 10 s | | learn-sdk's assertions and half of video-sdk's test limit; not measured here |
+| Unit (Vitest, Node) | 30 s | 30 s | measured under load: the slowest unit test here takes 0.8 s, and 16 times slower is 13 s |
+| Browser (Vitest browser mode) | 60 s | 60 s | from practice, not measured under load: image-sdk's limit, set after its failures. In CI the slowest ordinary browser test takes under 7 s |
+| End-to-end and visual (Playwright) | 60 s, assertions 10 s | | from practice, not measured under load: learn-sdk's assertions, and half of video-sdk's test limit. In CI every run averages under 2.5 s a test |
 
 - **A unit test that takes over 1.5 s at idle is the exception to look at,** not the limit: at 16 times slower, the worst slowdown reported, it takes 24 s, which leaves little room below 30 s. It's split, or given fewer cases, or carries its own limit with the reason.
-- **The browser and end-to-end rows are a starting point taken from practice.** The first failure against them that isn't a hang is evidence for new limits, decided in a record that supersedes this table.
+- **The browser and end-to-end rows are a starting point taken from practice.** Measuring them under load would put browsers and containers on the shared machine for the purpose, which isn't worth it now. The first failure against them that isn't a hang is evidence for new limits, decided in a record that supersedes this table.
 
 ### How repositories use them
 
-- **`sdk-config` exports the limits** as constants for each kind of test, to spread into a Vitest project's `test` options or a Playwright configuration. No repository writes the numbers.
-- **A test carries a limit of its own only when it really does long work,** such as encoding a video, with a comment naming the work. The forty existing ones are removed when a repository adopts this, except those.
+- **`sdk-config` exports the limits** as constants for each kind of test, from a small `testing/timeouts` entry, to spread into a Vitest project's `test` options or a Playwright configuration. It isn't a Vitest preset: the family has none, and this doesn't need one. No repository writes the numbers.
+- **A test carries a limit of its own only when it really does long work,** such as encoding a video or waiting out a real deadline, with a comment saying why. The forty existing ones are removed in each repository's adoption pull request, except those.
 - **A wait inside a test may be longer than the default for a known slow first step,** such as image-sdk's first open, as a named constant with its reason. It stays shorter than the test's limit.
 - **A limit is never raised to make a slow test pass without asking why it's slow.** A test that passes the limit on an idle machine is hung or doing too much.
 - **Timing is asserted with the test's own clock,** never by setting a short limit.
