@@ -1,6 +1,6 @@
 # 0061. Bundled engines are declared to the dependency rules
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-21
 - **Refines:** [ADR 0008](0008-ports-adapters-and-session.md)'s layer rules as `sdk-config`'s dependency-cruiser preset enforces them, and [ADR 0028](0028-third-party-engines.md), by saying how an SDK tells the preset which engines it bundles
 
@@ -44,13 +44,13 @@ Two more exceptions are copied the same way, on the rule that every import must 
 | | Option | In short |
 |---|---|---|
 | A | Keep the copies | The state above |
-| **B** | **The preset takes a declared list** | **A function builds the rules from the engines an SDK names. Recommended** |
+| **B** | **The preset takes a declared list** | **A function builds the rules from the engines an SDK names. Chosen** |
 | C | The preset allows adapters and workers any `devDependency` | No list, and no check that a build tool wasn't imported by mistake |
 | D | Engines become `dependencies` | Applications install them, in whatever version resolves |
 
 ## Decision
 
-**Recommended: B. The reviewer rules before any code is written.**
+**Option B: a declared list, with a function that builds the rules and a command that checks the pins.**
 
 ### A function, beside the preset
 
@@ -72,15 +72,25 @@ export default defineDependencyRules({
 - **`bundledEngines`:** each entry names packages and the one folder under `src/` that may import them.
 - **`virtualModules`:** exact names of modules the SDK's build generates, which can't be resolved from disk.
 - **Everything else is the preset.** An SDK with nothing to declare keeps `export { default } from …`.
+- **The function is pure.** It builds rules from what it's given, and reads no file: loading a lint configuration never parses the workspace. The engines it was given stay readable from what it returns, so nothing lists them twice.
 
-### What it enforces
+### What the rules enforce
 
 - **An engine is imported only from its folder, as a value or as a type.** It's a rule of its own, by the engine's name, and it doesn't make `not-to-dev-dep`'s exception for type-only imports. An engine's types in another layer would tie that layer to the engine, and in the package's public types they'd name a package that applications don't have. Everywhere else in `src/`, `not-to-dev-dep` applies as it does today.
-- **The folder is under `src/adapters/` or `src/workers/`.** Anything else is refused when the configuration loads: engines are wrapped by adapters ([ADR 0008](0008-ports-adapters-and-session.md)) and run in workers ([ADR 0028](0028-third-party-engines.md)).
+- **The folder is under `src/adapters/` or `src/workers/`.** Anything else is refused by the function, with a `TypeError`: engines are wrapped by adapters ([ADR 0008](0008-ports-adapters-and-session.md)) and run in workers ([ADR 0028](0028-third-party-engines.md)).
 - **One folder per entry, as narrow as it can be:** the adapter that wraps the engine, not all adapters. An engine that two folders import gets two entries, so each is written down.
-- **Each declared engine is an exactly pinned `devDependency`.** The function reads the repository's `package.json`, and refuses an engine that's missing, that's also in `dependencies`, `peerDependencies` or `optionalDependencies`, or whose version is a range or a tag. A bundled engine is never something an application installs, so it's in `devDependencies` and nowhere else. That also keeps the folder rule whole: `not-to-dev-dep` leaves peer dependencies alone, so an engine listed as one could be imported from anywhere. A `catalog:` entry counts by the version its catalog gives, in `pnpm-workspace.yaml`, which is how every SDK pins its engines today. "Bundled from an exact version" then has a check behind it.
 - **A folder that's declared imports no other `devDependency`.** A build tool imported from an adapter by mistake still fails.
 - **Names are names:** packages and virtual modules are matched exactly, never as patterns an SDK writes.
+
+### A command checks the pins
+
+`hm-check-bundled-engines` reads the repository's `.dependency-cruiser.js` for the declared engines, its `package.json`, and the workspace's catalog in `pnpm-workspace.yaml`. It fails, naming the engine and the reason, when a declared engine:
+
+- **isn't in `devDependencies`;**
+- **is also in `dependencies`, `peerDependencies` or `optionalDependencies`.** A bundled engine is never something an application installs, so it's in `devDependencies` and nowhere else;
+- **isn't exactly pinned:** its version is a range or a tag. A `catalog:` entry counts by the version its catalog gives, which is how every SDK pins its engines today.
+
+An SDK runs it in `pnpm verify`, as it runs its other checks of the package. "Bundled from an exact version" then has a check behind it. With no engines declared, it passes and says so.
 
 ### The stylesheet exception moves into the preset
 
@@ -88,7 +98,7 @@ export default defineDependencyRules({
 
 ### Adoption
 
-Each SDK replaces its copy when it next takes an `sdk-config` release, in its own pull request:
+Each SDK replaces its copy when it next takes an `sdk-config` release, in its own pull request. The stricter rules apply only once it does. An SDK that declares engines adds `hm-check-bundled-engines` to its `verify` script in the same pull request:
 
 - **image-sdk and video-sdk:** one entry each, with the folder they have today. No change in what's allowed.
 - **pdf-sdk:** names the folder that wraps each engine, `adapters/pdfjs` and `adapters/qpdf`, in place of all adapters and workers. No code it has today imports an engine from outside those two. Its declaration file for pdf.js's minified builds, `src/types/modules.d.ts`, re-exports the engine's types: it moves into `src/adapters/pdfjs/`, beside the code that uses it.
@@ -102,13 +112,13 @@ Copies keep working until then: the preset's rule names don't change in this rel
 - **C, allowing any `devDependency` from adapters and workers:** the shortest. But `devDependencies` are mostly build and test tools, and the rule exists to stop one of those reaching published code. A list keeps that.
 - **D, engines as `dependencies`:** each SDK's own record chose bundling, so that an application can't get an engine version the SDK wasn't tested with, and so that the no-network and no-eval proofs of [ADR 0028](0028-third-party-engines.md) hold for the exact files shipped.
 - **Patterns instead of names,** for packages or folders: more flexible, and the place mistakes hide. dependency-cruiser also refuses some patterns, which an SDK would find out by trial.
-- **The pinning check in `hm-lint-deps` instead of in the function:** it would need the declared list passed a second time, or read back out of the configuration. The function already has it.
+- **The pinning check inside the function,** as this record first proposed: loading a lint configuration would read `package.json` and parse the workspace's catalog, for editors and every other tool that loads it. A command does the same check once, in `verify`.
 
 ## Consequences
 
 - An SDK states its bundled engines in a few lines, and the next SDK has one way to do it.
 - The preset can change its rules' insides without breaking anyone, once the copies are gone.
-- An engine whose version drifts to a range fails the dependency check.
+- An engine whose version drifts to a range, or that's listed where an application would install it, fails `verify`.
 - **pdf-sdk's allowance gets narrower,** to the two folders that use it today. A later import of an engine from somewhere else then has to be written down.
-- **The function reads `package.json`, and the workspace's catalog, when the configuration loads.** A configuration that's loaded from another folder than the repository's root needs to say where it is; the function takes the folder as an option, the working directory by default.
-- `defineDependencyRules` becomes public API of `@hussmartinez/sdk-config`: additive, a patch.
+- **One more command in each adopting SDK's `verify`.** An SDK that declares engines and forgets the command gets the import rules without the pin check.
+- `defineDependencyRules` and `hm-check-bundled-engines` become public API of `@hussmartinez/sdk-config`: additive and opt-in, a patch.
