@@ -14,7 +14,7 @@
 --hm-font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 ```
 
-In the image, `system-ui` resolves to WenQuanYi Zen Hei, a Chinese font the image has for coverage. It has one style. So every label in every baseline is drawn in a font no user of a Latin-script interface sees, and text at `--hm-font-weight-strong`, 600, is drawn exactly like regular text.
+In the image, `system-ui` resolves to WenQuanYi Zen Hei, a Chinese font the image has for coverage. It has one style. So every label in every baseline is drawn in a font no user of a Latin-script interface sees, and in Chromium, where screenshots are taken, text at `--hm-font-weight-strong`, 600, comes out as the same pixels as regular text.
 
 ### What the image does
 
@@ -34,9 +34,18 @@ What the browsers then draw, for one line of text in `ui`'s sans stack at 14 px.
 |---|---|---|
 | Chromium | WenQuanYi Zen Hei, 128.94 px | WenQuanYi Zen Hei, 128.94 px |
 | Firefox | 128.93 px | 134.60 px, a synthesised bold |
-| WebKit | 128.93 px | 128.93 px |
+| WebKit | 128.93 px | 128.93 px, a synthesised bold of the same width |
 
-- **Chromium and WebKit draw strong text identically to regular text.** A regression that drops a label's weight can't show in a screenshot, or in a layout assertion.
+Screenshots of the same line at each weight, compared as files, say what the widths can't:
+
+| Engine | 400 and 600 | 400 and 500 | 600 and 700 |
+|---|---|---|---|
+| Chromium | the same pixels | the same | the same |
+| Firefox | different | the same | the same |
+| WebKit | different | the same | the same |
+
+- **Chromium draws strong text as the same pixels as regular text,** at every weight. Screenshots are taken in Chromium only ([ADR 0048](0048-visual-regression-for-sdk-editors.md)), so a regression that drops a label's weight can't show in one.
+- **Firefox and WebKit thicken the one face they have.** Firefox also widens it; WebKit doesn't. So the three engines lay the same strong text out at two different widths, and draw it three different ways.
 - **`ui`'s monospace stack is fine:** it names Liberation Mono, which the image has.
 - **Nothing in the stack before `Arial` exists in the image,** and `system-ui` matches first.
 
@@ -89,7 +98,7 @@ All three engines take it, and the strong weight gets a real bold face. The thre
 
 ### What it doesn't fix
 
-- **Weights between regular and bold.** Liberation has two weights, so 500, 600 and 700 all draw as bold. `ui` uses 400 and 600 today.
+- **Weights between regular and bold.** Liberation has two weights, so 400 and 500 draw alike, in the regular face, and 600 and 700 draw alike, in the bold one. That's how CSS picks a face, and the screenshots with the file confirm it in all three engines. `ui` uses 400 and 600 today, which differ.
 - **It isn't what users see either.** Users get their system's interface font. Screenshots prove layout and regressions, in one fixed font with real weights, not the look on any one platform.
 
 ### Adoption
@@ -100,7 +109,7 @@ All three engines take it, and the strong weight gets a real bold face. The thre
 
 ## Alternatives considered
 
-- **A, leaving it:** the baselines are stable today. They're stable in a font where strong and regular text are the same pixels, so they can't catch a lost weight, and Firefox's layout differs from the other engines' for a reason that has nothing to do with the code under test.
+- **A, leaving it:** the baselines are stable today. They're stable in a font where Chromium draws strong and regular text as the same pixels, so they can't catch a lost weight, and Firefox's layout differs from the other engines' for a reason that has nothing to do with the code under test.
 - **C, the family's own image:** it would fix fonts for any tool, not only the browsers the presets launch. It also means building, publishing and patching an image, a registry to trust in every repository's CI, and dropping the rule that the image is Microsoft's, pinned by digest, in one line. That's a large change for a problem a file solves.
 - **D, a web font injected by the tests:** fully deterministic, on any image. But the page under test would then differ from the page that ships: another font request, another `@font-face`, and components measured in a font their styles never name.
 - **E, changing `ui`'s stack:** naming Liberation Sans or Arial ahead of `system-ui` would fix the image and change the interface font on every Linux desktop and every system that has Arial.
