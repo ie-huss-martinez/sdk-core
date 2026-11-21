@@ -77,8 +77,8 @@ So the limit only has to be longer than any honest run, and its cost is how long
 | Browser (Vitest browser mode) | 60 s | 60 s | image-sdk's, set after its failures; not measured here |
 | End-to-end and visual (Playwright) | 60 s, assertions 10 s | | learn-sdk's assertions and half of video-sdk's test limit; not measured here |
 
-- **A unit test that takes over 2 s at idle is the exception to look at,** not the limit: at 16 times slower it would pass 30 s. It's split, or given fewer cases, or carries its own limit with the reason.
-- **The browser and end-to-end rows are a starting point taken from practice.** The first failure against them that isn't a hang is evidence to change this table, in a dated line here.
+- **A unit test that takes over 1.5 s at idle is the exception to look at,** not the limit: at 16 times slower, the worst slowdown reported, it takes 24 s, which leaves little room below 30 s. It's split, or given fewer cases, or carries its own limit with the reason.
+- **The browser and end-to-end rows are a starting point taken from practice.** The first failure against them that isn't a hang is evidence for new limits, decided in a record that supersedes this table.
 
 ### How repositories use them
 
@@ -98,8 +98,8 @@ Beyond the options above:
 
 ## Consequences
 
-- A unit test fails with a timeout only when it's hung or far too large, on any machine the family uses.
+- A unit test of ordinary size no longer fails with a timeout because the machine is busy: one that takes up to 1.5 s at idle has room for the worst slowdown reported. A timeout then points at a hang, at a test that's too large, or at a machine slower than anything measured here, which would be new evidence.
 - A real hang takes 30 s to report instead of 5 s, once per hung test.
 - About forty per-test limits go, and the four project limits become one.
-- The browser and end-to-end limits aren't measured. They may move, with evidence.
+- The browser and end-to-end limits aren't measured. They may move, with evidence, in a later record.
 - Each repository changes its test configurations once, in an adoption pull request.
