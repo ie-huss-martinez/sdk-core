@@ -358,13 +358,18 @@ export function defineDependencyRules({ bundledEngines = [], virtualModules = []
   });
   const virtual = strings(virtualModules, "virtualModules").map((name) => `^${escaped(name)}$`);
 
-  const folders = [...new Set(engines.map(({ from }) => layer(from)))];
+  /** A declared folder as a pattern. Its name is text: a `.` in it is a dot. */
+  const within = (/** @type {string} */ folder) => layer(escaped(folder));
+  /** Whether a folder is another, or inside it. */
+  const inside = (/** @type {string} */ folder, /** @type {string} */ other) =>
+    folder === other || folder.startsWith(`${other}/`);
+  const folders = [...new Set(engines.map(({ from }) => from))];
   /** Each engine package, with every folder that may import it. */
   /** @type {Map<string, string[]>} */
   const foldersOf = new Map();
   for (const { packages, from } of engines) {
     for (const name of packages) {
-      foldersOf.set(name, [...new Set([...(foldersOf.get(name) ?? []), layer(from)])]);
+      foldersOf.set(name, [...new Set([...(foldersOf.get(name) ?? []), from])]);
     }
   }
 
@@ -381,18 +386,30 @@ export function defineDependencyRules({ bundledEngines = [], virtualModules = []
     }
     return [
       // Engine folders have rules of their own, below.
-      { ...rule, from: { ...rule.from, pathNot: [rule.from.pathNot ?? [], folders].flat() } },
+      {
+        ...rule,
+        from: { ...rule.from, pathNot: [rule.from.pathNot ?? [], folders.map(within)].flat() },
+      },
       ...folders.map((folder) => ({
         ...rule,
         name: "engine-folder-only-its-engines",
         comment: "A folder that wraps a bundled engine imports no other devDependency (ADR 0061).",
-        from: { ...rule.from, path: folder },
+        from: {
+          ...rule.from,
+          path: within(folder),
+          // A declared folder inside this one has this rule for itself.
+          pathNot: [
+            rule.from.pathNot ?? [],
+            folders.filter((other) => other !== folder && inside(other, folder)).map(within),
+          ].flat(),
+        },
         to: {
           ...rule.to,
+          // Its own engines, and those of a declared folder it's inside.
           pathNot: [
             rule.to.pathNot ?? [],
             [...foldersOf]
-              .filter(([, into]) => into.includes(folder))
+              .filter(([, into]) => into.some((other) => inside(folder, other)))
               .map(([name]) => npmPackage(escaped(name))),
           ].flat(),
         },
@@ -402,7 +419,7 @@ export function defineDependencyRules({ bundledEngines = [], virtualModules = []
         comment:
           "A bundled engine is imported only from the folder that wraps it, as a value or as a type (ADR 0061).",
         severity: /** @type {const} */ ("error"),
-        from: { path: PUBLISHED_SOURCE, pathNot: [TEST_FILE, ...into] },
+        from: { path: PUBLISHED_SOURCE, pathNot: [TEST_FILE, ...into.map(within)] },
         to: { path: npmPackage(escaped(name)) },
       })),
     ];

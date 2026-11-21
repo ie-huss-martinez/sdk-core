@@ -459,6 +459,99 @@ describe("defineDependencyRules", () => {
     expect(reported.filter((line) => /: (?:test\/|\S+\.test\.)/.test(line))).toEqual([]);
   });
 
+  /**
+   * Cruises files written for one case, with one engine installed per name.
+   *
+   * @param {import("dependency-cruiser").IConfiguration} rules
+   * @param {string[]} packages
+   * @param {Record<string, string>} sources
+   * @returns {Promise<string[]>} Each violation, as `rule: from -> to`.
+   */
+  async function cruisedCase(rules, packages, sources) {
+    const baseDir = await mkdtemp(join(tmpdir(), "hm-engine-case-"));
+    try {
+      const files = {
+        "package.json": JSON.stringify({
+          name: "case-sdk",
+          type: "module",
+          devDependencies: Object.fromEntries(packages.map((name) => [name, "1.0.0"])),
+        }),
+        ...Object.assign({}, ...packages.map(installed)),
+        ...sources,
+      };
+      for (const [path, content] of Object.entries(files)) {
+        await mkdir(dirname(join(baseDir, path)), { recursive: true });
+        await writeFile(join(baseDir, path), content);
+      }
+      const { output } = await cruise(["src"], {
+        ...rules.options,
+        baseDir,
+        ruleSet: { forbidden: rules.forbidden ?? [] },
+        validate: true,
+      });
+      if (typeof output === "string") {
+        throw new TypeError("expected a structured cruise result");
+      }
+      return output.summary.violations
+        .map(({ rule, from, to }) => `${rule.name}: ${from} -> ${to}`)
+        .sort();
+    } finally {
+      await rm(baseDir, { recursive: true, force: true });
+    }
+  }
+
+  it("reads a folder's name as text: a dot in it matches only a dot", async () => {
+    const rules = defineDependencyRules({
+      bundledEngines: [{ packages: ["pdfjs-dist"], from: "adapters/pdf.js" }],
+    });
+    const use = 'import { run } from "pdfjs-dist";\nexport const use = run;\n';
+
+    expect(
+      await cruisedCase(rules, ["pdfjs-dist"], {
+        "src/adapters/pdf.js/engine.ts": use,
+        "src/adapters/pdfXjs/engine.ts": use,
+      }),
+    ).toEqual([
+      "engine-only-from-its-folder: src/adapters/pdfXjs/engine.ts -> node_modules/pdfjs-dist/index.js",
+      "not-to-dev-dep: src/adapters/pdfXjs/engine.ts -> node_modules/pdfjs-dist/index.js",
+    ]);
+  });
+
+  it("lets a declared folder inside another keep its own engine, and use the outer one's", async () => {
+    const rules = defineDependencyRules({
+      bundledEngines: [
+        { packages: ["pdfjs-dist"], from: "workers" },
+        { packages: ["gifenc"], from: "workers/gif" },
+      ],
+    });
+    const gif = 'import { run } from "gifenc";\nexport const gif = run;\n';
+    const pdf = 'import { run } from "pdfjs-dist";\nexport const pdf = run;\n';
+    const tool = 'import { run } from "tester";\nexport const tool = run;\n';
+
+    expect(
+      await cruisedCase(rules, ["pdfjs-dist", "gifenc", "tester"], {
+        // The inner folder: its own engine, and the outer folder's, which it's inside.
+        "src/workers/gif/job.ts": gif,
+        "src/workers/gif/shared.ts": pdf,
+        // The outer folder: its engine, but not the inner folder's.
+        "src/workers/pdf.worker.ts": pdf,
+        "src/workers/leak.ts": gif,
+        // A folder beside the inner one, whose name starts the same way.
+        "src/workers/gifts/job.ts": gif,
+        // Neither folder may import a test tool.
+        "src/workers/gif/tool.ts": tool,
+        "src/workers/tool.ts": tool,
+      }),
+    ).toEqual([
+      "engine-folder-only-its-engines: src/workers/gif/tool.ts -> node_modules/tester/index.js",
+      "engine-folder-only-its-engines: src/workers/gifts/job.ts -> node_modules/gifenc/index.js",
+      "engine-folder-only-its-engines: src/workers/leak.ts -> node_modules/gifenc/index.js",
+      "engine-folder-only-its-engines: src/workers/tool.ts -> node_modules/tester/index.js",
+      "engine-only-from-its-folder: src/workers/gifts/job.ts -> node_modules/gifenc/index.js",
+      "engine-only-from-its-folder: src/workers/leak.ts -> node_modules/gifenc/index.js",
+    ]);
+  });
+
   it("keeps the engines it was given readable, and out of the configuration's own keys", () => {
     const rules = declared();
 
