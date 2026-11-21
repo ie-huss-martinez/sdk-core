@@ -46,6 +46,8 @@ Read from each repository's React sources on 2026-11-21:
 - **An editor that renders headings in the page takes `headingLevel`:** the level of its top headings, `2`, `3`, `4`, `5` or `6`, defaulting to `2`. It's the same name on the React component, on each exported part that renders a heading, and on the element, as the property `headingLevel` and the attribute `heading-level`.
 - **The default is 2, and 1 isn't allowed,** because a page has one `<h1>`, which names the page, and that's the host's.
 - **Headings nested inside the editor follow from it:** a heading under one of the editor's top headings is one level down, and so on, never past 6. The editor works its levels out from `headingLevel`; the host sets one number.
+  - **A level that would pass 6 is rendered as `<h6>`.** HTML has nothing deeper, so that heading reads as a sibling of its parent rather than as nested under it. It's still a heading people can move to, which matters more than its depth.
+  - **An editor with nested headings documents how many levels it renders,** so a host can pick a `headingLevel` that leaves room for them. Every value from 2 to 6 stays valid.
 - **An editor that renders no heading has no such prop.** The option appears with the first heading, so no SDK carries a prop that does nothing.
 - **A value that isn't one of the five is treated as the default,** with a development-only warning, as other host input is ([ADR 0019](0019-message-catalogues.md)'s overrides). The attribute arrives as text, and hosts' values aren't typed at run time.
 
