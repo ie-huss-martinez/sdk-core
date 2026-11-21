@@ -91,7 +91,7 @@ So it isn't a proof of purity. I couldn't find which of those the pdf-sdk mistak
 
 In this order:
 
-1. **`sdk-config`:** the preset, the command and its tests, and `useExhaustiveDependencies` turned off in the Biome preset, in one pull request. A minor: a repository that takes it loses Biome's dependency check. So the pull request that takes it always adds the command, and a repository with `exhaustive-deps` findings also turns Biome's rule back on in its own `biome.json`, in that same pull request.
+1. **`sdk-config`:** the preset, the command and its tests, and `useExhaustiveDependencies` turned off in the Biome preset, in one pull request. A minor: a repository that takes it loses Biome's dependency check. So in a repository with React, the pull request that takes it always adds the command, and a repository with `exhaustive-deps` findings also turns Biome's rule back on in its own `biome.json`, in that same pull request. A repository without React, such as sdk-core, adds nothing and installs nothing: it has no hooks for either rule to check.
 2. **`ui`:** `useLatest`, with its timing tests.
 3. **Each repository,** as its own backlog item: add the command, with the rules it has findings for turned off and listed; then fix them and turn each on. No source changes in the pull request that adds the command. Turning `refs` on needs the `ui` release with `useLatest`, so that step waits for it.
 
