@@ -343,6 +343,30 @@ describe("entryBudget and importBudget", () => {
         );
       });
 
+      it("keeps a name used only between two comparisons, which TypeScript would read as a type", async () => {
+        // `limit<maximum>(strict||1)` is two comparisons in JavaScript, and
+        // esbuild prints it with those brackets. Read as
+        // TypeScript it's a call of `limit` with a type argument, and
+        // `maximum` would look unused.
+        const root = await built({
+          "dist/index.js": [
+            'import { limit, maximum, strict, unused } from "@hussmartinez/sdk-core";',
+            "export const within = () => limit<maximum>(strict || 1);",
+            "export const other = () => unused;",
+          ].join("\n"),
+        });
+        const entry = join(root, "dist/index.js");
+
+        const bundle = await written(root, "{ within }");
+
+        expect(bundle).toMatch(/^import\{limit as (\w+),maximum as (\w+),strict as (\w+)\}from/);
+        expect(bundle).not.toContain("unused");
+        // The same three names, by the other measure.
+        const three = await importCost(entry, "{ within }");
+        const all = await importCost(entry, "{ within, other }");
+        expect(all.size).toBeGreaterThan(three.size);
+      });
+
       it("still counts a name the scenario does use", async () => {
         const root = await built(sharing(["cleanFileName"]));
         const entry = join(root, "dist/index.js");

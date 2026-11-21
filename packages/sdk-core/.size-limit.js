@@ -38,14 +38,15 @@ export default [
     entry: "dist/element.js",
     limit: "3 kB",
   }),
-  // Measured 0.28 kB: the error class every SDK extends, with the check
-  // that only one copy of sdk-core is loaded (ADR 0047). It was 0.31 kB
-  // while the check wrapped the bundle as a script.
+  // Measured 0.17 kB: the error class every SDK extends, with the check
+  // that only one copy of sdk-core is loaded (ADR 0047). It was 0.28 kB
+  // while every import also kept a set of key names and a constant, which
+  // a bundler couldn't tell were unused.
   importBudget({
     name: "Import: the floor, SdkError",
     entry: "dist/index.js",
     imports: "{ SdkError }",
-    limit: "0.3 kB",
+    limit: "0.2 kB",
   }),
   // Measured 3.30 kB: the worker client, with error rebuilding and transfer.
   importBudget({

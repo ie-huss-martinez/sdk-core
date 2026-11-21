@@ -13,7 +13,12 @@ export type Platform = "apple" | "other";
  */
 export type Modifier = "Control" | "Alt" | "Shift" | "Meta";
 
-/** Named keys a chord can use, as `KeyboardEvent.key` reports them, except `Space`. */
+/**
+ * Named keys a chord can use, as `KeyboardEvent.key` reports them, except
+ * `Space`. The function keys are written out: spread in from a call, a
+ * bundler can't tell that building the set has no side effects, and keeps
+ * it in every import of the package, used or not.
+ */
 const NAMED = new Set([
   "Space",
   "Enter",
@@ -29,7 +34,18 @@ const NAMED = new Set([
   "End",
   "PageUp",
   "PageDown",
-  ...Array.from({ length: 12 }, (_, index) => `F${index + 1}`),
+  "F1",
+  "F2",
+  "F3",
+  "F4",
+  "F5",
+  "F6",
+  "F7",
+  "F8",
+  "F9",
+  "F10",
+  "F11",
+  "F12",
 ]);
 const MODIFIERS = new Set(["Mod", "Control", "Alt", "Shift", "Meta"]);
 

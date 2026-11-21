@@ -743,10 +743,10 @@ It prints sizes, for a pull request's table and for finding what an import costs
 
   ```text
   $ pnpm exec hm-size --exports dist/index.js
-  MAX_FILE_NAME_LENGTH     0.17 kB
+  MAX_FILE_NAME_LENGTH     0.03 kB
   …
-  createWorkerClient       3.32 kB
-  dist/index.js: 33 exports; the floor is MAX_FILE_NAME_LENGTH, 0.17 kB
+  createWorkerClient       3.22 kB
+  dist/index.js: 33 exports; the floor is MAX_FILE_NAME_LENGTH, 0.03 kB
   ```
 
   **A floor close to the whole entry means the entry doesn't come apart:** any import brings most of it.

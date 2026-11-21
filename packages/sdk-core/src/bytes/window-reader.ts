@@ -1,5 +1,9 @@
-/** The default window: large enough that walking a file costs few `Blob` reads. */
-const DEFAULT_WINDOW_SIZE = 1 << 20;
+/**
+ * The default window, 1 MiB: large enough that walking a file costs few
+ * `Blob` reads. Written out, because a bundler keeps `1 << 20` in every
+ * import of the package: it doesn't know the shift has no side effects.
+ */
+const DEFAULT_WINDOW_SIZE = 1_048_576;
 
 /**
  * Options for {@link createWindowReader}.
