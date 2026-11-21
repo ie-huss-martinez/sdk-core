@@ -190,11 +190,13 @@ Programmatic control goes through a ref handle, such as `open(file)`, `export()`
   - `aria-live` announcements for results;
   - target sizes of at least 24 px, and 44 px on touch;
   - an editor that renders headings in the page takes `headingLevel`, 2 to 6 and 2 by default, on its component, each exported part that renders a heading, and its element (`heading-level`), with `ui`'s `HeadingLevel` type and `Heading` component. Headings nested inside follow from it, one level down each and never past `<h6>`. A dialog's title keeps its own `<h2>`, with headings in its content from 3 ([ADR 0058](docs/adr/0058-heading-levels-in-editors.md)).
-- **No inline text** ([ADR 0019](docs/adr/0019-message-catalogues.md), [ADR 0046](docs/adr/0046-ui-text-through-the-sdk.md), [ADR 0050](docs/adr/0050-error-text-by-reason-and-warning-text.md)):
-  - every visible string and accessible name comes from the typed message catalogue in `src/messages/en.ts`, declared with `defineMessages` and including `sdkCoreMessages`;
+- **No inline text** ([ADR 0019](docs/adr/0019-message-catalogues.md), [ADR 0046](docs/adr/0046-ui-text-through-the-sdk.md), [ADR 0050](docs/adr/0050-error-text-by-reason-and-warning-text.md), [ADR 0059](docs/adr/0059-interface-text-outside-the-server-safe-entry.md)):
+  - every visible string and accessible name comes from a typed message catalogue in `src/messages`, declared with `defineMessages`;
+  - `<kind>Messages`, from `.`, includes `sdkCoreMessages` and holds only text for what code importing only `.` can produce: errors, warnings, and any other results the SDK's own record names. A test fails if it gains any other key;
+  - interface text, tool labels included, lives in `src/messages/editor-en.ts`. `<kind>EditorMessages`, from `./react`, is the components' catalogue: `<kind>Messages`, `uiMessages` and the interface text. Its type, `<Kind>EditorMessageCatalogue`, is exported from `.`;
   - messages are plain text with `{name}` and `{name, format}` placeholders, plurals are `{ "$plural": … }` objects, and output is never markup;
   - hosts override them with `messages`, and numbers, sizes and dates use `Intl` for the `locale` the host passes;
-  - an SDK that renders `ui`'s components also spreads `uiMessages` into its catalogue and passes its single `Messages` object to `UiMessagesProvider`, so a host's overrides reach `ui`'s strings too; a test checks that the SDK's own keys don't collide with `sdkCoreMessages` or `uiMessages`;
+  - an SDK that renders `ui`'s components builds one `Messages` object from that catalogue and passes it to `UiMessagesProvider`, so a host's overrides reach `ui`'s strings too; a test checks that the SDK's own keys don't collide with `sdkCoreMessages` or `uiMessages`;
   - error text comes from `messages.error()`, never from `error.message`: `errors.<CODE>.<reason>` when the error's `details.reason` has text of its own, and otherwise `errors.<CODE>`;
   - warnings have the shape `{ type: "limit", limit, actual }` or `{ type: <other> }`, and their text comes from `messages.warning()`: `warnings.<limit>` or `warnings.<type>`. SDKs add no text helpers of their own.
 - **Automated checks:** `@axe-core/playwright` runs in every end-to-end suite.
@@ -226,7 +228,7 @@ Every `<kind>-sdk` repository follows this structure:
 │  │                     <feature>.css  <feature>.messages.ts  *.test.ts
 │  ├─ react/             editor shell, building blocks, hooks, providers
 │  ├─ element/           custom element
-│  ├─ messages/          en.ts
+│  ├─ messages/          en.ts  editor-en.ts
 │  ├─ index.ts           core entry
 │  ├─ react.ts           React entry
 │  └─ element.ts         element entry

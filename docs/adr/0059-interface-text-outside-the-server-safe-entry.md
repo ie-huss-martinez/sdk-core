@@ -1,6 +1,6 @@
 # 0059. Interface text stays out of the server-safe entry
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-21
 - **Refines:** [ADR 0019](0019-message-catalogues.md) and [ADR 0046](0046-ui-text-through-the-sdk.md), by saying which entry point exports which text
 
@@ -45,13 +45,13 @@ Three things follow from the tables:
 | | Option | In short |
 |---|---|---|
 | A | Leave it to each SDK | The state above, drifting further with each SDK |
-| **B** | **One rule: what `.` holds, and the names** | **Recommended** |
+| **B** | **One rule: what `.` holds, and the names** | **Chosen** |
 | C | A third entry point, `./messages`, for the interface text | One more entry for hosts to learn and the API reports to cover |
 | D | Load interface text on demand, per locale | Text arrives after the first render; a different design from ADR 0019's |
 
 ## Decision
 
-**Recommended: B. The reviewer rules before any code is written.**
+**Option B: one rule for what `.` holds, and one set of names.**
 
 ### What the server-safe catalogue holds
 
@@ -74,6 +74,7 @@ The rule is about what the headless entry needs, not a list of categories:
 
 - **Every component, provider and hook builds its `Messages` from it,** and so does the element. `use<Kind>Messages()` returns it.
 - **Its type is `<Kind>EditorMessageCatalogue`.** Hosts type overrides with `MessageOverrides<<Kind>EditorMessageCatalogue>`.
+- **No other aliases are added.** audio-sdk and video-sdk also export `<Kind>EditorMessages` and `<Kind>EditorMessageOverrides`, and learn-sdk the same for its player. Those stay as deprecated aliases, and each SDK removes its own in its next breaking minor. No SDK adds new ones.
 - **The type is exported from `.`,** as audio-sdk and video-sdk do. It costs no bytes there, and both `./react` and `./element` use it, which [ADR 0033](0033-api-reports-for-several-entry-points.md) only allows without a copy when `.` exports it.
 - **An SDK whose surface isn't an editor uses the surface's name:** `learnPlayerMessages` and `LearnPlayerMessageCatalogue`.
 
@@ -91,7 +92,7 @@ Each is a follow-up in its own repository, and a minor release before 1.0 where 
 
 - **pdf-sdk and image-sdk** already follow the rule. They export the type from `.` as well, and their own records point here.
 - **audio-sdk** already follows it.
-- **video-sdk** moves its 139 interface keys out of `videoMessages`, exports `videoEditorMessages` from `./react`, and renames `VideoEditorCatalogue` to `VideoEditorMessageCatalogue`, keeping the old name as a deprecated alias.
+- **video-sdk** moves its 139 interface keys out of `videoMessages`, which should take what importing it costs from 3.48 kB down to the others' 0.81 to 1.13 kB. It exports `videoEditorMessages` from `./react`, and renames `VideoEditorCatalogue` to `VideoEditorMessageCatalogue`, keeping the old name as a deprecated alias.
 - **learn-sdk** moves `tools.*` into its player's text, and names `validation.` in its own record. Its three `content.*` strings describe content that can't be read, which only its player words today: they move with the player's text, or become `errors.<CODE>` text if its headless reader reports those cases as errors. It renames `playerCatalogue` to `learnPlayerMessages`, keeping the old name as a deprecated alias. It adds `LearnPlayerMessageCatalogue`.
 
 ## Alternatives considered
@@ -101,7 +102,7 @@ Each is a follow-up in its own repository, and a minor release before 1.0 where 
 - **D, loading interface text on demand:** the editor would render before its text arrives, or wait for it. [ADR 0019](0019-message-catalogues.md) chose a catalogue that's there at the first render, and hosts already load their own locale's overrides as they like.
 - **Only `errors.*` and `warnings.*` in `.`,** as pdf-sdk's proposal had it: it would push learn-sdk's validation text into its player, away from the headless validator that returns the issues.
 - **Tool labels in `.`,** because tool definitions are headless: a label is only ever shown by an interface, and three of the four SDKs with tools keep them with the interface text already.
-- **A shared helper for the three tests:** each is a few lines over `Object.keys`. A helper would be a public API for less code than its documentation.
+- **A shared helper for the three tests:** each is a few lines over `Object.keys`. A helper would be a public API for less code than its documentation. It's worth another look only if the SDKs' three copies turn out identical after adoption.
 
 ## Consequences
 
