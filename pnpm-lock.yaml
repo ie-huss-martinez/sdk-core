@@ -383,6 +383,12 @@ importers:
       '@secretlint/node':
         specifier: 'catalog:'
         version: 13.1.0(supports-color@10.2.2)
+      '@size-limit/esbuild':
+        specifier: 'catalog:'
+        version: 14.3.0(size-limit@14.3.0)
+      '@size-limit/file':
+        specifier: 'catalog:'
+        version: 14.3.0(size-limit@14.3.0)
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -428,6 +434,9 @@ importers:
       secretlint:
         specifier: 'catalog:'
         version: 13.1.0(supports-color@10.2.2)
+      size-limit:
+        specifier: 'catalog:'
+        version: 14.3.0
       stylelint:
         specifier: 'catalog:'
         version: 18.0.0

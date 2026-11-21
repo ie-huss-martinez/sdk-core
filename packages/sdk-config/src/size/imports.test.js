@@ -94,6 +94,34 @@ describe("entryBudget and importBudget", () => {
     ).toThrow(UsageError);
   });
 
+  it("refuses an esbuild hook on a ceiling, where it would never run", async () => {
+    const root = await built(APART);
+    const options = /** @type {never} */ ({
+      name: "Core (.)",
+      entry: join(root, "dist/index.js"),
+      limit: "17 kB",
+      modifyEsbuildConfig: (/** @type {object} */ config) => config,
+    });
+
+    expect(() => entryBudget(options)).toThrow(TypeError);
+    expect(() => entryBudget(options)).toThrow(/would never run.*Pass it to importBudget/);
+  });
+
+  it("keeps the import clause as the text it was given", () => {
+    const check = importBudget({
+      name: "x",
+      entry: "dist/index.js",
+      imports: "{ a, b as c }",
+      limit: "1 kB",
+    });
+    const clause = check.import["dist/index.js"];
+
+    expect(`${clause}`).toBe("{ a, b as c }");
+    expect(String(clause)).toBe("{ a, b as c }");
+    expect(clause?.replace(/}|{/g, "").trim()).toBe("a, b as c");
+    expect(JSON.stringify(check.import)).toBe('{"dist/index.js":"{ a, b as c }"}');
+  });
+
   it("makes an import scenario that leaves out the host's packages, the family's and lazy chunks", () => {
     expect(
       importBudget({
@@ -105,7 +133,8 @@ describe("entryBudget and importBudget", () => {
     ).toEqual({
       name: "Import: the floor",
       path: "dist/index.js",
-      import: "{ PdfError }",
+      // The clause, by its entry, as text that also notes when it's bundled.
+      import: { "dist/index.js": expect.objectContaining({ replace: expect.any(Function) }) },
       ignore: [
         "react",
         "react/*",
@@ -873,5 +902,95 @@ describe("hm-size --exports and --import", () => {
     expect(missing.stderr).toBe(
       "hm-size: dist/missing.js doesn't exist. Build the package first.\n",
     );
+  });
+});
+
+describe("a budget whose own esbuild settings were replaced", () => {
+  const PACKAGE = fileURLToPath(new URL("../..", import.meta.url));
+  const SIZE = fileURLToPath(new URL("./index.js", import.meta.url));
+  const SIZE_LIMIT = join(PACKAGE, "node_modules", "size-limit", "bin.js");
+
+  /** @type {string[]} */
+  const packages = [];
+  afterAll(async () => {
+    await Promise.all(packages.map((root) => rm(root, { recursive: true, force: true })));
+  });
+
+  /**
+   * Runs the real size-limit on a package with this configuration.
+   *
+   * @param {string} budgets The configuration's array, as source.
+   */
+  async function sizeLimit(budgets) {
+    // Inside this package, so size-limit and its plugins resolve.
+    const root = await mkdtemp(join(PACKAGE, ".tmp-size-limit-"));
+    packages.push(root);
+    const files = {
+      "package.json": JSON.stringify({
+        name: "budget-sdk",
+        type: "module",
+        devDependencies: { "@size-limit/esbuild": "*", "@size-limit/file": "*", "size-limit": "*" },
+      }),
+      "dist/index.js":
+        'export function small() {\n  if (process.env.NODE_ENV !== "production") console.warn("DEVELOPMENT-ONLY");\n  return 1;\n}\nexport const other = 2;\n',
+      ".size-limit.js": `import { entryBudget, importBudget } from ${JSON.stringify(SIZE)};\nexport default ${budgets};\n`,
+    };
+    for (const [path, content] of Object.entries(files)) {
+      await mkdir(dirname(join(root, path)), { recursive: true });
+      await writeFile(join(root, path), content);
+    }
+    const result = spawnSync(process.execPath, [SIZE_LIMIT], { cwd: root, encoding: "utf8" });
+    return { status: result.status, output: `${result.stdout}${result.stderr}` };
+  }
+
+  const GOOD =
+    'importBudget({ name: "Import: small", entry: "dist/index.js", imports: "{ small }", limit: "1 kB" })';
+
+  it("passes when the budget is used as importBudget returns it", async () => {
+    const { status, output } = await sizeLimit(`[${GOOD}]`);
+
+    expect(output).not.toContain("without importBudget's own esbuild settings");
+    expect(status).toBe(0);
+  });
+
+  it("passes when a hook of the repository's own is given to importBudget, which runs both", async () => {
+    const { status, output } = await sizeLimit(
+      '[importBudget({ name: "Import: small", entry: "dist/index.js", imports: "{ small }", limit: "1 kB", modifyEsbuildConfig: (config) => ({ ...config, define: { ...config.define, __DEV__: "false" } }) })]',
+    );
+
+    expect(output).not.toContain("without importBudget's own esbuild settings");
+    expect(status).toBe(0);
+  });
+
+  it("fails, naming the budget, when a spread gave it another hook in place of its own", async () => {
+    const { status, output } = await sizeLimit(
+      `[${GOOD}, { ...importBudget({ name: "Import: other, replaced", entry: "dist/index.js", imports: "{ other }", limit: "1 kB" }), modifyEsbuildConfig: (config) => ({ ...config, tsconfigRaw: "{}" }) }]`,
+    );
+
+    // size-limit itself is content: both budgets are under their limits.
+    expect(status).toBe(1);
+    expect(output).toContain(
+      "An import budget was measured without importBudget's own esbuild settings (sdk-core ADR 0056): Import: other, replaced.",
+    );
+    expect(output).toContain("importBudget({ …, modifyEsbuildConfig })");
+    expect(output).not.toContain("Import: small,");
+  });
+
+  it("fails when the hook was taken off altogether", async () => {
+    const { status, output } = await sizeLimit(
+      '[{ ...importBudget({ name: "Import: bare", entry: "dist/index.js", imports: "{ small }", limit: "1 kB" }), modifyEsbuildConfig: undefined }]',
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("Import: bare");
+  });
+
+  it("isn't troubled by a ceiling, which bundles nothing", async () => {
+    const { status, output } = await sizeLimit(
+      `[entryBudget({ name: "Core (.)", entry: "dist/index.js", limit: "1 kB" }), ${GOOD}]`,
+    );
+
+    expect(output).not.toContain("without importBudget's own esbuild settings");
+    expect(status).toBe(0);
   });
 });

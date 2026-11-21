@@ -66,14 +66,122 @@ export function lazyChunks(entry) {
  *   check's name, the built entry, and the limit, such as `"17 kB"`.
  * @returns {{ name: string, path: string[], brotli: true, limit: string, disablePlugins: string[] }}
  * @throws {UsageError} If the entry isn't built.
+ * @throws {TypeError} If it's given `modifyEsbuildConfig`: a ceiling
+ *   measures the files as built and bundles nothing, so the function would
+ *   never run. It belongs on {@link importBudget}.
  */
-export function entryBudget({ name, entry, limit }) {
+export function entryBudget({ name, entry, limit, ...others }) {
+  if ("modifyEsbuildConfig" in others) {
+    throw new TypeError(
+      `The ceiling "${name}" was given modifyEsbuildConfig, which would never run: an entry ceiling measures the built files and bundles nothing. Pass it to importBudget.`,
+    );
+  }
   return {
     name,
     path: entryFiles(entry),
     brotli: true,
     limit,
     disablePlugins: ["@size-limit/esbuild"],
+  };
+}
+
+/**
+ * @typedef {object} BudgetRecord
+ * @property {string} name The budget's name.
+ * @property {boolean} bundled Whether size-limit built this budget's bundle.
+ * @property {boolean} configured Whether the budget's own
+ *   `modifyEsbuildConfig` ran for it.
+ */
+
+/** Every import budget this process made. */
+/** @type {BudgetRecord[]} */
+const BUDGETS = [];
+
+let watching = false;
+
+/**
+ * The import budgets whose bundle size-limit built without their own
+ * `modifyEsbuildConfig`: ones a configuration spread into a new object and
+ * gave another hook, `{ ...importBudget(…), modifyEsbuildConfig }`. That
+ * replaces the budget's hook rather than adding to it, so the bundle is
+ * built as a script, without the production define, with the package's
+ * tsconfig.json, and with every unused name still counted. Nothing in the
+ * numbers says so.
+ *
+ * @returns {string[]} Their names.
+ */
+export function budgetsWithoutTheirHook() {
+  return BUDGETS.filter(({ bundled, configured }) => bundled && !configured).map(
+    ({ name }) => name,
+  );
+}
+
+/**
+ * What to print for budgets measured without their own hook.
+ *
+ * @param {readonly string[]} names
+ * @returns {string}
+ */
+export function lostHookMessage(names) {
+  return [
+    `${names.length === 1 ? "An import budget was" : `${names.length} import budgets were`} measured without importBudget's own esbuild settings (sdk-core ADR 0056): ${names.join(", ")}.`,
+    "  A configuration that writes { ...importBudget(…), modifyEsbuildConfig } replaces them.",
+    "  Pass the function to importBudget instead, which runs it after its own: importBudget({ …, modifyEsbuildConfig }).",
+    "",
+  ].join("\n");
+}
+
+/**
+ * Fails the process, as it ends, if a budget was measured without its hook.
+ * size-limit has printed its results by then, as if all were well.
+ */
+function watchForLostHooks() {
+  if (watching) {
+    return;
+  }
+  watching = true;
+  process.once("exit", () => {
+    const names = budgetsWithoutTheirHook();
+    if (names.length > 0) {
+      process.stderr.write(`\n${lostHookMessage(names)}`);
+      process.exitCode = 1;
+    }
+  });
+}
+
+/**
+ * An import clause that notes when size-limit builds its budget's bundle:
+ * `{ a, b }`, as an object size-limit reads as text.
+ *
+ * @typedef {object} TracedImport
+ * @property {() => string} toString The clause.
+ * @property {() => string} toJSON The clause, for a report written as JSON.
+ * @property {(pattern: string | RegExp, replacement: string) => string} replace
+ *   As a string's `replace`.
+ */
+
+/**
+ * Makes an import clause that notes when size-limit builds its budget's
+ * bundle. size-limit copies a check's fields into objects of its own, and
+ * a configuration may copy them first, so nothing put on the check itself
+ * is sure to survive. The clause does: it's passed on by reference until
+ * size-limit writes the bundle's entry from it, which it does only for a
+ * check it really runs. It reads the names out of the clause with
+ * `replace` as it does, and that's the moment noted here.
+ *
+ * @param {string} clause
+ * @param {BudgetRecord} record
+ * @returns {TracedImport}
+ */
+function tracedImport(clause, record) {
+  return {
+    toString: () => clause,
+    toJSON: () => clause,
+    replace(pattern, replacement) {
+      record.bundled = true;
+      watchForLostHooks();
+      return clause.replace(pattern, replacement);
+    },
   };
 }
 
@@ -113,17 +221,22 @@ export function entryBudget({ name, entry, limit }) {
  *   lazy chunks somewhere other than `lazy/` beside the entry.
  *   `modifyEsbuildConfig` changes the bundle's configuration after this
  *   has set its own.
- * @returns {{ name: string, path: string, import: string, ignore: string[], brotli: true, limit: string, modifyEsbuildConfig: (config: EsbuildConfig) => EsbuildConfig }}
+ * @returns {{ name: string, path: string, import: Record<string, TracedImport>, ignore: string[], brotli: true, limit: string, modifyEsbuildConfig: (config: EsbuildConfig) => EsbuildConfig }}
  */
 export function importBudget({ name, entry, imports, limit, ignore = [], modifyEsbuildConfig }) {
+  const record = { name, bundled: false, configured: false };
+  BUDGETS.push(record);
   return {
     name,
     path: entry,
-    import: imports,
+    // The clause, as text that also notes when size-limit builds this
+    // budget's bundle: see tracedImport.
+    import: { [entry]: tracedImport(imports, record) },
     ignore: [...HOST_PACKAGES, ...lazyChunks(entry), ...ignore],
     brotli: true,
     limit,
     modifyEsbuildConfig(config) {
+      record.configured = true;
       /** @type {EsbuildConfig} */
       const ours = {
         ...config,
