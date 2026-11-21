@@ -115,6 +115,124 @@ describe("entryBudget and importBudget", () => {
       ],
       brotli: true,
       limit: "0.9 kB",
+      modifyEsbuildConfig: expect.any(Function),
+    });
+  });
+
+  describe("the bundle of an import scenario", () => {
+    /** A module with a branch for development only, as a library's warning is. */
+    const WARNS = {
+      "dist/index.js": [
+        "export function small() {",
+        '  if (process.env.NODE_ENV !== "production") {',
+        '    console.warn("DEVELOPMENT-ONLY: small() was called");',
+        "  }",
+        "  return 1;",
+        "}",
+      ].join("\n"),
+    };
+
+    /**
+     * What `@size-limit/esbuild` starts from (its `get-config.js`, 14.3.0),
+     * for one import, kept in memory.
+     *
+     * @param {string} entry
+     * @returns {import("esbuild").BuildOptions}
+     */
+    function pluginConfig(entry) {
+      return {
+        bundle: true,
+        stdin: {
+          contents: `import { small } from ${JSON.stringify(entry)};\nconsole.log(small);\n`,
+          resolveDir: dirname(entry),
+        },
+        metafile: true,
+        minifyIdentifiers: true,
+        minifySyntax: true,
+        minifyWhitespace: true,
+        treeShaking: true,
+        write: false,
+        logLevel: "silent",
+      };
+    }
+
+    /**
+     * @param {import("esbuild").BuildOptions} config
+     * @returns {Promise<string>} The bundle.
+     */
+    async function bundled(config) {
+      const { build } = await import("esbuild");
+      const result = await build({ ...config, write: false });
+      return result.outputFiles?.[0]?.text.trim() ?? "";
+    }
+
+    it("is an ES module without development-only code, where the plugin alone wraps it as a script", async () => {
+      const entry = join(await built(WARNS), "dist/index.js");
+      const check = importBudget({ name: "x", entry, imports: "{ small }", limit: "1 kB" });
+
+      const config = check.modifyEsbuildConfig(pluginConfig(entry));
+      const bundle = await bundled(config);
+
+      expect(config.format).toBe("esm");
+      expect(config.define).toEqual({ "process.env.NODE_ENV": '"production"' });
+      expect(bundle).not.toContain("DEVELOPMENT-ONLY");
+      expect(bundle).not.toContain("process.env");
+      expect(bundle).not.toMatch(/^\(\(\)=>\{/);
+      // The plugin alone: the same code, inside a function a page would run.
+      expect(await bundled(pluginConfig(entry))).toMatch(/^\(\(\)=>\{.*\}\)\(\);$/s);
+    });
+
+    it("drops development-only code even when the bundle isn't fully minified", async () => {
+      const entry = join(await built(WARNS), "dist/index.js");
+      const check = importBudget({
+        name: "x",
+        entry,
+        imports: "{ small }",
+        limit: "1 kB",
+        modifyEsbuildConfig: (config) => ({ ...config, minifyIdentifiers: false }),
+      });
+
+      // esbuild itself defines "development" here; the budget's own define decides.
+      const plugin = { ...pluginConfig(entry), minifyIdentifiers: false };
+      expect(await bundled(plugin)).toContain("DEVELOPMENT-ONLY");
+      expect(await bundled(check.modifyEsbuildConfig(pluginConfig(entry)))).not.toContain(
+        "DEVELOPMENT-ONLY",
+      );
+    });
+
+    it("keeps the plugin's settings and other defines, and lets a package's own change come last", () => {
+      const check = importBudget({
+        name: "x",
+        entry: "dist/index.js",
+        imports: "{ a }",
+        limit: "1 kB",
+        modifyEsbuildConfig: (config) => ({
+          ...config,
+          format: "iife",
+          define: { ...config.define, __DEV__: "false" },
+        }),
+      });
+      const plain = importBudget({
+        name: "x",
+        entry: "dist/index.js",
+        imports: "{ a }",
+        limit: "1 kB",
+      });
+      const given = { bundle: true, external: ["react"], define: { VERSION: '"1"' } };
+
+      expect(plain.modifyEsbuildConfig(given)).toEqual({
+        bundle: true,
+        external: ["react"],
+        format: "esm",
+        define: { VERSION: '"1"', "process.env.NODE_ENV": '"production"' },
+      });
+      expect(given).toEqual({ bundle: true, external: ["react"], define: { VERSION: '"1"' } });
+      expect(check.modifyEsbuildConfig(given)).toEqual({
+        bundle: true,
+        external: ["react"],
+        format: "iife",
+        define: { VERSION: '"1"', "process.env.NODE_ENV": '"production"', __DEV__: "false" },
+      });
     });
   });
 
