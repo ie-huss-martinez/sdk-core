@@ -151,7 +151,7 @@ describe("the global setup", () => {
 
       expect(result.status, result.stdout + result.stderr).toBe(0);
       expect(result.stdout + result.stderr).not.toContain("pinned browser test image");
-    }, 60_000);
+    });
 
     it("refuses the guarded project on a host, before any test runs", async () => {
       const result = run(await workspace(), "browser", {});
@@ -161,20 +161,16 @@ describe("the global setup", () => {
         "Browser tests run only in the pinned browser test image (sdk-core ADR 0049).",
       );
       expect(result.stdout + result.stderr).not.toMatch(/1 passed/);
-    }, 60_000);
+    });
 
     it.each([
       ["in the image", { HM_VISUAL_CONTAINER: "1" }],
       ["in CI", { CI: "true" }],
-    ])(
-      "runs the guarded project %s",
-      async (_label, env) => {
-        const result = run(await workspace(), "browser", env);
+    ])("runs the guarded project %s", async (_label, env) => {
+      const result = run(await workspace(), "browser", env);
 
-        expect(result.status, result.stdout + result.stderr).toBe(0);
-      },
-      60_000,
-    );
+      expect(result.status, result.stdout + result.stderr).toBe(0);
+    });
 
     it("lets the guarded project start on a host with the bypass, and says it's for debugging", async () => {
       const result = run(await workspace(), "browser", { HM_ALLOW_HOST_BROWSER: "1" });
@@ -182,13 +178,13 @@ describe("the global setup", () => {
       expect(result.status, result.stdout + result.stderr).toBe(0);
       expect(result.stdout + result.stderr).toMatch(/1 passed/);
       expect(result.stderr).toContain("HM_ALLOW_HOST_BROWSER=1: browser tests are running");
-    }, 60_000);
+    });
 
     it("keeps refusing when the bypass is set to anything but 1", async () => {
       const result = run(await workspace(), "browser", { HM_ALLOW_HOST_BROWSER: "yes" });
 
       expect(result.status).not.toBe(0);
       expect(result.stdout + result.stderr).toContain("HM_ALLOW_HOST_BROWSER=1 for that run");
-    }, 60_000);
+    });
   });
 });

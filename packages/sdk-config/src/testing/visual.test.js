@@ -33,6 +33,9 @@ describe("defineVisualConfig", () => {
       timezoneId: "UTC",
       reducedMotion: "reduce",
     });
+    // The family's limits for Playwright tests (ADR 0057).
+    expect(config.timeout).toBe(60_000);
+    expect(config.expect?.timeout).toBe(10_000);
     expect(config.expect?.toHaveScreenshot).toEqual({
       threshold: 0.0038,
       maxDiffPixelRatio: 0,

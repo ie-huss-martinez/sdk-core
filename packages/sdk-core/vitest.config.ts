@@ -1,3 +1,4 @@
+import { browserTimeouts, unitTimeouts } from "@hussmartinez/sdk-config/testing/timeouts";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
@@ -14,6 +15,7 @@ export default defineConfig(({ mode }) => {
         {
           test: {
             name: "unit",
+            ...unitTimeouts,
             include: ["src/**/*.test.ts"],
             exclude: ["src/**/*.browser.test.ts"],
             environment: "node",
@@ -22,6 +24,7 @@ export default defineConfig(({ mode }) => {
         {
           test: {
             name: "browser",
+            ...browserTimeouts,
             include: ["src/**/*.browser.test.ts"],
             // Refuses to start outside the browser test image (ADR 0049).
             globalSetup: ["@hussmartinez/sdk-config/testing/require-image"],

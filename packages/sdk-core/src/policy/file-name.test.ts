@@ -69,9 +69,7 @@ describe("cleanFileName (ADR 0051)", () => {
     expect(clean).toBe("a".repeat(MAX_FILE_NAME_LENGTH - 1));
   });
 
-  // The property is work, not waiting, but on a loaded machine it has taken
-  // longer than Vitest's default 5 s in the SDKs' copies of this test.
-  it("always gives a safe name, or none, for any string", { timeout: 30_000 }, () => {
+  it("always gives a safe name, or none, for any string", () => {
     fc.assert(
       fc.property(fc.string({ unit: "binary", maxLength: 400 }), (raw) => {
         const clean = cleanFileName(raw);

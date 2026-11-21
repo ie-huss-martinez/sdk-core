@@ -139,6 +139,8 @@ beforeAll(async () => {
       suite.specs.map((spec) => [spec.title, spec.tests[0]?.results[0]?.status ?? "missing"]),
     ),
   );
+  // Long work (ADR 0057): it starts Playwright once for every case, about
+  // 3 s on a quiet machine, which is over the family's limit on a busy one.
 }, 60_000);
 
 afterAll(async () => {

@@ -54,6 +54,10 @@
       "types": "./src/testing/require-image.d.ts",
       "default": "./src/testing/require-image.js"
     },
+    "./testing/timeouts": {
+      "types": "./src/testing/timeouts.d.ts",
+      "default": "./src/testing/timeouts.js"
+    },
     "./testing/visual": {
       "types": "./src/testing/visual.d.ts",
       "default": "./src/testing/visual.js"

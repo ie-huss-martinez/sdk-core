@@ -31,4 +31,6 @@ it("runs the git-using suites correctly inside a git hook's environment", async 
   } finally {
     await rm(elsewhere, { recursive: true, force: true });
   }
-}, 60_000);
+  // Long work (ADR 0057): it runs whole test suites in a second Vitest,
+  // 5 s on a quiet machine, which is over the family's limit on a busy one.
+}, 120_000);

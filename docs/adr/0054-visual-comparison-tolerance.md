@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Corrected:** 2026-11-21, while implementing it: what the threshold accepts was described as a bound of one level per channel. It's a colour distance, and the measured list is under option C. The decision is unchanged
+- **Noted:** 2026-11-21: the threshold here is the most tolerance the family allows, not the least. `ui` compares more strictly, on purpose, and that's welcome wherever it doesn't flake. The note is at the end of the decision
 - **Date:** 2026-11-21
 - **Refines:** [ADR 0048](0048-visual-regression-for-sdk-editors.md)'s "no tolerance by default", by setting the per-pixel threshold that rule left at Playwright's default, and by making an update rewrite only the baselines that changed
 
@@ -106,6 +107,14 @@ That's why some of the 1/255 pairs pass even at 0, and it means no threshold mak
   The third pass is what makes the result trustworthy: whatever the page did between the first two, the baselines that get committed are ones a test run has just accepted. If it fails, a state renders differently from one run to the next by more than its assertion allows, which is a finding, and the update fails without changing anything.
 - **A known limit that no threshold fixes: anti-aliased pixels aren't compared.** Playwright leaves out every pixel its comparison classifies as anti-aliasing, at any threshold, and offers no setting for it. So a change confined to edge pixels, such as a slightly different rasterisation of text or of a rounded corner, can pass these tests. It's accepted, because closing it means replacing Playwright's comparison (option D). If such a change is ever missed in practice, that's the next step, in a record that supersedes this one.
 - **Deterministic rendering (option E) isn't pursued now.** It's a possible later step, if the noise ever grows beyond one level. Measuring it would take capturing every baseline many times in the browser test image, in each repository, under each candidate Chromium setting, and comparing the captures with each other: repeated heavy runs, which today's noise doesn't justify. If rendering were made deterministic, the threshold would drop to 0 in a later record.
+
+### The least strict a comparison may be: stricter ones are welcome
+
+Noted on 2026-11-21. This record sets the most tolerance a repository's visual tests may have. A repository may compare more strictly, where its screenshots allow it without failing on unchanged pages.
+
+`ui` does, deliberately. Its catalogue's visual tests run in Vitest's browser mode, with `toMatchScreenshot` and pixelmatch set to no tolerance at all: `threshold: 0`, `allowedMismatchedPixelRatio: 0`, and `includeAA: true`, pinned in its `apps/catalogue/visual/comparator.ts`. That's stricter than the threshold above, and `includeAA: true` also compares the anti-aliased pixels that Playwright leaves out, which is the limit this record accepts for Playwright's tests. Vitest exposes that setting; Playwright doesn't. `ui`'s own ADR 0002 records its choice.
+
+The SDKs' editors keep this record's setting, because their screenshots have shown the one-level noise measured above. An SDK whose screenshots prove stable under a stricter comparison may adopt one, and says so in its own records.
 
 ### Adoption
 

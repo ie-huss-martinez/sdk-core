@@ -20,6 +20,7 @@ it("ships declarations for the testing and size entries that match their JSDoc",
       "testing/browser-instances.d.ts",
       "testing/conformance.d.ts",
       "testing/require-image.d.ts",
+      "testing/timeouts.d.ts",
       "testing/visual.d.ts",
       "size/entry.d.ts",
       "size/imports.d.ts",
@@ -32,4 +33,6 @@ it("ships declarations for the testing and size entries that match their JSDoc",
   } finally {
     await rm(out, { recursive: true, force: true });
   }
+  // Long work (ADR 0057): it runs the TypeScript compiler, 2 s on a quiet
+  // machine, which is over the family's limit on a busy one.
 }, 60_000);

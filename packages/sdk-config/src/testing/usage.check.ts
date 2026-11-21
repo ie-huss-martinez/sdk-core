@@ -33,6 +33,11 @@ import requireBrowserTestImage, {
   browserTestImageProblem,
   CONTAINER_ENV,
 } from "@hussmartinez/sdk-config/testing/require-image";
+import {
+  browserTimeouts,
+  endToEndTimeouts,
+  unitTimeouts,
+} from "@hussmartinez/sdk-config/testing/timeouts";
 import type { TestContext } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -99,4 +104,12 @@ export async function budgets(): Promise<number> {
   const [floor] = await exportCosts("dist/index.js");
   const { functions, calls } = await keptCode("dist/index.js", "{ a }");
   return checks.length + size + (floor?.size ?? 0) + functions + calls.length;
+}
+
+/** The family's timeouts, as a Vitest project and a Playwright configuration spread them. */
+export function timeouts(): number {
+  const unit: { testTimeout: number; hookTimeout: number } = { ...unitTimeouts };
+  const browser: { testTimeout: number; hookTimeout: number } = { ...browserTimeouts };
+  const playwright: { timeout: number; expect: { timeout: number } } = { ...endToEndTimeouts };
+  return unit.testTimeout + browser.hookTimeout + playwright.timeout + playwright.expect.timeout;
 }
