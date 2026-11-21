@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { browserInstances, chromiumDiagnosticArgs } from "./browser-instances.js";
+import { FONT_CONFIG_FILE } from "./fonts.js";
 
 /** @type {string[]} */
 const scratch = [];
@@ -37,6 +38,40 @@ describe("browserInstances", () => {
     expect(firefox?.provider.options).toEqual({});
     expect(webkit?.provider).toBe(firefox?.provider);
     expect((await stat(dir)).isDirectory()).toBe(true);
+  });
+});
+
+describe("browserInstances, in the browser test image", () => {
+  it("launches every browser with the family's font rules, in a whole environment", () => {
+    const env = { HM_VISUAL_CONTAINER: "1", DISPLAY: ":0" };
+
+    const instances = browserInstances(ALL, { env });
+
+    expect(new Set(instances.map((instance) => instance.provider)).size).toBe(1);
+    expect(instances[0]?.provider.options).toEqual({
+      launchOptions: { env: { ...env, FONTCONFIG_FILE: FONT_CONFIG_FILE } },
+    });
+  });
+
+  it("keeps the font rules beside Chromium's diagnostics", async () => {
+    const dir = join(await mkdtemp(join(tmpdir(), "hm-diagnostics-")), "nested");
+    scratch.push(dir);
+    const env = { HM_VISUAL_CONTAINER: "1", HM_BROWSER_DIAGNOSTICS: dir };
+    const fonts = { ...env, FONTCONFIG_FILE: FONT_CONFIG_FILE };
+
+    const [chromium, firefox, webkit] = browserInstances(ALL, { env });
+
+    expect(chromium?.provider.options).toEqual({
+      launchOptions: { env: fonts, args: chromiumDiagnosticArgs(dir) },
+    });
+    expect(firefox?.provider.options).toEqual({ launchOptions: { env: fonts } });
+    expect(webkit?.provider).toBe(firefox?.provider);
+  });
+
+  it("sets no environment outside the image, so a browser inherits the machine's", () => {
+    for (const env of [{}, { CI: "true" }, { HM_ALLOW_HOST_BROWSER: "1" }]) {
+      expect(browserInstances(ALL, { env })[0]?.provider.options).toEqual({});
+    }
   });
 });
 

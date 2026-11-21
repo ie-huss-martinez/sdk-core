@@ -30,6 +30,7 @@ Install, as devDependencies, the tools for the presets you use. They are optiona
 | `testing/browser-instances`, `hm-netlog-errors` | `@vitest/browser-playwright` |
 | `testing/require-image` | Nothing |
 | `testing/timeouts` | Nothing |
+| `testing/fonts` | Nothing |
 
 ### TypeScript
 
@@ -310,7 +311,8 @@ browser: {
 },
 ```
 
-- **By default nothing changes:** the same browsers, with plain Playwright providers and the same output.
+- **In the browser test image, every browser gets the family's font rules** ([ADR 0062](../../docs/adr/0062-fonts-in-browser-tests.md)), so a browser test lays text out as a screenshot does. See [Testing: fonts](#testing-fonts).
+- **Otherwise nothing changes:** the same browsers, with plain Playwright providers and the same output.
 - **With `HM_BROWSER_DIAGNOSTICS` set to a folder,** Chromium records every request and its network error in a net log there, `chromium-<pid>.netlog.json`, and writes its console to stderr, which Playwright prints with `DEBUG=pw:browser`. Firefox and WebKit are never changed, because they refuse to launch with Chromium's flags.
 - **`hm-netlog-errors <netlog>...`** lists the requests that failed, one line each: Chromium's error, such as `ERR_EMPTY_RESPONSE`, and the URL. It reads a log that a killed browser left unfinished, and leaves out WebSocket upgrades, which aren't failures. It exits with 0 once the logs are read, and with 2 for a usage error or a log it can't read.
 
@@ -322,6 +324,49 @@ pnpm exec hm-netlog-errors test-results/diagnostics/*.netlog.json
 The folder must be inside the checkout, because `pnpm test:browser` runs in the browser test image through `hm-in-image`, and the container sees nothing else of the host. A relative folder is taken from where the command runs, so the net logs of a package's tests land in that package. `hm-in-image` refuses a folder outside the checkout before it starts anything.
 
 It's test code only: import it only from Vitest configurations.
+
+### Testing: fonts
+
+In the pinned browser test image, `system-ui` and the generic font families resolve to WenQuanYi Zen Hei, a font with one style. `ui`'s text asks for `system-ui` first, so every label was drawn in it, and in Chromium text at weight 600 came out as the same pixels as regular text: a lost font weight couldn't show in a screenshot ([ADR 0062](../../docs/adr/0062-fonts-in-browser-tests.md)).
+
+`sdk-config` ships a fontconfig file that keeps the system's configuration and prefers the Liberation fonts the image already has, each in regular, bold, italic and bold italic:
+
+| Asked for | Drawn in |
+|---|---|
+| `system-ui`, `sans-serif` | Liberation Sans |
+| `serif` | Liberation Serif |
+| `monospace`, `ui-monospace` | Liberation Mono |
+
+**The presets pass it to every browser they launch in the image,** as `FONTCONFIG_FILE` in the launch environment: `defineVisualConfig` for screenshots and `browserInstances` for Vitest's browser projects. Nothing in the image changes, so CI and local runs match.
+
+**A configuration that launches browsers its own way** takes the same environment from `fontLaunchEnv()`. An SDK's end-to-end configuration:
+
+```ts
+// e2e/playwright.config.ts
+import { fontLaunchEnv } from "@hussmartinez/sdk-config/testing/fonts";
+
+export default defineConfig({
+  use: { launchOptions: { env: fontLaunchEnv() } },
+  // …
+});
+```
+
+And a Vitest browser project that doesn't use `browserInstances`:
+
+```ts
+import { fontLaunchEnv } from "@hussmartinez/sdk-config/testing/fonts";
+
+browser: { provider: playwright({ launchOptions: { env: fontLaunchEnv() } }), /* … */ },
+```
+
+- **It's a whole environment,** the process's own with the file added. Playwright replaces a browser's environment with `launchOptions.env` rather than adding to it, so never pass `{ FONTCONFIG_FILE: … }` alone: the browser would lose `DISPLAY` and everything else.
+- **Only in the image,** where `HM_VISUAL_CONTAINER=1`. Anywhere else it returns the process's environment unchanged, so a browser on your machine keeps your fonts.
+- **`FONT_CONFIG_FILE`** is the file's absolute path, and `usesFontRules()` says whether the rules apply here, for a runner that takes a path or an environment in another shape.
+- **Two weights:** Liberation has regular and bold, so 400 and 500 draw alike, and 600 and 700 draw alike.
+
+**Taking this release changes every screenshot with text in it.** Retake the baselines in the same pull request, with `pnpm test:visual:update`, and say the font is the cause. Text changes everywhere; where a label got wider or narrower, or now wraps, what's beside or below it moves too. Explain each such move by the font: anything that can't be is a real difference.
+
+It's test code only: import it only from test configurations.
 
 ### Testing: timeouts
 
@@ -485,7 +530,7 @@ export default defineVisualConfig({
 });
 ```
 
-The preset fixes the page: a 1280 × 800 viewport at a device scale factor of 1, `en-US`, `UTC` and reduced motion. Screenshots are taken without animations or carets. Specs live in `e2e/visual/`, and each state is captured in every variant:
+The preset fixes the page: a 1280 × 800 viewport at a device scale factor of 1, `en-US`, `UTC` and reduced motion, with text in [the family's fonts](#testing-fonts). Screenshots are taken without animations or carets. Specs live in `e2e/visual/`, and each state is captured in every variant:
 
 ```ts
 import { expect, test } from "@playwright/test";
