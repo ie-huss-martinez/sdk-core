@@ -53,6 +53,13 @@ export function entryBudget({ name, entry, limit }: {
  *
  * It needs `@size-limit/esbuild` beside `size-limit`.
  *
+ * The check bundles as {@link importCost} does: as an ES module, with
+ * `process.env.NODE_ENV` defined as `"production"`. The plugin sets neither
+ * itself, so by default it wraps the bundle in a function, as a script for a
+ * page would be, and leaves the environment to esbuild's own default. Pass
+ * `modifyEsbuildConfig` to change the bundle further: it receives the
+ * configuration with both already set, and what it returns is used.
+ *
  * @example
  * ```js
  * importBudget({
@@ -63,18 +70,21 @@ export function entryBudget({ name, entry, limit }: {
  * });
  * ```
  *
- * @param {{ name: string, entry: string, imports: string, limit: string, ignore?: readonly string[] }} options
+ * @param {{ name: string, entry: string, imports: string, limit: string, ignore?: readonly string[], modifyEsbuildConfig?: (config: EsbuildConfig) => EsbuildConfig }} options
  *   `imports` is the import clause, such as `"{ a, b }"`. `ignore` adds
  *   esbuild `external` patterns to leave out, for a package that puts its
  *   lazy chunks somewhere other than `lazy/` beside the entry.
- * @returns {{ name: string, path: string, import: string, ignore: string[], brotli: true, limit: string }}
+ *   `modifyEsbuildConfig` changes the bundle's configuration after this
+ *   has set its own.
+ * @returns {{ name: string, path: string, import: string, ignore: string[], brotli: true, limit: string, modifyEsbuildConfig: (config: EsbuildConfig) => EsbuildConfig }}
  */
-export function importBudget({ name, entry, imports, limit, ignore }: {
+export function importBudget({ name, entry, imports, limit, ignore, modifyEsbuildConfig }: {
     name: string;
     entry: string;
     imports: string;
     limit: string;
     ignore?: readonly string[];
+    modifyEsbuildConfig?: (config: EsbuildConfig) => EsbuildConfig;
 }): {
     name: string;
     path: string;
@@ -82,6 +92,7 @@ export function importBudget({ name, entry, imports, limit, ignore }: {
     ignore: string[];
     brotli: true;
     limit: string;
+    modifyEsbuildConfig: (config: EsbuildConfig) => EsbuildConfig;
 };
 /**
  * The names a built entry exports, in the order it lists them, as an
@@ -210,3 +221,7 @@ export type KeptCode = {
         count: number;
     }>;
 };
+/**
+ * The configuration `@size-limit/esbuild` builds a check's bundle with.
+ */
+export type EsbuildConfig = import("esbuild").BuildOptions;

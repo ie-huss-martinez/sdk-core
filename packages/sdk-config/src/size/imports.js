@@ -9,6 +9,15 @@ import { dirname, join, resolve } from "node:path";
 import { brotliSize, entryFiles, UsageError } from "./entry.js";
 
 /**
+ * The configuration `@size-limit/esbuild` builds a check's bundle with.
+ *
+ * @typedef {import("esbuild").BuildOptions} EsbuildConfig
+ */
+
+/** What `process.env.NODE_ENV` is replaced with in every bundle measured here: applications ship production code. */
+const PRODUCTION = '"production"';
+
+/**
  * What a scenario leaves out of its bundle, because it's counted elsewhere
  * (ADR 0056): the host's own `react` and `react-dom`, and the family's
  * packages, which have budgets of their own and are installed once. The
@@ -80,6 +89,13 @@ export function entryBudget({ name, entry, limit }) {
  *
  * It needs `@size-limit/esbuild` beside `size-limit`.
  *
+ * The check bundles as {@link importCost} does: as an ES module, with
+ * `process.env.NODE_ENV` defined as `"production"`. The plugin sets neither
+ * itself, so by default it wraps the bundle in a function, as a script for a
+ * page would be, and leaves the environment to esbuild's own default. Pass
+ * `modifyEsbuildConfig` to change the bundle further: it receives the
+ * configuration with both already set, and what it returns is used.
+ *
  * @example
  * ```js
  * importBudget({
@@ -90,13 +106,15 @@ export function entryBudget({ name, entry, limit }) {
  * });
  * ```
  *
- * @param {{ name: string, entry: string, imports: string, limit: string, ignore?: readonly string[] }} options
+ * @param {{ name: string, entry: string, imports: string, limit: string, ignore?: readonly string[], modifyEsbuildConfig?: (config: EsbuildConfig) => EsbuildConfig }} options
  *   `imports` is the import clause, such as `"{ a, b }"`. `ignore` adds
  *   esbuild `external` patterns to leave out, for a package that puts its
  *   lazy chunks somewhere other than `lazy/` beside the entry.
- * @returns {{ name: string, path: string, import: string, ignore: string[], brotli: true, limit: string }}
+ *   `modifyEsbuildConfig` changes the bundle's configuration after this
+ *   has set its own.
+ * @returns {{ name: string, path: string, import: string, ignore: string[], brotli: true, limit: string, modifyEsbuildConfig: (config: EsbuildConfig) => EsbuildConfig }}
  */
-export function importBudget({ name, entry, imports, limit, ignore = [] }) {
+export function importBudget({ name, entry, imports, limit, ignore = [], modifyEsbuildConfig }) {
   return {
     name,
     path: entry,
@@ -104,6 +122,15 @@ export function importBudget({ name, entry, imports, limit, ignore = [] }) {
     ignore: [...HOST_PACKAGES, ...lazyChunks(entry), ...ignore],
     brotli: true,
     limit,
+    modifyEsbuildConfig(config) {
+      /** @type {EsbuildConfig} */
+      const ours = {
+        ...config,
+        format: "esm",
+        define: { ...config.define, "process.env.NODE_ENV": PRODUCTION },
+      };
+      return modifyEsbuildConfig ? modifyEsbuildConfig(ours) : ours;
+    },
   };
 }
 
@@ -289,7 +316,7 @@ async function bundle(entry, imports, minify) {
       // The same in both bundles: esbuild would otherwise define "production"
       // when it minifies and "development" when it doesn't, and keptCode
       // would then look at code importCost never ships.
-      define: { "process.env.NODE_ENV": '"production"' },
+      define: { "process.env.NODE_ENV": PRODUCTION },
     });
     return result.outputFiles[0]?.text ?? "";
   } catch (error) {
