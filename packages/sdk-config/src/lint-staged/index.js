@@ -49,14 +49,19 @@ export function isReactSource(file, paths = DEFAULT_PATHS) {
   const normal = file.replaceAll("\\", "/");
   return (
     TYPESCRIPT.test(normal) &&
-    paths.some((path) => new RegExp(`(?:^|/)${escaped(folderOf(path))}/`).test(normal))
+    paths.some((path) => {
+      const folder = folderOf(path);
+      // The repository's root holds every file.
+      return folder === "" || new RegExp(`(?:^|/)${escaped(folder)}/`).test(normal);
+    })
   );
 }
 
 /**
  * A folder as its path's segments, from the repository's root: with forward
  * slashes, and without a leading `./` or a trailing slash, so that
- * `./packages/ui/src/` is `packages/ui/src`.
+ * `./packages/ui/src/` is `packages/ui/src`. The root itself, `.` or `./`,
+ * is the empty text.
  *
  * @param {string} path
  * @returns {string}
@@ -65,7 +70,8 @@ const folderOf = (path) =>
   path
     .replaceAll("\\", "/")
     .replace(/^(?:\.\/)+/, "")
-    .replace(/\/+$/, "");
+    .replace(/\/+$/, "")
+    .replace(/^\.$/, "");
 
 /**
  * The React lint's step (sdk-core ADR 0063), as a lint-staged task: when a
@@ -136,7 +142,9 @@ export function withReactLint(preset = config, { paths } = {}) {
       );
     }
   }
-  const command = `hm-lint-react ${paths.join(" ")}`;
+  // With forward slashes, which every platform reads; as written, a
+  // backslash is part of a name anywhere but Windows.
+  const command = `hm-lint-react ${paths.map((path) => folderOf(path) || ".").join(" ")}`;
   /** @param {readonly string[]} files */
   const task = (files) => (files.some((file) => isReactSource(file, paths)) ? [command] : []);
   return { ...preset, [NOT_CSS]: [...tasks, task] };
