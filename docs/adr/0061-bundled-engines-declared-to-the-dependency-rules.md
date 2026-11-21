@@ -75,6 +75,7 @@ export default defineDependencyRules({
 - **`virtualModules`:** exact names of modules the SDK's build generates, which can't be resolved from disk.
 - **Everything else is the preset.** An SDK with nothing to declare keeps `export { default } from …`.
 - **The function is pure.** It builds rules from what it's given, and reads no file: loading a lint configuration never parses the workspace. The engines it was given stay readable from what it returns, so nothing lists them twice.
+  - **Corrected, 2026-11-21:** the engines were first kept on the result as a hidden property. A repository that spread the result into a new object, to add an option, lost them, and the pin check then found none and passed: the guard turned itself off, silently. They're now read back from the rules the function writes, one per engine, so any copy of the configuration has them, and they're the engines the rules really allow.
 
 ### What the rules enforce
 
@@ -93,6 +94,8 @@ export default defineDependencyRules({
 - **isn't exactly pinned:** its version is a range or a tag. A `catalog:` entry counts by the version its catalog gives, which is how every SDK pins its engines today.
 
 An SDK runs it in `pnpm verify`, as it runs its other checks of the package. "Bundled from an exact version" then has a check behind it. With no engines declared, it passes and says so.
+
+**Corrected, 2026-11-21:** with no engine declared, the command now fails rather than pass. A package that bundles none and still runs the check says so, with `bundledEngines: []`, which the function records as a rule that matches nothing.
 
 ### The stylesheet exception moves into the preset
 

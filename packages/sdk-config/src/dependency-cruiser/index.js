@@ -263,8 +263,17 @@ const config = {
 
 export default config;
 
-/** Where {@link defineDependencyRules} keeps the engines it was given, on what it returns. */
-const BUNDLED_ENGINES = Symbol.for("@hussmartinez/sdk-config/bundled-engines");
+/** The rule that keeps one engine to its folders. {@link bundledEnginesOf} reads the engines back from it. */
+const ENGINE_RULE = "engine-only-from-its-folder";
+
+/**
+ * A rule that never matches anything, which says that a package bundles no
+ * engine, on purpose: `defineDependencyRules({ bundledEngines: [] })`. With
+ * neither it nor an engine, `hm-check-bundled-engines` fails, so a
+ * declaration that got lost can't pass for "none".
+ */
+const NO_ENGINES_RULE = "no-bundled-engines";
+const NEVER = "^(?!)";
 
 const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*$/;
 const ENGINE_FOLDER = /^(?:adapters|workers)(?:\/[A-Za-z0-9_][A-Za-z0-9._-]*)*$/;
@@ -332,7 +341,11 @@ function strings(value, what) {
  * @throws {TypeError} If a package's name isn't an npm name, a folder isn't
  *   under `adapters/` or `workers/`, or a list isn't a list of names.
  */
-export function defineDependencyRules({ bundledEngines = [], virtualModules = [] } = {}) {
+export function defineDependencyRules({ bundledEngines, virtualModules = [] } = {}) {
+  // An empty list is a statement: this package bundles no engine. No list
+  // at all says nothing either way.
+  const declaredNone = Array.isArray(bundledEngines) && bundledEngines.length === 0;
+  bundledEngines ??= [];
   if (!Array.isArray(bundledEngines)) {
     throw new TypeError("bundledEngines must be a list of { packages, from } entries.");
   }
@@ -415,7 +428,7 @@ export function defineDependencyRules({ bundledEngines = [], virtualModules = []
         },
       })),
       ...[...foldersOf].map(([name, into]) => ({
-        name: "engine-only-from-its-folder",
+        name: ENGINE_RULE,
         comment:
           "A bundled engine is imported only from the folder that wraps it, as a value or as a type (ADR 0061).",
         severity: /** @type {const} */ ("error"),
@@ -425,25 +438,85 @@ export function defineDependencyRules({ bundledEngines = [], virtualModules = []
     ];
   });
 
-  const rules = { ...config, forbidden };
-  Object.defineProperty(rules, BUNDLED_ENGINES, {
-    value: Object.freeze(engines.map((engine) => Object.freeze({ ...engine }))),
-    enumerable: false,
-  });
-  return rules;
+  if (declaredNone) {
+    forbidden.push({
+      name: NO_ENGINES_RULE,
+      comment: "This package bundles no third-party engine, on purpose (ADR 0061).",
+      severity: /** @type {const} */ ("error"),
+      from: { path: NEVER },
+      to: { path: NEVER },
+    });
+  }
+  return { ...config, forbidden };
+}
+
+/** Undoes {@link escaped}. */
+const unescaped = (/** @type {string} */ text) => text.replace(/\\([.*+?^${}()|[\]\\])/g, "$1");
+
+const PACKAGE_PATTERN = /^\(\?:\^\|\(\?:\^\|\/\)node_modules\/\)\(\?:(.+)\)\(\?:\/\|\$\)$/;
+const FOLDER_PATTERN = /^\(\?:\^\|\/\)src\/(.+)\/$/;
+
+/**
+ * Whether a configuration says, on purpose, that its package bundles no
+ * engine: it came from `defineDependencyRules({ bundledEngines: [] })`.
+ *
+ * @param {unknown} configuration A dependency-cruiser configuration.
+ * @returns {boolean}
+ */
+export function declaresNoBundledEngines(configuration) {
+  return forbiddenRules(configuration).some(({ name }) => name === NO_ENGINES_RULE);
 }
 
 /**
- * The engines a configuration declared with {@link defineDependencyRules}.
+ * @param {unknown} configuration
+ * @returns {Array<{ name?: unknown, from?: { pathNot?: unknown }, to?: { path?: unknown } }>}
+ */
+function forbiddenRules(configuration) {
+  const forbidden =
+    typeof configuration === "object" && configuration !== null
+      ? /** @type {{ forbidden?: unknown }} */ (configuration).forbidden
+      : undefined;
+  return Array.isArray(forbidden)
+    ? forbidden.filter((rule) => rule && typeof rule === "object")
+    : [];
+}
+
+/**
+ * The engines a configuration declares, read back from its rules: the ones
+ * {@link defineDependencyRules} wrote, one per engine, each naming a package
+ * and the folders that may import it.
+ *
+ * They're read from the rules themselves rather than kept beside them, so a
+ * copy of the configuration has them too, however it was made: spread into
+ * a new object to add an option, cloned, or written out and read back. And
+ * they're the engines the rules really allow: take a rule out, and its
+ * engine isn't declared any more.
  *
  * @param {unknown} configuration A dependency-cruiser configuration.
- * @returns {readonly BundledEngine[]} The entries, or none for the preset as
- *   it is or any other configuration.
+ * @returns {BundledEngine[]} One entry per package and folder, or none for
+ *   the preset as it is or any other configuration.
  */
 export function bundledEnginesOf(configuration) {
-  const engines =
-    typeof configuration === "object" && configuration !== null
-      ? /** @type {Record<symbol, unknown>} */ (configuration)[BUNDLED_ENGINES]
-      : undefined;
-  return Array.isArray(engines) ? engines : [];
+  /** @type {BundledEngine[]} */
+  const engines = [];
+  for (const rule of forbiddenRules(configuration)) {
+    if (rule.name !== ENGINE_RULE) {
+      continue;
+    }
+    const name =
+      typeof rule.to?.path === "string" ? PACKAGE_PATTERN.exec(rule.to.path)?.[1] : undefined;
+    if (name === undefined) {
+      continue;
+    }
+    const folders = [rule.from?.pathNot ?? []]
+      .flat()
+      .map((pattern) =>
+        typeof pattern === "string" ? FOLDER_PATTERN.exec(pattern)?.[1] : undefined,
+      )
+      .filter((folder) => folder !== undefined);
+    for (const folder of folders) {
+      engines.push({ packages: [unescaped(name)], from: unescaped(folder) });
+    }
+  }
+  return engines;
 }

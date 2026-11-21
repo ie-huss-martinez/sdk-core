@@ -2,11 +2,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parse } from "yaml";
-import { bundledEnginesOf } from "../dependency-cruiser/index.js";
+import { bundledEnginesOf, declaresNoBundledEngines } from "../dependency-cruiser/index.js";
 
-/** Exit code when every declared engine is an exactly pinned devDependency, or none is declared. */
+/** Exit code when every declared engine is an exactly pinned devDependency, or the configuration declares there are none. */
 export const EXIT_OK = 0;
-/** Exit code when a declared engine isn't. */
+/** Exit code when a declared engine isn't, or when nothing is declared either way. */
 export const EXIT_FAILED = 1;
 /** Exit code for usage errors, or a file that can't be read. */
 export const EXIT_USAGE = 2;
@@ -201,7 +201,24 @@ export async function checkBundledEngines({
   }
   const engines = bundledEnginesOf(configuration).flatMap(({ packages }) => packages);
   if (engines.length === 0) {
-    return { exitCode: EXIT_OK, report: `No bundled engines are declared in ${configFile}.\n` };
+    if (declaresNoBundledEngines(configuration)) {
+      return {
+        exitCode: EXIT_OK,
+        report: `${configFile} declares that this package bundles no engine.\n`,
+      };
+    }
+    // Finding nothing isn't passing: a declaration that was lost, or never
+    // written, would otherwise turn this check off without a word.
+    return {
+      exitCode: EXIT_FAILED,
+      report: [
+        `No bundled engine is declared in ${configFile}, so there's nothing to check (sdk-core ADR 0061).`,
+        '  If the package bundles an engine, declare it: defineDependencyRules({ bundledEngines: [{ packages: ["gifenc"], from: "adapters/gif" }] }).',
+        "  If it bundles none, say so: defineDependencyRules({ bundledEngines: [] }).",
+        "  If the configuration is built on defineDependencyRules' result, keep its forbidden rules: the engines are read from them.",
+        "",
+      ].join("\n"),
+    };
   }
 
   const manifestFile = join(resolve(cwd), "package.json");

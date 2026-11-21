@@ -209,6 +209,20 @@ export default defineDependencyRules({
 - **Names are names, never patterns.** A folder outside `adapters/` and `workers/`, or a package written as a pattern, is a `TypeError` when the configuration loads.
 - **It only builds rules.** It reads no file, so loading the configuration stays cheap. Pinning is checked by `hm-check-bundled-engines`, below.
 - **With nothing to declare,** keep `export { default } from …`: `defineDependencyRules()` returns the same rules.
+- **Extending what it returns:** build on the result, and keep its `forbidden` rules. The engines are read back from those rules, so a copy has them however it's made:
+
+  ```js
+  const rules = defineDependencyRules({ bundledEngines: [{ packages: ["gifenc"], from: "adapters/gif" }] });
+
+  export default {
+    ...rules,
+    forbidden: [...rules.forbidden, myOwnRule],        // add to them; don't replace them
+    options: { ...rules.options, exclude: { path: ["generated/"] } },
+  };
+  ```
+
+  Replace `forbidden` with another list and the engines' rules are gone, with the engines: `hm-check-bundled-engines` then fails, saying none is declared.
+- **A package that bundles no engine says so,** if it runs the check: `defineDependencyRules({ bundledEngines: [] })`. An empty list is a statement; leaving the option out says nothing either way.
 
 **Replacing a copied exception:** if your `.dependency-cruiser.js` looks `not-to-dev-dep` up by name and splits it for your engines, delete that and declare the engines instead. Name the narrowest folder: the adapter that wraps the engine, not all adapters.
 
@@ -231,7 +245,7 @@ Bundled engines must be exactly pinned devDependencies (sdk-core ADR 0061):
   mediabunny is in peerDependencies. A bundled engine is built into the package, so it's in devDependencies and nowhere else.
 ```
 
-With no engines declared, it passes and says so.
+**Finding no engine isn't passing.** With none declared, it fails, unless the configuration says on purpose that the package bundles none, with `bundledEngines: []`. A declaration that was lost, or never written, would otherwise turn the check off without a word.
 
 ```text
 Usage: hm-check-bundled-engines [--config <file>]
@@ -239,8 +253,8 @@ Usage: hm-check-bundled-engines [--config <file>]
 
 | Exit code | Meaning |
 |---|---|
-| 0 | Every declared engine is exactly pinned, or none is declared |
-| 1 | A declared engine isn't |
+| 0 | Every declared engine is exactly pinned, or the configuration declares that the package bundles none |
+| 1 | A declared engine isn't, or nothing is declared either way |
 | 2 | Usage error, or a file that can't be read |
 
 #### `hm-lint-deps`

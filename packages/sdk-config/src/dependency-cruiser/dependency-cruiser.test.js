@@ -4,7 +4,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cruise } from "dependency-cruiser";
 import { describe, expect, it } from "vitest";
-import config, { bundledEnginesOf, defineDependencyRules } from "./index.js";
+import config, {
+  bundledEnginesOf,
+  declaresNoBundledEngines,
+  defineDependencyRules,
+} from "./index.js";
 
 /**
  * Cruises a fixture package with the preset and lists each violation as
@@ -568,6 +572,64 @@ describe("defineDependencyRules", () => {
     expect(bundledEnginesOf(defineDependencyRules())).toEqual([]);
     expect(bundledEnginesOf(undefined)).toEqual([]);
     expect(bundledEnginesOf({ forbidden: [] })).toEqual([]);
+  });
+
+  it("keeps its engines in a copy, however the copy was made", () => {
+    const rules = declared();
+    const expected = bundledEnginesOf(rules);
+    expect(expected).toHaveLength(3);
+
+    // Spread into a new object, as a repository does to add an option.
+    expect(bundledEnginesOf({ ...rules, options: { ...rules.options } })).toEqual(expected);
+    expect(bundledEnginesOf(Object.assign({}, rules))).toEqual(expected);
+    expect(bundledEnginesOf(structuredClone(rules))).toEqual(expected);
+    expect(bundledEnginesOf(JSON.parse(JSON.stringify(rules)))).toEqual(expected);
+  });
+
+  it("reads the engines from the rules, so they're the ones the rules allow", () => {
+    const rules = declared();
+    const without = {
+      ...rules,
+      forbidden: (rules.forbidden ?? []).filter(
+        (rule) =>
+          rule.name !== "engine-only-from-its-folder" || !JSON.stringify(rule).includes("gifenc"),
+      ),
+    };
+
+    expect(bundledEnginesOf(without)).toEqual([
+      { packages: ["@cantoo/pdf-lib"], from: "adapters/pdf" },
+      { packages: ["@cantoo/pdf-lib"], from: "workers/pdf" },
+    ]);
+    expect(bundledEnginesOf({ ...rules, forbidden: config.forbidden })).toEqual([]);
+  });
+
+  it("reads back a package and a folder with characters that patterns escape", () => {
+    const rules = defineDependencyRules({
+      bundledEngines: [{ packages: ["@scope/pdf.js-dist"], from: "adapters/pdf.js" }],
+    });
+
+    expect(bundledEnginesOf(structuredClone(rules))).toEqual([
+      { packages: ["@scope/pdf.js-dist"], from: "adapters/pdf.js" },
+    ]);
+  });
+
+  it("says a package bundles none only when it was told so, and keeps saying it in a copy", async () => {
+    const none = defineDependencyRules({ bundledEngines: [] });
+
+    expect(declaresNoBundledEngines(none)).toBe(true);
+    expect(declaresNoBundledEngines({ ...none })).toBe(true);
+    expect(declaresNoBundledEngines(structuredClone(none))).toBe(true);
+    expect(bundledEnginesOf(none)).toEqual([]);
+    // Nothing said either way.
+    expect(declaresNoBundledEngines(defineDependencyRules())).toBe(false);
+    expect(declaresNoBundledEngines(defineDependencyRules({ virtualModules: ["virtual:x"] }))).toBe(
+      false,
+    );
+    expect(declaresNoBundledEngines(config)).toBe(false);
+    expect(declaresNoBundledEngines(declared())).toBe(false);
+    expect(declaresNoBundledEngines(undefined)).toBe(false);
+    // The rule that says so matches nothing: the same violations as the preset's.
+    expect(await cruised(none)).toEqual(await cruised(config));
   });
 
   it("doesn't change the preset it builds on", () => {

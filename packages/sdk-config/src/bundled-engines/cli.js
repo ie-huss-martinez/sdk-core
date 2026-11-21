@@ -18,8 +18,9 @@ Options:
   -h, --help           show this help
 
 Exit codes:
-  0  every declared engine is exactly pinned, or none is declared
-  1  a declared engine isn't
+  0  every declared engine is exactly pinned, or the configuration declares
+     that the package bundles none: defineDependencyRules({ bundledEngines: [] })
+  1  a declared engine isn't, or nothing is declared either way
   2  usage error, or a file that can't be read
 `;
 
