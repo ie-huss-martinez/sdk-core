@@ -89,13 +89,13 @@ All three engines take it, and the strong weight gets a real bold face. The thre
   - `defineVisualConfig`, for screenshots;
   - `browserInstances`, for Vitest's browser projects;
   - a helper for an SDK's own Playwright configuration, for its end-to-end suite.
-- **A configuration that launches browsers its own way gets the same environment from the same place.** `sdk-config` exports the launch environment, as an object to pass as `launchOptions.env`, and the file's path. `ui`'s Vitest browser configuration and its catalogue's test runner don't go through the presets, so they use that export. No repository writes the variable's name or the file's path itself.
+- **A configuration that launches browsers its own way gets the same environment from the same place.** `sdk-config` exports the launch environment, as an object to pass as `launchOptions.env`, and the file's path. The object is a whole environment, the process's own with the file added: Playwright replaces a browser's environment with `launchOptions.env` rather than adding to it, so an object with only the one variable would take `DISPLAY` and everything else away from the browser. `ui`'s Vitest browser configuration and its catalogue's test runner don't go through the presets, so they use that export. No repository writes the variable's name or the file's path itself.
 
   So a layout assertion, an end-to-end test and a screenshot all see the same text.
 - **Liberation Sans, Serif and Mono, because the image already has them,** in four styles, so the family ships no font and takes on no font's licence. They're metric-compatible with Arial, Times New Roman and Courier New. Arial is the last named font in `ui`'s stack, and what a system without the others would use.
 - **The image doesn't change.** `ci/Dockerfile` keeps its one `FROM` line, and CI and local runs stay the same by construction: the font rules travel with the preset, not with the machine.
 - **A test in `sdk-config` holds it:** in Chromium, text in `ui`'s stack is drawn in Liberation Sans, and at weight 600 in its bold face.
-- **Only in the image.** The launch environment carries the file where `HM_VISUAL_CONTAINER=1`, which is the image locally and in CI's jobs ([ADR 0049](0049-local-browser-tests-in-the-pinned-image.md)). Anywhere else it's empty, so a browser started on a developer's machine, with the bypass for debugging, keeps that machine's own font configuration, including a `FONTCONFIG_FILE` of its own. A run outside the image proves nothing about a change anyway.
+- **Only in the image.** The launch environment carries the file where `HM_VISUAL_CONTAINER=1`, which is the image locally and in CI's jobs ([ADR 0049](0049-local-browser-tests-in-the-pinned-image.md)). Anywhere else it's the process's own environment, unchanged, so a browser started on a developer's machine, with the bypass for debugging, keeps that machine's own font configuration, including a `FONTCONFIG_FILE` of its own. A run outside the image proves nothing about a change anyway.
 
 ### What it doesn't fix
 
