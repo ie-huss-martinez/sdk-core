@@ -7,6 +7,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { brotliSize, entryFiles, UsageError } from "./entry.js";
+import { withoutUnusedImports } from "./unused-imports.js";
 
 /**
  * The configuration `@size-limit/esbuild` builds a check's bundle with.
@@ -127,151 +128,16 @@ export function importBudget({ name, entry, imports, limit, ignore = [], modifyE
       const ours = {
         ...config,
         format: "esm",
+        // An application's bundler never reads the package's tsconfig.json.
+        // esbuild would find it from the built entry, and follow its paths
+        // back into source.
+        tsconfigRaw: "{}",
         define: { ...config.define, "process.env.NODE_ENV": PRODUCTION },
         plugins: [...(config.plugins ?? []), UNUSED_IMPORTS_PLUGIN],
       };
       return modifyEsbuildConfig ? modifyEsbuildConfig(ours) : ours;
     },
   };
-}
-
-/**
- * One import statement at the top of a bundle esbuild wrote: `import"x"`,
- * `import a from"x"`, `import*as a from"x"`, `import{a as b,c}from"x"`, or a
- * default with either of the last two. After any blank space or comments.
- */
-const IMPORT_STATEMENT =
-  /^((?:\s+|\/\/[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/)*)import\s*(?:([\w$]+)\s*,?\s*)?(?:\*\s*as\s+([\w$]+)\s*|\{([^}]*)\}\s*)?(?:from\s*)?("[^"\n]*"|'[^'\n]*')[ \t]*;?/;
-
-/**
- * @typedef {object} ImportStatement
- * @property {string} lead The blank space and comments before it.
- * @property {string | undefined} defaultName Its default import's local name.
- * @property {string | undefined} namespaceName Its namespace import's local name.
- * @property {string[] | undefined} named Its named imports, as written: `a` or `a as b`.
- * @property {string} from The module, quoted as written.
- */
-
-/**
- * Reads the import statements a bundle starts with. esbuild writes an ES
- * module's imports of the packages left out of it first, before any code.
- *
- * @param {string} code
- * @returns {{ statements: ImportStatement[], rest: string }} The statements,
- *   and the code after them.
- */
-function leadingImports(code) {
-  /** @type {ImportStatement[]} */
-  const statements = [];
-  let rest = code;
-  for (;;) {
-    const match = IMPORT_STATEMENT.exec(rest);
-    if (!match) {
-      return { statements, rest };
-    }
-    const [text, lead = "", defaultName, namespaceName, named, from = ""] = match;
-    statements.push({
-      lead,
-      defaultName,
-      namespaceName,
-      named:
-        named === undefined
-          ? undefined
-          : named
-              .split(",")
-              .map((name) => name.trim())
-              .filter(Boolean),
-      from,
-    });
-    rest = rest.slice(text.length);
-  }
-}
-
-/** The local name of a named import: `b` in `a as b`, and `a` in `a`. */
-const localName = (/** @type {string} */ named) => named.split(/\s+as\s+/).pop() ?? named;
-
-/**
- * Removes, from a bundle esbuild wrote, the names it imports from a package
- * left out of the bundle and never uses.
- *
- * esbuild drops a name a file imports and doesn't use, but only as it reads
- * that file. A name whose every use was then tree-shaken away stays in the
- * import statement. So a scenario that uses one name of a shared chunk
- * carried the chunk's whole list of names from, say, `@hussmartinez/sdk-core`:
- * a floor grew when the chunk imported one more, with no code added to what
- * the import keeps (ADR 0056). An application never pays for that list: its
- * bundler resolves the package, and the names are gone.
- *
- * Which names are unused is esbuild's own answer: passed through it once
- * more, as one file, the bundle comes back without them. That copy is only
- * read for its imports' names. The bundle that's measured is the one esbuild
- * built, with those names cut out of its import statements, and a statement
- * left with none removed. Nothing else in it is touched, so its size can
- * only go down.
- *
- * The copy is read as JavaScript, which the bundle is. Read as TypeScript,
- * `a<b>(c)` is a call with a type argument rather than two comparisons, and
- * a name used only as that `b` would be cut: a floor that measures too
- * small hides the leaks it exists to catch.
- *
- * If the bundle can't be read, it's returned as it is.
- *
- * @param {Pick<typeof import("esbuild"), "transform">} esbuild
- * @param {string} code The bundle, as an ES module.
- * @returns {Promise<string>}
- */
-async function withoutUnusedImports(esbuild, code) {
-  const { statements, rest } = leadingImports(code);
-  if (
-    statements.every(
-      ({ defaultName, namespaceName, named }) => !(defaultName || namespaceName || named),
-    )
-  ) {
-    return code;
-  }
-  /** @type {Set<string>} */
-  let used;
-  try {
-    // Syntax only: that's what drops an unused import. Local names stay as
-    // they are, so they can be matched.
-    const elided = await esbuild.transform(code, {
-      loader: "js",
-      format: "esm",
-      minifySyntax: true,
-    });
-    used = new Set(
-      leadingImports(elided.code).statements.flatMap(({ defaultName, namespaceName, named }) => [
-        ...(defaultName ? [defaultName] : []),
-        ...(namespaceName ? [namespaceName] : []),
-        ...(named ?? []).map(localName),
-      ]),
-    );
-  } catch {
-    return code;
-  }
-  const minified = !/^import /.test(code.trimStart()) || !code.includes("\n");
-  const kept = statements.flatMap(({ lead, defaultName, namespaceName, named, from }) => {
-    if (!(defaultName || namespaceName || named)) {
-      // A bare import, for the module's side effects: as it was.
-      return [`${lead}import${minified ? "" : " "}${from};`];
-    }
-    const names = (named ?? []).filter((name) => used.has(localName(name)));
-    const clauses = [
-      ...(defaultName && used.has(defaultName) ? [defaultName] : []),
-      ...(namespaceName && used.has(namespaceName)
-        ? [minified ? `*as ${namespaceName}` : `* as ${namespaceName}`]
-        : []),
-      ...(names.length > 0 ? [minified ? `{${names.join(",")}}` : `{ ${names.join(", ")} }`] : []),
-    ];
-    if (clauses.length === 0) {
-      return [];
-    }
-    const clause = clauses.join(minified ? "," : ", ");
-    const spaced = minified && /[}]$/.test(clause) ? "" : " ";
-    const before = minified && /^[{*]/.test(clause) ? "" : " ";
-    return [`${lead}import${before}${clause}${spaced}from${minified ? "" : " "}${from};`];
-  });
-  return kept.join("") + rest;
 }
 
 /**
@@ -477,6 +343,8 @@ async function bundle(entry, imports, minify) {
       bundle: true,
       minify,
       format: "esm",
+      // As importBudget's check: without the package's own tsconfig.json.
+      tsconfigRaw: "{}",
       treeShaking: true,
       write: false,
       logLevel: "silent",
