@@ -60,7 +60,7 @@ CI runs on a machine doing nothing else, so its times are each test's own. From 
 | learn-sdk | 1.0 s | the player's summary | 15 in 24 s, 36 in 15 s |
 
 - **Ordinary browser tests take a few seconds:** five of the seven repositories' slowest is under 7 s.
-- **Two are long by design,** and are the kind that keeps a limit of its own: image-sdk's waits for a 30 s deadline to pass, and video-sdk's decodes a real file through the element.
+- **Two are long by design,** and are the kind that keeps a limit of its own: image-sdk's waits for a 30 s deadline to pass, and video-sdk's opens a real video file through the element.
 - **The end-to-end logs give totals, not each test's time:** Playwright's reporter in CI doesn't print them. Every run averages under 2.5 s a test.
 
 ### Where tests run now
