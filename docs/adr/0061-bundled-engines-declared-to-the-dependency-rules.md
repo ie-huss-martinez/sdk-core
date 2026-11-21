@@ -75,7 +75,7 @@ export default defineDependencyRules({
 
 ### What it enforces
 
-- **An engine is imported only from its folder.** Everywhere else in `src/`, `not-to-dev-dep` applies as it does today.
+- **An engine is imported only from its folder, as a value or as a type.** It's a rule of its own, by the engine's name, and it doesn't make `not-to-dev-dep`'s exception for type-only imports. An engine's types in another layer would tie that layer to the engine, and in the package's public types they'd name a package that applications don't have. Everywhere else in `src/`, `not-to-dev-dep` applies as it does today.
 - **The folder is under `src/adapters/` or `src/workers/`.** Anything else is refused when the configuration loads: engines are wrapped by adapters ([ADR 0008](0008-ports-adapters-and-session.md)) and run in workers ([ADR 0028](0028-third-party-engines.md)).
 - **One folder per entry, as narrow as it can be:** the adapter that wraps the engine, not all adapters. An engine that two folders import gets two entries, so each is written down.
 - **Each declared engine is an exactly pinned `devDependency`.** The function reads the repository's `package.json`, and refuses an engine that's missing, that's also in `dependencies`, `peerDependencies` or `optionalDependencies`, or whose version is a range or a tag. A bundled engine is never something an application installs, so it's in `devDependencies` and nowhere else. That also keeps the folder rule whole: `not-to-dev-dep` leaves peer dependencies alone, so an engine listed as one could be imported from anywhere. A `catalog:` entry counts by the version its catalog gives, in `pnpm-workspace.yaml`, which is how every SDK pins its engines today. "Bundled from an exact version" then has a check behind it.
@@ -91,7 +91,7 @@ export default defineDependencyRules({
 Each SDK replaces its copy when it next takes an `sdk-config` release, in its own pull request:
 
 - **image-sdk and video-sdk:** one entry each, with the folder they have today. No change in what's allowed.
-- **pdf-sdk:** names the folder that wraps each engine, `adapters/pdfjs` and `adapters/qpdf`, in place of all adapters and workers. Nothing it imports today falls outside those two.
+- **pdf-sdk:** names the folder that wraps each engine, `adapters/pdfjs` and `adapters/qpdf`, in place of all adapters and workers. No code it has today imports an engine from outside those two. Its declaration file for pdf.js's minified builds, `src/types/modules.d.ts`, re-exports the engine's types: it moves beside the adapter, or `types` gets an entry of its own.
 - **audio-sdk:** deletes its stylesheet exception, and goes back to the preset as it is.
 
 Copies keep working until then: the preset's rule names don't change in this release.
