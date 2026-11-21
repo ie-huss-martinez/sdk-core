@@ -45,6 +45,8 @@ function configurationComments(parser, result) {
       parser.parse(source, {
         comment: true,
         loc: true,
+        // The family's source is ES modules.
+        sourceType: "module",
         ecmaFeatures: { jsx: /\.[cm]?[jt]sx$/.test(result.filePath) },
         filePath: result.filePath,
       }).comments ?? [];
