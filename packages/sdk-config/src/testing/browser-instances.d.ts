@@ -12,10 +12,14 @@
 export function chromiumDiagnosticArgs(dir: string): string[];
 /**
  * Returns Vitest's `browser.instances` for these browsers, all with
- * `@vitest/browser-playwright`. Without `HM_BROWSER_DIAGNOSTICS`, they're the
- * plain instances, so nothing changes. With it set to a folder, Chromium
- * writes a net log there and its console to stderr. Firefox and WebKit are
- * never changed.
+ * `@vitest/browser-playwright`.
+ *
+ * - **In the browser test image,** every browser launches with the family's
+ *   font rules (ADR 0062), so text is drawn as in screenshots.
+ * - **With `HM_BROWSER_DIAGNOSTICS` set to a folder,** Chromium writes a net
+ *   log there and its console to stderr. Firefox and WebKit never get those
+ *   flags.
+ * - **Otherwise they're the plain instances,** so nothing changes.
  *
  * Replace `instances: browsers.map((browser) => ({ browser }))` with it, and
  * keep `provider: playwright()`.
@@ -34,8 +38,8 @@ export function chromiumDiagnosticArgs(dir: string): string[];
  *
  * @param {readonly BrowserName[]} browsers The browsers to run.
  * @param {{ env?: Record<string, string | undefined> }} [options] The
- *   environment to read `HM_BROWSER_DIAGNOSTICS` from, `process.env` by
- *   default.
+ *   environment to read `HM_BROWSER_DIAGNOSTICS` and `HM_VISUAL_CONTAINER`
+ *   from, and to launch the browsers with, `process.env` by default.
  * @returns {Array<{ browser: BrowserName, provider: ReturnType<typeof playwright> }>}
  */
 export function browserInstances(browsers: readonly BrowserName[], { env }?: {

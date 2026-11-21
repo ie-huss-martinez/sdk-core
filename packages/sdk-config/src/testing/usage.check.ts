@@ -28,6 +28,12 @@ import {
   readConformance,
   schemaValidator,
 } from "@hussmartinez/sdk-config/testing/conformance";
+import {
+  FONT_CONFIG_ENV,
+  FONT_CONFIG_FILE,
+  fontLaunchEnv,
+  usesFontRules,
+} from "@hussmartinez/sdk-config/testing/fonts";
 import requireBrowserTestImage, {
   ALLOW_HOST_ENV,
   browserTestImageProblem,
@@ -124,4 +130,13 @@ export function timeouts(): number {
   const browser: { testTimeout: number; hookTimeout: number } = { ...browserTimeouts };
   const playwright: { timeout: number; expect: { timeout: number } } = { ...endToEndTimeouts };
   return unit.testTimeout + browser.hookTimeout + playwright.timeout + playwright.expect.timeout;
+}
+
+/** The font rules, as an end-to-end configuration and a runner of a repository's own would use them. */
+export function fonts(): { use: { launchOptions: { env: Record<string, string> } } } {
+  const variable: "FONTCONFIG_FILE" = FONT_CONFIG_ENV;
+  const file: string = FONT_CONFIG_FILE;
+  const applies: boolean = usesFontRules({ HM_VISUAL_CONTAINER: "1" });
+  const env: Record<string, string> = fontLaunchEnv();
+  return { use: { launchOptions: { env: applies ? env : { ...env, [variable]: file } } } };
 }

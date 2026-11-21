@@ -5,6 +5,7 @@
 //
 // Test code only: this entry is never imported by published runtime code.
 
+import { fontLaunchEnv } from "./fonts.js";
 import { endToEndTimeouts } from "./timeouts.js";
 
 /** The environment variable the browser test image sets, locally through hm-test-visual and in CI's verify job. */
@@ -96,6 +97,7 @@ export async function applyVisualVariant(page, variant) {
  * - Screenshots without animations or carets, compared with
  *   {@link visualComparison}: no pixel may be further from its baseline than
  *   one level on every channel is.
+ * - Text in the family's fonts, with a real bold face (ADR 0062).
  * - Baselines in `e2e/visual/__screenshots__/<spec>/`, named
  *   `<name>-chromium-linux.png`, and never written by a plain run.
  *
@@ -159,6 +161,8 @@ export function defineVisualConfig({ baseURL, webServer }) {
       colorScheme: "light",
       reducedMotion: "reduce",
       trace: "retain-on-failure",
+      // The family's fonts, with a real bold face (ADR 0062).
+      launchOptions: { env: fontLaunchEnv() },
     },
     projects: [{ name: "chromium" }],
     webServer,

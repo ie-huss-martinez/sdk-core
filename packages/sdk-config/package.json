@@ -51,6 +51,10 @@
       "types": "./src/testing/conformance.d.ts",
       "default": "./src/testing/conformance.js"
     },
+    "./testing/fonts": {
+      "types": "./src/testing/fonts.d.ts",
+      "default": "./src/testing/fonts.js"
+    },
     "./testing/require-image": {
       "types": "./src/testing/require-image.d.ts",
       "default": "./src/testing/require-image.js"

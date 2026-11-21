@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { FONT_CONFIG_FILE } from "./fonts.js";
 import {
   applyVisualVariant,
   defineVisualConfig,
@@ -49,6 +50,19 @@ describe("defineVisualConfig", () => {
       "{testDir}/__screenshots__/{testFilePath}/{arg}-{projectName}-{platform}{ext}",
     );
     expect(config.webServer).toBe(webServer);
+  });
+
+  it("launches Chromium with the family's font rules, in a whole environment (ADR 0062)", () => {
+    vi.stubEnv("HM_VISUAL_CONTAINER", "1");
+    vi.stubEnv("HM_FONT_PROBE", "kept");
+
+    const { use } = defineVisualConfig({ baseURL: "http://localhost:4320", webServer });
+
+    const env = /** @type {Record<string, string>} */ (use?.launchOptions?.env);
+    expect(env["FONTCONFIG_FILE"]).toBe(FONT_CONFIG_FILE);
+    // The rest of the process's environment is still there.
+    expect(env["HM_FONT_PROBE"]).toBe("kept");
+    expect(env["HM_VISUAL_CONTAINER"]).toBe("1");
   });
 });
 

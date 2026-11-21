@@ -24,6 +24,7 @@ export function applyVisualVariant(page: import("@playwright/test").Page, varian
  * - Screenshots without animations or carets, compared with
  *   {@link visualComparison}: no pixel may be further from its baseline than
  *   one level on every channel is.
+ * - Text in the family's fonts, with a real bold face (ADR 0062).
  * - Baselines in `e2e/visual/__screenshots__/<spec>/`, named
  *   `<name>-chromium-linux.png`, and never written by a plain run.
  *
