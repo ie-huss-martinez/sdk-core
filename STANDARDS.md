@@ -167,6 +167,7 @@ Programmatic control goes through a ref handle, such as `open(file)`, `export()`
   - tool calls are never executed automatically: running one needs a host handler for its name, and a `maxSteps` limit;
   - `ai-core`'s tests replay recorded provider responses, SDKs test against their fake provider, and CI never calls a provider.
 - **Third-party engines are proven offline** ([ADR 0028](docs/adr/0028-third-party-engines.md)): every data file an engine needs, such as character maps, fonts, colour profiles, decoders or models, comes from the SDK's asset provider, never from the engine's default URLs; fallbacks that load code by URL aren't bundled; unknown asset requests fail closed; and end-to-end fixtures exercise every data path the engines have.
+- **A bundled engine is declared** ([ADR 0061](docs/adr/0061-bundled-engines-declared-to-the-dependency-rules.md)): an engine built into the package is an exactly pinned `devDependency` and nothing else. The SDK names it with `sdk-config`'s `defineDependencyRules`, in entries of one folder each, under `src/adapters/` or `src/workers/`: only those folders may import it, as a value or a type. It runs `hm-check-bundled-engines` in `verify`. An SDK adopts both in its own pull request, once an `sdk-config` release has them; until then its own copy of the exception stays.
 - **Supply chain:**
   - minimal, justified dependencies;
   - committed lockfiles and allowlisted install scripts;

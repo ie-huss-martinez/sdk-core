@@ -66,3 +66,4 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0058](0058-heading-levels-in-editors.md) | Heading levels in editors | Accepted; refines [0014](0014-accessibility-and-translatable-text.md) |
 | [0059](0059-interface-text-outside-the-server-safe-entry.md) | Interface text stays out of the server-safe entry | Accepted; refines [0019](0019-message-catalogues.md) and [0046](0046-ui-text-through-the-sdk.md) |
 | [0060](0060-leaving-inlined-workers-out-of-a-self-hosted-build.md) | Leaving inlined workers out of a self-hosted build | Accepted; refines [0011](0011-worker-messaging-and-assets.md) and [0038](0038-self-hosted-assets-and-worker-version.md) |
+| [0061](0061-bundled-engines-declared-to-the-dependency-rules.md) | Bundled engines are declared to the dependency rules | Accepted; refines [0008](0008-ports-adapters-and-session.md) and [0028](0028-third-party-engines.md) |
