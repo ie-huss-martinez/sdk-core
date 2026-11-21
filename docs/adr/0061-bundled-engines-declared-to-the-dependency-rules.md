@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-21
 - **Refines:** [ADR 0008](0008-ports-adapters-and-session.md)'s layer rules as `sdk-config`'s dependency-cruiser preset enforces them, and [ADR 0028](0028-third-party-engines.md), by saying how an SDK tells the preset which engines it bundles
+- **Corrected:** 2026-11-21, on running the rules against the SDKs' sources: one pdf-sdk worker imports an engine, and its declaration file doesn't need to move
 
 ## Context
 
@@ -37,6 +38,7 @@ Two more exceptions are copied the same way, on the rule that every import must 
 - **They've already drifted.** pdf-sdk lets any adapter or worker import any of its engines. image-sdk and video-sdk each allow one folder. Two rule names for one idea.
 - **Nothing checks what they assume.** Every SDK's own record says its engine is exactly pinned. All five are today, through the workspace's catalog: `pdfjs-dist` 6.5.438, `pdfstudio` 0.4.0, `@cantoo/pdf-lib` 2.11.1, `gifenc` 1.0.3 and `mediabunny` 1.65.2. No check says so: a range such as `^1.2.0` would pass.
 - **pdf-sdk's wide allowance isn't needed.** Its engines are imported from `src/adapters/pdfjs/` and `src/adapters/qpdf/` only. No worker imports one directly.
+  - **Corrected, 2026-11-21:** one worker does. `src/workers/pdfjs.worker.ts` imports pdf.js's own worker build, `pdfjs-dist/build/pdf.worker.min.mjs`, for its side effects. The search behind this record looked for `from "pdfjs-dist…"`, which a bare `import "…"` doesn't match. The allowance is still wider than it needs to be: no other worker imports an engine, and no adapter outside those two.
 - **The next SDK copies one of the three,** and picks whichever it reads first.
 
 ## Options
@@ -102,6 +104,7 @@ Each SDK replaces its copy when it next takes an `sdk-config` release, in its ow
 
 - **image-sdk and video-sdk:** one entry each, with the folder they have today. No change in what's allowed.
 - **pdf-sdk:** names the folder that wraps each engine, `adapters/pdfjs` and `adapters/qpdf`, in place of all adapters and workers. No code it has today imports an engine from outside those two. Its declaration file for pdf.js's minified builds, `src/types/modules.d.ts`, re-exports the engine's types: it moves into `src/adapters/pdfjs/`, beside the code that uses it.
+  - **Corrected, 2026-11-21:** it needs a third entry, for `pdfjs-dist` from its worker: `workers` as its files are laid out today, or a folder of the worker's own if it moves there. With that entry, the rules report nothing in its sources. Its declaration file stays where it is: the rules don't report it, because a `declare module` block in a declaration file isn't an import of the engine.
 - **audio-sdk:** deletes its stylesheet exception, and goes back to the preset as it is.
 
 Copies keep working until then: the preset's rule names don't change in this release.

@@ -18,6 +18,7 @@ Install, as devDependencies, the tools for the presets you use. They are optiona
 | `size`, `hm-size` | Nothing for `entryFiles` and `entryBudget`; `@size-limit/esbuild` for `importBudget`'s checks; `vite` for minified sizes; `esbuild` for import costs |
 | `stylelint` | `stylelint` |
 | `dependency-cruiser`, `hm-lint-deps` | `dependency-cruiser` |
+| `hm-check-bundled-engines` | Nothing |
 | `commitlint` | `@commitlint/cli` |
 | `lint-staged` | `lint-staged`, plus `secretlint`, `@biomejs/biome` and `stylelint`, which it runs |
 | `secretlint` | `secretlint` |
@@ -115,6 +116,70 @@ export { default } from "@hussmartinez/sdk-config/dependency-cruiser";
 ```
 
 It leaves out the repository's own build output and coverage (`dist/`, `temp/` and `coverage/`, at the root or in a workspace package under `packages/` or `apps/`) and fixtures under `src/`, `test/` or `tests/`. A dependency's files are always checked, including those in its `node_modules/<package>/dist/`, where most packages, such as `@hussmartinez/ui`, keep their code.
+
+#### Stylesheets as URLs, in tests
+
+Browser tests load a family package's stylesheet as a URL, with Vite's `?url`: `import url from "@hussmartinez/ui/styles.css?url"`. dependency-cruiser can't resolve that, so the preset allows it from test code, which is test files and anything under `test/` or `tests/`. Anywhere else it's reported, as `stylesheet-url-only-in-tests`. If your `.dependency-cruiser.js` has its own `STYLESHEET_URLS` exception, delete it.
+
+#### Bundled engines and virtual modules: `defineDependencyRules`
+
+The preset forbids published source from importing a `devDependency` (`not-to-dev-dep`). An SDK that builds a third-party engine into its package does so on purpose: the engine is an exactly pinned `devDependency`, and applications never install it. Declare it, with the one folder that wraps it ([ADR 0061](../../docs/adr/0061-bundled-engines-declared-to-the-dependency-rules.md)):
+
+```js
+// .dependency-cruiser.js
+import { defineDependencyRules } from "@hussmartinez/sdk-config/dependency-cruiser";
+
+export default defineDependencyRules({
+  bundledEngines: [
+    { packages: ["pdfjs-dist"], from: "adapters/pdfjs" },
+    { packages: ["pdfstudio", "@cantoo/pdf-lib"], from: "adapters/qpdf" },
+  ],
+  virtualModules: ["virtual:hm-pdfjs-data"],
+});
+```
+
+- **`bundledEngines`:** each entry names packages, exactly, and one folder below `src/`, under `adapters/` or `workers/`. An engine that two folders import gets two entries, such as an adapter and the worker that loads the engine's own worker build.
+  - **Only that folder imports the engine,** as a value or as a type. Anywhere else in `src/`, tests aside, it's reported as `engine-only-from-its-folder`. An engine's types in another layer would tie that layer to the engine, and in the package's public types they'd name a package applications don't have.
+  - **That folder imports no other `devDependency`:** a build tool there is reported as `engine-folder-only-its-engines`.
+  - **A declared folder inside another keeps both:** with `pdfjs-dist` from `workers` and `gifenc` from `workers/gif`, files in `workers/gif` may import either, and the rest of `workers` only `pdfjs-dist`.
+  - **A folder's name is text:** a `.` in it matches only a dot.
+- **`virtualModules`:** exact names of modules the build generates, which can't be resolved from disk.
+- **Names are names, never patterns.** A folder outside `adapters/` and `workers/`, or a package written as a pattern, is a `TypeError` when the configuration loads.
+- **It only builds rules.** It reads no file, so loading the configuration stays cheap. Pinning is checked by `hm-check-bundled-engines`, below.
+- **With nothing to declare,** keep `export { default } from …`: `defineDependencyRules()` returns the same rules.
+
+**Replacing a copied exception:** if your `.dependency-cruiser.js` looks `not-to-dev-dep` up by name and splits it for your engines, delete that and declare the engines instead. Name the narrowest folder: the adapter that wraps the engine, not all adapters.
+
+#### `hm-check-bundled-engines`
+
+Fails when a declared engine isn't an exactly pinned `devDependency`. Run it in `verify`, in a package that declares engines:
+
+```json
+{ "scripts": { "check:bundled-engines": "hm-check-bundled-engines" } }
+```
+
+It reads the engines from `.dependency-cruiser.js`, and checks each against `package.json`:
+
+- **it's in `devDependencies`,** and not also in `dependencies`, `peerDependencies` or `optionalDependencies`: a bundled engine is never something an application installs;
+- **its version is one exact version,** such as `1.2.3`: not a range, a tag, an alias or a URL. A `catalog:` version counts by what the workspace's catalog gives, in the nearest `pnpm-workspace.yaml`.
+
+```text
+Bundled engines must be exactly pinned devDependencies (sdk-core ADR 0061):
+  gifenc is "^1.0.3" in the workspace's default catalog, which isn't one exact version, such as 1.2.3.
+  mediabunny is in peerDependencies. A bundled engine is built into the package, so it's in devDependencies and nowhere else.
+```
+
+With no engines declared, it passes and says so.
+
+```text
+Usage: hm-check-bundled-engines [--config <file>]
+```
+
+| Exit code | Meaning |
+|---|---|
+| 0 | Every declared engine is exactly pinned, or none is declared |
+| 1 | A declared engine isn't |
+| 2 | Usage error, or a file that can't be read |
 
 #### `hm-lint-deps`
 
