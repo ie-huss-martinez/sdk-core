@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -218,20 +218,142 @@ describe("entryBudget and importBudget", () => {
         imports: "{ a }",
         limit: "1 kB",
       });
-      const given = { bundle: true, external: ["react"], define: { VERSION: '"1"' } };
+      const theirs = { name: "theirs", setup() {} };
+      const given = {
+        bundle: true,
+        external: ["react"],
+        define: { VERSION: '"1"' },
+        plugins: [theirs],
+      };
+      const unusedImports = expect.objectContaining({ name: "hm-unused-imports" });
 
       expect(plain.modifyEsbuildConfig(given)).toEqual({
         bundle: true,
         external: ["react"],
         format: "esm",
         define: { VERSION: '"1"', "process.env.NODE_ENV": '"production"' },
+        // A plugin already there stays, ahead of ours.
+        plugins: [theirs, unusedImports],
       });
-      expect(given).toEqual({ bundle: true, external: ["react"], define: { VERSION: '"1"' } });
+      expect(given).toEqual({
+        bundle: true,
+        external: ["react"],
+        define: { VERSION: '"1"' },
+        plugins: [theirs],
+      });
       expect(check.modifyEsbuildConfig(given)).toEqual({
         bundle: true,
         external: ["react"],
         format: "iife",
         define: { VERSION: '"1"', "process.env.NODE_ENV": '"production"', __DEV__: "false" },
+        plugins: [theirs, unusedImports],
+      });
+      expect(plain.modifyEsbuildConfig({ bundle: true }).plugins).toEqual([unusedImports]);
+    });
+
+    describe("with names a shared chunk imports from a package left out of the bundle", () => {
+      /**
+       * A package whose shared chunk imports `names` from sdk-core and uses
+       * each in a function of its own. A scenario that imports only the
+       * error class keeps none of those functions.
+       *
+       * @param {string[]} names What the chunk imports beside `SdkError`.
+       */
+      const sharing = (names) => ({
+        "dist/index.js": 'export { ImageError, helpers } from "./shared/chunk.js";\n',
+        "dist/shared/chunk.js": [
+          `import { ${["SdkError", ...names].join(", ")} } from "@hussmartinez/sdk-core";`,
+          'import { useState } from "react";',
+          "export class ImageError extends SdkError {}",
+          `export const helpers = () => [useState, ${names.join(", ")}];`,
+        ].join("\n"),
+      });
+
+      /**
+       * Runs a check's build as `@size-limit/esbuild` does: from its own
+       * starting configuration, written to a folder.
+       *
+       * @param {string} root The package.
+       * @param {string} [imports] The import clause.
+       * @returns {Promise<string>} The bundle, as written.
+       */
+      async function written(root, imports = "{ ImageError }") {
+        const { build } = await import("esbuild");
+        const entry = join(root, "dist/index.js");
+        const check = importBudget({
+          name: "x",
+          entry,
+          imports,
+          limit: "1 kB",
+        });
+        const outdir = join(root, "out");
+        await build(
+          check.modifyEsbuildConfig({
+            allowOverwrite: true,
+            bundle: true,
+            stdin: {
+              contents: `import ${imports} from ${JSON.stringify(entry)};\nconsole.log(${importedNames(imports).join(", ")});\n`,
+              resolveDir: dirname(entry),
+            },
+            external: check.ignore,
+            metafile: true,
+            minifyIdentifiers: true,
+            minifySyntax: true,
+            minifyWhitespace: true,
+            outdir,
+            treeShaking: true,
+            write: true,
+            logLevel: "silent",
+          }),
+        );
+        return (await readFile(join(outdir, "stdin.js"), "utf8")).trim();
+      }
+
+      it("leaves out the names the scenario never uses, in the check's written bundle", async () => {
+        const bundle = await written(
+          await built(sharing(["cleanFileName", "MAX_FILE_NAME_LENGTH"])),
+        );
+
+        expect(bundle).toMatch(/^import\{SdkError as \w+\}from"@hussmartinez\/sdk-core";/);
+        expect(bundle).not.toContain("cleanFileName");
+        expect(bundle).not.toContain("MAX_FILE_NAME_LENGTH");
+        // An import left with no name it uses goes altogether.
+        expect(bundle).not.toContain("react");
+      });
+
+      it("measures the same whatever else the chunk imports from that package", async () => {
+        const one = await built(sharing([]));
+        const three = await built(sharing(["cleanFileName", "MAX_FILE_NAME_LENGTH"]));
+        const nine = await built(
+          sharing(["a", "b", "c", "d", "e", "f", "createWorkerClient", "exposeWorker"]),
+        );
+
+        const cost = async (/** @type {string} */ root) =>
+          (await importCost(join(root, "dist/index.js"), "{ ImageError }")).size;
+        expect(await cost(three)).toBe(await cost(one));
+        expect(await cost(nine)).toBe(await cost(one));
+        // The written bundles are the same length. Their bytes can differ in
+        // which letters esbuild gave the names that are left, which it chose
+        // while the dropped names were still there.
+        const length = (await written(one)).length;
+        expect((await written(three)).length).toBe(length);
+        expect((await written(nine)).length).toBe(length);
+        expect(await written(nine)).toMatch(
+          /^import\{SdkError as (\w+)\}from"@hussmartinez\/sdk-core";var \w+=class extends \1\{\};console\.log\(\w+\);$/,
+        );
+      });
+
+      it("still counts a name the scenario does use", async () => {
+        const root = await built(sharing(["cleanFileName"]));
+        const entry = join(root, "dist/index.js");
+
+        const floor = await importCost(entry, "{ ImageError }");
+        const all = await importCost(entry, "{ ImageError, helpers }");
+
+        expect(all.size).toBeGreaterThan(floor.size);
+        expect(await written(root, "{ helpers }")).toMatch(
+          /import\{cleanFileName as \w+\}from"@hussmartinez\/sdk-core";/,
+        );
       });
     });
   });

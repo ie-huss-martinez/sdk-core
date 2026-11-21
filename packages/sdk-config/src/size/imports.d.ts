@@ -194,6 +194,28 @@ export function keptCode(entry: string, imports: string): Promise<KeptCode>;
  * is counted, including a third-party runtime dependency.
  */
 export const HOST_PACKAGES: readonly string[];
+export type ImportStatement = {
+    /**
+     * The blank space and comments before it.
+     */
+    lead: string;
+    /**
+     * Its default import's local name.
+     */
+    defaultName: string | undefined;
+    /**
+     * Its namespace import's local name.
+     */
+    namespaceName: string | undefined;
+    /**
+     * Its named imports, as written: `a` or `a as b`.
+     */
+    named: string[] | undefined;
+    /**
+     * The module, quoted as written.
+     */
+    from: string;
+};
 export type ImportCost = {
     /**
      * The import clause that was measured.
