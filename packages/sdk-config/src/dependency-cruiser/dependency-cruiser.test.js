@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cruise } from "dependency-cruiser";
 import { describe, expect, it } from "vitest";
-import config from "./index.js";
+import config, { bundledEnginesOf, defineDependencyRules } from "./index.js";
 
 /**
  * Cruises a fixture package with the preset and lists each violation as
@@ -325,5 +325,223 @@ describe("dependency-cruiser preset", () => {
 
   it("reports cycles", async () => {
     await expect(violations("cycle")).resolves.toEqual(["no-circular: a.ts -> b.ts"]);
+  });
+});
+
+describe("defineDependencyRules", () => {
+  /** @param {string} name */
+  const installed = (name) => ({
+    [`node_modules/${name}/package.json`]: JSON.stringify({
+      name,
+      type: "module",
+      main: "index.js",
+      types: "index.d.ts",
+    }),
+    [`node_modules/${name}/index.js`]: "export const run = 1;\n",
+    [`node_modules/${name}/index.d.ts`]:
+      "export declare const run: number;\nexport type Frame = number;\n",
+  });
+
+  /** A package with two engines, a test tool, and imports of each from the right and the wrong places. */
+  const FILES = {
+    "package.json": JSON.stringify({
+      name: "engine-sdk",
+      type: "module",
+      devDependencies: { gifenc: "1.0.3", "@cantoo/pdf-lib": "2.11.1", tester: "1.0.0" },
+    }),
+    ...installed("gifenc"),
+    ...installed("@cantoo/pdf-lib"),
+    ...installed("tester"),
+    // The engine's own folder: the engine, as a value and as a type.
+    "src/adapters/gif/encoder.ts":
+      'import { run } from "gifenc";\nimport type { Frame } from "gifenc";\nexport const encode: Frame = run;\n',
+    // The engine's folder still can't import a test tool, or another folder's engine.
+    "src/adapters/gif/leak.ts":
+      'import { run } from "tester";\nimport { run as other } from "@cantoo/pdf-lib";\nexport const leak = [run, other];\n',
+    "src/adapters/gif/encoder.test.ts":
+      'import { run } from "tester";\nimport { encode } from "./encoder.ts";\nrun;\nencode;\n',
+    // Another adapter, a worker and the core: none may import the engine, even as a type.
+    "src/adapters/png/encoder.ts": 'import { run } from "gifenc";\nexport const png = run;\n',
+    "src/workers/job.worker.ts":
+      'import type { Frame } from "gifenc";\nexport const frame: Frame = 1;\n',
+    "src/core/model/frame.ts": 'import type { Frame } from "gifenc";\nexport type Model = Frame;\n',
+    // A test elsewhere may, as it may import any devDependency.
+    "src/core/model/frame.test.ts": 'import { run } from "gifenc";\nrun;\n',
+    // The second engine, declared for two folders.
+    "src/adapters/pdf/write.ts":
+      'import { run } from "@cantoo/pdf-lib";\nexport const write = run;\n',
+    "src/workers/pdf/job.ts": 'import { run } from "@cantoo/pdf-lib";\nexport const job = run;\n',
+    // Modules the build generates, and a stylesheet as a URL.
+    "src/adapters/pdf/data.ts":
+      'import data from "virtual:hm-data";\nimport other from "virtual:hm-data-2";\nexport const all = [data, other];\n',
+    "src/react/Editor.tsx":
+      'import url from "@hussmartinez/ui/styles.css?url";\nexport const editor = url;\n',
+    "src/react/Editor.browser.test.tsx":
+      'import url from "@hussmartinez/ui/styles.css?url";\nurl;\n',
+    "test/react.tsx":
+      'import url from "@hussmartinez/ui/styles.css?url";\nexport const page = url;\n',
+  };
+
+  /**
+   * @param {import("dependency-cruiser").IConfiguration} rules
+   * @returns {Promise<string[]>} Each violation, as `rule: from -> to`.
+   */
+  async function cruised(rules) {
+    const baseDir = await mkdtemp(join(tmpdir(), "hm-engine-sdk-"));
+    try {
+      for (const [path, content] of Object.entries(FILES)) {
+        await mkdir(dirname(join(baseDir, path)), { recursive: true });
+        await writeFile(join(baseDir, path), content);
+      }
+      const { output } = await cruise(["src", "test"], {
+        ...rules.options,
+        baseDir,
+        ruleSet: { forbidden: rules.forbidden ?? [] },
+        validate: true,
+      });
+      if (typeof output === "string") {
+        throw new TypeError("expected a structured cruise result");
+      }
+      return output.summary.violations
+        .map(({ rule, from, to }) => `${rule.name}: ${from} -> ${to}`)
+        .sort();
+    } finally {
+      await rm(baseDir, { recursive: true, force: true });
+    }
+  }
+
+  const declared = () =>
+    defineDependencyRules({
+      bundledEngines: [
+        { packages: ["gifenc"], from: "adapters/gif" },
+        { packages: ["@cantoo/pdf-lib"], from: "adapters/pdf" },
+        { packages: ["@cantoo/pdf-lib"], from: "workers/pdf" },
+      ],
+      virtualModules: ["virtual:hm-data"],
+    });
+
+  it("lets each engine's folder import it, and reports it everywhere else, even as a type", async () => {
+    expect(await cruised(declared())).toEqual([
+      // The folder's own engine is fine; another folder's engine and a test tool aren't.
+      "engine-folder-only-its-engines: src/adapters/gif/leak.ts -> node_modules/@cantoo/pdf-lib/index.js",
+      "engine-folder-only-its-engines: src/adapters/gif/leak.ts -> node_modules/tester/index.js",
+      "engine-only-from-its-folder: src/adapters/gif/leak.ts -> node_modules/@cantoo/pdf-lib/index.js",
+      "engine-only-from-its-folder: src/adapters/png/encoder.ts -> node_modules/gifenc/index.js",
+      // Type-only imports, which not-to-dev-dep lets through.
+      "engine-only-from-its-folder: src/core/model/frame.ts -> node_modules/gifenc/index.js",
+      "engine-only-from-its-folder: src/workers/job.worker.ts -> node_modules/gifenc/index.js",
+      "not-to-dev-dep: src/adapters/png/encoder.ts -> node_modules/gifenc/index.js",
+      // Only the virtual module that was named.
+      "not-to-unresolvable: src/adapters/pdf/data.ts -> virtual:hm-data-2",
+      // A stylesheet as a URL, outside test code.
+      "stylesheet-url-only-in-tests: src/react/Editor.tsx -> @hussmartinez/ui/styles.css?url",
+    ]);
+  });
+
+  it("is the preset when nothing is declared, where an engine is a devDependency like any other", async () => {
+    expect(defineDependencyRules().forbidden).toEqual(config.forbidden);
+    expect(defineDependencyRules({}).options).toBe(config.options);
+
+    const reported = await cruised(config);
+    expect(reported.filter((line) => line.startsWith("not-to-dev-dep:"))).toEqual([
+      "not-to-dev-dep: src/adapters/gif/encoder.ts -> node_modules/gifenc/index.js",
+      "not-to-dev-dep: src/adapters/gif/leak.ts -> node_modules/@cantoo/pdf-lib/index.js",
+      "not-to-dev-dep: src/adapters/gif/leak.ts -> node_modules/tester/index.js",
+      "not-to-dev-dep: src/adapters/pdf/write.ts -> node_modules/@cantoo/pdf-lib/index.js",
+      "not-to-dev-dep: src/adapters/png/encoder.ts -> node_modules/gifenc/index.js",
+      "not-to-dev-dep: src/workers/pdf/job.ts -> node_modules/@cantoo/pdf-lib/index.js",
+    ]);
+    // The stylesheet rule is the preset's own, with nothing declared.
+    expect(reported).toContain(
+      "stylesheet-url-only-in-tests: src/react/Editor.tsx -> @hussmartinez/ui/styles.css?url",
+    );
+    // Nothing is reported from test code: test files, and helpers under test/.
+    expect(reported.filter((line) => /: (?:test\/|\S+\.test\.)/.test(line))).toEqual([]);
+  });
+
+  it("keeps the engines it was given readable, and out of the configuration's own keys", () => {
+    const rules = declared();
+
+    expect(bundledEnginesOf(rules)).toEqual([
+      { packages: ["gifenc"], from: "adapters/gif" },
+      { packages: ["@cantoo/pdf-lib"], from: "adapters/pdf" },
+      { packages: ["@cantoo/pdf-lib"], from: "workers/pdf" },
+    ]);
+    expect(Object.keys(rules).sort()).toEqual(Object.keys(config).sort());
+    expect(JSON.parse(JSON.stringify(rules))).toEqual(
+      JSON.parse(JSON.stringify({ ...config, forbidden: rules.forbidden })),
+    );
+    expect(bundledEnginesOf(config)).toEqual([]);
+    expect(bundledEnginesOf(defineDependencyRules())).toEqual([]);
+    expect(bundledEnginesOf(undefined)).toEqual([]);
+    expect(bundledEnginesOf({ forbidden: [] })).toEqual([]);
+  });
+
+  it("doesn't change the preset it builds on", () => {
+    const before = JSON.stringify(config);
+    declared();
+    expect(JSON.stringify(config)).toBe(before);
+  });
+
+  it.each([
+    [
+      "a folder outside adapters and workers",
+      { packages: ["gifenc"], from: "core/model" },
+      /below src\/adapters\/ or src\/workers\//,
+    ],
+    [
+      "a folder with a pattern",
+      { packages: ["gifenc"], from: "adapters/.*" },
+      /below src\/adapters\//,
+    ],
+    [
+      "a folder that climbs out",
+      { packages: ["gifenc"], from: "adapters/../core" },
+      /below src\/adapters\//,
+    ],
+    ["no folder", { packages: ["gifenc"] }, /below src\/adapters\//],
+    [
+      "a package written as a pattern",
+      { packages: ["gif.*"], from: "adapters/gif" },
+      /isn't an npm package name/,
+    ],
+    [
+      "a package path",
+      { packages: ["gifenc/dist"], from: "adapters/gif" },
+      /isn't an npm package name/,
+    ],
+    ["no packages", { packages: [], from: "adapters/gif" }, /at least one package/],
+    ["packages that aren't a list", { packages: "gifenc", from: "adapters/gif" }, /list of names/],
+  ])("refuses %s", (_label, entry, message) => {
+    expect(() => defineDependencyRules({ bundledEngines: [/** @type {never} */ (entry)] })).toThrow(
+      TypeError,
+    );
+    expect(() => defineDependencyRules({ bundledEngines: [/** @type {never} */ (entry)] })).toThrow(
+      message,
+    );
+  });
+
+  it("refuses lists that aren't lists", () => {
+    expect(() => defineDependencyRules({ bundledEngines: /** @type {never} */ ({}) })).toThrow(
+      TypeError,
+    );
+    expect(() =>
+      defineDependencyRules({ virtualModules: /** @type {never} */ ("virtual:x") }),
+    ).toThrow(TypeError);
+    expect(() => defineDependencyRules({ virtualModules: [""] })).toThrow(TypeError);
+  });
+
+  it("matches a virtual module's name exactly, not as a pattern", () => {
+    const rule = defineDependencyRules({ virtualModules: ["virtual:a.b"] }).forbidden?.find(
+      ({ name }) => name === "not-to-unresolvable",
+    );
+    const { to } = /** @type {{ to: { pathNot?: string | string[] } }} */ (rule ?? { to: {} });
+    const patterns = [to.pathNot ?? []].flat().map((pattern) => new RegExp(pattern));
+    const allowed = (/** @type {string} */ path) => patterns.some((pattern) => pattern.test(path));
+
+    expect(allowed("virtual:a.b")).toBe(true);
+    expect(allowed("virtual:aXb")).toBe(false);
+    expect(allowed("virtual:a.b.c")).toBe(false);
+    expect(allowed("x-virtual:a.b")).toBe(false);
   });
 });

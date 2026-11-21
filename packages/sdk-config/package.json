@@ -15,6 +15,7 @@
   "type": "module",
   "bin": {
     "hm-check-api-reports": "./src/api-extractor/cli.js",
+    "hm-check-bundled-engines": "./src/bundled-engines/cli.js",
     "hm-check-hidden-unicode": "./src/hidden-unicode/cli.js",
     "hm-check-playwright-image": "./src/playwright-image/cli.js",
     "hm-check-single-copy": "./src/single-copy/cli.js",
