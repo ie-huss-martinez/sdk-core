@@ -245,17 +245,72 @@ describe("checkBundledEngines", () => {
     });
   });
 
-  it("passes, and says so, when the configuration declares none", async () => {
+  it("fails when nothing is declared either way, rather than pass on finding nothing", async () => {
     const root = await repository({
       ".dependency-cruiser.js": `export { default } from ${JSON.stringify(PRESET)};\n`,
-      // No devDependencies at all: with nothing declared, nothing is checked.
+      "package.json": manifest({}),
+    });
+
+    const { exitCode, report } = await checkBundledEngines({ cwd: root });
+
+    expect(exitCode).toBe(EXIT_FAILED);
+    expect(report).toContain("No bundled engine is declared in .dependency-cruiser.js");
+    expect(report).toContain("defineDependencyRules({ bundledEngines: [] })");
+    expect(report).toContain("keep its forbidden rules");
+  });
+
+  it("passes when the configuration says, on purpose, that the package bundles none", async () => {
+    const root = await repository({
+      ".dependency-cruiser.js": `import { defineDependencyRules } from ${JSON.stringify(PRESET)};\nexport default defineDependencyRules({ bundledEngines: [] });\n`,
       "package.json": manifest({}),
     });
 
     expect(await checkBundledEngines({ cwd: root })).toEqual({
       exitCode: EXIT_OK,
-      report: "No bundled engines are declared in .dependency-cruiser.js.\n",
+      report: ".dependency-cruiser.js declares that this package bundles no engine.\n",
     });
+  });
+
+  it.each([
+    [
+      "spread into a new object, to add an option",
+      "{ ...rules, options: { ...rules.options, exclude: { path: ['generated/'] } } }",
+    ],
+    ["cloned", "structuredClone(rules)"],
+    ["written out and read back", "JSON.parse(JSON.stringify(rules))"],
+  ])("still checks the engines of a configuration that was %s", async (_label, copy) => {
+    const root = await repository({
+      ".dependency-cruiser.js": [
+        `import { defineDependencyRules } from ${JSON.stringify(PRESET)};`,
+        'const rules = defineDependencyRules({ bundledEngines: [{ packages: ["gifenc"], from: "adapters/gif" }] });',
+        `export default ${copy};`,
+        "",
+      ].join("\n"),
+      "package.json": manifest({ devDependencies: { gifenc: "^1.0.3" } }),
+    });
+
+    const { exitCode, report } = await checkBundledEngines({ cwd: root });
+
+    // The range is found, so the engine was: the copy didn't turn the check off.
+    expect(exitCode).toBe(EXIT_FAILED);
+    expect(report).toContain(`gifenc is "^1.0.3", which isn't one exact version`);
+  });
+
+  it("fails for a configuration that dropped the rules, where the engines are", async () => {
+    const root = await repository({
+      ".dependency-cruiser.js": [
+        `import preset, { defineDependencyRules } from ${JSON.stringify(PRESET)};`,
+        'const rules = defineDependencyRules({ bundledEngines: [{ packages: ["gifenc"], from: "adapters/gif" }] });',
+        "export default { ...rules, forbidden: preset.forbidden };",
+        "",
+      ].join("\n"),
+      "package.json": manifest({ devDependencies: { gifenc: "1.0.3" } }),
+    });
+
+    const { exitCode, report } = await checkBundledEngines({ cwd: root });
+
+    expect(exitCode).toBe(EXIT_FAILED);
+    expect(report).toContain("No bundled engine is declared");
   });
 
   it("reads another configuration file when given one", async () => {
