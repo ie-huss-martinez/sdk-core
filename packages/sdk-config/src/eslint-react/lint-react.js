@@ -69,7 +69,9 @@ function configurationComments(parser, result) {
  */
 async function allowsNoFiles(config) {
   try {
-    const { default: objects } = await import(pathToFileURL(config).href);
+    // As ESLint reads it: a default export that's a promise is awaited, so a
+    // configuration may be written without `await`.
+    const objects = await (await import(pathToFileURL(config).href)).default;
     return (
       Array.isArray(objects) &&
       objects.some(

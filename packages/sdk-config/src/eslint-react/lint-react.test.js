@@ -378,6 +378,14 @@ describe("lintReact", () => {
     });
   });
 
+  it("reads allowNoFiles from a configuration exported without await, as ESLint accepts it", async () => {
+    const root = await repository({
+      "eslint.config.js": `import { defineReactLint } from ${JSON.stringify(PRESET)};\nexport default defineReactLint({ allowNoFiles: true });\n`,
+    });
+
+    expect((await lintReact({ cwd: root })).exitCode).toBe(EXIT_OK);
+  });
+
   it("still lints, and still reports, with allowNoFiles and files to read", async () => {
     const root = await repository({
       "eslint.config.js": `import { defineReactLint } from ${JSON.stringify(PRESET)};\nexport default await defineReactLint({ allowNoFiles: true });\n`,

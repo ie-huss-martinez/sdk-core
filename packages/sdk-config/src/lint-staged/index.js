@@ -49,11 +49,23 @@ export function isReactSource(file, paths = DEFAULT_PATHS) {
   const normal = file.replaceAll("\\", "/");
   return (
     TYPESCRIPT.test(normal) &&
-    paths.some((path) =>
-      new RegExp(`(?:^|/)${escaped(path.replaceAll("\\", "/").replace(/\/+$/, ""))}/`).test(normal),
-    )
+    paths.some((path) => new RegExp(`(?:^|/)${escaped(folderOf(path))}/`).test(normal))
   );
 }
+
+/**
+ * A folder as its path's segments, from the repository's root: with forward
+ * slashes, and without a leading `./` or a trailing slash, so that
+ * `./packages/ui/src/` is `packages/ui/src`.
+ *
+ * @param {string} path
+ * @returns {string}
+ */
+const folderOf = (path) =>
+  path
+    .replaceAll("\\", "/")
+    .replace(/^(?:\.\/)+/, "")
+    .replace(/\/+$/, "");
 
 /**
  * The React lint's step (sdk-core ADR 0063), as a lint-staged task: when a

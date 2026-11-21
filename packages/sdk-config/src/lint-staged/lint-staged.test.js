@@ -122,6 +122,18 @@ describe("withReactLint, in a repository whose source isn't under src", () => {
     }
   });
 
+  it.each(["./packages/ui/src", "packages/ui/src/", "./packages/ui/src/", "packages\\ui\\src"])(
+    "matches staged files when the folder is written as %s",
+    (path) => {
+      const written = /** @type {(files: readonly string[]) => string[]} */ (
+        withReactLint(undefined, { paths: [path] })["!(*.css)"]?.at(-1)
+      );
+
+      expect(written(["/repo/packages/ui/src/Button.tsx"])).toEqual([`hm-lint-react ${path}`]);
+      expect(written(["/repo/packages/ui-extra/src/Button.tsx"])).toEqual([]);
+    },
+  );
+
   it("keeps the step after Biome, and the preset as it was", () => {
     const withLint = withReactLint(undefined, { paths: PATHS });
 
