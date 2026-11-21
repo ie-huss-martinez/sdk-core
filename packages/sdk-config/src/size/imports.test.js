@@ -210,6 +210,35 @@ describe("exportNames", () => {
     ]);
   });
 
+  it("keeps a name ambiguous through a barrel, unless a module on the way declares it", async () => {
+    const files = {
+      "dist/a.js": "export const clash = 1;\nexport const onlyA = 1;\n",
+      "dist/b.js": "export const clash = 2;\n",
+      // Ambiguous here already.
+      "dist/barrel.js": 'export * from "./a.js";\nexport * from "./b.js";\n',
+    };
+    const through = await built({
+      ...files,
+      // The barrel's ambiguous `clash` and a.js's: still ambiguous.
+      "dist/index.js": 'export * from "./barrel.js";\nexport * from "./a.js";\n',
+    });
+    const settled = await built({
+      ...files,
+      "dist/settling.js": 'export * from "./barrel.js";\nexport const clash = 3;\n',
+      // A module on the way declares its own `clash`, which wins there.
+      "dist/index.js": 'export * from "./settling.js";\n',
+    });
+
+    expect(exportNames(join(through, "dist/index.js"))).toEqual(["onlyA"]);
+    expect((await exportCosts(join(through, "dist/index.js"))).map(({ name }) => name)).toEqual([
+      "onlyA",
+    ]);
+    expect(exportNames(join(settled, "dist/index.js")).sort()).toEqual(["clash", "onlyA"]);
+    expect(
+      (await exportCosts(join(settled, "dist/index.js"))).map(({ name }) => name).sort(),
+    ).toEqual(["clash", "onlyA"]);
+  });
+
   it("says which file is missing when a re-exported file is gone", async () => {
     const root = await built({ "dist/index.js": 'export * from "./gone.js";\n' });
 

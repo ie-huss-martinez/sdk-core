@@ -125,6 +125,8 @@ export function importBudget({ name, entry, imports, limit, ignore = [] }) {
  * @throws {UsageError} If the entry, or a file it re-exports, isn't there.
  */
 export function exportNames(entry) {
+  /** In place of a declaring file, for a name that arrives ambiguously: it stays ambiguous for whoever re-exports it. */
+  const AMBIGUOUS = "";
   /** Each file's names, with the file that declares each one. A file being read maps to nothing yet. */
   /** @type {Map<string, Map<string, string> | undefined>} */
   const modules = new Map();
@@ -166,8 +168,6 @@ export function exportNames(entry) {
     }
     /** @type {Map<string, string>} */
     const starred = new Map();
-    /** @type {Set<string>} */
-    const ambiguous = new Set();
     for (const [, namespace, specifier = ""] of code.matchAll(
       /^export\s*\*\s*(?:as\s+([A-Za-z_$][\w$]*)\s*)?from\s*["']([^"']+)["']/gm,
     )) {
@@ -178,24 +178,23 @@ export function exportNames(entry) {
       } else if (specifier.startsWith(".")) {
         for (const [name, origin] of read(join(dirname(file), specifier), path)) {
           const earlier = starred.get(name);
-          if (earlier !== undefined && earlier !== origin) {
-            ambiguous.add(name);
-          }
-          starred.set(name, origin);
+          starred.set(name, earlier === undefined || earlier === origin ? origin : AMBIGUOUS);
         }
       }
     }
     /** @type {Map<string, string>} */
     const names = new Map(own);
     for (const [name, origin] of starred) {
-      if (!own.has(name) && !ambiguous.has(name)) {
+      if (!own.has(name)) {
         names.set(name, origin);
       }
     }
     modules.set(file, names);
     return names;
   };
-  return [...read(entry, undefined).keys()];
+  return [...read(entry, undefined)]
+    .filter(([, origin]) => origin !== AMBIGUOUS)
+    .map(([name]) => name);
 }
 
 /**
