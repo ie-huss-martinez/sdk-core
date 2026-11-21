@@ -14,5 +14,3 @@ Three fixes to how `importBudget` and `hm-size` measure an import, found by imag
 
 - Run `pnpm check:size`. Lower each floor that dropped by 0.1 kB or more to its new measurement rounded up to the next 0.1 kB, and other import budgets, if you like, to theirs rounded up to the next 0.5 kB.
 - **Never raise a floor for a few bytes of compression.** If one fails by a few bytes with no code added to what its import keeps, round it up by 0.1 kB, with a note saying why.
-
-`withoutUnusedImports(esbuild, code)` is exported from `@hussmartinez/sdk-config/size`, for a runner of your own that measures the same way.

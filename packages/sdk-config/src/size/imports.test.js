@@ -15,8 +15,8 @@ import {
   keptCode,
   lazyChunks,
   UsageError,
-  withoutUnusedImports,
 } from "./index.js";
+import { withoutUnusedImports } from "./unused-imports.js";
 
 const CLI = fileURLToPath(new URL("./cli.js", import.meta.url));
 
