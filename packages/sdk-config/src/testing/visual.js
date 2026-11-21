@@ -5,6 +5,8 @@
 //
 // Test code only: this entry is never imported by published runtime code.
 
+import { endToEndTimeouts } from "./timeouts.js";
+
 /** The environment variable the browser test image sets, locally through hm-test-visual and in CI's verify job. */
 export const VISUAL_CONTAINER_ENV = "HM_VISUAL_CONTAINER";
 
@@ -134,7 +136,10 @@ export function defineVisualConfig({ baseURL, webServer }) {
     reporter: ci ? "line" : "list",
     // hm-test-visual --update writes them; a plain run only compares.
     updateSnapshots: "none",
+    // The family's limits for Playwright tests (ADR 0057).
+    timeout: endToEndTimeouts.timeout,
     expect: {
+      timeout: endToEndTimeouts.expect.timeout,
       toHaveScreenshot: {
         ...visualComparison,
         animations: "disabled",

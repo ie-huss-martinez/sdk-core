@@ -1,6 +1,7 @@
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 import { browserInstances } from "./src/testing/browser-instances.js";
+import { browserTimeouts, unitTimeouts } from "./src/testing/timeouts.js";
 
 const ALL_BROWSERS = /** @type {const} */ (["chromium", "firefox", "webkit"]);
 
@@ -17,6 +18,7 @@ export default defineConfig(({ mode }) => {
         {
           test: {
             name: "unit",
+            ...unitTimeouts,
             include: ["src/**/*.test.js", "test/**/*.test.js"],
             exclude: ["src/**/*.browser.test.js"],
             setupFiles: ["test/isolate-git-env.js"],
@@ -25,6 +27,7 @@ export default defineConfig(({ mode }) => {
         {
           test: {
             name: "browser",
+            ...browserTimeouts,
             include: ["src/**/*.browser.test.js"],
             // Refuses to start outside the browser test image (ADR 0049).
             globalSetup: ["./src/testing/require-image.js"],

@@ -264,6 +264,7 @@ Every `<kind>-sdk` repository follows this structure:
   - no pixel may differ, and a pixel differs when its colour is further from the baseline's than one level on every channel is, by Playwright's perceived-colour distance: the preset's `threshold` is `0.0038`, never raised to make a test pass ([ADR 0054](docs/adr/0054-visual-comparison-tolerance.md));
   - `pnpm test:visual:update` keeps unchanged baselines byte for byte, so every changed image in a pull request is one its test calls different.
 - **Component catalogue (`ui`):** Storybook 10 with the React and Vite builder, axe checks and stories run as Vitest browser tests ([ADR 0022](docs/adr/0022-storybook-for-the-component-catalogue.md)).
+- **Test timeouts** ([ADR 0057](docs/adr/0057-test-timeouts.md)): every test configuration takes its limits from `sdk-config`'s `testing/timeouts`: 30 s for unit tests and their hooks, 60 s in Vitest's browser mode, and 60 s with 10 s assertions in Playwright. A timeout only catches a hang, so timing is asserted with the test's own clock. A test carries a limit of its own only for genuinely long work, with a comment saying why.
 - **Git hooks:** Husky with lint-staged.
 
 Each repository extends the presets in `@hussmartinez/sdk-config` instead of copying configuration.

@@ -332,7 +332,9 @@ describe.concurrent("create-sdk-repo", () => {
       "ok: main is protected, with required checks: pr-title, verify, changeset",
     );
     expect(writes(await gh.calls())).toEqual([]);
-  }, 60_000);
+    // Long work (ADR 0057): it runs the script once for each workflow that
+    // reaches main, 4.5 s on a quiet machine.
+  }, 120_000);
 
   it("finds nothing to change in sdk-core's actual settings", async ({ onTestFinished }) => {
     const gh = await github(onTestFinished, { "sdk-core": SDK_CORE });
@@ -408,5 +410,7 @@ describe.concurrent("create-sdk-repo", () => {
     expect(repo.environments.npm.branches.map((branch) => branch.name)).toEqual(["main"]);
     expect(repo.protection).toEqual(SDK_CORE.protection);
     expect((await gh.run(["sdk-core"])).stdout).toContain("Nothing to change.");
-  });
+    // Long work (ADR 0057): a dry run, a repair and a check, 2 s on a quiet
+    // machine.
+  }, 120_000);
 });

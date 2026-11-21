@@ -28,6 +28,7 @@ Install, as devDependencies, the tools for the presets you use. They are optiona
 | `testing/visual`, `hm-test-visual` | `@playwright/test`, and Docker outside the browser test image |
 | `testing/browser-instances`, `hm-netlog-errors` | `@vitest/browser-playwright` |
 | `testing/require-image` | Nothing |
+| `testing/timeouts` | Nothing |
 
 ### TypeScript
 
@@ -256,6 +257,59 @@ pnpm exec hm-netlog-errors test-results/diagnostics/*.netlog.json
 The folder must be inside the checkout, because `pnpm test:browser` runs in the browser test image through `hm-in-image`, and the container sees nothing else of the host. A relative folder is taken from where the command runs, so the net logs of a package's tests land in that package. `hm-in-image` refuses a folder outside the checkout before it starts anything.
 
 It's test code only: import it only from Vitest configurations.
+
+### Testing: timeouts
+
+One set of test timeouts for the family ([ADR 0057](../../docs/adr/0057-test-timeouts.md)), so no repository writes the numbers and no test fails only because the machine was busy:
+
+| Constant | For | Limits |
+|---|---|---|
+| `unitTimeouts` | Unit tests, in Vitest on Node | 30 s for a test, 30 s for a hook |
+| `browserTimeouts` | Tests in Vitest's browser mode | 60 s for a test, 60 s for a hook |
+| `endToEndTimeouts` | End-to-end and visual tests, in Playwright | 60 s for a test, 10 s for an assertion that waits |
+
+Spread them into each project's options:
+
+```ts
+// vitest.config.ts
+import { browserTimeouts, unitTimeouts } from "@hussmartinez/sdk-config/testing/timeouts";
+
+export default defineConfig({
+  test: {
+    projects: [
+      {
+        test: {
+          name: "unit",
+          ...unitTimeouts,
+          include: ["src/**/*.test.ts"],
+          exclude: ["src/**/*.browser.test.ts"],
+        },
+      },
+      { test: { name: "browser", ...browserTimeouts, include: ["src/**/*.browser.test.ts"], browser: { /* … */ } } },
+    ],
+  },
+});
+
+// e2e/playwright.config.ts
+import { endToEndTimeouts } from "@hussmartinez/sdk-config/testing/timeouts";
+
+export default defineConfig({ ...endToEndTimeouts, testDir: "tests" /* … */ });
+```
+
+`defineVisualConfig` already uses `endToEndTimeouts`.
+
+- **A timeout catches a test that will never finish. It isn't a measure of speed.** A test that asserts timing, such as "cancelling stops within a second", uses its own clock or fake timers.
+- **Where the numbers come from:** the unit limit is measured. Beside four busy processes per core, unit tests ran up to 9 times slower, and 16 times has been reported, so a test of 1.5 s on a quiet machine still fits. The browser and end-to-end limits are from the SDKs' practice, not measured under load.
+- **Don't give a test its own limit,** unless it really does long work, such as running a compiler, starting another test runner, encoding a video or waiting out a real deadline. Then say why beside the limit:
+
+  ```ts
+  it("ships declarations that match", async () => {
+    // …
+    // Long work (ADR 0057): it runs the TypeScript compiler.
+  }, 60_000);
+  ```
+- **A unit test that takes over 1.5 s on a quiet machine is the thing to look at:** split it, give it fewer cases, or mark it as long work.
+- **Never raise a limit to get past a slow test without asking why it's slow.**
 
 ### Testing: `require-image`
 

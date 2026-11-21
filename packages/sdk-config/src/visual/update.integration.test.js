@@ -82,6 +82,12 @@ export default defineConfig({
 });
 `;
 
+/**
+ * Long work (ADR 0057): each test runs Playwright three to six times, 4 s to
+ * 8 s on a quiet machine, which is over the family's limit on a busy one.
+ */
+const LONG_WORK = 180_000;
+
 /** @type {string[]} */
 const scratch = [];
 afterEach(async () => {
@@ -136,61 +142,71 @@ async function baselines(root) {
 }
 
 describe("hm-test-visual --update, against Playwright itself (ADR 0054)", () => {
-  it("keeps what's within the threshold or a state's allowance, rewrites what changed, adds and removes", async () => {
-    const root = await repository();
-    const first = { noise: 128, changed: 128, frame: [128, 1], removed: 128 };
-    expect(runInContainer({ root, update: true, run: playwright(root, [first]) })).toBe(0);
-    const before = await baselines(root);
-    expect(Object.keys(before).sort()).toEqual(["changed", "frame", "noise", "removed"]);
+  it(
+    "keeps what's within the threshold or a state's allowance, rewrites what changed, adds and removes",
+    async () => {
+      const root = await repository();
+      const first = { noise: 128, changed: 128, frame: [128, 1], removed: 128 };
+      expect(runInContainer({ root, update: true, run: playwright(root, [first]) })).toBe(0);
+      const before = await baselines(root);
+      expect(Object.keys(before).sort()).toEqual(["changed", "frame", "noise", "removed"]);
 
-    /** @type {string[]} */
-    const messages = [];
-    // "noise" is one level off; "frame" is far off but its assertion allows
-    // every pixel to differ; "changed" is two levels off; one state is new,
-    // and one is gone.
-    const next = { noise: 129, changed: 130, frame: [200, 1], added: 50 };
-    const status = runInContainer({
-      root,
-      update: true,
-      run: playwright(root, [next]),
-      log: (message) => messages.push(message),
-    });
+      /** @type {string[]} */
+      const messages = [];
+      // "noise" is one level off; "frame" is far off but its assertion allows
+      // every pixel to differ; "changed" is two levels off; one state is new,
+      // and one is gone.
+      const next = { noise: 129, changed: 130, frame: [200, 1], added: 50 };
+      const status = runInContainer({
+        root,
+        update: true,
+        run: playwright(root, [next]),
+        log: (message) => messages.push(message),
+      });
 
-    expect(status).toBe(0);
-    const after = await baselines(root);
-    expect(Object.keys(after).sort()).toEqual(["added", "changed", "frame", "noise"]);
-    expect(after["noise"]?.equals(/** @type {Buffer} */ (before["noise"]))).toBe(true);
-    expect(after["frame"]?.equals(/** @type {Buffer} */ (before["frame"]))).toBe(true);
-    expect(after["changed"]?.equals(/** @type {Buffer} */ (before["changed"]))).toBe(false);
-    expect(messages).toEqual(["2 baselines written, 2 unchanged, 1 removed."]);
-    expect(await readdir(join(root, "e2e", "visual"))).toEqual([
-      "__screenshots__",
-      "editor.spec.js",
-    ]);
+      expect(status).toBe(0);
+      const after = await baselines(root);
+      expect(Object.keys(after).sort()).toEqual(["added", "changed", "frame", "noise"]);
+      expect(after["noise"]?.equals(/** @type {Buffer} */ (before["noise"]))).toBe(true);
+      expect(after["frame"]?.equals(/** @type {Buffer} */ (before["frame"]))).toBe(true);
+      expect(after["changed"]?.equals(/** @type {Buffer} */ (before["changed"]))).toBe(false);
+      expect(messages).toEqual(["2 baselines written, 2 unchanged, 1 removed."]);
+      expect(await readdir(join(root, "e2e", "visual"))).toEqual([
+        "__screenshots__",
+        "editor.spec.js",
+      ]);
 
-    // And the result passes a plain run.
-    expect(runInContainer({ root, update: false, run: playwright(root, [next]) })).toBe(0);
-  }, 120_000);
+      // And the result passes a plain run.
+      expect(runInContainer({ root, update: false, run: playwright(root, [next]) })).toBe(0);
+    },
+    LONG_WORK,
+  );
 
-  it("changes nothing when a state renders differently in the proving run", async () => {
-    const root = await repository();
-    expect(runInContainer({ root, update: true, run: playwright(root, [{ open: 128 }]) })).toBe(0);
-    const before = await baselines(root);
+  it(
+    "changes nothing when a state renders differently in the proving run",
+    async () => {
+      const root = await repository();
+      expect(runInContainer({ root, update: true, run: playwright(root, [{ open: 128 }]) })).toBe(
+        0,
+      );
+      const before = await baselines(root);
 
-    const status = runInContainer({
-      root,
-      update: true,
-      // What changed, fresh captures, then a different render in the proof.
-      run: playwright(root, [{ open: 140 }, { open: 140 }, { open: 150 }]),
-    });
+      const status = runInContainer({
+        root,
+        update: true,
+        // What changed, fresh captures, then a different render in the proof.
+        run: playwright(root, [{ open: 140 }, { open: 140 }, { open: 150 }]),
+      });
 
-    expect(status).toBe(1);
-    expect((await baselines(root))["open"]?.equals(/** @type {Buffer} */ (before["open"]))).toBe(
-      true,
-    );
-    expect(await readdir(join(root, "e2e", "visual"))).toEqual([
-      "__screenshots__",
-      "editor.spec.js",
-    ]);
-  }, 120_000);
+      expect(status).toBe(1);
+      expect((await baselines(root))["open"]?.equals(/** @type {Buffer} */ (before["open"]))).toBe(
+        true,
+      );
+      expect(await readdir(join(root, "e2e", "visual"))).toEqual([
+        "__screenshots__",
+        "editor.spec.js",
+      ]);
+    },
+    LONG_WORK,
+  );
 });
