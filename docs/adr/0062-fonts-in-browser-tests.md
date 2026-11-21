@@ -95,7 +95,7 @@ All three engines take it, and the strong weight gets a real bold face. The thre
 - **Liberation Sans, Serif and Mono, because the image already has them,** in four styles, so the family ships no font and takes on no font's licence. They're metric-compatible with Arial, Times New Roman and Courier New. Arial is the last named font in `ui`'s stack, and what a system without the others would use.
 - **The image doesn't change.** `ci/Dockerfile` keeps its one `FROM` line, and CI and local runs stay the same by construction: the font rules travel with the preset, not with the machine.
 - **A test in `sdk-config` holds it:** in Chromium, text in `ui`'s stack is drawn in Liberation Sans, and at weight 600 in its bold face.
-- **Outside the image nothing breaks.** On a machine without Liberation, the preference names a font that isn't there and fontconfig falls through to what it would have chosen. macOS and Windows don't read the variable.
+- **Only in the image.** The launch environment carries the file where `HM_VISUAL_CONTAINER=1`, which is the image locally and in CI's jobs ([ADR 0049](0049-local-browser-tests-in-the-pinned-image.md)). Anywhere else it's empty, so a browser started on a developer's machine, with the bypass for debugging, keeps that machine's own font configuration, including a `FONTCONFIG_FILE` of its own. A run outside the image proves nothing about a change anyway.
 
 ### What it doesn't fix
 
@@ -105,7 +105,7 @@ All three engines take it, and the strong weight gets a real bold face. The thre
 ### Adoption
 
 - **A minor release of `sdk-config`:** taking it changes every screenshot with text in it, so it turns a consumer's visual check red until the baselines are retaken.
-- **Each repository retakes its baselines in the pull request that takes the release,** with `pnpm test:visual:update`, and says in it that the font is the cause. A reviewer should see text change everywhere and nothing else move by more than the text's new width.
+- **Each repository retakes its baselines in the pull request that takes the release,** with `pnpm test:visual:update`, and says in it that the font is the cause. A reviewer should see text change everywhere. Other things may move too, where a label got wider or narrower, or now wraps and pushes what's below it: the pull request explains each such move by the font, and anything it can't explain that way is a real difference.
 - **`ui` goes first,** since its catalogue has the most text and its own comparator. Then each SDK, in its own adoption pull request, with its retaken baselines explained by this one cause.
 
 ## Alternatives considered
