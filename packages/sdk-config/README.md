@@ -277,7 +277,14 @@ import { browserTimeouts, unitTimeouts } from "@hussmartinez/sdk-config/testing/
 export default defineConfig({
   test: {
     projects: [
-      { test: { name: "unit", ...unitTimeouts, include: ["src/**/*.test.ts"] } },
+      {
+        test: {
+          name: "unit",
+          ...unitTimeouts,
+          include: ["src/**/*.test.ts"],
+          exclude: ["src/**/*.browser.test.ts"],
+        },
+      },
       { test: { name: "browser", ...browserTimeouts, include: ["src/**/*.browser.test.ts"], browser: { /* … */ } } },
     ],
   },
