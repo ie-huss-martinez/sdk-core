@@ -54,6 +54,46 @@ describe("Biome preset", () => {
     ]);
   });
 
+  describe("in a repository with React", () => {
+    // Biome turns its React rules on when the project's package.json lists
+    // react, as an SDK's does, as a peer dependency.
+    beforeAll(async () => {
+      await writeFile(
+        join(project, "package.json"),
+        JSON.stringify({ name: "sdk", peerDependencies: { react: ">=18.3" } }),
+      );
+    });
+    afterAll(async () => {
+      await rm(join(project, "package.json"), { force: true });
+      await writeFile(join(project, "biome.json"), JSON.stringify({ extends: [PRESET] }));
+    });
+
+    const missing =
+      'import { useEffect } from "react";\nexport function useTitle(title: string): void {\n  useEffect(() => {\n    document.title = title;\n  }, []);\n}\n';
+    const conditional =
+      'import { useState } from "react";\nexport function useMaybe(on: boolean): number {\n  if (on) {\n    const [value] = useState(0);\n    return value;\n  }\n  return 0;\n}\n';
+
+    it("still checks where hooks are called", async () => {
+      await expect(lint(conditional)).resolves.toEqual(["lint/correctness/useHookAtTopLevel"]);
+    });
+
+    it("leaves hook dependency lists to React's plugin (ADR 0063)", async () => {
+      await expect(lint(missing)).resolves.toEqual([]);
+    });
+
+    it("lets a repository turn the dependency rule back on, while its plugin rule is off", async () => {
+      await writeFile(
+        join(project, "biome.json"),
+        JSON.stringify({
+          extends: [PRESET],
+          linter: { rules: { correctness: { useExhaustiveDependencies: "error" } } },
+        }),
+      );
+
+      await expect(lint(missing)).resolves.toEqual(["lint/correctness/useExhaustiveDependencies"]);
+    });
+  });
+
   it("doesn't pin a Biome schema version", async () => {
     // A $schema here would be checked against each consumer's own Biome CLI,
     // so any other version would print a notice. Consumers keep their own.
