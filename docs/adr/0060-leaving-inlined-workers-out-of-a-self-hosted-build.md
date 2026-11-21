@@ -1,6 +1,6 @@
 # 0060. Leaving inlined workers out of a self-hosted build
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-21
 - **Refines:** [ADR 0011](0011-worker-messaging-and-assets.md) and [ADR 0038](0038-self-hosted-assets-and-worker-version.md), by letting a host that serves the assets itself build without the inlined copies
 
@@ -48,7 +48,7 @@ Each of those builds also holds the self-hosted copy, under `<kind>-sdk/<version
 | | Option | In short |
 |---|---|---|
 | A | Document it | Say that the chunk is emitted and never loaded |
-| **B** | **A resolve condition** | **The host sets one bundler option, and the inlined chunk resolves to a stub. Recommended** |
+| **B** | **A resolve condition** | **The host sets one bundler option, and the inlined chunk resolves to a stub. Chosen** |
 | C | A separate entry point | `./self-hosted`, whose factories and editor never import the inlined worker |
 | D | Inlined workers on request | The host imports the inlined workers and passes them in |
 
@@ -85,7 +85,7 @@ Its build then holds the stub, which throws if a worker is started without `asse
 | Vite 8 | the inlined chunk, 100,054 bytes | the stub, 119 bytes |
 | esbuild 0.28 | the inlined chunk, 100,132 bytes | the stub, 203 bytes |
 
-webpack (`resolve.conditionNames`), Rollup's node resolver (`exportConditions`) and Next.js weren't run. The probe was a package written for it, not an SDK's real build.
+webpack, Rollup's node resolver and Next.js weren't run. The probe was a package written for it, not an SDK's real build.
 
 ### C, a separate entry point
 
@@ -111,19 +111,29 @@ C's one real advantage is that it needs nothing from the bundler. B's is that it
 
 ## Decision
 
-**Recommended: B. The reviewer rules before any code is written.**
+**Option B: a resolve condition, opt-in, with the default unchanged.**
 
 - **One condition for the family: `hm-self-hosted`.** A host sets it once, and it applies to every family SDK in its build.
 - **Each SDK imports its inlined workers through `imports` in its `package.json`,** one name per worker, each with a `hm-self-hosted` target and a `default`.
-- **The stub throws the SDK's `WORKER_START_FAILED`,** saying that the build left the inlined worker out and that `assetsUrl` is required. It's the error a host already handles for a worker that can't start ([ADR 0038](0038-self-hosted-assets-and-worker-version.md)).
+- **The stub fails loudly.** A build with the condition and no `assetsUrl` throws the SDK's error, an `SdkError` with the code `WORKER_START_FAILED` ([ADR 0038](0038-self-hosted-assets-and-worker-version.md)), when a worker starts. Its details name the condition, `hm-self-hosted`, and the missing `assetsUrl`, and its message's text says the build left the inlined worker out and `assetsUrl` is required. It's never a silent failure, and never a bare error from the module system. Each SDK tests it.
 - **Nothing changes for a host that doesn't set it.** Inlined workers stay the default, as [ADR 0011](0011-worker-messaging-and-assets.md) has it, and `assetsUrl` works as today, with the chunk emitted and never loaded.
-- **Each SDK's README documents the option for the bundlers it has run it in,** and no others. An SDK's own examples are where it's run.
+- **Documentation says what's verified and what isn't.** Each SDK's README shows how to set the condition:
+
+  | Bundler | Option | Status |
+  |---|---|---|
+  | Vite | `resolve.conditions` | Verified |
+  | esbuild | `conditions` | Verified |
+  | webpack | `resolve.conditionNames` | Expected to work, not yet verified |
+  | Rollup, with `@rollup/plugin-node-resolve` | `exportConditions` | Expected to work, not yet verified |
+  | Next.js | `resolve.conditionNames`, through its `webpack` configuration | Expected to work, not yet verified |
+
+  A row moves to "Verified" in the pull request that runs it. If a host on an unverified bundler hits a problem, that's a new record: nothing falls back silently.
 - **A test in each SDK builds its example with the condition** and fails if an inlined worker's chunk is in the output.
 
 ### Adoption
 
-- **pdf-sdk goes first,** because it has the most to gain and the hardest build: 5.25 MB across four chunks, two of them WebAssembly. Its pull request proves the mapping in a real library build, in its Vite example and its Next.js example, before any other SDK copies it.
-- **If it can't be made to work in pdf-sdk's real build,** this record is revisited before anyone else adopts, and C is the fallback.
+- **pdf-sdk goes first, as the proof,** because it has the most to gain and the hardest build: 5.25 MB across four chunks, two of them WebAssembly. Its pull request proves the mapping in a real library build. The family's PDF editor is then built with the condition, and its `dist` is measured before and after: the 5.25 MB of inlined chunks should be gone. No other SDK copies it before that.
+- **The separate entry point, C, stays the recorded fallback.** If the condition can't be made to work in pdf-sdk's real build, or fails in practice later, this record is revisited before anyone else adopts, and C is where it starts.
 - **video-sdk, image-sdk and audio-sdk** follow in that order, by weight.
 - **The family's applications** set the condition once the SDK they use supports it.
 - **sdk-core changes nothing in code.** If the stubs turn out identical across SDKs, a shared one is a later question.
@@ -142,4 +152,4 @@ C's one real advantage is that it needs nothing from the bundler. B's is that it
 - It's opt-in and additive: a patch or a minor in each SDK, with nothing for other hosts to do.
 - **A host has one more thing to know,** and it lives in its bundler's configuration, where it's easy to forget when the bundler changes. The stub's error is what catches a build that set it without `assetsUrl`. Nothing catches a build that forgot it: that build is only larger, as today.
 - **It depends on the host's bundler supporting custom conditions.** A host whose bundler doesn't is where it is today.
-- **Unproven until pdf-sdk's pull request:** that a library build keeps the mapped import for the host's bundler to resolve, that the targets can have stable names, and that it works under Next.js. This record says so rather than promise it.
+- **Unproven until pdf-sdk's pull request:** that a library build keeps the mapped import for the host's bundler to resolve, and that the targets can have stable names. webpack, Rollup and Next.js stay unverified until someone runs them. This record says so rather than promise it.
