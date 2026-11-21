@@ -1,7 +1,9 @@
 {
-  // Declarations for the test-only entries, generated from their JSDoc and
-  // committed next to them (pnpm types:update). A test checks they're
-  // current, and the repository's biome.json leaves them as tsc writes them.
+  // Declarations for the test-only and size entries, generated from their
+  // JSDoc and committed next to them (pnpm types:update, which deletes the
+  // old ones first: a stale declaration beside a module would be read in its
+  // place). A test checks they're current, and the repository's biome.json
+  // leaves them as tsc writes them.
   "extends": "./tsconfig/node.json",
   "compilerOptions": {
     "allowJs": true,
@@ -15,6 +17,8 @@
   },
   "files": [
     "src/size/entry.js",
+    "src/size/imports.js",
+    "src/size/index.js",
     "src/testing/audio-output.js",
     "src/testing/browser-instances.js",
     "src/testing/conformance.js",

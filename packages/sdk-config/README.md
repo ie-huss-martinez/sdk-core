@@ -15,7 +15,7 @@ Install, as devDependencies, the tools for the presets you use. They are optiona
 | `tsconfig/*` | `typescript` (and `@types/node` for `tsconfig/node`) |
 | `biome` | `@biomejs/biome` |
 | `hm-check-hidden-unicode` | Nothing, but it lists files with git |
-| `size` | Nothing for `entryFiles`; `vite` for `measureEntry` and `hm-size` |
+| `size`, `hm-size` | Nothing for `entryFiles` and `entryBudget`; `@size-limit/esbuild` for `importBudget`'s checks; `vite` for minified sizes; `esbuild` for import costs |
 | `stylelint` | `stylelint` |
 | `dependency-cruiser`, `hm-lint-deps` | `dependency-cruiser` |
 | `commitlint` | `@commitlint/cli` |
@@ -489,50 +489,101 @@ Usage: hm-in-image [--] <command> [<argument>...]
 | 1 | Docker isn't available, or the image didn't build |
 | 2 | Usage error, or a repository it can't read |
 
-### Size budgets: `entryFiles` and `hm-size`
+### Size budgets: `entryBudget`, `importBudget` and `hm-size`
 
-Every package has a size budget per entry point, measured by `size-limit` on the built files ([ADR 0015](../../docs/adr/0015-verification-and-releases.md), [ADR 0055](../../docs/adr/0055-what-the-size-budgets-measure.md)). `entryFiles` gives a budget the files to count: the built entry and every chunk it imports statically, directly or through other chunks.
+Every package has size budgets, measured by `size-limit` after a build ([ADR 0015](../../docs/adr/0015-verification-and-releases.md)). There are two kinds, and `@hussmartinez/sdk-config/size` writes both:
 
 ```js
 // .size-limit.js
 import { globSync } from "node:fs";
-import { entryFiles } from "@hussmartinez/sdk-config/size";
+import { entryBudget, entryFiles, importBudget } from "@hussmartinez/sdk-config/size";
 
 export default [
-  { name: "Core (.)", path: entryFiles("dist/index.js"), brotli: true, limit: "17 kB" },
-  { name: "React (./react)", path: entryFiles("dist/react.js"), brotli: true, limit: "24 kB" },
-  // A chunk loaded later with import() has a budget of its own, counted the
-  // same way: the chunk and what it imports statically. Its name has a hash.
+  // Ceilings: each entry, with the chunks it loads statically.
+  entryBudget({ name: "Core (.)", entry: "dist/index.js", limit: "17 kB" }),
+  entryBudget({ name: "React (./react)", entry: "dist/react.js", limit: "24 kB" }),
+  // A chunk loaded later with import() is an entry of its own. Its name has a hash.
   {
     name: "Worker (lazy)",
     path: globSync("dist/lazy/worker-*.js").flatMap(entryFiles),
     brotli: true,
     limit: "60 kB",
+    disablePlugins: ["@size-limit/esbuild"],
   },
+  // Import budgets: what an application ships for one import.
+  importBudget({ name: "Import: the floor, PdfError", entry: "dist/index.js", imports: "{ PdfError }", limit: "0.9 kB" }),
+  importBudget({ name: "Import: createPdfSession", entry: "dist/index.js", imports: "{ createPdfSession }", limit: "7 kB" }),
+  importBudget({ name: "Import: PdfEditor", entry: "dist/react.js", imports: "{ PdfEditor }", limit: "18.5 kB" }),
 ];
 ```
+
+#### Entry ceilings ([ADR 0055](../../docs/adr/0055-what-the-size-budgets-measure.md))
+
+`entryBudget` is a ceiling on the brotli size of a built entry and every chunk it imports statically, directly or through other chunks. `entryFiles(entry)` is that list of files, for a check you write yourself.
 
 - **Only what the entry loads up front:** a chunk that only another entry imports isn't counted, and neither is one loaded later with `import()`, which an application receives only when it uses what the chunk holds.
 - **A lazy chunk is an entry of its own.** Give it a budget through `entryFiles` too, as above, so the budget covers the chunk and whatever it imports statically. A plain glob counts only the files it matches, which is the whole cost only when the chunk imports nothing, as a worker inlined as a string does.
 - **It replaces a copied function.** If your `.size-limit.js` has its own `loadedFiles`, delete it: `entryFiles("dist/index.js")` returns what `loadedFiles("index.js")` did.
 - **It fails clearly before a build:** `dist/index.js doesn't exist. Build the package first.`
+- **It measures the files as built,** which are unminified so that applications' bundlers can tree-shake and minify them. Measured across the family, the same files minified are a fifth to a quarter smaller, in every entry. The build already drops comments, so documentation never counts. Local names do, by tens of bytes: never shorten names to meet a budget.
+- **`entryBudget` turns `size-limit`'s esbuild plugin off for its check,** so the ceiling still measures files once that plugin is installed for the import budgets. `size-limit` then labels every check "with all dependencies, minified and brotlied"; for a ceiling that's only a label.
 
-**The budget is a ceiling, measured on the files as built,** which are unminified so that applications' bundlers can tree-shake and minify them. Measured across the family, the same files minified are a fifth to a quarter smaller, in every entry. The build already drops comments, so documentation never counts. Local names do, by tens of bytes: never shorten names to meet a budget. Raise it, with a table of before and after and the reason.
+#### Import budgets ([ADR 0056](../../docs/adr/0056-size-budgets-for-what-applications-import.md))
 
-`hm-size` prints both numbers, for that table:
+No application ships a whole entry: its bundler keeps what it imports. `importBudget` is a budget for one import, bundled and minified as an application ships it, through `@size-limit/esbuild`, which the repository installs beside `size-limit`.
 
-```text
-$ pnpm exec hm-size dist/index.js dist/element.js
-dist/index.js: 15.57 kB as built, 11.72 kB minified (25% less), in 2 files
-dist/element.js: 2.78 kB as built, 2.14 kB minified (23% less), in 2 files
-```
+- **Which entries:** those whose exports can be used apart, the core entry and the React entry. An entry that loads whole by design keeps its ceiling only: a stylesheet, a worker, an element or standalone entry.
+- **Which imports, at least:**
+  - **a floor,** the cheapest import a host would really make, such as the error class or the message catalogue. It catches code that leaks into everything;
+  - **each heavy piece on its own,** an export over about 2 kB by itself;
+  - **what a typical application imports,** such as the factories an editor uses together, or the editor component.
+- **What's left out, and nothing else:** `react` and `react-dom`, the family's packages (`@hussmartinez/*`), and the entry's own lazy chunks, the `lazy/` folder beside it. Everything else an import brings is counted, including a third-party runtime dependency and anything inside it. Pass `ignore` for a package that puts its lazy chunks somewhere else.
+- **Setting and raising one:** a limit is the measurement rounded up to the next 0.5 kB, raised in the pull request that needs it, with a table of the scenarios that moved.
+- **A floor is different.** Its limit is set once, to its measurement rounded up to the next 0.1 kB, and then it isn't raised: a floor that grows means code has leaked into every import, which is fixed. It only moves down, in the pull request that makes the floor cheaper. The table shows every floor's size, moved or not.
+- **Never raise a budget for code its import doesn't use.** If adding a component moves the floor, or another component's scenario, the change leaked, and the leak is fixed.
+
+#### `hm-size`: what things cost
 
 ```text
 Usage: hm-size <entry>...
+       hm-size --exports <entry>
+       hm-size --import <clause> [--kept] <entry>
 ```
 
-- **The first number is what the budget counts.** It matches `size-limit`'s.
-- **The second is information only.** It's the same files through Vite's minifier, as an application built with Vite would ship them if it used the whole entry. It's never a budget, and `hm-size` never fails because of a size. `measureEntry(entry)` returns both numbers to a script.
+It prints sizes, for a pull request's table and for finding what an import costs. It's never a budget, and it never fails because of a size.
+
+- **`hm-size <entry>...`** prints what the ceiling counts, and the same files minified with Vite's minifier:
+
+  ```text
+  $ pnpm exec hm-size dist/index.js dist/element.js
+  dist/index.js: 15.57 kB as built, 11.72 kB minified (25% less), in 2 files
+  dist/element.js: 2.78 kB as built, 2.14 kB minified (23% less), in 2 files
+  ```
+- **`hm-size --exports <entry>`** prints what each export costs an application that imports only it, cheapest first. The last line names the floor:
+
+  ```text
+  $ pnpm exec hm-size --exports dist/index.js
+  MAX_FILE_NAME_LENGTH     0.17 kB
+  …
+  createWorkerClient       3.32 kB
+  dist/index.js: 33 exports; the floor is MAX_FILE_NAME_LENGTH, 0.17 kB
+  ```
+
+  **A floor close to the whole entry means the entry doesn't come apart:** any import brings most of it.
+- **`hm-size --import "{ a, b }" --kept <entry>`** prints one import's cost and, with `--kept`, what it keeps in its bundle: the functions, and the calls at the top level whose result is assigned.
+
+  ```text
+  $ pnpm exec hm-size --import "{ editorMessages }" --kept dist/react.js
+  dist/react.js: import { editorMessages } ships 40.40 kB
+  It keeps 211 functions, and these top-level calls:
+     18 × defineTool(…)
+      2 × createContext(…)
+  ```
+
+  A bundler keeps such a call, and everything it refers to, unless it can prove the call has no effect. Mark a call that has none as `/* @__PURE__ */ defineTool(…)`, or move it into the function that needs it. `--kept` reads the bundle's text, so it's a guide to where to look.
+- **Its numbers and `size-limit`'s:** the first form matches `size-limit` exactly. For an import, `size-limit` reports up to about 0.1 kB less, because it subtracts an empty bundle. Set a limit from `size-limit`'s number, and use `hm-size` to compare imports, and before with after.
+
+`measureEntry`, `importCost`, `exportCosts` and `keptCode` return the same numbers to a script. The first needs `vite`, and the import measurements need `esbuild`; both are optional peer dependencies.
 
 | Exit code | Meaning |
 |---|---|
