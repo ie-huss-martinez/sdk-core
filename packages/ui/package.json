@@ -51,8 +51,10 @@
     "test:visual": "pnpm --filter @hussmartinez/ui-catalogue test:visual",
     "test:visual:update": "pnpm --filter @hussmartinez/ui-catalogue test:visual:update",
     "test:e2e": "pnpm --filter @hussmartinez/ui-e2e test:e2e",
-    "verify": "pnpm lint:css && pnpm lint:react && pnpm typecheck && pnpm lint:deps && pnpm build && pnpm test && pnpm test:browser && pnpm test:visual && pnpm test:e2e && pnpm check:size && pnpm check:package",
-    "verify:fast": "pnpm typecheck && pnpm test && pnpm lint:deps && pnpm check:api"
+    "verify": "pnpm lint:css && pnpm lint:react && pnpm typecheck && pnpm lint:deps && pnpm build && pnpm test && pnpm test:browser && pnpm build:examples && pnpm test:catalogue && pnpm test:visual && pnpm test:e2e && pnpm check:size && pnpm check:package",
+    "verify:fast": "pnpm typecheck && pnpm test && pnpm lint:deps && pnpm check:api",
+    "build:examples": "pnpm --filter @hussmartinez/ui-catalogue --filter @hussmartinez/ui-example-vite --filter @hussmartinez/ui-example-next build",
+    "test:catalogue": "pnpm --filter @hussmartinez/ui-catalogue test:browser"
   },
   "dependencies": {
     "@hussmartinez/sdk-core": "workspace:^"

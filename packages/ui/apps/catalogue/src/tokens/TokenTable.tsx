@@ -2,7 +2,7 @@ import { type TokenCategory, type TokenDefinition, type TokenName, tokens } from
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 // Descriptions aren't part of the runtime API (docs/adr/0001); the catalogue
 // reads them from the source, like the generated token reference.
-import { tokenDescriptions } from "../../../../packages/ui/src/tokens/descriptions.js";
+import { tokenDescriptions } from "../../../../src/tokens/descriptions.js";
 
 /** The value a token resolves to here, under the current theme and density. */
 function ResolvedValue({ name }: { name: string }) {

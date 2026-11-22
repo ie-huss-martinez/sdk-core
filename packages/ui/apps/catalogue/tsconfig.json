@@ -8,8 +8,8 @@
     // The same source the Vite aliases in ui-source.ts resolve to, so the
     // catalogue typechecks before the package is built.
     "paths": {
-      "@hussmartinez/ui": ["../../packages/ui/src/index.ts"],
-      "@hussmartinez/ui/react": ["../../packages/ui/src/react.ts"]
+      "@hussmartinez/ui": ["../../src/index.ts"],
+      "@hussmartinez/ui/react": ["../../src/react.ts"]
     }
   },
   "include": [".storybook", "src", "visual", "*.ts"]

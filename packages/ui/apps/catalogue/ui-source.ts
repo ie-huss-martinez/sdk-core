@@ -1,8 +1,7 @@
 import { fileURLToPath } from "node:url";
 import type { Alias } from "vite";
 
-const ui = (path: string): string =>
-  fileURLToPath(new URL(`../../packages/ui/${path}`, import.meta.url));
+const ui = (path: string): string => fileURLToPath(new URL(`../../${path}`, import.meta.url));
 
 /**
  * Resolves @hussmartinez/ui to its source, so the catalogue reloads as the
