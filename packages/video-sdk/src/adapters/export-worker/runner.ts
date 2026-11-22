@@ -1,0 +1,111 @@
+import { createWorkerClient, type WorkerClient, type WorkerLike } from "@hussmartinez/sdk-core";
+import { asVideoError, startFailureOf } from "../../core/errors/error-helpers.js";
+import { VideoError } from "../../core/errors/video-error.js";
+import type { VideoFilePolicy } from "../../core/errors/video-limits.js";
+import type { VideoExportOptions } from "../../core/ports/video-processor.js";
+import { PACKAGE_VERSION } from "../../version.js";
+import type { ExportWorkerContract } from "./contract.js";
+import type { ExportOutcome, ExportRequest } from "./export-plan.js";
+
+/**
+ * Runs exports in the export worker (docs/adr/0002, docs/adr/0005), loaded
+ * with the first export. The worker stops after sdk-core's idle timeout.
+ *
+ * @internal
+ */
+export interface ExportRunner {
+  run(
+    request: Omit<ExportRequest, "limits">,
+    policy: VideoFilePolicy,
+    options: VideoExportOptions,
+  ): Promise<ExportOutcome>;
+  destroy(): void;
+}
+
+/**
+ * An abort signal that fires `PROCESSING_TIME_EXCEEDED` when no progress is
+ * reported for `maxProcessingTime` (docs/adr/0005): an export stalls on no
+ * single frame that long, however long the whole export takes.
+ */
+function stallSignal(policy: VideoFilePolicy, signal: AbortSignal | undefined) {
+  const stall = new AbortController();
+  const maximum = policy.limits.maxProcessingTime.maximum;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const arm = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      stall.abort(
+        new VideoError("PROCESSING_TIME_EXCEEDED", "The export stopped making progress.", {
+          details: {
+            limit: "maxProcessingTime",
+            maximum,
+            actual: maximum,
+            unit: "milliseconds",
+          },
+        }),
+      );
+    }, maximum);
+  };
+  arm();
+  return {
+    // The caller's signal, and the stall's. `AbortSignal.any` is aborted at
+    // once when the caller's already is, as when an export is stopped while
+    // its worker code still loads: listening for its "abort" event would miss
+    // that, and the export would run to its end with no one to stop it.
+    signal: signal ? AbortSignal.any([signal, stall.signal]) : stall.signal,
+    progressed: arm,
+    dispose() {
+      clearTimeout(timer);
+    },
+  };
+}
+
+/**
+ * Creates the export runner, given how to start the worker.
+ *
+ * @internal
+ */
+export function createExportRunner(
+  startWorker: () => WorkerLike,
+  workerAsset?: string,
+  startTimeout?: number,
+): ExportRunner {
+  let client: WorkerClient<ExportWorkerContract> | undefined;
+  return {
+    async run(request, policy, options) {
+      client ??= createWorkerClient<ExportWorkerContract>({
+        createWorker: startWorker,
+        errorClasses: { VideoError },
+        packageVersion: PACKAGE_VERSION,
+        ...(workerAsset === undefined ? {} : { workerAsset }),
+        ...(startTimeout === undefined ? {} : { startTimeout }),
+      });
+      const stall = stallSignal(policy, options.signal);
+      try {
+        return await client.call(
+          "export",
+          { ...request, limits: policy.limits },
+          {
+            signal: stall.signal,
+            onProgress: (update) => {
+              if (typeof update === "number") {
+                stall.progressed();
+                options.onProgress?.(update);
+              } else {
+                options.onWarning?.(update.warning);
+              }
+            },
+          },
+        );
+      } catch (error) {
+        if (error instanceof TypeError) throw error;
+        throw startFailureOf(error) ?? asVideoError(error);
+      } finally {
+        stall.dispose();
+      }
+    },
+    destroy() {
+      client?.destroy();
+    },
+  };
+}

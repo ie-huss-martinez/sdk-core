@@ -37,7 +37,10 @@
     "check:api": "tsc -p tsconfig.build.json && api-extractor run && api-extractor run -c api-extractor.element.json && hm-check-api-reports --main api/sdk-core.api.md --types dist/index.d.ts api/sdk-core-element.api.md",
     "check:package": "publint run --pack pnpm --strict && attw --pack . --profile esm-only",
     "api:update": "tsc -p tsconfig.build.json && api-extractor run --local && api-extractor run --local -c api-extractor.element.json && hm-check-api-reports --main api/sdk-core.api.md --types dist/index.d.ts api/sdk-core-element.api.md",
-    "check:size": "size-limit"
+    "check:size": "size-limit",
+    "lint:deps": "hm-lint-deps src",
+    "verify": "pnpm typecheck && pnpm lint:deps && pnpm build && pnpm test && pnpm test:browser && pnpm check:size && pnpm check:package",
+    "verify:fast": "pnpm typecheck && pnpm test && pnpm lint:deps && pnpm check:api"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "catalog:",

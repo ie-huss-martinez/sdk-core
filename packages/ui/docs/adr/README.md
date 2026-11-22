@@ -1,0 +1,22 @@
+# Architecture decision records
+
+Decisions specific to `@hussmartinez/ui`. Decisions for the whole SDK family live in [`sdk-core`'s `docs/adr`](https://github.com/ie-huss-martinez/sdk-core/tree/main/docs/adr); the records here build on them and never contradict them. To change a family decision, write a record in `sdk-core`.
+
+Each record captures one significant decision: the context that forced it, what we chose, the alternatives we rejected and the consequences we accept. Records are numbered and immutable. To change a decision, write a new record that supersedes the old one and link the two.
+
+Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.md`, taking the next free number.
+
+| # | Decision | Status |
+|---|---|---|
+| [0001](0001-design-tokens-and-theme-scoping.md) | Design tokens, theme layers and theme scoping | Accepted |
+| [0002](0002-visual-regression-in-a-pinned-container.md) | Visual regression in a pinned container | Accepted; image location superseded by [0004](0004-one-browser-test-image.md), runner replaced by [0007](0007-browser-tests-in-the-pinned-image.md); amended to stay stricter than sdk-core ADR 0054 |
+| [0003](0003-component-contract.md) | The component contract | Accepted; "`ui` ships no icon set" superseded by [0005](0005-icon-set.md) |
+| [0004](0004-one-browser-test-image.md) | One browser test image, in one place | Accepted; its unit tests replaced by [0007](0007-browser-tests-in-the-pinned-image.md) |
+| [0005](0005-icon-set.md) | An icon set generated from Lucide | Accepted; amended to allow a few glyphs ui draws itself, where Lucide has none, and to mirror icons that point along time |
+| [0006](0006-overlays-in-the-top-layer.md) | Overlays in the top layer, placed without a library | Accepted |
+| [0007](0007-browser-tests-in-the-pinned-image.md) | Every browser test runs in the pinned image, through `sdk-config` | Accepted |
+| [0008](0008-colour-input-without-the-native-picker.md) | A colour input without the browser's picker | Accepted |
+| [0009](0009-reorderable-list.md) | A reorderable list: a grid of rows with one Tab stop | Proposed |
+| [0010](0010-opt-in-text-root.md) | An opt-in class for text outside components | Accepted |
+| [0011](0011-timeline.md) | A shared timeline: clips, a playhead and layers over whole units | Proposed; an amendment for lanes, clips with a start and dragging a clip is proposed in it |
+| [0012](0012-size-budgets-per-import.md) | Size budgets for what applications import, beside each entry's | Accepted; refined by [sdk-core ADR 0056](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0056-size-budgets-for-what-applications-import.md), whose floors round up to the next 0.1 kB |

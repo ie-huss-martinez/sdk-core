@@ -1,0 +1,338 @@
+/*
+ * All styles of @hussmartinez/audio-sdk. Applications import this file once;
+ * library code never imports CSS (ADR 0004).
+ *
+ * The layer order comes first, so it holds whichever stylesheet loads first,
+ * this one or @hussmartinez/ui's. The SDK writes only into hm.sdk, and a
+ * host's unlayered CSS beats every hm layer without !important (ADR 0005).
+ */
+@layer hm.tokens, hm.base, hm.components, hm.sdk;
+
+/*
+ * The editor (docs/adr/0005). Layout rules apply unless the root has
+ * data-hm-unstyled, and every value comes from ui's tokens, so themes and
+ * densities apply. Its text takes ui's type and colour from the root's
+ * hm-text class.
+ */
+@layer hm.sdk {
+  /* The element is a block the host sizes; the editor fills it. */
+  hm-audio-editor {
+    display: block;
+  }
+
+  .hm-audio-editor {
+    container-type: inline-size;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hm-gap-normal);
+    min-block-size: 0;
+    padding: var(--hm-gap-normal);
+    background: var(--hm-color-bg);
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-notices ul {
+    display: grid;
+    gap: var(--hm-gap-tight);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-notices li {
+    display: flex;
+    gap: var(--hm-gap-tight);
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--hm-gap-tight) var(--hm-gap-normal);
+    border: var(--hm-border-width) solid var(--hm-color-warning);
+    border-radius: var(--hm-radius-surface);
+    background: var(--hm-color-warning-subtle);
+    color: var(--hm-color-warning-text);
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-notices p {
+    margin: 0;
+  }
+
+  /*
+   * The stage and transport, then the inspector: side by side where the
+   * editor leaves the timeline its full layout, 720px, beside the
+   * inspector, and the inspector below them otherwise.
+   */
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-main {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--hm-gap-normal);
+    min-block-size: 0;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-work {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hm-gap-normal);
+    min-block-size: 0;
+  }
+
+  @container (inline-size >= 1080px) {
+    .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-main {
+      grid-template-columns: minmax(0, 1fr) calc(var(--hm-space-12) * 3);
+    }
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-inspector {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hm-gap-normal);
+    align-self: start;
+    min-inline-size: 0;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-inspector-title {
+    margin: 0;
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-inspector-gain,
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-inspector-fade {
+    display: grid;
+    gap: var(--hm-gap-tight);
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-facts {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--hm-gap-tight) var(--hm-gap-normal);
+    margin: 0;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-facts dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-stage {
+    flex: 1 1 auto;
+    display: grid;
+    gap: var(--hm-gap-normal);
+    align-content: start;
+    min-block-size: 0;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-stage[data-hm-empty] {
+    align-content: stretch;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-progress {
+    display: flex;
+    gap: var(--hm-gap-normal);
+    align-items: center;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-progress > :first-child {
+    flex: 1;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-error {
+    margin: 0;
+    padding: var(--hm-gap-tight) var(--hm-gap-normal);
+    border-radius: var(--hm-radius-surface);
+    background: var(--hm-color-danger-subtle);
+    color: var(--hm-color-danger-text);
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-summary {
+    margin: 0;
+    color: var(--hm-color-text-muted);
+  }
+
+  /*
+   * A clip lets its track's waveform and selected range show through it:
+   * its outline, and the accent one when it's selected, mark where it is.
+   */
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-timeline {
+    --hm-timeline-clip-bg: transparent;
+    --hm-timeline-clip-selected-bg: transparent;
+  }
+
+  /* Its title keeps ui's clip background, so the text never sits on the waveform. */
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-clip-title {
+    background: var(--hm-color-control);
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) [aria-selected="true"] > .hm-audio-editor-clip-title {
+    background: var(--hm-color-accent-subtle);
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-timeline {
+    display: grid;
+    gap: var(--hm-gap-tight);
+    min-inline-size: 0;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-toolbar {
+    flex-wrap: wrap;
+  }
+
+  /* A long name is cut with an ellipsis; its button's name holds it whole. */
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-track-name bdi {
+    overflow: hidden;
+    max-inline-size: var(--hm-space-12);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-track-gain {
+    inline-size: var(--hm-space-12);
+  }
+
+  /*
+   * The waveform: a canvas as wide as the view, placed over the part of the
+   * track in view by the CSSOM. Layout, not paint, so in any mode.
+   */
+  .hm-audio-editor-wave-layer {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hm-audio-editor-waveform {
+    position: absolute;
+    inset-block: 0;
+    block-size: 100%;
+    pointer-events: none;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-waveform {
+    color: var(--hm-color-accent);
+  }
+
+  /* A muted track, or one a solo leaves out, is drawn dim; its name says so. */
+  .hm-audio-editor:not([data-hm-unstyled]) [data-hm-silent] .hm-audio-editor-waveform {
+    color: var(--hm-color-text-disabled);
+  }
+
+  @media (forced-colors: active) {
+    .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-waveform {
+      color: CanvasText;
+    }
+  }
+
+  /*
+   * The selected range: a band on each of its lanes, under the clips. A
+   * press passes through it to the track, which selects and seeks.
+   */
+  /* Takes the presses the lanes let through, to select and seek. */
+  .hm-audio-editor-press-layer {
+    touch-action: pan-x pan-y;
+  }
+
+  .hm-audio-editor-range-layer {
+    position: relative;
+    pointer-events: none;
+  }
+
+  .hm-audio-editor-range {
+    position: absolute;
+    inset-block: 0;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-range {
+    border-inline: var(--hm-border-width) solid var(--hm-color-accent);
+    background: var(--hm-color-accent-subtle);
+  }
+
+  /* The lanes Ripple would move, when it leaves others behind; the header says so in text. */
+  .hm-audio-editor:not([data-hm-unstyled]) [data-hm-ripple] {
+    box-shadow: inset var(--hm-border-width-2) 0 0 var(--hm-color-warning);
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-track-ripple {
+    padding-inline: var(--hm-space-1);
+    border-radius: var(--hm-radius-sm);
+    background: var(--hm-color-warning-subtle);
+    color: var(--hm-color-warning-text);
+    font-size: var(--hm-font-size-small);
+    white-space: nowrap;
+  }
+
+  @media (forced-colors: active) {
+    .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-range {
+      border-color: Highlight;
+      background: transparent;
+    }
+
+    .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-track-ripple {
+      border: var(--hm-border-width) solid CanvasText;
+    }
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-selection {
+    margin: 0 0 0 var(--hm-gap-normal);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The export dialog: what will be written, then the choice, then what happened. */
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-export-summary {
+    display: grid;
+    gap: var(--hm-gap-tight);
+    margin-block-end: var(--hm-gap-normal);
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-export-summary p,
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-export-result,
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-export-error,
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-export-clipped p {
+    margin: 0;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-export-clipped {
+    display: grid;
+    gap: var(--hm-gap-tight);
+    justify-items: start;
+    margin-block-start: var(--hm-gap-normal);
+    padding: var(--hm-gap-normal);
+    border-radius: var(--hm-radius-md);
+    background: var(--hm-color-warning-subtle);
+    color: var(--hm-color-warning-text);
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-export-error {
+    margin-block-start: var(--hm-gap-normal);
+    color: var(--hm-color-danger-text);
+  }
+
+  @media (forced-colors: active) {
+    .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-export-clipped {
+      border: var(--hm-border-width) solid CanvasText;
+    }
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-transport {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--hm-gap-tight);
+    align-items: center;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-time {
+    margin: 0 0 0 var(--hm-gap-normal);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-transport-notice {
+    flex-basis: 100%;
+    margin: 0;
+    color: var(--hm-color-warning-text);
+  }
+
+  /* Narrow editors: the time takes its own line, under the buttons. */
+  @container (inline-size < 720px) {
+    .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-time {
+      flex-basis: 100%;
+      margin: 0;
+    }
+  }
+}

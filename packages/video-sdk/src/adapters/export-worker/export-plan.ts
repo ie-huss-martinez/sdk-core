@@ -1,0 +1,625 @@
+import { abortError, throwIfAborted } from "../../core/errors/error-helpers.js";
+import { isVideoError, VideoError } from "../../core/errors/video-error.js";
+import { type VideoLimitName, videoLimits } from "../../core/errors/video-limits.js";
+import {
+  audioBitrate,
+  type ExportCandidate,
+  exportCandidates,
+  exportSampleRate,
+  keyFrameInterval,
+  videoBitrate,
+} from "../../core/export/encoding.js";
+import { clipFrames, clipOffsets, planFrames, type VideoPlan } from "../../core/model/plan.js";
+import { frameTime } from "../../core/model/time.js";
+import { composeFrame } from "../../core/playback/compose.js";
+import { TIMESTAMP_TOLERANCE } from "../../core/playback/scheduler.js";
+import type { VideoExportContainer, VideoExportQuality } from "../../core/ports/video-processor.js";
+import { boundedFlush } from "../bounded-flush.js";
+import { paint } from "../canvas/paint.js";
+import { mixAudioWindow } from "../media-worker/audio-window.js";
+import type { PlaybackSource, PolicyLimits } from "../media-worker/contract.js";
+import { createReaderCache } from "../media-worker/readers.js";
+import { createExportWriter, type ExportWriter } from "../mediabunny/export-writer.js";
+import { MAX_DECODE_QUEUE } from "../mediabunny/video-decoder.js";
+
+/**
+ * Counts the frames an export made or cloned and hasn't closed, for the
+ * tests that prove every frame is closed on every path (docs/adr/0002).
+ *
+ * @internal
+ */
+export const exportLedger = { frames: 0 };
+
+/** What the page sends to export a plan. */
+export interface ExportRequest {
+  readonly plan: VideoPlan;
+  readonly sources: readonly PlaybackSource[];
+  readonly container?: VideoExportContainer;
+  readonly quality?: VideoExportQuality;
+  /** `"omit"` writes no sound track, as when the browser can't encode sound. */
+  readonly audio?: "include" | "omit";
+  /** The policy the export runs under: the file may grow to `maxFileSize`. */
+  readonly limits: PolicyLimits;
+}
+
+/**
+ * What the export worker gives back: the file, its container, and what
+ * clamping did to its sound (docs/adr/0008).
+ *
+ * @internal
+ */
+export interface ExportOutcome {
+  readonly file: Blob;
+  readonly container: VideoExportContainer;
+  /** The mix's largest absolute sample before clamping, 0 for silence. */
+  readonly peak: number;
+  readonly clippedFrames: number;
+}
+
+/** The most encoder chunks waiting for the muxer before the encoders wait (docs/adr/0002). */
+const MAX_PENDING_WRITES = 16;
+/** Audio is made in windows of a tenth of a second, as the video reaches them. */
+const AUDIO_WINDOW_SECONDS = 0.1;
+
+function videoConfig(
+  plan: VideoPlan,
+  candidate: ExportCandidate,
+  quality: VideoExportQuality,
+): VideoEncoderConfig {
+  const { output } = plan;
+  return {
+    codec: candidate.video.codec,
+    width: output.width,
+    height: output.height,
+    bitrate: videoBitrate(output, quality),
+    framerate: output.frameRate.num / output.frameRate.den,
+    latencyMode: "quality",
+    ...(candidate.video.muxer === "avc" ? { avc: { format: "avc" } } : {}),
+  };
+}
+
+function audioConfig(
+  plan: VideoPlan,
+  candidate: ExportCandidate,
+  quality: VideoExportQuality,
+): AudioEncoderConfig {
+  return {
+    codec: candidate.audio.codec,
+    sampleRate: exportSampleRate(plan.output, candidate),
+    numberOfChannels: plan.output.channels,
+    bitrate: audioBitrate(plan.output, quality),
+    // Opus's 20 ms frames, said outright, so each chunk's length is known.
+    ...(candidate.audio.muxer === "opus" ? { opus: { frameDuration: 20_000 } } : {}),
+  };
+}
+
+/** What a probe's codec that stopped rejects its flush with: the probe then proves nothing. */
+const probeStalled = () => new Error("The codec stopped during the probe.");
+
+/**
+ * Whether this browser encodes a configuration: it says so, and one black
+ * frame encodes (docs/adr/0001). An encoder whose flush stalls proves
+ * nothing, so it doesn't.
+ */
+async function provesVideo(config: VideoEncoderConfig): Promise<boolean> {
+  try {
+    if (!(await VideoEncoder.isConfigSupported(config)).supported) return false;
+  } catch {
+    return false;
+  }
+  let produced = false;
+  let failed = false;
+  let heard = performance.now();
+  const encoder = new VideoEncoder({
+    output: () => {
+      produced = true;
+      heard = performance.now();
+    },
+    error: () => {
+      failed = true;
+    },
+  });
+  try {
+    encoder.configure(config);
+    const canvas = new OffscreenCanvas(config.width, config.height);
+    const context = canvas.getContext("2d") as OffscreenCanvasRenderingContext2D;
+    context.fillRect(0, 0, config.width, config.height);
+    const frame = new VideoFrame(canvas, { timestamp: 0 });
+    encoder.encode(frame, { keyFrame: true });
+    frame.close();
+    // Bounded: an encoder that stopped would leave the export waiting here.
+    heard = performance.now();
+    await boundedFlush(encoder, () => heard, probeStalled);
+    return produced && !failed;
+  } catch {
+    return false;
+  } finally {
+    if (encoder.state !== "closed") encoder.close();
+  }
+}
+
+/** Where the probe's tone burst starts, in samples: well past any codec's priming. */
+const BURST_AT = 4_800;
+
+/**
+ * Whether this browser encodes an audio configuration, and its priming: the
+ * samples of delay the encoder puts before the audio, which the file must
+ * trim (docs/adr/0001). The probe encodes silence with a short tone burst at
+ * a known sample, re-stamped by sample count as the export does, and decodes
+ * it back. Opus carries its pre-skip in its own header, so its priming is 0
+ * once it encodes. AAC's isn't recorded anywhere a decoder applies, so it's
+ * measured: where the burst comes back, less where it went in. `undefined`
+ * when the configuration doesn't encode, or AAC's priming can't be measured,
+ * as when the encoder's or decoder's flush stalls: the export then tries the
+ * next candidate, or fails with `UNSUPPORTED_CODEC` for the sound.
+ */
+async function provesAudio(config: AudioEncoderConfig): Promise<number | undefined> {
+  try {
+    if (!(await AudioEncoder.isConfigSupported(config)).supported) return undefined;
+  } catch {
+    return undefined;
+  }
+  const chunks: EncodedAudioChunk[] = [];
+  let decoderConfig: AudioDecoderConfig | undefined;
+  let failed = false;
+  let heard = performance.now();
+  const encoder = new AudioEncoder({
+    output: (chunk, meta) => {
+      heard = performance.now();
+      chunks.push(chunk);
+      decoderConfig ??= meta?.decoderConfig;
+    },
+    error: () => {
+      failed = true;
+    },
+  });
+  const rate = config.sampleRate;
+  const channels = config.numberOfChannels;
+  try {
+    encoder.configure(config);
+    const frames = BURST_AT * 2;
+    const planar = new Float32Array(frames * channels);
+    // 10 ms of 1 kHz at full scale, in every channel.
+    for (let k = BURST_AT; k < BURST_AT + rate / 100; k += 1) {
+      const sample = Math.sin((2 * Math.PI * 1_000 * (k - BURST_AT)) / rate);
+      for (let channel = 0; channel < channels; channel += 1) planar[channel * frames + k] = sample;
+    }
+    const data = new AudioData({
+      format: "f32-planar",
+      sampleRate: rate,
+      numberOfFrames: frames,
+      numberOfChannels: channels,
+      timestamp: 0,
+      data: planar,
+    });
+    encoder.encode(data);
+    data.close();
+    // Bounded, as the decoder's below: a stalled codec proves nothing.
+    heard = performance.now();
+    await boundedFlush(encoder, () => heard, probeStalled);
+  } catch {
+    return undefined;
+  } finally {
+    if (encoder.state !== "closed") encoder.close();
+  }
+  if (failed || chunks.length === 0) return undefined;
+  if (config.codec === "opus") return 0;
+  if (!decoderConfig) return undefined;
+  // Decoded in order, as the file would be read, and joined end to end.
+  const decoded: number[] = [];
+  let decodeFailed = false;
+  const decoder = new AudioDecoder({
+    output: (data) => {
+      heard = performance.now();
+      const plane = new Float32Array(data.numberOfFrames);
+      data.copyTo(plane, { planeIndex: 0, format: "f32-planar" });
+      data.close();
+      for (const sample of plane) decoded.push(sample);
+    },
+    error: () => {
+      decodeFailed = true;
+    },
+  });
+  try {
+    decoder.configure(decoderConfig);
+    const step = audioFrameSamples(config.codec, rate);
+    for (const [index, chunk] of chunks.entries()) {
+      decoder.decode(restamp(chunk, index * step, step, rate));
+    }
+    heard = performance.now();
+    await boundedFlush(decoder, () => heard, probeStalled);
+  } catch {
+    return undefined;
+  } finally {
+    if (decoder.state !== "closed") decoder.close();
+  }
+  if (decodeFailed) return undefined;
+  // Above half the burst: AAC smears a transient about a block early, as pre-echo.
+  const onset = decoded.findIndex((sample) => Math.abs(sample) > 0.5);
+  if (onset < BURST_AT) return undefined;
+  return onset - BURST_AT;
+}
+
+/** How many samples each encoded chunk of a codec holds: AAC-LC's frame, and Opus's 20 ms. */
+function audioFrameSamples(codec: string, rate: number): number {
+  return codec === "opus" ? Math.round(rate / 50) : 1_024;
+}
+
+/**
+ * A chunk with its time set from its place in the stream: `from` samples,
+ * `length` long. WebKit stamps every chunk with the time and length of the
+ * audio it was encoded from, so several chunks share one time; the file
+ * needs each chunk's own.
+ */
+function restamp(chunk: EncodedAudioChunk, from: number, length: number, rate: number) {
+  const data = new Uint8Array(chunk.byteLength);
+  chunk.copyTo(data);
+  return new EncodedAudioChunk({
+    type: chunk.type,
+    timestamp: Math.round((from * 1_000_000) / rate),
+    duration: Math.round((length * 1_000_000) / rate),
+    data,
+  });
+}
+
+/**
+ * The first candidate this browser can encode, proved by encoding with it
+ * (docs/adr/0001). `AudioEncoder` is needed only for a plan with sound
+ * (docs/adr/0008). Throws `UNSUPPORTED_ENVIRONMENT` without `VideoEncoder`,
+ * and `UNSUPPORTED_CODEC` when no candidate encodes, with `details.track`
+ * saying which: `"audio"` when the picture could be encoded but no sound,
+ * so the export can be made without sound instead.
+ */
+async function chooseCandidate(
+  plan: VideoPlan,
+  quality: VideoExportQuality,
+  withAudio: boolean,
+  container: VideoExportContainer | undefined,
+): Promise<{ readonly candidate: ExportCandidate; readonly priming: number }> {
+  if (typeof globalThis.VideoEncoder !== "function") {
+    throw new VideoError(
+      "UNSUPPORTED_ENVIRONMENT",
+      "This browser has no VideoEncoder in workers.",
+      {
+        details: { feature: "VideoEncoder" },
+      },
+    );
+  }
+  const noSound = (codec: string) =>
+    new VideoError("UNSUPPORTED_CODEC", "This browser can't encode the export's sound.", {
+      details: { codec, track: "audio" },
+    });
+  if (withAudio && typeof globalThis.AudioEncoder !== "function") {
+    throw noSound("AudioEncoder");
+  }
+  const proved = new Map<string, boolean>();
+  const cached = async (key: string, prove: () => Promise<boolean>) => {
+    if (!proved.has(key)) proved.set(key, await prove());
+    return proved.get(key) as boolean;
+  };
+  const primings = new Map<string, number | undefined>();
+  let pictureEncodes = false;
+  for (const candidate of exportCandidates(plan.output, container)) {
+    const video = videoConfig(plan, candidate, quality);
+    if (!(await cached(`v:${video.codec}`, () => provesVideo(video)))) continue;
+    pictureEncodes = true;
+    if (withAudio) {
+      const audio = audioConfig(plan, candidate, quality);
+      if (!primings.has(audio.codec)) primings.set(audio.codec, await provesAudio(audio));
+      const priming = primings.get(audio.codec);
+      if (priming === undefined) continue;
+      return { candidate, priming };
+    }
+    return { candidate, priming: 0 };
+  }
+  if (pictureEncodes) throw noSound(container ?? "mp4/webm");
+  throw new VideoError("UNSUPPORTED_CODEC", "This browser can't encode the export.", {
+    details: { codec: container ?? "mp4/webm", track: "video" },
+  });
+}
+
+/** Waits for an encoder's queue to drop below `size`, or for a failure. */
+function belowQueue(
+  encoder: VideoEncoder | AudioEncoder,
+  size: number,
+  check: () => void,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const test = () => {
+      try {
+        check();
+      } catch (error) {
+        encoder.removeEventListener("dequeue", test);
+        reject(error);
+        return;
+      }
+      if (encoder.encodeQueueSize < size) {
+        encoder.removeEventListener("dequeue", test);
+        resolve();
+      }
+    };
+    encoder.addEventListener("dequeue", test);
+    test();
+  });
+}
+
+/**
+ * Exports a plan in the export worker (docs/adr/0005): every output frame is
+ * decoded, composed and encoded again, the audio is mixed and encoded on the
+ * same timeline, and both are written into the container. Nothing is copied
+ * from a source. Memory stays at the queues' bounds and the file.
+ *
+ * Throws `VideoError`: `UNSUPPORTED_CODEC`, `ENCODE_FAILED` with
+ * `details.codec`, the decoder's codes, and `ABORTED` or the abort reason's
+ * code when cancelled. Every frame is closed on every path.
+ *
+ * @internal
+ */
+export async function exportPlan(
+  request: ExportRequest,
+  onProgress: (fraction: number) => void,
+  signal: AbortSignal,
+  onWarning: (limit: VideoLimitName) => void = () => {},
+): Promise<ExportOutcome> {
+  const { plan } = request;
+  const quality = request.quality ?? "medium";
+  const sources = new Map(request.sources.map((source) => [source.id, source]));
+  for (const clip of plan.clips) {
+    if (!sources.has(clip.source)) throw new TypeError(`The source "${clip.source}" isn't open.`);
+  }
+  const total = planFrames(plan);
+  if (total === 0) {
+    throw new VideoError("INVALID_COMMAND", "An empty plan can't be exported.", {
+      details: { reason: "empty-plan" },
+    });
+  }
+  // Sound is left out only when asked, never silently (docs/adr/0008).
+  const withAudio =
+    request.audio !== "omit" && plan.clips.some((clip) => sources.get(clip.source)?.probe.audio);
+  const readers = createReaderCache();
+  readers.setSources(sources);
+
+  let writer: ExportWriter | undefined;
+  let videoEncoder: VideoEncoder | undefined;
+  let audioEncoder: AudioEncoder | undefined;
+  let failure: unknown;
+  /** The file's size limit, once the file passed it: no other failure replaces it. */
+  let tooLarge: unknown;
+  const policy = videoLimits.resolve(request.limits);
+  let warned = false;
+  const counted = (size: number) => {
+    // One write can cross the warning and the maximum at once: it still warns.
+    if (!warned && size >= policy.limits.maxFileSize.warning) {
+      warned = true;
+      onWarning("maxFileSize");
+    }
+    try {
+      policy.check("maxFileSize", size);
+    } catch (error) {
+      tooLarge ??= error;
+      throw error;
+    }
+  };
+  let writes: Promise<void> = Promise.resolve();
+  let pendingWrites = 0;
+  const check = () => {
+    if (signal.aborted) throw abortError(signal);
+    if (tooLarge !== undefined) throw tooLarge;
+    if (failure !== undefined) throw failure;
+  };
+  const write = (add: () => Promise<void>) => {
+    pendingWrites += 1;
+    writes = writes
+      .then(add)
+      .catch((error: unknown) => {
+        failure ??= error;
+      })
+      .finally(() => {
+        pendingWrites -= 1;
+      });
+  };
+
+  try {
+    throwIfAborted(signal);
+    const { candidate, priming } = await chooseCandidate(
+      plan,
+      quality,
+      withAudio,
+      request.container,
+    );
+    throwIfAborted(signal);
+    const { output } = plan;
+    writer = await createExportWriter(
+      candidate,
+      plan.metadata,
+      output.frameRate.num / output.frameRate.den,
+      withAudio,
+      counted,
+    );
+    const activeWriter = writer;
+    const encodeFailed = (codec: string) => (error: unknown) => {
+      failure ??= new VideoError("ENCODE_FAILED", "The browser couldn't encode the export.", {
+        details: { codec },
+        cause: error,
+      });
+    };
+    const video = videoConfig(plan, candidate, quality);
+    videoEncoder = new VideoEncoder({
+      output: (chunk, meta) => write(() => activeWriter.addVideo(chunk, meta)),
+      error: encodeFailed(video.codec),
+    });
+    videoEncoder.configure(video);
+    const audio = withAudio ? audioConfig(plan, candidate, quality) : undefined;
+    let audioChunks = 0;
+    if (audio) {
+      audioEncoder = new AudioEncoder({
+        // Each chunk is stamped by its place in the stream, from minus the
+        // encoder's priming: the file's edit list then trims the priming, so
+        // the first sample heard is the plan's first (docs/adr/0001).
+        output: (chunk, meta) => {
+          const step = audioFrameSamples(audio.codec, audio.sampleRate);
+          const stamped = restamp(chunk, audioChunks * step - priming, step, audio.sampleRate);
+          audioChunks += 1;
+          write(() => activeWriter.addAudio(stamped, meta));
+        },
+        error: encodeFailed(audio.codec),
+      });
+      audioEncoder.configure(audio);
+    }
+
+    const canvas = new OffscreenCanvas(output.width, output.height);
+    const context = canvas.getContext("2d", { alpha: false }) as OffscreenCanvasRenderingContext2D;
+    const rate = output.frameRate;
+    const interval = keyFrameInterval(output);
+    const audioRate = audio?.sampleRate ?? 0;
+    const audioTotal = Math.round((frameTime(total, rate) * audioRate) / 1_000_000);
+    let audioNext = 0;
+    const meter = { peak: 0, clippedFrames: 0 };
+    let lastProgress = 0;
+
+    /** Encodes the audio up to timeline time `time`, in windows. */
+    const encodeAudioTo = async (time: number) => {
+      if (!audioEncoder) return;
+      const until = Math.min(audioTotal, Math.round((time * audioRate) / 1_000_000));
+      while (audioNext < until) {
+        check();
+        const count = Math.min(Math.round(audioRate * AUDIO_WINDOW_SECONDS), until - audioNext);
+        const channels = await mixAudioWindow(
+          plan,
+          sources,
+          readers.readerFor,
+          audioNext,
+          count,
+          audioRate,
+          signal,
+          meter,
+        );
+        const planar = new Float32Array(count * channels.length);
+        for (const [index, channel] of channels.entries()) planar.set(channel, index * count);
+        await belowQueue(audioEncoder, MAX_DECODE_QUEUE, check);
+        const data = new AudioData({
+          format: "f32-planar",
+          sampleRate: audioRate,
+          numberOfFrames: count,
+          numberOfChannels: channels.length,
+          timestamp: Math.round((audioNext * 1_000_000) / audioRate),
+          data: planar,
+        });
+        audioEncoder.encode(data);
+        data.close();
+        audioNext += count;
+      }
+    };
+
+    /** Composes, encodes and accounts for output frame `n`, showing `held`, or black without one. */
+    const emit = async (n: number, held: VideoFrame | undefined, index: number) => {
+      check();
+      const clip = plan.clips[index];
+      const probe = clip && sources.get(clip.source)?.probe;
+      context.fillStyle = "#000";
+      context.fillRect(0, 0, output.width, output.height);
+      if (held && clip && probe) {
+        const composition = composeFrame(
+          output,
+          canvas,
+          {
+            width: probe.video.displayWidth,
+            height: probe.video.displayHeight,
+            rotation: probe.video.rotation,
+          },
+          clip.transform,
+        );
+        paint(context, held, composition);
+      }
+      const encoder = videoEncoder as VideoEncoder;
+      await belowQueue(encoder, MAX_DECODE_QUEUE, check);
+      if (pendingWrites > MAX_PENDING_WRITES) await writes;
+      check();
+      const frame = new VideoFrame(canvas, {
+        timestamp: frameTime(n, rate),
+        duration: frameTime(n + 1, rate) - frameTime(n, rate),
+      });
+      exportLedger.frames += 1;
+      try {
+        encoder.encode(frame, { keyFrame: n % interval === 0 });
+      } finally {
+        frame.close();
+        exportLedger.frames -= 1;
+      }
+      await encodeAudioTo(frameTime(n + 1, rate));
+      const now = performance.now();
+      if (now - lastProgress >= 100) {
+        lastProgress = now;
+        onProgress((n + 1) / total);
+      }
+    };
+
+    const offsets = clipOffsets(plan);
+    let n = 0;
+    for (const [index, clip] of plan.clips.entries()) {
+      const probe = (sources.get(clip.source) as PlaybackSource).probe;
+      const last = (offsets[index] as number) + clipFrames(clip, rate);
+      const first = offsets[index] as number;
+      const target = (k: number) => clip.start + frameTime(k - first, rate);
+      let held: VideoFrame | undefined;
+      const release = () => {
+        if (!held) return;
+        held.close();
+        exportLedger.frames -= 1;
+        held = undefined;
+      };
+      try {
+        const reader = await readers.readerFor(clip.source);
+        await reader.decode(
+          {
+            keyFrom: probe.start + clip.start + TIMESTAMP_TOLERANCE,
+            from: Number.NEGATIVE_INFINITY,
+            to: probe.start + clip.end,
+          },
+          async (decoded) => {
+            const time = decoded.timestamp - probe.start;
+            // Every output frame before this one shows the frame held.
+            while (n < last && target(n) + TIMESTAMP_TOLERANCE < time) {
+              await emit(n, held, index);
+              n += 1;
+            }
+            release();
+            held = decoded.clone();
+            exportLedger.frames += 1;
+          },
+          signal,
+        );
+        while (n < last) {
+          await emit(n, held, index);
+          n += 1;
+        }
+      } finally {
+        release();
+      }
+    }
+
+    await encodeAudioTo(frameTime(total, rate));
+    await videoEncoder.flush();
+    await audioEncoder?.flush();
+    await writes;
+    check();
+    const file = await writer.finish();
+    onProgress(1);
+    return { file, container: candidate.container, ...meter };
+  } catch (error) {
+    await writer?.cancel().catch(() => {});
+    if (tooLarge !== undefined) throw tooLarge;
+    if (isVideoError(error) || error instanceof TypeError) throw error;
+    if (failure !== undefined) throw failure;
+    if (signal.aborted) throw abortError(signal);
+    throw new VideoError("ENCODE_FAILED", "The browser couldn't encode the export.", {
+      details: { codec: "unknown" },
+      cause: error,
+    });
+  } finally {
+    for (const encoder of [videoEncoder, audioEncoder]) {
+      if (encoder && encoder.state !== "closed") encoder.close();
+    }
+    readers.dispose();
+  }
+}

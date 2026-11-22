@@ -1,11 +1,11 @@
 # Working in this repository
 
-This repository is part of the `@hussmartinez` SDK family and is public. Treat it as a showcase: code, commits and pull requests should read as professional work.
+This repository holds the `@hussmartinez` SDK family, one package per folder in `packages/` ([ADR 0064](docs/adr/0064-one-repository-for-the-family.md)), and is public. Treat it as a showcase: code, commits and pull requests should read as professional work.
 
 ## Before changing anything
 
-- Read [`STANDARDS.md`](STANDARDS.md). It is binding for every repository in the family.
-- Check [`docs/adr`](docs/adr) before changing anything a decision record covers. To change a decision, write a new ADR that supersedes the old one, in the same pull request as the change.
+- Read [`STANDARDS.md`](STANDARDS.md). It is binding for every package in the family.
+- Check [`docs/adr`](docs/adr), and the package's own `docs/adr`, before changing anything a decision record covers. To change a decision, write a new ADR that supersedes the old one, in the same pull request as the change.
 
 ## Making changes
 
@@ -23,7 +23,7 @@ This repository is part of the `@hussmartinez` SDK family and is public. Treat i
 ## Verifying changes
 
 - **Hooks are the local bar** ([ADR 0053](docs/adr/0053-ci-is-the-merge-gate.md)). They run automatically: linting, a secret scan and a hidden-character check on commit, commit message checks, and `pnpm verify:fast` on push. Never use `--no-verify`. If a hook is wrong or too slow, fix it in its own pull request.
-- **CI is the merge gate.** It runs the full `pnpm verify` on Chromium, Firefox and WebKit, and checks the pull request title and changeset. Every check must pass on the pull request's current head before merging. Don't run the full `pnpm verify` or the browser suites locally as a routine step: run them to diagnose a failure, to reproduce one from CI, or to capture screenshots.
+- **CI is the merge gate.** It runs the `verify` of every package a pull request can affect, on Chromium, Firefox and WebKit, with the repository's own checks, and checks the pull request title and changeset. Every check must pass on the pull request's current head before merging. Don't run the full `pnpm verify` or the browser suites locally as a routine step: run them to diagnose a failure, to reproduce one from CI, or to capture screenshots.
 - **A failure that only shows in CI is real.** Find its cause. Never loosen an assertion, add a retry or rerun until it passes.
 - **Automated review:** CodeRabbit reviews every pull request, and reviews again after each push. Wait for its review of the current head to finish before you look at its threads: no open thread while it's still reviewing means nothing yet. Fix or answer each thread it opens, then resolve it. A pull request isn't ready while a thread is open, and a new push can open more.
 - **In the description,** say what you ran and what you didn't, such as "browser suites not run locally; CI covers them".

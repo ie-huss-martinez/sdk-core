@@ -1,0 +1,119 @@
+# @hussmartinez/learn-sdk
+
+## 0.4.0
+
+### Minor Changes
+
+- [#48](https://github.com/ie-huss-martinez/learn-sdk/pull/48) [`74e9b95`](https://github.com/ie-huss-martinez/learn-sdk/commit/74e9b955a81569596c522c65bcc5aab12985ac5e) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `LearnPlayer` takes `headingLevel`, from `2` to `6`, so its exercise titles fit your page's outline (sdk-core ADR 0058). It defaults to `2`, which renders the `<h2>` it always has. A value outside 2 to 6 is treated as `2`, with a warning in development. A block you pass in `blocks` that renders `Heading` from `@hussmartinez/ui/react` gets the level below the title. The `HeadingLevel` type is exported from `@hussmartinez/learn-sdk/react`.
+  
+  ```tsx
+  <LearnPlayer content={content} headingLevel={3} />
+  ```
+  
+  learn-sdk now depends on `@hussmartinez/ui` ^0.16.0. If your app also depends on ui, directly or through another `@hussmartinez` SDK, move it to ^0.16.0 too, so the app keeps a single copy.
+
+## 0.3.0
+
+### Minor Changes
+
+- [#46](https://github.com/ie-huss-martinez/learn-sdk/pull/46) [`ef6dad9`](https://github.com/ie-huss-martinez/learn-sdk/commit/ef6dad9f55c8e9d5bce7f6e6d610ef49ee2fd3c8) Thanks [@hussmartinez](https://github.com/hussmartinez)! - learn-sdk now depends on `@hussmartinez/ui` ^0.15.0 and `@hussmartinez/sdk-core` ^0.4.7. If your app also depends on ui or sdk-core, directly or through another `@hussmartinez` SDK, move it to those ranges too, so the app keeps a single copy of each.
+  
+  Screen readers now hear the player's announcements as sentences. ui 0.15 says messages sent in the same frame together, so the last exercise's result and the summary are no longer cut short. To make the joined text read well, the player announces a check with two new messages, `player.announceCorrect` ("Correct.") and `player.announceResult` ("{score} of {max} right."), and `wordOrder.placed`, `wordOrder.returned` and `wordOrder.moved` end with a full stop. The visible `player.correct` and `player.result` text is unchanged.
+  
+  **If you translate the player's text:** add `player.announceCorrect` and `player.announceResult` to your `messages`, beside your `player.correct` and `player.result`. Without them, checks are announced in English. End every announced message with your language's punctuation, including your `wordOrder.placed`, `wordOrder.returned` and `wordOrder.moved`, so that joined messages read as sentences.
+  
+  The player's Previous, Next and Skip icons now point the right way in right-to-left pages, because ui mirrors them there. Nothing else changes in how the player looks.
+
+## 0.2.3
+
+### Patch Changes
+
+- [#43](https://github.com/ie-huss-martinez/learn-sdk/pull/43) [`043d8a3`](https://github.com/ie-huss-martinez/learn-sdk/commit/043d8a3394c0bb83c6e98b27f12fd6740e42900e) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Importing a single piece from `@hussmartinez/learn-sdk/react`, such as `playerCatalogue`, `definePlayerBlock` or one exercise block, no longer brings `LearnPlayer`'s internals into your bundle. With esbuild it saved about 1.5 kB per such import. Nothing changes in the API or in behaviour.
+
+## 0.2.2
+
+### Patch Changes
+
+- [#41](https://github.com/ie-huss-martinez/learn-sdk/pull/41) [`587cc55`](https://github.com/ie-huss-martinez/learn-sdk/commit/587cc5531cf777218a99bcf3310bba8d41c05356) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Importing from `@hussmartinez/learn-sdk` no longer brings ts-fsrs into your bundle unless you use `createFsrsScheduler`. Bundlers such as esbuild used to keep about 3 kB of ts-fsrs for any import from the root entry, even `LearnError` or `createLearnPlayer`. Nothing changes in the API or in how scheduling behaves.
+
+## 0.2.1
+
+### Patch Changes
+
+- [#33](https://github.com/ie-huss-martinez/learn-sdk/pull/33) [`d4fed45`](https://github.com/ie-huss-martinez/learn-sdk/commit/d4fed45cc9fecca6d5dc787c56810cefbc0d3080) Thanks [@hussmartinez](https://github.com/hussmartinez)! - LearnPlayer now distinguishes unsupported content versions, unrelated formats and damaged content, so learners are only told to update the app for an unsupported version. Hosts can translate each message through the content.* catalogue keys.
+
+## 0.2.0
+
+### Minor Changes
+
+- [#27](https://github.com/ie-huss-martinez/learn-sdk/pull/27) [`9b6157e`](https://github.com/ie-huss-martinez/learn-sdk/commit/9b6157e4a36ca9b4de8cefde0b3a838762496ed4) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Add the teacher's editor session and its portable edit commands, headless, so React and the custom element can wrap them later (ADR 0007).
+  
+  - **`createLearnEditor({ initialContent, types, limits, newId, onChange, onEvent })`** opens valid `hm-learn-content`, or starts empty, and returns a store (`getSnapshot`, `subscribe`) with `execute(command)`, `group(fn)`, `undo()`, `redo()`, `getContent()` and `newExerciseId()`. The snapshot holds the `draft`, its `issues` (each with the path to its field, from the same validators as `parseContent`), an `error` when the whole draft exceeds a limit, `canUndo`, `canRedo` and `trimmed`.
+  - **Drafts may be invalid while a teacher works,** such as a new exercise with no questions yet. `onChange(draft, { issues })` reports every change, so you can keep drafts; `getContent()` returns validated content for publishing, or throws `INVALID_DOCUMENT` with every issue.
+  - **Undo instead of confirmation:** every edit is one undoable step, and `group(fn)` makes a burst of edits, such as typing in a field, one step. The history keeps 500 steps; `trimmed` says when the earliest were dropped.
+  - **Edit commands, `hm-learn-command` v1:** `learn.addExercise`, `learn.removeExercise`, `learn.moveExercise`, `learn.setExerciseText` and `learn.setPayload`, plain JSON with a JSON Schema in `@hussmartinez/learn-sdk/formats/hm-learn-command/v1.schema.json`, documented in `docs/formats/hm-learn-command.md`. `applyLearnCommand(draft, command, { types, limits })` applies one and returns the new draft with the command that undoes it, so a server can replay stored or synced commands exactly as the editor does. Exercise ids are fixed once created, because progress refers to them.
+  - **Commands are untrusted input:** each is copied and checked by shape, and every text in it, including texts and keys inside a payload, is measured against `maxTextLength` in code points. A refused command throws `INVALID_COMMAND` with a `details.reason` (`LearnCommandRejection`): `malformed-command`, `unknown-command`, `unknown-exercise`, `duplicate-id`, `unknown-type`, `position-out-of-range`, `text-too-long` or `too-many-exercises`.
+  - **Usage events** are `content_edited` with the command's type, `edit_undone` and `edit_redone`: never content or ids.
+  - **Tools:** `learnEditorTools` (`undoTool`, `redoTool` and `removeExerciseTool`, which removes the selected exercise) with the family's undo, redo and delete shortcuts, and labels in `learnMessages`.
+
+- [#29](https://github.com/ie-huss-martinez/learn-sdk/pull/29) [`2e51c65`](https://github.com/ie-huss-martinez/learn-sdk/commit/2e51c6580e1fa196a6558e204a9b0d9114ecb3f2) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Add `LearnPlayer`, the learner's player for React (`@hussmartinez/learn-sdk/react`), with blocks for multiple choice, gap fill and word order (ADR 0005, ADR 0007).
+  
+  ```tsx
+  import "@hussmartinez/ui/styles.css";
+  import "@hussmartinez/learn-sdk/styles.css";
+  import { LearnPlayer } from "@hussmartinez/learn-sdk/react";
+  
+  <LearnPlayer content={content} profile={{ code: "th", direction: "ltr" }} onProgress={save} />
+  ```
+  
+  - **One exercise at a time,** with Check, Previous, Try again, Skip and Next, and `Mod+Enter` to check. Each check's result shows with an icon and text, never colour alone, along with the right answer, and is announced in a polite live region. Once every exercise is checked or skipped, the player sums up.
+  - **Keyboard and single taps only:** each group of choices or tiles is one Tab stop, with the arrow keys, Home and End inside it. In word order, choosing a word places it and choosing a placed word returns it, and Alt with an arrow moves a placed word; every move is announced. Choices that can't be chosen any more stay focusable with `aria-disabled`. After moving on, focus goes to the new exercise's heading.
+  - **The learned language** is marked with the profile's `lang` and `dir`.
+  - **Props:** `content`, `types`, `profile`, `progressStore` with `scope`, `scheduler`, `limits`, `onProgress`, `onEvent`, `onError`, `messages`, `locale` and `className`, as the session takes them. Invalid content shows its error instead of the exercises. If saving fails, the player says so and offers to try again. A ref gives `check()`, `next()` and `reset()`.
+  - **Your own exercise types:** pass a block per type in `blocks`, written with `definePlayerBlock`; it gets the exercise, the answer so far, `onAnswer`, the grade once checked, the profile, the messages and `announce`. `MultipleChoicePlayer`, `GapFillPlayer` and `WordOrderPlayer` are the built-in blocks.
+  - **Text:** `learnMessages` adds the player's text (`player.*`, `multipleChoice.*`, `gapFill.*`, `wordOrder.*`); `playerCatalogue` joins it with ui's, and `messages` overrides any of it.
+
+- [#25](https://github.com/ie-huss-martinez/learn-sdk/pull/25) [`6ae9e96`](https://github.com/ie-huss-martinez/learn-sdk/commit/6ae9e96966d6830b4c3af9a255eb18b44bebe9da) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Add the learner's player session, headless, so it runs anywhere and React and the custom element can wrap it later (ADR 0007).
+  
+  - **`createLearnPlayer({ content, types, profile, progressStore, scope, scheduler, now, onProgress, onEvent, onError })`** reads content with `parseContent` and returns a store (`getSnapshot`, `subscribe`) with the learner's actions: `answer`, `check`, `next`, `previous`, `retry` and `skip`. The snapshot holds each exercise's status, draft and grade, the current position, what the learner `can` do now, the `summary` once every exercise is checked or skipped, and whether progress is saved. Actions the snapshot doesn't allow change nothing.
+  - **Checking** grades with `gradeAnswer`, as a server does, and records one attempt, which goes to `onProgress` at once and to the progress store in order. A draft that doesn't fit its exercise throws `INVALID_ANSWER` and changes nothing. Skipped exercises count as neither right nor wrong, and record nothing.
+  - **Saving never blocks the learner:** the grade shows at once. If a save fails, `save` becomes `"failed"`, `onError` gets `STORAGE_UNAVAILABLE`, the changes stay queued, and `retrySave()` saves them and any since, in order. `settled()` resolves once saving is done, and `dispose()` stops it.
+  - **Spaced repetition only from the learner's own ratings:** an exercise type may define `reviewItems(payload, answer, grade)`, returning `ReviewedItem`s (`{ itemId, rating }`). With a `scheduler`, checking such a type reviews each item from its card in the learner's progress. No built-in quiz type defines it, so quiz answers never become scheduling signals unless you opt a type in with your own `reviewItems`.
+  - **Usage events** (`onEvent`) are `exercise_checked`, with the exercise type and its number of items, and `player_completed`, with the number of exercises: never answers, ids or scores.
+  - **Tools:** `learnPlayerTools` (`checkTool`, `nextTool`, `previousTool`, `retryTool`, `skipTool`) are the player's actions for a toolbar, with labels in `learnMessages` (`tools.check` …) and `Mod+Enter` to check.
+
+### Patch Changes
+
+- [#32](https://github.com/ie-huss-martinez/learn-sdk/pull/32) [`cdfea35`](https://github.com/ie-huss-martinez/learn-sdk/commit/cdfea3552f9e30482108151fa4533df4644e4252) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `LearnPlayer` lays out each checked item more clearly: the verdict ("Correct" or "Not quite", with its icon) on its own line, then the right answer and any explanation, each on a line of its own, where they used to run on in one sentence. An explanation is no longer marked as text in the learned language. Typed gaps are about a word wide and grow with what's typed, rather than a fixed wide field, and content that can't be opened is shown in a panel of its own. The summary panel uses the raised surface, with a border.
+
+- [#28](https://github.com/ie-huss-martinez/learn-sdk/pull/28) [`8e265b7`](https://github.com/ie-huss-martinez/learn-sdk/commit/8e265b77e1b7e4245fd1e56e782421bb355bdb14) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Depend on `@hussmartinez/ui` ^0.7.0, the family's design system, which the player and editor components will use, and move to `@hussmartinez/sdk-core` ^0.4.3. A page using learn-sdk with the other `@hussmartinez` SDKs on these ranges loads one copy of each. Nothing changes in learn-sdk's own API.
+
+## 0.1.0
+
+### Minor Changes
+
+- [#3](https://github.com/ie-huss-martinez/learn-sdk/pull/3) [`a90597f`](https://github.com/ie-huss-martinez/learn-sdk/commit/a90597f8f470899c8ee08377572e3691521c8fa2) Thanks [@hussmartinez](https://github.com/hussmartinez)! - First release of `@hussmartinez/learn-sdk`, a learning SDK: exercise types with grading that gives the same result in the browser and on a server, spaced repetition, a player for learners and an editor for teachers. Learners' answers and progress stay with the host application; the SDK makes no network requests of its own.
+  
+  - **Package shape:** an ES module package with a server-safe headless core (`@hussmartinez/learn-sdk`), a React entry (`@hussmartinez/learn-sdk/react`), a custom element entry (`@hussmartinez/learn-sdk/element`) and one stylesheet (`@hussmartinez/learn-sdk/styles.css`), which applications import once. React and React DOM 18.3 or later are optional peer dependencies.
+  - **Errors:** every failure is a `LearnError` with a stable `code`, such as `INVALID_DOCUMENT`, `UNSUPPORTED_FORMAT`, `INVALID_ANSWER` or `AUDIO_UNAVAILABLE`, and structured `details` that never contain a learner's answer. A rejected document, answer or scheduler state also gives a stable `details.reason`, the same across the `@hussmartinez` SDKs: `not-json` or `malformed-document`, `unknown-format` or `unknown-format-version`, `malformed-answer`, `unknown-scheduler` or `malformed-state`. Handle errors by code and reason, never by message. `isLearnError(error, code)` checks one, including errors a server sent to the browser.
+  - **Limits for untrusted content:** `learnLimits` adds `maxContentSize`, `maxExercises`, `maxItems`, `maxChoices`, `maxTiles` and `maxTextLength` to the family's limits, and uses `maxFileSize` for audio clips, with defaults sized for real courses: 2 MB of content, 500 exercises and 5 MB clips. Set them with the `limits` setting; a misspelt limit name throws instead of being ignored.
+  - **Validation issues:** content and answers that fail validation report `LearnIssue`s, each with a path to the field and a stable `code`, such as `required`, `unknown-field` or `too-few`.
+  - **Translatable text:** `learnMessages` is the English catalogue for every error code, limit warning and validation issue, for `createMessages` from `@hussmartinez/sdk-core`. Error text comes from the code and its details, never from the error's message.
+  - **Courses and access:** `Level`, `Course`, `Enrolment` and `Learner` describe a curriculum as plain data. `canAccessCourse(learner, course)` and `accessibleCourses(learner, courses)` decide what someone may see: teachers see every course, and learners exactly the courses they are or were enrolled in, never a range. Use them on your server to decide what to send.
+  - **Language profiles:** a `LanguageProfile` gives the learned language's `code` and `direction`, its own answer rules (`normalizeAnswer`) and, for display only, word splitting (`segment`). `normalizeForGrading(text, profile)` applies NFC and then the profile's rules, the same way on a server and in every browser. Without a profile, `defaultLanguageProfile` is used.
+  - **Exercise types:** `defineExerciseType({ type, validate, validateAnswer, grade })` defines a type with pure functions, and `createExerciseTypes(types)` collects the built-in types and your own. Validators read untrusted data through a `ValidationContext`, which never calls getters, reports fields the format doesn't define, and checks counts and lengths against the limits. Text lengths count Unicode code points, so 2,000 emoji fit the default `maxTextLength`, as they fit the format's JSON Schema.
+  - **Portable formats:** content is an `hm-learn-content` document and stored progress an `hm-learn-progress` document, each versioned JSON with a JSON Schema shipped in the package (`@hussmartinez/learn-sdk/formats/hm-learn-content/v1.schema.json` and `…/hm-learn-progress/v1.schema.json`) and documented in `docs/formats/`, so other languages and tools can read and check them. Language-neutral conformance vectors in the repository's `conformance/` let a port in another language, such as a server grading answers, prove it reads, grades and schedules exactly as this package does. `CONTENT_FORMAT`, `PROGRESS_FORMAT` and their versions are exported.
+  - **Parsing content:** `parseContent(input, { types, limits })` reads an `hm-learn-content` document (`{ "format": "hm-learn-content", "version": 1, "exercises": [...] }`) from a JSON string or a value you've already parsed. It checks a string's size before parsing, reads only the fields the format defines, and returns fresh, validated content, which keeps its `format` and `version` so you can store it as it is. Otherwise it throws `INVALID_DOCUMENT` with every issue's path, `UNSUPPORTED_FORMAT` for another format or a newer version, or a limit's code. A getter, a Proxy or a cycle in your value can't make it run your code unexpectedly or loop forever. Every exercise's payload is an object, including your own types'.
+  - **Reading and writing progress:** `toProgressDocument(snapshot)` writes a progress snapshot as an `hm-learn-progress` document (`ProgressDocument`), and `parseProgress(input, { limits })` reads one back as untrusted input, so a host keeping progress on its own server reads it the way the device store does. Answers and scheduler states are carried as JSON exactly as written, even with keys such as `__proto__`.
+  - **Grading:** `gradeAnswer(exercise, answer, { types, profile })` validates a learner's answer and grades it, the same way on your server and in the browser, so you never need to trust a score the browser sends.
+  - **Multiple choice:** the first built-in exercise type, `multipleChoice` (`"multiple-choice"`): questions with 2 or more choices and one right answer, an optional explanation, and answers given as `{ selected: [...] }`, one position (or `null`) per question. Duplicate choices are reported as `duplicate-choice`.
+  - **Gap fill:** `gapFill` (`"gap-fill"`): sentences with one gap, written as `___`, filled by typing or by picking from choices, and answered as `{ filled: [...] }`. Answers are compared after NFC and your language profile's rules, so a Thai answer typed with spaces still counts. `splitAtGap(sentence)` splits a sentence for display. New issues: `gap-count` and `answer-not-in-options`.
+  - **Word order:** `wordOrder` (`"word-order"`): put a sentence's tiles in order. Tiles are stored in the content in the right order, with optional `alternatives` for languages with free word order, and answers are tile positions, `{ orders: [[...]] }`. Swapping two identical tiles never matters. New issue: `not-a-permutation`.
+  - **Ports:** three plug-in points, so learners' data and audio stay with your app.
+    - **`AudioSource`:** turns a content's audio reference into bytes. `loadClip(source, ref, { limits, signal })` loads one, checks its size and reports `AUDIO_UNAVAILABLE`. The SDK never fetches audio or synthesises speech itself.
+    - **`ProgressStore`:** keeps attempts and spaced-repetition cards per scope of your choosing. `createMemoryProgressStore()` is the default, storing nothing on the device. `applyProgressChanges` applies changes to a snapshot.
+    - **`Scheduler`:** decides when to show an item again, deterministically, with versioned states it refuses from other schedulers or when malformed (`UNSUPPORTED_SCHEDULING_STATE`, reason `unknown-scheduler` or `malformed-state`).
+    - **For tests and demos:** `createFakeAudioSource(clips)` and `createFakeScheduler()`, from `./testing`.
+  - **Spaced repetition:** `createFsrsScheduler({ desiredRetention, weights })` runs FSRS-7 through ts-fsrs, without random fuzzing, so a review gives the same next date on your server and in every browser. States are plain JSON with times in milliseconds. Apps that don't import it don't bundle ts-fsrs.
+  - **Progress on the device (opt-in):** `createLocalProgressStore({ namespace, onDiscard })` keeps progress in `localStorage` as `hm-learn-progress` documents, under namespaced, versioned keys. What it reads back is treated as untrusted: anything malformed or too large is discarded, and `onDiscard` is told why, never what. A full or disabled storage is `STORAGE_UNAVAILABLE`. It isn't encrypted; the default store keeps progress in memory only.
+  - **Testing tools (`@hussmartinez/learn-sdk/testing`):** `defineProgressStoreContract`, `defineAudioSourceContract` and `defineSchedulerContract` register the tests every adapter of a port must pass, with your test framework's `describe` and `it` (Vitest, Jest or `node:test`), so your own store, audio source or scheduler can prove it fits. `createFakeAudioSource` and `createFakeScheduler` are here too, for your tests.

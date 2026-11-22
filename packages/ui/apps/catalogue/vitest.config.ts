@@ -1,0 +1,105 @@
+import { fontLaunchEnv } from "@hussmartinez/sdk-config/testing/fonts";
+import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
+import { playwright } from "@vitest/browser-playwright";
+import { defineConfig } from "vitest/config";
+import { uiSourceAliases } from "./ui-source.js";
+import { strictComparator } from "./visual/comparator.js";
+
+const ALL_BROWSERS = ["chromium", "firefox", "webkit"] as const;
+
+// Screenshots depend on fonts and rendering libraries, so visual tests only run
+// in the pinned Playwright image, where baselines match pixel for pixel.
+// hm-in-image, which the test:visual scripts use, runs them there.
+if (process.argv.includes("visual") && process.env["HM_VISUAL_CONTAINER"] !== "1") {
+  throw new Error(
+    "Visual tests run only in the pinned Playwright image. Use pnpm test:visual, or pnpm test:visual:update to update the baselines.",
+  );
+}
+
+/**
+ * Every browser here renders text in Liberation in the image, with a real
+ * bold face (sdk-core ADR 0062), so stories' layout and the screenshots see
+ * the same text. The whole environment: Playwright replaces the browser's
+ * rather than adding to it.
+ */
+const provider = () => playwright({ launchOptions: { env: fontLaunchEnv() } });
+
+export default defineConfig(({ mode }) => {
+  // Stories run on Chromium locally, and on all three engines in CI or with
+  // --mode all-browsers (ADR 0015), always in the browser test image
+  // (docs/adr/0007).
+  const browsers =
+    process.env["CI"] || mode === "all-browsers" ? ALL_BROWSERS : (["chromium"] as const);
+  return {
+    resolve: { alias: uiSourceAliases },
+    test: {
+      // The default report, and each browser file as it starts, so a crashed
+      // page names the file it was running (file-start-reporter.ts).
+      reporters: ["default", "./file-start-reporter.ts"],
+      projects: [
+        {
+          extends: true,
+          test: {
+            name: "unit",
+            include: ["src/**/*.test.ts", "visual/**/*.test.ts", "*.test.ts"],
+            environment: "node",
+          },
+        },
+        {
+          // Every story is a test: it must render, run its play function and
+          // pass axe (ADR 0022).
+          extends: true,
+          plugins: [storybookTest({ configDir: ".storybook" })],
+          test: {
+            name: "storybook",
+            // Refuses to start outside the browser test image and CI (sdk-core
+            // ADR 0049): on a host, tests fail at random.
+            globalSetup: ["@hussmartinez/sdk-config/testing/require-image"],
+            // The family's guard against a Firefox crash (ui#61), before any
+            // test runs in the page. It does nothing in other browsers.
+            setupFiles: ["@hussmartinez/sdk-config/testing/firefox-labelled-by/setup"],
+            browser: {
+              enabled: true,
+              headless: true,
+              provider: provider(),
+              instances: browsers.map((browser) => ({ browser })),
+            },
+          },
+        },
+        {
+          // Visual regression: every story in three themes and two densities,
+          // on Chromium, inside the pinned Playwright image only. Run it with
+          // pnpm test:visual.
+          extends: true,
+          // Storybook's Vitest plugin sets this for the storybook project; it
+          // tells the a11y add-on to fail a story on axe violations. The
+          // visual project renders stories itself, so it sets it too, and
+          // visual/a11y-guard.visual.test.tsx checks that it still works.
+          define: { "import.meta.env.VITEST_STORYBOOK": JSON.stringify("false") },
+          test: {
+            name: "visual",
+            include: ["visual/**/*.visual.test.tsx"],
+            // Like every browser project. The check at the top of this file
+            // is stricter: it has no CI exception, so baselines are only
+            // ever written in the image.
+            globalSetup: ["@hussmartinez/sdk-config/testing/require-image"],
+            // The family's guard against a Firefox crash (ui#61), before any
+            // test runs in the page. It does nothing in other browsers.
+            setupFiles: ["@hussmartinez/sdk-config/testing/firefox-labelled-by/setup"],
+            browser: {
+              enabled: true,
+              headless: true,
+              provider: provider(),
+              instances: [{ browser: "chromium" }],
+              viewport: { width: 1024, height: 768 },
+              expect: {
+                // No tolerance: see visual/comparator.ts.
+                toMatchScreenshot: strictComparator,
+              },
+            },
+          },
+        },
+      ],
+    },
+  };
+});

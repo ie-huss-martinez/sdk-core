@@ -1,0 +1,521 @@
+import {
+  Button,
+  Dialog,
+  Field,
+  NumberField,
+  ProgressBar,
+  SegmentedControl,
+  Slider,
+  TextField,
+  useAnnounce,
+} from "@hussmartinez/ui/react";
+import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
+import { engineInternals } from "../../adapters/image-engine.js";
+import { isImageError } from "../../core/errors/image-error.js";
+import { compositionSize, outputSize } from "../../core/model/geometry.js";
+import type { ImageOutput, ImagePlan } from "../../core/model/plan.js";
+import {
+  type ImageKeepableMetadata,
+  type ImageMetadataPresence,
+  longerThan,
+  MAX_METADATA_LENGTH,
+} from "../../core/model/source.js";
+import type { ImageCommand } from "../../core/operations/commands.js";
+import { type ImageExportFormat, keepsFields } from "../../core/ports/image-processor.js";
+import type { ImageSessionExport, ImageSessionSource } from "../../core/session/session.js";
+import {
+  useImageDocument,
+  useImageEditorState,
+  useImageInternals,
+  useImageMessages,
+  useImageSession,
+} from "../hooks.js";
+import { shownFrame } from "../stage/ImageStage.js";
+import { downloadName } from "./download-name.js";
+import { ExportListenerContext } from "./export-listener.js";
+
+/**
+ * Props of {@link ImageExportDialog}.
+ *
+ * @public
+ */
+export interface ImageExportDialogProps {
+  /**
+   * Takes the exported file instead of the dialog's download button: the
+   * dialog closes once it's called.
+   */
+  readonly onExport?: (blob: Blob, details: ImageSessionExport) => void;
+  /**
+   * The downloaded file's name, without its extension. Defaults to `image`.
+   * It's cleaned as sdk-core's `cleanFileName` cleans a file's name (sdk-core
+   * ADR 0051), since a host often takes it from the user's own file: a path,
+   * control and bidirectional formatting characters, and what a file system
+   * refuses are removed, and it's shortened so the whole name, with its
+   * extension, fits in 128 characters. A name with nothing left downloads as
+   * `image`.
+   */
+  readonly fileName?: string;
+  /** Extra classes on the dialog. */
+  readonly className?: string;
+}
+
+type FormatType = ImageExportFormat["type"];
+
+/** The dialog's choices, until Export applies them to the plan. */
+interface Draft {
+  readonly format: FormatType;
+  /** For JPEG and WebP, 1 to 100. */
+  readonly quality: number;
+  readonly output: ImageOutput;
+  readonly metadata: ImageKeepableMetadata;
+}
+
+type Phase =
+  | { readonly kind: "choose" }
+  | { readonly kind: "exporting"; readonly progress: number }
+  | { readonly kind: "done"; readonly result: ImageSessionExport; readonly format: FormatType };
+
+const FORMATS: readonly FormatType[] = ["png", "jpeg", "webp", "gif"];
+const EXTENSIONS: Readonly<Record<FormatType, string>> = {
+  png: "png",
+  jpeg: "jpg",
+  webp: "webp",
+  gif: "gif",
+};
+/** The formats with a quality to choose: the lossy ones. */
+const LOSSY: ReadonlySet<FormatType> = new Set(["jpeg", "webp"]);
+const FIELDS: readonly (keyof ImageKeepableMetadata)[] = [
+  "title",
+  "description",
+  "artist",
+  "copyright",
+];
+const KINDS: readonly (keyof ImageMetadataPresence)[] = [
+  "location",
+  "camera",
+  "timestamps",
+  "thumbnail",
+  "colourProfile",
+  "other",
+];
+const DEFAULT_QUALITY = 92;
+
+/**
+ * A field's text, clamped to the limit in code points, as the plan counts
+ * it. An input's `maxLength` counts UTF-16 units, which would stop at half
+ * as many emoji.
+ */
+const keepable = (text: string) =>
+  longerThan(text, MAX_METADATA_LENGTH) ? [...text].slice(0, MAX_METADATA_LENGTH).join("") : text;
+
+/** The choices a dialog opens with: the plan's size and fields, in the source's format if it can be written. */
+function initialDraft(plan: ImagePlan, source: ImageSessionSource): Draft {
+  const format = (FORMATS as readonly string[]).includes(source.format)
+    ? (source.format as FormatType)
+    : "png";
+  return { format, quality: DEFAULT_QUALITY, output: plan.output, metadata: plan.metadata };
+}
+
+const sameOutput = (a: ImageOutput, b: ImageOutput) =>
+  a.kind === "scale" && b.kind === "scale"
+    ? a.scale === b.scale
+    : a.kind === "fit" && b.kind === "fit" && a.width === b.width && a.height === b.height;
+
+/** The commands that bring the plan's size and fields to the dialog's choices. */
+function changes(plan: ImagePlan, draft: Draft): ImageCommand[] {
+  const commands: ImageCommand[] = [];
+  if (!sameOutput(plan.output, draft.output)) {
+    commands.push({ type: "image.setOutput", output: draft.output });
+  }
+  for (const field of FIELDS) {
+    if (plan.metadata[field] !== draft.metadata[field]) {
+      commands.push({ type: "image.setMetadata", field, value: draft.metadata[field] });
+    }
+  }
+  return commands;
+}
+
+const formatOf = (draft: Draft): ImageExportFormat =>
+  draft.format === "jpeg" || draft.format === "webp"
+    ? { type: draft.format, quality: draft.quality / 100 }
+    : { type: draft.format };
+
+/**
+ * The export dialog (docs/adr/0007). Export is irreversible, so it shows a
+ * summary before anything is written: the output's size and format, the
+ * metadata the source carried that the file won't, and the fields the user
+ * chose to keep. Then a progress bar that can stop the export, and a
+ * download button, which gets focus, with the file's size.
+ *
+ * It opens when the editor state's `dialog` is `export`, as the export tool
+ * sets it. On Export, the chosen size and fields become one undoable step
+ * of the plan, so the plan records what was exported. A format the browser
+ * can't encode shows the catalogue's text, and keeps the choices.
+ *
+ * @public
+ */
+export function ImageExportDialog(props: ImageExportDialogProps): ReactNode {
+  const { onExport, fileName = "image" } = props;
+  const { engine, emit } = useImageInternals();
+  const lifecycle = engineInternals(engine);
+  const session = useImageSession();
+  const { plan, source } = useImageDocument();
+  const [editor, editorStore] = useImageEditorState();
+  const messages = useImageMessages();
+  const announce = useAnnounce();
+  const listener = useContext(ExportListenerContext);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [phase, setPhase] = useState<Phase>({ kind: "choose" });
+  const [error, setError] = useState<unknown>(null);
+  const controller = useRef<AbortController | null>(null);
+  const objectUrl = useRef<string | null>(null);
+  const downloadButton = useRef<HTMLButtonElement>(null);
+
+  const open = editor.dialog === "export" && plan !== null && source !== null;
+  const current = draft ?? (plan && source ? initialDraft(plan, source) : null);
+
+  const revoke = () => {
+    if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+    objectUrl.current = null;
+  };
+  // Whatever closes the dialog, such as another image opening, drops its
+  // choices and result, so it reopens fresh: reset while rendering, as it
+  // opens or closes, rather than in an effect that would render twice.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    setDraft(null);
+    setPhase((now) => (now.kind === "choose" ? now : { kind: "choose" }));
+    setError(null);
+  }
+  // Closing also ends its export and frees a download's URL. The controller
+  // is cleared before the abort, so the export's own handlers know it was
+  // ended for them, unlike Stop.
+  useEffect(() => {
+    if (open) return;
+    const running = controller.current;
+    controller.current = null;
+    running?.abort();
+    if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+    objectUrl.current = null;
+  }, [open]);
+
+  // Unmounting ends an export too, and frees a download's URL.
+  useEffect(
+    () => () => {
+      controller.current?.abort();
+      controller.current = null;
+      if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+    },
+    [],
+  );
+
+  // The download button takes focus when the file is ready.
+  const done = phase.kind === "done";
+  useEffect(() => {
+    if (done) downloadButton.current?.focus();
+  }, [done]);
+
+  /** Asks the editor to close the dialog; the effect on `open` resets it. */
+  const close = () => {
+    editorStore.set((state) => (state.dialog === null ? state : { ...state, dialog: null }));
+  };
+
+  if (!plan || !source || !current) {
+    return null;
+  }
+
+  const update = (patch: Partial<Draft>) => setDraft({ ...current, ...patch });
+  const formatName = (format: FormatType) => messages.t(`export.formats.${format}`);
+
+  /** Whether the dialog has been asked to close, read when an export settles. */
+  const closed = () => editorStore.getSnapshot().dialog !== "export";
+
+  const run = async () => {
+    setError(null);
+    try {
+      const commands = changes(plan, current);
+      if (commands.length > 0) session.execute(commands);
+    } catch (reason) {
+      setError(reason);
+      return;
+    }
+    const running = new AbortController();
+    controller.current = running;
+    setPhase({ kind: "exporting", progress: 0 });
+    try {
+      const format = formatOf(current);
+      const result = await session.export(format, {
+        signal: running.signal,
+        // An animation exports as the frame shown, except to GIF, which writes them all (docs/adr/0011).
+        ...(plan.animation !== null && format.type !== "gif"
+          ? { frame: shownFrame(plan, editor.playback.frame) }
+          : {}),
+        onProgress: (progress) =>
+          setPhase((now) => (now.kind === "exporting" ? { kind: "exporting", progress } : now)),
+      });
+      // Closed while it ran: the result belongs to no one. The editor's
+      // state says so at once, before the effect on `open` ends the export.
+      if (controller.current !== running || closed() || lifecycle?.getSnapshot()) return;
+      controller.current = null;
+      announce(
+        messages.t("export.done", { format: formatName(current.format), size: result.blob.size }),
+      );
+      listener?.({
+        format: current.format,
+        width: result.width,
+        height: result.height,
+        size: result.blob.size,
+        removed: result.removed,
+        kept: result.kept,
+      });
+      if (onExport) {
+        onExport(result.blob, result);
+        close();
+        return;
+      }
+      setPhase({ kind: "done", result, format: current.format });
+    } catch (reason) {
+      // Closed while it ran: the reset dialog shows nothing of it.
+      if (controller.current !== running || closed() || lifecycle?.getSnapshot()) return;
+      controller.current = null;
+      setPhase({ kind: "choose" });
+      if (isImageError(reason) && reason.code === "ABORTED") {
+        announce(messages.t("export.cancelled"));
+        return;
+      }
+      setError(reason);
+    }
+  };
+
+  const stop = () => controller.current?.abort();
+
+  const download = () => {
+    if (phase.kind !== "done" || lifecycle?.getSnapshot()) return;
+    revoke();
+    objectUrl.current = URL.createObjectURL(phase.result.blob);
+    const link = document.createElement("a");
+    link.href = objectUrl.current;
+    link.download = downloadName(fileName, EXTENSIONS[phase.format]);
+    link.click();
+    // The browser is asked to download the file: what a host's guard against
+    // leaving unsaved work waits for, which the export alone doesn't mean. It
+    // isn't a confirmed save (docs/adr/0007).
+    emit({ type: "download", outcome: "done", commands: [] });
+  };
+
+  const composition = compositionSize(plan, source);
+  const size = outputSize(current.output, composition);
+  const removed = KINDS.filter((kind) => source.metadata[kind]);
+  // WebP and GIF carry no details: the fields the user filled in aren't written.
+  const writesFields = keepsFields(current.format);
+  const kept = writesFields ? FIELDS.filter((field) => current.metadata[field] !== "") : [];
+  const exporting = phase.kind === "exporting";
+
+  const footer =
+    phase.kind === "done" ? (
+      <>
+        <Button variant="secondary" onClick={close}>
+          {messages.t("export.close")}
+        </Button>
+        <Button ref={downloadButton} variant="primary" onClick={download}>
+          {messages.t("export.download")}
+        </Button>
+      </>
+    ) : exporting ? (
+      <Button variant="secondary" onClick={stop}>
+        {messages.t("export.stop")}
+      </Button>
+    ) : (
+      <>
+        <Button variant="secondary" onClick={close}>
+          {messages.t("export.cancel")}
+        </Button>
+        <Button variant="primary" onClick={() => void run()}>
+          {messages.t("export.confirm")}
+        </Button>
+      </>
+    );
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) close();
+      }}
+      title={messages.t("export.title")}
+      description={messages.t("export.description")}
+      footer={footer}
+      className={["hm-image-export", props.className].filter(Boolean).join(" ")}
+    >
+      {phase.kind === "done" ? (
+        <p className="hm-image-export-result">
+          {messages.t("export.ready", {
+            width: phase.result.width,
+            height: phase.result.height,
+            format: formatName(phase.format),
+            size: phase.result.blob.size,
+          })}
+        </p>
+      ) : (
+        <>
+          <fieldset className="hm-image-export-choices" disabled={exporting}>
+            <SegmentedControl
+              label={messages.t("export.format")}
+              value={current.format}
+              size="small"
+              options={FORMATS.map((format) => ({ value: format, label: formatName(format) }))}
+              onValueChange={(format) => update({ format: format as FormatType })}
+            />
+            {!LOSSY.has(current.format) ? null : (
+              <Field label={messages.t("export.quality")} className="hm-image-slider-field">
+                {(control) => (
+                  <div className="hm-image-adjust-row">
+                    <Slider
+                      {...control}
+                      min={1}
+                      max={100}
+                      step={1}
+                      largeStep={10}
+                      value={current.quality}
+                      formatValue={(quality) => messages.t("export.qualityValue", { quality })}
+                      onValueChange={(quality) => update({ quality: Math.round(quality) })}
+                    />
+                    <output className="hm-image-adjust-value" aria-hidden="true">
+                      {messages.t("export.qualityValue", { quality: current.quality })}
+                    </output>
+                  </div>
+                )}
+              </Field>
+            )}
+            <SegmentedControl
+              label={messages.t("export.size")}
+              value={current.output.kind}
+              size="small"
+              options={[
+                { value: "scale", label: messages.t("export.sizes.scale") },
+                { value: "fit", label: messages.t("export.sizes.fit") },
+              ]}
+              onValueChange={(kind) =>
+                update({
+                  output:
+                    kind === "fit"
+                      ? { kind: "fit", width: composition.width, height: composition.height }
+                      : { kind: "scale", scale: 1 },
+                })
+              }
+            />
+            <div className="hm-image-export-fields">
+              {current.output.kind === "scale" ? (
+                <Field label={messages.t("export.scale")}>
+                  <NumberField
+                    value={Math.round(current.output.scale * 100)}
+                    min={1}
+                    max={100}
+                    step={1}
+                    largeStep={10}
+                    onValueChange={(percent) =>
+                      update({ output: { kind: "scale", scale: Math.round(percent) / 100 } })
+                    }
+                  />
+                </Field>
+              ) : (
+                (["width", "height"] as const).map((side) => {
+                  const output = current.output as Extract<ImageOutput, { kind: "fit" }>;
+                  return (
+                    <Field
+                      key={side}
+                      label={messages.t(side === "width" ? "export.fitWidth" : "export.fitHeight")}
+                    >
+                      <NumberField
+                        value={output[side]}
+                        min={1}
+                        step={1}
+                        largeStep={100}
+                        onValueChange={(value) =>
+                          update({ output: { ...output, [side]: Math.max(1, Math.round(value)) } })
+                        }
+                      />
+                    </Field>
+                  );
+                })
+              )}
+            </div>
+            <fieldset className="hm-image-export-metadata">
+              <legend>{messages.t("export.fields")}</legend>
+              <p className="hm-image-export-hint">
+                {writesFields
+                  ? messages.t("export.fieldsHint")
+                  : messages.t("export.fieldsNone", { format: formatName(current.format) })}
+              </p>
+              <div className="hm-image-export-fields">
+                {FIELDS.map((field) => (
+                  <Field key={field} label={messages.t(`export.field.${field}`)}>
+                    <TextField
+                      autoComplete="off"
+                      value={current.metadata[field]}
+                      onValueChange={(value) =>
+                        update({ metadata: { ...current.metadata, [field]: keepable(value) } })
+                      }
+                    />
+                  </Field>
+                ))}
+              </div>
+            </fieldset>
+          </fieldset>
+          <section className="hm-image-export-summary" aria-label={messages.t("export.summary")}>
+            <p>
+              {messages.t("export.output", {
+                width: size.width,
+                height: size.height,
+                format: formatName(current.format),
+              })}
+            </p>
+            {plan.redactions.length > 0 ? (
+              <p>
+                {messages.t("export.redacted", { count: plan.redactions.length })}
+                {plan.redactions.some((redaction) => redaction.mode === "pixelate")
+                  ? ` ${messages.t("export.redactedPixelated")}`
+                  : null}
+              </p>
+            ) : null}
+            {removed.length > 0 ? (
+              <>
+                <p>{messages.t("export.removed")}</p>
+                <ul>
+                  {removed.map((kind) => (
+                    <li key={kind}>{messages.t(`export.kind.${kind}`)}</li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p>{messages.t("export.removedNone")}</p>
+            )}
+            {kept.length > 0 ? (
+              <>
+                <p>{messages.t("export.kept")}</p>
+                <ul>
+                  {kept.map((field) => (
+                    <li key={field}>{messages.t(`export.field.${field}`)}</li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+          </section>
+          {exporting ? (
+            <ProgressBar
+              label={messages.t("export.progress")}
+              value={Math.round(phase.progress * 100)}
+              max={100}
+            />
+          ) : null}
+          {error ? (
+            <p className="hm-image-export-error" role="alert">
+              {messages.error(error)}
+            </p>
+          ) : null}
+        </>
+      )}
+    </Dialog>
+  );
+}

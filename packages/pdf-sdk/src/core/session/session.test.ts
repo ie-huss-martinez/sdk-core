@@ -1,0 +1,497 @@
+import { describe, expect, it, vi } from "vitest";
+import { createFakeEngine } from "../../../test/fakes/fake-engine.js";
+import { encodeFakePdf, type FakePdf } from "../../../test/fakes/fake-pdf.js";
+import { createFakeProcessor } from "../../../test/fakes/fake-processor.js";
+import { isPdfError } from "../errors/pdf-error.js";
+import type { PdfBytes } from "../model/document.js";
+import type { PdfEngine } from "../ports/pdf-engine.js";
+import { createPdfSession, type PdfSessionEvent, type PdfSessionOptions } from "./session.js";
+
+const field = { x: 0.1, y: 0.1, width: 0.3, height: 0.05 };
+
+function pdf(pageCount: number, extra: Partial<FakePdf> = {}): Uint8Array<ArrayBuffer> {
+  return encodeFakePdf({
+    pages: Array.from({ length: pageCount }, (_, index) => ({
+      width: 600 + index,
+      height: 800,
+    })),
+    ...extra,
+  });
+}
+
+/** An engine that counts the documents it opens and destroys. */
+function countingEngine() {
+  const engine = createFakeEngine();
+  const counts = { opened: 0, destroyed: 0 };
+  const counting: PdfEngine = {
+    async open(source, options) {
+      const document = await engine.open(source, options);
+      counts.opened += 1;
+      return {
+        ...document,
+        pageCount: document.pageCount,
+        getPage: document.getPage.bind(document),
+        renderPage: document.renderPage.bind(document),
+        getTextContent: document.getTextContent.bind(document),
+        getFormFields: document.getFormFields.bind(document),
+        getLinks: document.getLinks.bind(document),
+        async destroy() {
+          counts.destroyed += 1;
+          await document.destroy();
+        },
+      };
+    },
+    destroy: () => engine.destroy(),
+  };
+  return { engine: counting, counts };
+}
+
+function session(options: Partial<PdfSessionOptions> = {}) {
+  const events: PdfSessionEvent[] = [];
+  const { engine, counts } = countingEngine();
+  const created = createPdfSession({
+    engine,
+    onEvent: (event) => events.push(event),
+    ...options,
+  });
+  return { session: created, events, counts };
+}
+
+const keys = (s: ReturnType<typeof session>["session"]) =>
+  s.getSnapshot().plan.pages.map((page) => page.key);
+
+describe("a PDF session", () => {
+  it("starts empty, and opens a document as a plan of all its pages", async () => {
+    const { session: s, events } = session();
+    expect(s.getSnapshot()).toMatchObject({ status: "empty", busy: false, canUndo: false });
+
+    const seen: string[] = [];
+    s.subscribe(() => seen.push(s.getSnapshot().status));
+    await s.open(pdf(3));
+
+    const snapshot = s.getSnapshot();
+    expect(snapshot.status).toBe("ready");
+    expect(snapshot.sources).toEqual([{ id: "s1", pageCount: 3, byteLength: pdf(3).byteLength }]);
+    expect(snapshot.plan.pages).toEqual([
+      { key: "p1", source: "s1", pageIndex: 0, rotation: 0, annotations: [] },
+      { key: "p2", source: "s1", pageIndex: 1, rotation: 0, annotations: [] },
+      { key: "p3", source: "s1", pageIndex: 2, rotation: 0, annotations: [] },
+    ]);
+    expect(seen).toContain("opening");
+    expect(seen.at(-1)).toBe("ready");
+    expect(events).toEqual([{ type: "document_opened", pageCount: 3 }]);
+  });
+
+  it("keeps the same snapshot object until something changes", async () => {
+    const { session: s } = session();
+    await s.open(pdf(2));
+    const first = s.getSnapshot();
+    expect(s.getSnapshot()).toBe(first);
+    s.execute({ type: "pdf.rotatePages", pages: ["p1"], angle: 90 });
+    expect(s.getSnapshot()).not.toBe(first);
+    expect(Object.isFrozen(s.getSnapshot())).toBe(true);
+  });
+
+  it("runs commands, groups them into one step, and undoes and redoes them", async () => {
+    const { session: s, events } = session();
+    await s.open(pdf(3));
+    s.execute({ type: "pdf.rotatePages", pages: ["p2"], angle: 90 });
+    s.execute([
+      { type: "pdf.movePages", pages: ["p3"], to: 0 },
+      { type: "pdf.deletePages", pages: ["p1"] },
+    ]);
+    expect(keys(s)).toEqual(["p3", "p2"]);
+
+    s.undo();
+    expect(keys(s)).toEqual(["p1", "p2", "p3"]);
+    expect(s.getSnapshot().plan.pages[1]?.rotation).toBe(90);
+    s.undo();
+    expect(s.getSnapshot()).toMatchObject({ canUndo: false, canRedo: true });
+    expect(s.getSnapshot().plan.pages[1]?.rotation).toBe(0);
+    s.redo();
+    s.redo();
+    expect(keys(s)).toEqual(["p3", "p2"]);
+    expect(s.getSnapshot().canRedo).toBe(false);
+
+    expect(events.map((event) => event.type)).toEqual([
+      "document_opened",
+      "command",
+      "command",
+      "undo",
+      "undo",
+      "redo",
+      "redo",
+    ]);
+    expect(events[2]).toEqual({ type: "command", commands: ["pdf.movePages", "pdf.deletePages"] });
+  });
+
+  it("drops what could be redone when a new command runs", async () => {
+    const { session: s } = session();
+    await s.open(pdf(2));
+    s.execute({ type: "pdf.rotatePages", pages: ["p1"], angle: 90 });
+    s.undo();
+    s.execute({ type: "pdf.rotatePages", pages: ["p2"], angle: 90 });
+    expect(s.getSnapshot().canRedo).toBe(false);
+  });
+
+  it("changes nothing, and records nothing, for a command that doesn't fit", async () => {
+    const { session: s } = session();
+    await s.open(pdf(2));
+    const before = s.getSnapshot();
+    expect(() => s.execute({ type: "pdf.deletePages", pages: ["p1", "p2"] })).toThrow(
+      expect.objectContaining({ code: "INVALID_COMMAND", details: { reason: "last-page" } }),
+    );
+    expect(() => s.execute({ type: "pdf.rotatePages", pages: ["nope"], angle: 90 })).toThrow(
+      expect.objectContaining({ code: "INVALID_COMMAND", details: { reason: "unknown-page" } }),
+    );
+    expect(s.getSnapshot()).toBe(before);
+  });
+
+  it("inserts another document's pages as one undoable step, with the same keys on redo", async () => {
+    const { session: s, events } = session();
+    await s.open(pdf(2));
+    await s.insert(pdf(3), { at: 1, pageIndexes: [2, 0] });
+    expect(
+      s.getSnapshot().plan.pages.map(({ key, source, pageIndex }) => [key, source, pageIndex]),
+    ).toEqual([
+      ["p1", "s1", 0],
+      ["p3", "s2", 2],
+      ["p4", "s2", 0],
+      ["p2", "s1", 1],
+    ]);
+    expect(s.getSnapshot().sources.map((source) => source.id)).toEqual(["s1", "s2"]);
+
+    s.undo();
+    expect(keys(s)).toEqual(["p1", "p2"]);
+    s.redo();
+    expect(keys(s)).toEqual(["p1", "p3", "p4", "p2"]);
+    expect(events).toContainEqual({ type: "pages_inserted", pageCount: 2 });
+  });
+
+  it("reads plan pages with their added rotation, and forms with the session's values", async () => {
+    const { session: s } = session();
+    await s.open(
+      pdf(1, {
+        fields: [
+          { name: "name", type: "text", page: 0, rect: field, value: "" },
+          { name: "agree", type: "checkbox", page: 0, rect: field, value: false },
+        ],
+      }),
+    );
+    s.execute([
+      { type: "pdf.rotatePages", pages: ["p1"], angle: 270 },
+      { type: "pdf.setFieldValue", source: "s1", field: "name", value: "Ada" },
+    ]);
+    await expect(s.getPage("p1")).resolves.toEqual({ width: 600, height: 800, rotation: 270 });
+    const fields = await s.getFormFields("p1");
+    expect(fields.map(({ name, value }) => [name, value])).toEqual([
+      ["name", "Ada"],
+      ["agree", false],
+    ]);
+
+    // The plan's rotation reaches the engine: a 270° page renders sideways.
+    const canvas = {
+      width: 0,
+      height: 0,
+      style: { width: "", height: "" },
+    } as unknown as HTMLCanvasElement;
+    await s.renderPage("p1", canvas, { scale: 1 });
+    expect(canvas.style.width).toBe("800px");
+    await expect(s.getPage("missing")).rejects.toThrow(TypeError);
+  });
+
+  it("reports a failed open, with nothing open, as the error status", async () => {
+    const { session: s, events } = session();
+    await expect(s.open(new TextEncoder().encode("not a PDF"))).rejects.toSatisfy((error) =>
+      isPdfError(error, "INVALID_PDF"),
+    );
+    expect(s.getSnapshot()).toMatchObject({ status: "error", busy: false });
+    expect(s.getSnapshot().error?.code).toBe("INVALID_PDF");
+    expect(events).toEqual([{ type: "failed", operation: "open", code: "INVALID_PDF" }]);
+  });
+
+  it("keeps the open document, and its history, when another fails to open", async () => {
+    const { session: s } = session();
+    await s.open(pdf(2));
+    s.execute({ type: "pdf.rotatePages", pages: ["p1"], angle: 90 });
+    await expect(s.open(pdf(1, { password: "secret" }))).rejects.toSatisfy((error) =>
+      isPdfError(error, "PASSWORD_REQUIRED"),
+    );
+    expect(s.getSnapshot()).toMatchObject({ status: "ready", canUndo: true });
+    expect(s.getSnapshot().error?.code).toBe("PASSWORD_REQUIRED");
+    expect(keys(s)).toEqual(["p1", "p2"]);
+  });
+
+  it("replaces the document and its history when another opens", async () => {
+    const { session: s, counts } = session();
+    await s.open(pdf(2));
+    s.execute({ type: "pdf.rotatePages", pages: ["p1"], angle: 90 });
+    await s.open(pdf(1));
+    expect(s.getSnapshot()).toMatchObject({ canUndo: false, sources: [{ id: "s2" }] });
+    expect(keys(s)).toEqual(["p3"]);
+    expect(counts.destroyed).toBe(1);
+  });
+
+  it("checks a file's size before reading it (ADR 0020)", async () => {
+    const { session: s } = session({ filePolicy: { maxFileSize: 10 } });
+    const file = new Blob([pdf(1)]);
+    const read = vi.spyOn(file, "arrayBuffer");
+    await expect(s.open(file)).rejects.toSatisfy((error) => isPdfError(error, "FILE_TOO_LARGE"));
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("enforces the page and file limits, and warns from their thresholds", async () => {
+    const { session: s } = session({
+      filePolicy: { maxPages: { maximum: 4, warning: 3 }, maxFiles: 2 },
+    });
+    await expect(s.open(pdf(5))).rejects.toSatisfy((error) => isPdfError(error, "TOO_MANY_PAGES"));
+    await s.open(pdf(2));
+    expect(s.getSnapshot().warnings).toEqual([]);
+    await expect(s.insert(pdf(3))).rejects.toSatisfy((error) =>
+      isPdfError(error, "TOO_MANY_PAGES"),
+    );
+    await s.insert(pdf(1));
+    expect(s.getSnapshot().warnings).toEqual([{ limit: "maxPages", actual: 3 }]);
+    await expect(s.insert(pdf(1))).rejects.toSatisfy((error) =>
+      isPdfError(error, "TOO_MANY_FILES"),
+    );
+    expect(keys(s)).toHaveLength(3);
+  });
+
+  it("cancels an open that a newer open replaces", async () => {
+    const { engine } = countingEngine();
+    // Opens wait until released, and honour their abort signal, as the
+    // engine contract requires.
+    const pending: Array<() => void> = [];
+    const slow: PdfEngine = {
+      async open(source, options) {
+        await new Promise<void>((resolve, reject) => {
+          // A signal that has already aborted never fires "abort".
+          if (options?.signal?.aborted) {
+            reject(options.signal.reason);
+            return;
+          }
+          pending.push(resolve);
+          options?.signal?.addEventListener("abort", () => reject(options.signal?.reason), {
+            once: true,
+          });
+        });
+        return engine.open(source, options);
+      },
+      destroy: () => engine.destroy(),
+    };
+    const s = createPdfSession({ engine: slow });
+    const first = s.open(pdf(3));
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    const second = s.open(pdf(1));
+    await expect(first).rejects.toSatisfy((error) => isPdfError(error, "ABORTED"));
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    pending[1]?.();
+    await second;
+    expect(s.getSnapshot()).toMatchObject({ status: "ready", error: undefined, busy: false });
+    expect(keys(s)).toHaveLength(1);
+  });
+
+  it("rejects an open aborted by its caller", async () => {
+    const { session: s } = session();
+    const controller = new AbortController();
+    controller.abort();
+    await expect(s.open(pdf(1), { signal: controller.signal })).rejects.toSatisfy((error) =>
+      isPdfError(error, "ABORTED"),
+    );
+  });
+
+  it("needs an open document before inserting", async () => {
+    const { session: s } = session();
+    await expect(s.insert(pdf(1))).rejects.toBeInstanceOf(Error);
+  });
+
+  it("closes the document and releases every source", async () => {
+    const { session: s, counts, events } = session();
+    await s.open(pdf(2));
+    await s.insert(pdf(1));
+    await s.close();
+    expect(s.getSnapshot()).toMatchObject({ status: "empty", sources: [], canUndo: false });
+    expect(counts.destroyed).toBe(2);
+    expect(events.at(-1)).toEqual({ type: "document_closed" });
+  });
+
+  it("keeps working when the host's event handler throws", async () => {
+    const s = createPdfSession({
+      engine: createFakeEngine(),
+      onEvent: () => {
+        throw new Error("analytics down");
+      },
+    });
+    await s.open(pdf(1));
+    expect(s.getSnapshot().status).toBe("ready");
+  });
+
+  it("never puts document data in events", async () => {
+    const { session: s, events } = session();
+    const bytes: PdfBytes = pdf(1, {
+      fields: [{ name: "secret-field", type: "text", page: 0, rect: field, value: "" }],
+    });
+    await s.open(bytes);
+    s.execute({
+      type: "pdf.setFieldValue",
+      source: "s1",
+      field: "secret-field",
+      value: "my password",
+    });
+    expect(JSON.stringify(events)).not.toMatch(/secret-field|my password/);
+  });
+
+  it("keeps view state: selection, the current page and navigation requests", async () => {
+    const { session: s, events } = session();
+    await s.open(pdf(3));
+    expect(s.getSnapshot()).toMatchObject({
+      selection: [],
+      currentPage: "p1",
+      navigation: undefined,
+    });
+
+    s.select(["p3", "nope", "p1"]);
+    expect(s.getSnapshot().selection).toEqual(["p1", "p3"]);
+    const before = s.getSnapshot();
+    s.select(["p1", "p3"]);
+    expect(s.getSnapshot()).toBe(before);
+
+    s.setCurrentPage("p2");
+    expect(s.getSnapshot().currentPage).toBe("p2");
+    s.goToPage("p3");
+    s.goToPage("p3");
+    expect(s.getSnapshot()).toMatchObject({
+      currentPage: "p3",
+      navigation: { page: "p3", sequence: 2 },
+    });
+    expect(() => s.goToPage("nope")).toThrow(TypeError);
+
+    // Deleting pages prunes the view state, and none of it is undoable or reported.
+    s.execute({ type: "pdf.deletePages", pages: ["p3"] });
+    expect(s.getSnapshot()).toMatchObject({
+      selection: ["p1"],
+      currentPage: "p1",
+      navigation: undefined,
+    });
+    expect(events.map((event) => event.type)).toEqual(["document_opened", "command"]);
+
+    await s.open(pdf(1));
+    expect(s.getSnapshot()).toMatchObject({ selection: [], currentPage: "p4" });
+  });
+});
+
+describe("a source's file name (docs/adr/0009)", () => {
+  const file = (pageCount: number, name: string) =>
+    new File([pdf(pageCount)], name, { type: "application/pdf" });
+
+  it("keeps a File's name, cleaned", async () => {
+    const { session: s } = session();
+    await s.open(file(2, "C:\\scans\\re\u202Eport.pdf"));
+    expect(s.getSnapshot().sources).toEqual([
+      expect.objectContaining({ id: "s1", pageCount: 2, name: "report.pdf" }),
+    ]);
+  });
+
+  it("takes the name option for bytes, and prefers it to File.name", async () => {
+    const { session: s } = session();
+    await s.open(pdf(1), { name: "../from-bytes.pdf" });
+    expect(s.getSnapshot().sources[0]?.name).toBe("from-bytes.pdf");
+    await s.open(file(1, "own.pdf"), { name: "given.pdf" });
+    expect(s.getSnapshot().sources[0]?.name).toBe("given.pdf");
+  });
+
+  it("has no name for bytes or a plain Blob without the option, or a name that cleans to nothing", async () => {
+    const { session: s } = session();
+    await s.open(pdf(1));
+    expect(s.getSnapshot().sources[0]).not.toHaveProperty("name");
+    await s.open(new Blob([pdf(1)], { type: "application/pdf" }));
+    expect(s.getSnapshot().sources[0]).not.toHaveProperty("name");
+    await s.open(file(1, "\u0000/..."));
+    expect(s.getSnapshot().sources[0]).not.toHaveProperty("name");
+  });
+
+  it("drops an unpaired surrogate from a given name, so it's well-formed Unicode", async () => {
+    // A File's name can't hold one: the browser replaces it. A given name can.
+    const { session: s } = session();
+    await s.open(pdf(1), { name: "scan\uD83D.pdf" });
+    const name = s.getSnapshot().sources[0]?.name as string;
+    expect(name).toBe("scan.pdf");
+    // encodeURIComponent throws on a string that isn't well-formed.
+    expect(() => encodeURIComponent(name)).not.toThrow();
+  });
+
+  it("names inserted sources too, keeping the opened one first", async () => {
+    const { session: s } = session();
+    await s.open(file(1, "base.pdf"));
+    await s.insert(file(2, "appendix.pdf"));
+    await s.insert(pdf(1), { name: "extra.pdf" });
+    expect(s.getSnapshot().sources.map((source) => source.name)).toEqual([
+      "base.pdf",
+      "appendix.pdf",
+      "extra.pdf",
+    ]);
+  });
+
+  it("never puts a file name in a usage event, whatever happens to the file", async () => {
+    const { session: s, events } = session({ processor: createFakeProcessor() });
+    const secret = "Zq7-secret-name";
+    await s.open(file(2, `${secret}-open.pdf`));
+    await s.insert(file(1, `${secret}-insert.pdf`));
+    await s.insert(pdf(1), { name: `${secret}-option.pdf` });
+    await s.open(new File(["not a pdf"], `${secret}-broken.pdf`)).catch(() => {});
+    await s.insert(new File(["not a pdf"], `${secret}-broken-insert.pdf`)).catch(() => {});
+    await s.export();
+    expect(events.length).toBeGreaterThan(0);
+    expect(JSON.stringify(events)).not.toContain(secret);
+  });
+});
+
+describe("the view state that undo and redo bring back (docs/adr/0008)", () => {
+  it("restores the selection and current page from before a step, and redo the ones from the undo", async () => {
+    const { session: s } = session();
+    await s.open(pdf(4));
+    s.select(["p2", "p3"]);
+    s.setCurrentPage("p3");
+    s.execute({ type: "pdf.rotatePages", pages: ["p2", "p3"], angle: 90 });
+    // The user moves on before undoing.
+    s.select(["p4"]);
+    s.goToPage("p4");
+
+    s.undo();
+    expect(s.getSnapshot()).toMatchObject({ selection: ["p2", "p3"], currentPage: "p3" });
+    expect(s.getSnapshot().navigation?.page).toBe("p3");
+
+    s.select(["p1"]);
+    s.redo();
+    expect(s.getSnapshot()).toMatchObject({ selection: ["p4"], currentPage: "p4" });
+    expect(s.getSnapshot().navigation?.page).toBe("p4");
+  });
+
+  it("brings back the view from before an insert when it's undone", async () => {
+    const { session: s } = session();
+    await s.open(pdf(3));
+    await s.insert(pdf(2));
+    expect(keys(s)).toEqual(["p1", "p2", "p3", "p4", "p5"]);
+    s.select(["p4", "p5"]);
+    s.goToPage("p5");
+    s.execute({ type: "pdf.rotatePages", pages: ["p4"], angle: 90 });
+    s.undo();
+    s.undo();
+    // The rotate's undo selects inserted pages again; the insert's undo
+    // removes them, and brings back the view from before the insert.
+    expect(keys(s)).toEqual(["p1", "p2", "p3"]);
+    expect(s.getSnapshot().selection).toEqual([]);
+    expect(s.getSnapshot().currentPage).toBe("p1");
+  });
+
+  it("never puts the view in events or the history's commands", async () => {
+    const { session: s, events } = session();
+    await s.open(pdf(2));
+    s.select(["p2"]);
+    s.execute({ type: "pdf.deletePages", pages: ["p2"] });
+    s.undo();
+    s.redo();
+    expect(JSON.stringify(events)).not.toMatch(/selection|currentPage/);
+  });
+});

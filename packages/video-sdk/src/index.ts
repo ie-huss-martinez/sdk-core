@@ -1,0 +1,167 @@
+/**
+ * Headless core of the video SDK: contracts, errors, the document session and
+ * operations.
+ *
+ * @remarks
+ * This entry is server-safe: it has no React and touches no DOM on import, so
+ * Server Components and Node can import it (ADR 0004, ADR 0007).
+ *
+ * @packageDocumentation
+ */
+
+export type { Applied, Reducer } from "@hussmartinez/sdk-core";
+export type { VideoEngineOptions } from "./adapters/video-engine.js";
+export { createVideoEngine } from "./adapters/video-engine.js";
+export type { VideoOutputOptions } from "./adapters/video-output.js";
+export { createVideoOutput } from "./adapters/video-output.js";
+export type { VideoProcessorOptions } from "./adapters/video-processor.js";
+export { createVideoProcessor } from "./adapters/video-processor.js";
+export type { VideoErrorCode } from "./core/errors/video-error.js";
+export { isVideoError, VideoError } from "./core/errors/video-error.js";
+export type {
+  VideoFilePolicy,
+  VideoFilePolicyOverrides,
+  VideoLimitDefinitions,
+  VideoLimitName,
+} from "./core/errors/video-limits.js";
+export { videoLimitDefinitions, videoLimits } from "./core/errors/video-limits.js";
+export type {
+  VideoAssetReference,
+  VideoDocumentRejection,
+  VideoPlanDocument,
+  VideoPlanDocumentSource,
+} from "./core/format/plan-document.js";
+export {
+  readVideoPlanDocument,
+  toVideoPlanDocument,
+  VIDEO_PLAN_FORMAT,
+  VIDEO_PLAN_VERSION,
+  videoPlanDocumentSource,
+} from "./core/format/plan-document.js";
+export { dbToGain, gainAt } from "./core/model/envelope.js";
+export {
+  peakColumns,
+  type VideoPeakColumns,
+  type VideoPeakColumnsOptions,
+} from "./core/model/peaks.js";
+export type {
+  VideoClip,
+  VideoClipProblem,
+  VideoCrop,
+  VideoFade,
+  VideoFadeCurve,
+  VideoFit,
+  VideoMetadata,
+  VideoOutputProblem,
+  VideoPlan,
+  VideoPlanOutput,
+  VideoSourceBounds,
+  VideoTransform,
+} from "./core/model/plan.js";
+export {
+  clipEnd,
+  clipFrames,
+  clipOffsets,
+  createPlan,
+  EMPTY_METADATA,
+  IDENTITY_TRANSFORM,
+  locateFrame,
+  MAX_METADATA_LENGTH,
+  NO_FADE,
+  outputFromSource,
+  planFrames,
+  snapFrameRate,
+  VOLUME_RANGE,
+} from "./core/model/plan.js";
+export {
+  checkOutput,
+  checkPlanLength,
+  checkProbe,
+  decodingBound,
+} from "./core/model/probe-limits.js";
+export type {
+  AudioTrackProbe,
+  VideoContainer,
+  VideoPeaks,
+  VideoProbe,
+  VideoRotation,
+  VideoSourceInfo,
+  VideoTrackProbe,
+} from "./core/model/source.js";
+export { addRotations, rotateSize, sourceInfo } from "./core/model/source.js";
+export type { FrameRate } from "./core/model/time.js";
+export {
+  framesIn,
+  frameTime,
+  isFrameRate,
+  isOnGrid,
+  microsecondsToSeconds,
+  secondsToMicroseconds,
+} from "./core/model/time.js";
+export type {
+  VideoAudioUndecodableWarning,
+  VideoLimitWarning,
+  VideoWarning,
+} from "./core/model/warnings.js";
+export type {
+  DeleteRangeCommand,
+  InsertClipsCommand,
+  MoveClipsCommand,
+  RemoveClipsCommand,
+  RestoreClipsCommand,
+  RestoreOutputCommand,
+  SetFadeCommand,
+  SetMetadataCommand,
+  SetMutedCommand,
+  SetOutputCommand,
+  SetTransformCommand,
+  SetVolumeCommand,
+  SplitClipCommand,
+  TrimClipCommand,
+  VideoClipEntry,
+  VideoCommand,
+  VideoCommandRejection,
+} from "./core/operations/commands.js";
+export { createVideoReducer } from "./core/operations/commands.js";
+export type {
+  VideoCallOptions,
+  VideoProbeOptions,
+  VideoProgressOptions,
+} from "./core/ports/options.js";
+export type { VideoEngine } from "./core/ports/video-engine.js";
+export type {
+  VideoOutput,
+  VideoOutputAudio,
+  VideoOutputEvent,
+  VideoOutputSnapshot,
+  VideoOutputState,
+} from "./core/ports/video-output.js";
+export { backingSize, MAX_PIXEL_RATIO } from "./core/ports/video-output.js";
+export type {
+  VideoExportContainer,
+  VideoExportJob,
+  VideoExportOptions,
+  VideoExportQuality,
+  VideoExportResult,
+  VideoProcessor,
+} from "./core/ports/video-processor.js";
+export type {
+  VideoInsertOptions,
+  VideoOpenOptions,
+  VideoSession,
+  VideoSessionEvent,
+  VideoSessionExportOptions,
+  VideoSessionOptions,
+  VideoSessionSnapshot,
+  VideoTimelineRange,
+} from "./core/session/session.js";
+export { createVideoSession } from "./core/session/session.js";
+export type {
+  VideoEditorCatalogue,
+  VideoEditorMessageCatalogue,
+  VideoEditorMessageOverrides,
+  VideoEditorMessages,
+} from "./messages/editor.js";
+export type { VideoMessageCatalogue } from "./messages/en.js";
+export { videoMessages } from "./messages/en.js";
+export { videoErrorText, videoWarningText } from "./messages/text.js";

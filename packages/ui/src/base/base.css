@@ -1,0 +1,41 @@
+/*
+ * Base styles. They only apply inside elements that opt in with an hm
+ * attribute or class, never to the host page (ADR 0005).
+ */
+@layer hm.base {
+  /*
+   * Native scrollbars and form controls follow the theme, and so does text.
+   * color is inherited as a computed value, so without this, text inside a
+   * themed subtree would keep the colour of the theme around it. It's in the
+   * lowest layer, so any host CSS still wins. Backgrounds stay the host's.
+   */
+  [data-hm-theme],
+  [data-hm-theme-scope] {
+    color: var(--hm-color-text);
+    color-scheme: var(--hm-color-scheme);
+  }
+
+  /*
+   * An opt-in root for text that isn't inside a component, such as an SDK
+   * editor's own labels and values: ui's type and text colour, instead of
+   * whatever the host page sets around it. Components set their own, so they
+   * don't need it. It's in the lowest layer, so an SDK's rules in hm.sdk and
+   * any host CSS still win.
+   */
+  .hm-text {
+    color: var(--hm-color-text);
+    font-family: var(--hm-font-family);
+    font-size: var(--hm-font-size-body);
+    font-weight: var(--hm-font-weight-regular);
+    letter-spacing: var(--hm-letter-spacing);
+    line-height: var(--hm-line-height-body);
+  }
+
+  /*
+   * ThemeProvider's wrapper. Custom properties still inherit through it,
+   * because inheritance follows the DOM tree, not boxes.
+   */
+  [data-hm-theme-scope] {
+    display: contents;
+  }
+}

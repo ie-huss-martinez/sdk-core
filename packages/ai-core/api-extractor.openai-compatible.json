@@ -1,0 +1,15 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/api-extractor/v7/api-extractor.schema.json",
+  "extends": "@hussmartinez/sdk-config/api-extractor/base.json",
+  "mainEntryPointFilePath": "<projectFolder>/temp/types/openai-compatible.d.ts",
+  "apiReport": {
+    "enabled": true,
+    "reportFileName": "<unscopedPackageName>-openai-compatible.api.md",
+    "reportFolder": "<projectFolder>/api/",
+    "reportTempFolder": "<projectFolder>/temp/openai-compatible/"
+  },
+  "dtsRollup": {
+    "enabled": true,
+    "publicTrimmedFilePath": "<projectFolder>/dist/openai-compatible.d.ts"
+  }
+}

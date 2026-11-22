@@ -1,0 +1,556 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { VideoError } from "../core/errors/video-error.js";
+import { videoLimits } from "../core/errors/video-limits.js";
+import {
+  clipEnd,
+  createPlan,
+  IDENTITY_TRANSFORM,
+  NO_FADE,
+  type VideoClip,
+  type VideoPlan,
+} from "../core/model/plan.js";
+import type { VideoProbe } from "../core/model/source.js";
+import type { SchedulerCommand } from "../core/playback/scheduler.js";
+import type { PlaybackSource } from "./media-worker/contract.js";
+import { createOutput } from "./video-output.js";
+
+// The page's side of playback on a fake clock (docs/adr/0006): what it tells
+// the worker, when it ends, how it steps, and what it does while the page is
+// hidden. The worker is a fake that records the calls.
+
+const RATE = { num: 30, den: 1 };
+
+function clip(frames: number): VideoClip {
+  return {
+    key: `k${frames}`,
+    source: "s",
+    start: 0,
+    end: clipEnd(0, frames, RATE),
+    volumeDb: 0,
+    muted: false,
+    fadeIn: NO_FADE,
+    fadeOut: NO_FADE,
+    transform: IDENTITY_TRANSFORM,
+  };
+}
+
+function planOf(frames: number): VideoPlan {
+  return {
+    ...createPlan({ width: 64, height: 36, frameRate: RATE, sampleRate: 48_000, channels: 2 }),
+    clips: [clip(frames)],
+  };
+}
+
+const SOURCE: PlaybackSource = {
+  id: "s",
+  opening: 1,
+  file: new Blob([]),
+  probe: { start: 0 } as VideoProbe,
+  limits: {} as PlaybackSource["limits"],
+};
+
+/** A source with audio, for the audio clock. */
+const WITH_AUDIO: PlaybackSource = {
+  ...SOURCE,
+  probe: { start: 0, audio: { codec: "opus", sampleRate: 48_000, channels: 2 } } as VideoProbe,
+};
+
+function fakeAudioContext(blocked: boolean) {
+  const context = {
+    state: blocked ? "suspended" : "running",
+    sampleRate: 48_000,
+    currentTime: 0,
+    outputLatency: 0,
+    baseLatency: 0,
+    destination: {},
+    close: vi.fn(async () => {}),
+    resume: async () => {},
+    getOutputTimestamp: () => ({ contextTime: 0, performanceTime: 0 }),
+    createBuffer: (channels: number, length: number) => ({
+      copyToChannel() {},
+      length,
+      numberOfChannels: channels,
+    }),
+    createBufferSource: () => ({
+      buffer: null,
+      onended: null,
+      connect() {},
+      disconnect() {},
+      start() {},
+      stop() {},
+    }),
+  };
+  return context;
+}
+
+function setup(
+  options: {
+    audio?: ReturnType<typeof fakeAudioContext>;
+    /** Audio windows from this one on, counted from 0, fail to decode. */
+    failAudioFrom?: number;
+    /** The first two audio windows wait for this, then fail to decode. */
+    holdFirstAudio?: Promise<void>;
+  } = {},
+) {
+  const commands: SchedulerCommand[] = [];
+  let audioCalls = 0;
+  let failAudioFrom = options.failAudioFrom ?? Number.POSITIVE_INFINITY;
+  const resizes: { width: number; height: number }[] = [];
+  let hidden = false;
+  let onVisibility = () => {};
+  let failControl: VideoError | undefined;
+  const destroyed = vi.fn();
+  const output = createOutput({
+    connect: () => ({
+      call: async (method, input) => {
+        if (method === "resize") resizes.push(input as { width: number; height: number });
+        if (method === "audio") {
+          audioCalls += 1;
+          if (options.holdFirstAudio && audioCalls <= 2) {
+            await options.holdFirstAudio;
+            throw new VideoError("DECODE_FAILED", "Stalled.");
+          }
+          if (audioCalls > failAudioFrom) {
+            throw new VideoError("DECODE_FAILED", "Stalled.", {
+              details: { reason: "stalled", track: "audio" },
+            });
+          }
+          const { count } = input as { count: number };
+          return { channels: [new Float32Array(count), new Float32Array(count)] } as never;
+        }
+        if (method === "control") {
+          commands.push(input as SchedulerCommand);
+          if (failControl) {
+            const failure = failControl;
+            failControl = undefined;
+            throw failure;
+          }
+          return { droppedFrames: 3 } as never;
+        }
+        return undefined as never;
+      },
+      destroy: destroyed,
+    }),
+    source: (id) => (id === "s" ? (options.audio ? WITH_AUDIO : SOURCE) : undefined),
+    ...(options.audio
+      ? {
+          audio: {
+            createContext: () => options.audio as unknown as AudioContext,
+            timeOrigin: 0,
+            performanceNow: () => Date.now(),
+          },
+        }
+      : {}),
+    now: () => Date.now(),
+    policy: videoLimits.resolve(),
+    visibility: {
+      hidden: () => hidden,
+      subscribe(listener) {
+        onVisibility = listener;
+        return () => {};
+      },
+    },
+  });
+  return {
+    output,
+    commands,
+    resizes,
+    destroyed,
+    last: () => commands.at(-1),
+    setHidden(value: boolean) {
+      hidden = value;
+      onVisibility();
+    },
+    failNextControl(error: VideoError) {
+      failControl = error;
+    },
+    decodeAudio() {
+      failAudioFrom = Number.POSITIVE_INFINITY;
+    },
+  };
+}
+
+beforeEach(() => {
+  vi.useFakeTimers({ now: 1_700_000_000_000 });
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe("the video output's page side", () => {
+  it("plays from an anchor at the playhead, and reads the playhead from it", async () => {
+    const t = setup();
+    t.output.load(planOf(90));
+    t.output.seek(30);
+    expect(t.last()).toEqual({ mode: "show", at: 1_000_000 });
+    await t.output.play();
+    expect(t.last()).toEqual({ mode: "play", anchor: { media: 1_000_000, at: Date.now() } });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(t.output.position()).toBe(45);
+    expect(t.output.getSnapshot()).toMatchObject({ state: "playing", droppedFrames: 3 });
+  });
+
+  it("sends the same anchor every 250 ms while playing, so the worker can report back", async () => {
+    const t = setup();
+    t.output.load(planOf(90));
+    await t.output.play();
+    const sent = t.commands.length;
+    await vi.advanceTimersByTimeAsync(1_000);
+    const sinceThen = t.commands.slice(sent);
+    expect(sinceThen).toHaveLength(4);
+    expect(new Set(sinceThen.map((command) => JSON.stringify(command))).size).toBe(1);
+  });
+
+  it("stops at the end with the last frame shown, and fires ended once", async () => {
+    const t = setup();
+    t.output.load(planOf(30));
+    const ended = vi.fn();
+    t.output.on("ended", ended);
+    await t.output.play();
+    await vi.advanceTimersByTimeAsync(999);
+    expect(ended).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(2);
+    expect(ended).toHaveBeenCalledTimes(1);
+    expect(t.output.getSnapshot().state).toBe("stopped");
+    expect(t.output.position()).toBe(30);
+    expect(t.last()).toEqual({ mode: "pause" });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(ended).toHaveBeenCalledTimes(1);
+  });
+
+  it("doesn't fire ended on a seek or a step to the end", async () => {
+    const t = setup();
+    t.output.load(planOf(30));
+    const ended = vi.fn();
+    t.output.on("ended", ended);
+    t.output.seek(30);
+    // At the end, the last frame is shown.
+    expect(t.last()).toEqual({ mode: "show", at: 966_667 });
+    t.output.seek(28);
+    t.output.step(1);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(ended).not.toHaveBeenCalled();
+  });
+
+  it("steps exactly one frame, pausing, as a seek the worker draws", async () => {
+    const t = setup();
+    t.output.load(planOf(90));
+    await t.output.play();
+    await vi.advanceTimersByTimeAsync(400);
+    t.output.step(1);
+    expect(t.output.getSnapshot().state).toBe("paused");
+    expect(t.output.position()).toBe(13);
+    expect(t.last()).toEqual({ mode: "show", at: 433_333 });
+    t.output.step(-1);
+    expect(t.output.position()).toBe(12);
+    t.output.seek(0);
+    const sent = t.commands.length;
+    t.output.step(-1);
+    expect(t.commands).toHaveLength(sent);
+  });
+
+  it("stops the worker's decoding while the page is hidden, keeps the clock, and resyncs when it's visible", async () => {
+    const t = setup();
+    t.output.load(planOf(300));
+    await t.output.play();
+    await vi.advanceTimersByTimeAsync(1_000);
+    t.setHidden(true);
+    expect(t.last()).toEqual({ mode: "hidden" });
+    const sent = t.commands.length;
+    await vi.advanceTimersByTimeAsync(2_000);
+    // Nothing is sent while hidden, but the clock runs on.
+    expect(t.commands).toHaveLength(sent);
+    expect(t.output.position()).toBe(90);
+    t.setHidden(false);
+    // Visible again: the same anchor, which the worker plays from the clock's position.
+    expect(t.last()).toEqual({
+      mode: "play",
+      anchor: { media: 0, at: 1_700_000_000_000 },
+    });
+  });
+
+  it("ends at once when the page is visible again after the clock passed the end while hidden", async () => {
+    const t = setup();
+    t.output.load(planOf(30));
+    const ended = vi.fn();
+    t.output.on("ended", ended);
+    await t.output.play();
+    t.setHidden(true);
+    // A hidden tab's timers run late: move the clock past the end without firing them.
+    vi.setSystemTime(Date.now() + 5_000);
+    expect(ended).not.toHaveBeenCalled();
+    t.setHidden(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ended).toHaveBeenCalledTimes(1);
+    expect(t.output.getSnapshot().state).toBe("stopped");
+    expect(t.output.position()).toBe(30);
+    expect(t.last()).toEqual({ mode: "pause" });
+  });
+
+  it("resizes the canvas to the stage times a capped pixel ratio, redrawing the frame when paused", async () => {
+    const t = setup();
+    t.output.load(planOf(90));
+    t.output.seek(10);
+    const sent = t.commands.length;
+    t.output.resize(320, 180, 2);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(t.resizes).toEqual([{ width: 640, height: 360 }]);
+    expect(t.commands.slice(sent)).toEqual([{ mode: "show", at: 333_333 }]);
+    // A ratio over 4 is drawn at 4.
+    t.output.resize(100, 50, 10);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(t.resizes.at(-1)).toEqual({ width: 400, height: 200 });
+    // Playing, the next frame redraws: no seek is sent.
+    await t.output.play();
+    const playing = t.commands.length;
+    t.output.resize(320, 180, 1);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(t.commands).toHaveLength(playing);
+  });
+
+  it("refuses a backing size over maxFramePixels before telling the worker", async () => {
+    const t = setup();
+    t.output.load(planOf(90));
+    expect(() => t.output.resize(4_000, 3_000, 1)).toThrow(
+      expect.objectContaining({ code: "FRAME_TOO_LARGE" }),
+    );
+    expect(() => t.output.resize(-1, 3)).toThrow(TypeError);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(t.resizes).toEqual([]);
+  });
+
+  it("keeps the clock when the plan changes while playing, and stops at a shorter plan's end", async () => {
+    const t = setup();
+    t.output.load(planOf(90));
+    await t.output.play();
+    const started = Date.now();
+    await vi.advanceTimersByTimeAsync(1_000);
+    t.output.load(planOf(60));
+    expect(t.last()).toEqual({ mode: "play", anchor: { media: 0, at: started } });
+    expect(t.output.position()).toBe(30);
+    t.output.load(planOf(20));
+    expect(t.output.getSnapshot().state).toBe("stopped");
+    expect(t.output.position()).toBe(20);
+  });
+
+  it("pauses with the error when the worker reports a failure, and clears it on play", async () => {
+    const t = setup();
+    t.output.load(planOf(90));
+    await t.output.play();
+    t.failNextControl(
+      new VideoError("DECODE_FAILED", "The browser couldn't decode the video track."),
+    );
+    await vi.advanceTimersByTimeAsync(250);
+    expect(t.output.getSnapshot()).toMatchObject({
+      state: "paused",
+      error: { code: "DECODE_FAILED" },
+    });
+    expect(t.output.position()).toBe(7);
+    await t.output.play();
+    expect(t.output.getSnapshot()).toMatchObject({ state: "playing", error: null });
+  });
+
+  it("plays silently on the performance clock when autoplay blocks audio, and says so", async () => {
+    const context = fakeAudioContext(true);
+    const t = setup({ audio: context });
+    t.output.load(planOf(90));
+    await t.output.play();
+    expect(t.output.getSnapshot()).toMatchObject({ state: "playing", audio: "blocked" });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(t.output.position()).toBe(15);
+    await t.output.destroy();
+    expect(context.close).toHaveBeenCalled();
+  });
+
+  it("treats a play that destroy overtakes while the audio starts as cancelled, with no rejection", async () => {
+    const context = fakeAudioContext(true);
+    const t = setup({ audio: context });
+    t.output.load(planOf(90));
+    // A first play loads the player, and finds the audio blocked.
+    await t.output.play();
+    t.output.pause();
+    // Then a resume that waits for a gesture that never comes: the second
+    // play is waiting on the audio's start when the output is destroyed.
+    context.resume = () => new Promise(() => {});
+    const playing = t.output.play();
+    await vi.advanceTimersByTimeAsync(10);
+    await t.output.destroy();
+    await vi.advanceTimersByTimeAsync(200);
+    await expect(playing).resolves.toBeUndefined();
+    expect(context.close).toHaveBeenCalled();
+  });
+
+  it("takes the clock from the audio when it plays", async () => {
+    const context = fakeAudioContext(false);
+    const t = setup({ audio: context });
+    t.output.load(planOf(90));
+    await t.output.play();
+    expect(t.output.getSnapshot()).toMatchObject({ state: "playing", audio: "ready" });
+    // Timeline 0 is played 50 ms after the context's time 0, which is heard at wall time 0 + now.
+    const sent = t.last();
+    expect(sent).toMatchObject({ mode: "play", anchor: { media: 0 } });
+    if (sent?.mode !== "play") throw new Error("expected play");
+    expect(sent.anchor.at).toBeCloseTo(Date.now() + 50, 0);
+    await t.output.destroy();
+    expect(context.close).toHaveBeenCalled();
+  });
+
+  it("reads a steady audio clock every 25 ms but posts to the worker only every 250 ms", async () => {
+    // An audio clock that keeps time with the wall clock.
+    const context = fakeAudioContext(false);
+    const contextTime = () => (Date.now() - 1_700_000_000_000) / 1_000;
+    Object.defineProperty(context, "currentTime", { get: contextTime });
+    const reads = vi.fn(() => ({ contextTime: contextTime(), performanceTime: Date.now() }));
+    context.getOutputTimestamp = reads;
+    const t = setup({ audio: context });
+    t.output.load(planOf(300));
+    await t.output.play();
+    const sent = t.commands.length;
+    const read = reads.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(1_000);
+    // Forty reads, and four posts: one each 250 ms, none for the reads between.
+    expect(reads.mock.calls.length - read).toBeGreaterThanOrEqual(40);
+    expect(t.commands.length - sent).toBe(4);
+    await t.output.destroy();
+  });
+
+  it("sends a stall in the audio clock to the worker within a frame, not up to 250 ms later", async () => {
+    // An audio clock that runs with wall-clock time, except while it's stalled.
+    const context = fakeAudioContext(false);
+    let lost = 0;
+    let stalledSince: number | undefined;
+    const contextTime = () => {
+      const stalled = stalledSince === undefined ? 0 : Date.now() - stalledSince;
+      return (Date.now() - 1_700_000_000_000 - lost - stalled) / 1_000;
+    };
+    Object.defineProperty(context, "currentTime", { get: contextTime });
+    context.getOutputTimestamp = () => ({
+      contextTime: contextTime(),
+      performanceTime: Date.now(),
+    });
+    const t = setup({ audio: context });
+    t.output.load(planOf(300));
+    await t.output.play();
+    const plays = () => t.commands.filter((command) => command.mode === "play");
+    // Just after an anchor every 250 ms, so the next one is 240 ms away.
+    await vi.advanceTimersByTimeAsync(260);
+    const before = plays().length;
+    // The sound stalls: the device stops playing while the wall clock goes on.
+    stalledSince = Date.now();
+    let waited = 0;
+    while (plays().length === before && waited < 300) {
+      await vi.advanceTimersByTimeAsync(5);
+      waited += 5;
+    }
+    lost += Date.now() - stalledSince;
+    stalledSince = undefined;
+    // Sent once the clock is a frame (33 ms) behind, at the next 25 ms check.
+    expect(waited).toBeLessThanOrEqual(1_000 / 30 + 25);
+    // The anchor it sent puts the heard time behind the wall clock by the stall so far.
+    const sent = plays().at(-1) as Extract<SchedulerCommand, { mode: "play" }>;
+    const first = plays()[0] as Extract<SchedulerCommand, { mode: "play" }>;
+    const behind =
+      first.anchor.media +
+      (Date.now() - first.anchor.at) * 1_000 -
+      (sent.anchor.media + (Date.now() - sent.anchor.at) * 1_000);
+    expect(behind).toBeGreaterThan(1_000_000 / 30);
+    await t.output.destroy();
+  });
+
+  it("goes on silently from where the clock is when the audio stops keeping time", async () => {
+    // A context that says it's running, but whose time never moves.
+    const context = fakeAudioContext(false);
+    const t = setup({ audio: context });
+    t.output.load(planOf(300));
+    await t.output.play();
+    expect(t.output.getSnapshot().audio).toBe("ready");
+    await vi.advanceTimersByTimeAsync(1_500);
+    expect(t.output.getSnapshot()).toMatchObject({ state: "playing", audio: "blocked" });
+    const then = t.output.position();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(t.output.position()).toBe(then + 30);
+    await t.output.destroy();
+  });
+
+  it("plays the picture without sound when the first audio windows don't decode, and says so", async () => {
+    // As when the audio decoder stalls (issue #73): playback starts, rather
+    // than staying at the first frame with its clock never started.
+    const t = setup({ audio: fakeAudioContext(false), failAudioFrom: 0 });
+    t.output.load(planOf(300));
+    await t.output.play();
+    expect(t.output.getSnapshot()).toMatchObject({
+      state: "playing",
+      audio: "undecodable",
+      error: null,
+    });
+    expect(t.last()?.mode).toBe("play");
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(t.output.position()).toBe(30);
+    // The next play tries the sound again.
+    t.output.pause();
+    t.decodeAudio();
+    await t.output.play();
+    expect(t.output.getSnapshot().audio).toBe("ready");
+    await t.output.destroy();
+  });
+
+  it("leaves a newer start's sound playing when an older start's audio fails after it", async () => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const context = fakeAudioContext(false);
+    const stopped: unknown[] = [];
+    const createBufferSource = context.createBufferSource;
+    context.createBufferSource = () => {
+      const node = createBufferSource();
+      node.stop = () => stopped.push(node);
+      return node;
+    };
+    const t = setup({ audio: context, holdFirstAudio: held });
+    t.output.load(planOf(300));
+    // A waits for its first windows; a seek while playing starts B, whose
+    // windows come.
+    const first = t.output.play();
+    await vi.advanceTimersByTimeAsync(0);
+    t.output.seek(60);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(t.output.getSnapshot().audio).toBe("ready");
+    // A's windows fail now: B owns the player, and its sound plays on.
+    release();
+    await first;
+    await vi.advanceTimersByTimeAsync(10);
+    expect(stopped).toEqual([]);
+    expect(t.output.getSnapshot()).toMatchObject({ state: "playing", audio: "ready" });
+    await t.output.destroy();
+  });
+
+  it("goes on with the picture only when a later audio window doesn't decode, and says so", async () => {
+    const t = setup({ audio: fakeAudioContext(false), failAudioFrom: 2 });
+    t.output.load(planOf(300));
+    await t.output.play();
+    expect(t.output.getSnapshot().audio).toBe("ready");
+    await vi.advanceTimersByTimeAsync(100);
+    expect(t.output.getSnapshot()).toMatchObject({
+      state: "playing",
+      audio: "undecodable",
+      error: null,
+    });
+    const then = t.output.position();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(t.output.position()).toBe(then + 15);
+    await t.output.destroy();
+  });
+
+  it("refuses a plan whose sources aren't open, and calls after destroy", async () => {
+    const t = setup();
+    expect(() => t.output.load({ ...planOf(30), clips: [{ ...clip(30), source: "x" }] })).toThrow(
+      TypeError,
+    );
+    t.output.load(planOf(30));
+    await t.output.destroy();
+    expect(t.destroyed).toHaveBeenCalled();
+    expect(() => t.output.seek(3)).toThrow();
+    await expect(t.output.play()).rejects.toThrow();
+  });
+});

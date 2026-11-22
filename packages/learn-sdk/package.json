@@ -1,0 +1,124 @@
+{
+  "name": "@hussmartinez/learn-sdk",
+  "version": "0.4.0",
+  "description": "Learning SDK: exercise types with deterministic grading, spaced repetition, a learner player and a teacher editor. A headless core that also runs on servers, React components and a custom element.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ie-huss-martinez/learn-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ie-huss-martinez/learn-sdk/issues"
+  },
+  "homepage": "https://github.com/ie-huss-martinez/learn-sdk#readme",
+  "keywords": [
+    "learning",
+    "education",
+    "exercises",
+    "spaced-repetition",
+    "react",
+    "web-component",
+    "client-side"
+  ],
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    },
+    "./element": {
+      "types": "./dist/element.d.ts",
+      "default": "./dist/element.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "default": "./dist/testing.js"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./formats/*": "./formats/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "formats"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "lint:css": "stylelint \"**/*.css\" --allow-empty-input",
+    "lint:deps": "hm-lint-deps src",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "build": "vite build && pnpm check:api",
+    "test": "vitest run --project unit",
+    "test:browser": "hm-in-image vitest run --project browser",
+    "test:browser:all": "hm-in-image vitest run --project browser --mode all-browsers",
+    "build:examples": "pnpm --filter @hussmartinez/learn-sdk-example-vite build && pnpm --filter @hussmartinez/learn-sdk-example-next build",
+    "test:e2e": "pnpm --filter @hussmartinez/learn-sdk-e2e test:e2e",
+    "test:visual": "hm-test-visual",
+    "test:visual:update": "hm-test-visual --update",
+    "check:size": "size-limit",
+    "check:api": "tsc -p tsconfig.build.json && api-extractor run && api-extractor run -c api-extractor.react.json && api-extractor run -c api-extractor.element.json && api-extractor run -c api-extractor.testing.json",
+    "check:package": "publint run --pack pnpm --strict && attw --pack . --profile esm-only --exclude-entrypoints ./styles.css",
+    "api:update": "tsc -p tsconfig.build.json && api-extractor run --local && api-extractor run -c api-extractor.react.json --local && api-extractor run -c api-extractor.element.json --local && api-extractor run -c api-extractor.testing.json --local",
+    "verify": "pnpm lint:css && pnpm typecheck && pnpm lint:deps && pnpm build && pnpm test && pnpm test:browser && pnpm build:examples && pnpm test:e2e && pnpm test:visual && pnpm check:size && pnpm check:api && pnpm check:package",
+    "verify:fast": "pnpm typecheck && pnpm test && pnpm lint:deps && pnpm check:api",
+    "conformance:update": "vitest run --project unit test/conformance --update"
+  },
+  "dependencies": {
+    "@hussmartinez/sdk-core": "workspace:^",
+    "@hussmartinez/ui": "workspace:^",
+    "ts-fsrs": "catalog:"
+  },
+  "peerDependencies": {
+    "react": ">=18.3",
+    "react-dom": ">=18.3"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "catalog:",
+    "@biomejs/biome": "catalog:",
+    "@changesets/changelog-github": "catalog:",
+    "@changesets/cli": "catalog:",
+    "@commitlint/cli": "catalog:",
+    "@hussmartinez/sdk-config": "workspace:^",
+    "@microsoft/api-extractor": "catalog:",
+    "@size-limit/esbuild": "catalog:",
+    "@size-limit/file": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "axe-core": "catalog:",
+    "dependency-cruiser": "catalog:",
+    "esbuild": "catalog:",
+    "fast-check": "catalog:",
+    "husky": "catalog:",
+    "lint-staged": "catalog:",
+    "playwright": "catalog:",
+    "publint": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "secretlint": "catalog:",
+    "size-limit": "catalog:",
+    "stylelint": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "workerd": "catalog:"
+  }
+}

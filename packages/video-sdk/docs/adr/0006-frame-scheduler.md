@@ -1,0 +1,162 @@
+# 0006. The frame scheduler: playback's clock, frame ownership, dropping and seeking
+
+- **Status:** Accepted
+- **Date:** 2026-11-12
+- **Amended:** 2026-11-12, when audio playback was built: the output timestamp's latency, stamps that aren't believed, corrections without restarts, an audio clock that stops, the start of playback, and audio windows. Earlier, when video playback was built: the clock reads wall-clock time, a late frame is dropped only when a later one is due, and timestamps within a millisecond of the frame grid are on it. Then, the canvas's size follows the stage's.
+- **Amended:** 2026-11-18: an anchor is sent at once when the audio clock moves more than a frame, and a correction under a second doesn't restart the decoders. Earlier the same day: a restart's first frame takes the late-frame rule while playing, and how late frames are after a restart. Earlier the same day, with the inspector ([ADR 0007](0007-editor-shell.md)): a new plan that shows the same picture keeps the decoders, and the worker's readers, which are told apart by opening.
+
+## Context
+
+[ADR 0002](0002-workers-and-assets.md) has the media worker draw the preview into a canvas the page transferred to it, and keeps decoded frames in that worker. [ADR 0005](0005-playback-and-export.md) makes the page's `AudioContext` the master clock, sends the worker a mapping from it every 250 milliseconds, and draws the newest frame at or before the clock. Neither says how the scheduler works frame by frame. This record does, before the code, so that `VideoOutput` ([ADR 0003](0003-clip-plan-document-model.md)) is built to it.
+
+The decoder is built ([ADR 0001](0001-video-engines.md)): `decodeVideoFrames` lends each frame to a consumer, in presentation order, and closes it when the consumer settles. At most 4 decoded frames wait, and at most 8 packets.
+
+Measured in the pinned browser image, in Chromium, Firefox and WebKit:
+
+- **`requestAnimationFrame` exists in dedicated workers** in all three, at the display's rate (about 60 a second headless).
+- **An `AudioContext` starts `suspended`** until a user gesture lets it run, as browsers' autoplay rules require. `getOutputTimestamp()` exists in all three and reports zeros while suspended. Headless, `outputLatency` reports 0 and `baseLatency` 0 to 10 milliseconds.
+- **A context created at another sample rate**, such as 44.1 kHz, keeps it in all three.
+- **A decoded frame draws into a worker's 2D `OffscreenCanvas`** in all three, both with `drawImage(frame)` and through `createImageBitmap(frame)`. The [capability matrix](../capabilities.md) checks it on every run: it decodes a real VP8 frame from `landscape-vp8.webm` with the SDK's decoder, draws it each way onto a cleared canvas, and reads the centre pixel back opaque.
+
+## Decision
+
+### One clock per output
+
+`VideoOutput` keeps one clock that maps media time, in output microseconds on the plan's timeline, to the page's `performance.now()`. It has two sources:
+
+- **The audio clock,** when the plan has audio and the `AudioContext` is running. The page reads `getOutputTimestamp()` and sends the worker an **anchor**: "media time *M* is heard at wall-clock time *P*". It sends a new anchor at play, at every seek, and every 250 milliseconds while playing, so the worker follows the audio hardware's clock as it drifts from `performance.now()`.
+  - **The output timestamp already includes the output latency:** it's the context time the device is playing at a performance time. So latency is added only when there's no usable stamp, to the context's `currentTime`, which is what's being rendered now: `outputLatency`, or `baseLatency` where that's 0 or missing.
+  - **WebKit on Linux reports an `outputLatency` of 0,** and a `baseLatency` of 2.9 ms, in the pinned image, where Chromium reports 32 and 10 ms. Without a usable stamp, the SDK's clock then counts only the base latency, so on such a machine a picture may lead its sound by the audio device's real latency, which no API there reports. Measured in the image, each flash is drawn 5 to 20 ms after its tone is due: the wait for the next animation frame, within one output frame.
+  - **A stamp whose performance time is more than 200 ms before `performance.now()`, or more than 5 ms after it, isn't used.** WebKit on Linux, in the pinned image, stamps another timeline that runs about twice as fast, and an anchor built on it froze the playhead. That timeline is ahead of now by the context's age, so for its first 200 ms a bound on the distance alone let a stamp through: the clock started up to 200 ms late, then jumped forward at the next anchor, and the frames it jumped over were dropped. That was the flaky missed flash in the sync test. A genuine stamp is never in the future, since it says when the device played `contextTime`, so a future one is refused; Chromium's are a few milliseconds old.
+  - **A correction within one output frame doesn't restart the decoders:** the scheduler takes the new anchor, and its waits follow it. A larger change is a seek.
+  - **As amended:** the page reads the audio clock every 25 ms while playing, and sends a new anchor at once when the clock has moved more than an output frame from the worker's, as when the sound stalls; otherwise every 250 ms, as before. Measured with a stalled fake clock, the worker gets the correction 40 ms after the stall starts, where it waited 240 ms for the next 250 ms anchor. Whether the audio has stopped keeping time is still judged every 250 ms. And the scheduler follows a correction of under a second without restarting: a clock moved back holds the next frame until the sound reaches it, and one moved forward drops the frames now late. Restarting would decode again from a key frame, and leave the picture later than before ([ADR 0006's catch-up](#dropping-late-frames)). A change of a second or more is still a seek.
+  - **An audio clock that stops keeping time,** advancing less than half as fast as wall-clock time over a second, as a context whose device fails does, is dropped. Playback goes on silently from where the clock is, and the snapshot's `audio` becomes `"blocked"`.
+  - **Sound that doesn't decode,** as when the audio decoder stalls ([ADR 0002](0002-workers-and-assets.md)), is dropped the same way, with the picture going on: the snapshot's `audio` becomes `"undecodable"`, and the transport says so. If the first windows don't decode, the clock starts on the performance clock instead of never starting, which left playback at its first frame with no error. The next `play()` tries the sound again. An export is different: a stall fails it with `DECODE_FAILED`, never writing a file without its sound.
+- **The performance clock,** when the plan has no audio, or audio can't start. The anchor is set at play and at every seek, and media time advances with `performance.now()`.
+
+Both sides compute media time the same way, `M + (now − P) × 1,000` microseconds, from the latest anchor. So the page's playhead, `VideoOutput.position()`, and the frames the worker draws agree, without a message per frame.
+
+**Wall-clock time** is `performance.timeOrigin + performance.now()`, in milliseconds. A worker's `performance.now()` counts from when the worker started, not from the page's origin, so the two sides can only agree on a time with the origin added.
+
+**The clock starts when playback can start.** `play()` waits until the worker has drawn the start frame, and, with audio, until the first two windows are decoded, mixed and scheduled 50 ms ahead. Then it sets the anchor, so neither picture nor sound starts behind. A seek while playing starts the same way.
+
+**Autoplay.** `play()` creates the `AudioContext` lazily and calls `resume()`, synchronously, within the user's gesture: after an `await`, some browsers no longer count it as one. If the context isn't running 100 ms later, playback continues on the performance clock with no sound, and the output's snapshot reports `audio: "blocked"`. The next `play()`, from a user gesture, tries again. The editor can then show why there's no sound, and tests run headless. A browser with no audio output looks the same, as Firefox in the pinned image does: its contexts stay suspended even after a click.
+
+**Audio windows.** The page asks the worker for 250 ms windows, mixed at the context's rate ([ADR 0005](0005-playback-and-export.md)), and schedules each as an `AudioBufferSourceNode` at the exact context time of its first sample.
+
+- **Lead:** two windows are kept scheduled ahead of the one playing, and eight while the page is hidden, whose timers are throttled. The next window is fetched when one ends, from its `ended` event, which hidden pages don't throttle, and from a timer every 125 ms.
+- **Underrun:** a window that arrives after its time plays from where the clock is, with its late part skipped. Audio never waits, and the clock never moves back. The page counts underruns in a test ledger.
+- **Seek, pause, stop and the end** stop every scheduled node at once. Destroying the output closes the context.
+- **The player loads on the first play** of a plan with audio, from a lazy chunk, so hosts that only use the headless core don't carry it. The context is still created and resumed synchronously in `play()`, within the gesture; the player that schedules windows on it loads after.
+- **An edit while playing changes the sound without a gap.** The clock is unchanged, and the timeline goes on where it is. The window playing stops at a sample 200 ms ahead, later windows are dropped, and the new plan's windows start at that same sample. A change of volume or mute is heard within about a quarter of a second.
+
+### Frames never leave the worker, and the consumer owns the wait
+
+- **The media worker owns the canvas and every frame** ([ADR 0002](0002-workers-and-assets.md)). The page never receives a `VideoFrame`, so the close discipline stays in one thread.
+- **The scheduler is the decoder's consumer.** For each frame `decodeVideoFrames` lends it, the scheduler works out the frame's time on the plan's timeline:
+  - source time = timestamp − the probe's `start` ([ADR 0003](0003-clip-plan-document-model.md));
+  - within the clip, time on the timeline = the clip's offset + (source time − the clip's `start`).
+
+  It then **waits, inside the consumer, until the clock reaches that time,** then draws it, then returns, and the decoder closes it.
+- **So back-pressure comes for free.** While the scheduler waits for the next frame's time, the decoder holds at most 4 frames ahead and stops feeding packets. Memory stays at the queue bounds, at any length of footage.
+- **Drawing** goes through the pure `composeFrame(plan, frame)`, shared with export ([ADR 0005](0005-playback-and-export.md)): the source's and clip's rotation, the crop and the fit, at the stage's size times the device pixel ratio. A frame is drawn on the worker's `requestAnimationFrame`, at most once per animation frame.
+- **How a frame is drawn:** `drawImage(frame)`, straight from the borrowed frame, in every engine, because the matrix shows all three support it. If `drawImage` throws for a frame, the worker draws that frame through `createImageBitmap(frame)` instead, closes the bitmap at once, and keeps using the bitmap path for the rest of that worker's life. Bitmaps are made one at a time from a copy of the frame, and at most one copy waits: a newer frame replaces it, and the older copy is closed undrawn, so a slow `createImageBitmap` can never hold more than two frames. The matrix shows that path working in all three as well. Either way the decoder still closes the frame when the consumer returns.
+
+### Dropping late frames
+
+- **A frame whose time is past when it arrives** isn't waited for. Within one output frame of its time, it's drawn at once. Later than that, it's held and drawn on the next animation frame, unless a later frame is due by then: the later one replaces it, and the one replaced is closed undrawn and counted in the snapshot's `droppedFrames`. So the frame on screen is always the latest one due, and a frame is never dropped when nothing newer can take its place.
+  - **The first frame after a restart takes the same rule** while playing, as when an edit or a seek restarts the decoder: decoding from the key frame before the clock can bring it more than an output frame late, and the frame decoded right after it then replaces it. Paused, a seek's frame is what was asked for, and is drawn as soon as it's decoded.
+  - **After a restart, frames are late until the decoder catches up:** each one drawn is the newest decoded, from the plan at the clock, and late by how far decoding from the key frame has still to go, which shrinks while the decoder is faster than real time. How late depends on the machine, so the browser tests check only what doesn't: the plan's frame for its place, never early, never after a later one, and never the old plan's once the new one's has been drawn. The scheduler's unit tests pin the lateness with a decoder of known speed.
+- **Audio never waits for video** ([ADR 0005](0005-playback-and-export.md)). When decoding can't keep up, frames are dropped, and the clock runs on.
+- **Paused, nothing is drawn.** The canvas keeps the last frame.
+
+### Cuts between clips
+
+- **Clips decode in turn,** each through `decodeVideoFrames` over its source range.
+- **Pre-roll:** when the clock is within one second of the current clip's end, the next clip's decoder starts, so its first frame is ready at the cut. At most two decoders run at once ([ADR 0004](0004-video-limits.md)).
+- **No frame is drawn before one already drawn:** frames from two clips, at a cut, can be due on the same animation frame, and the later one wins.
+- **Every frame is checked against the clip at the clock** before it's drawn: its source and its time must be the ones the plan places there. So no frame from another clip, an earlier seek or an earlier plan is drawn ([ADR 0005](0005-playback-and-export.md)).
+
+### Seeking, scrubbing and edits
+
+- **Seeking** aborts the running decoders, whose frames the decoder then closes ([ADR 0001](0001-video-engines.md)). It decodes from the key packet before the target, through `decodeVideoFrames`' range, and draws the latest frame at or before the target as soon as it's decoded. If playing, the clock's anchor moves to the target, and playback continues from there.
+- **Seeks are coalesced.** A seek that arrives while another decodes replaces it: the earlier one is aborted, and only the latest target is drawn. Scrubbing is a stream of such seeks, and silent ([ADR 0005](0005-playback-and-export.md)).
+- **An edit during playback** loads the new plan, then seeks to the current position under it. A playhead past the new plan's end moves to the end ([ADR 0003](0003-clip-plan-document-model.md)).
+  - **A new plan that shows the same picture stops nothing.** When the output's size and frame rate, and every clip's key, source, range and transform, are as they were, only sound or metadata changed. The scheduler takes the new plan and keeps its decoders, the frames it holds, its clock and its count of dropped frames, playing or paused. So a change of volume, mute or a fade while playing doesn't decode from a key frame again or drop a frame, and a volume slider can load a plan on every move ([ADR 0007](0007-editor-shell.md)). `samePicture` is the one definition, and a test changes each of those fields in turn and expects a restart.
+  - **The worker's readers stay open too,** for the decoders to read from. A source is told apart by which opening of it the engine sent, never by its `Blob`: every message clones a `Blob` into a new object. Comparing `Blob`s, as 0.2.0 did, closed the reader under the running decoder on every new plan, so a single mute while playing paused playback in every engine.
+
+### The canvas's size
+
+The canvas's backing store is sized for the stage, not the output, so frames are drawn sharp at the size they're shown, and no larger.
+
+- **`resize(width, height, pixelRatio)`** sets it to the stage's CSS size times the device pixel ratio. The host calls it when either changes. Until then the canvas keeps the size it had when the output was created.
+- **The ratio is capped at 4,** as image-sdk's preview is: no display needs more, and it bounds the canvas a runaway layout can ask for.
+- **The backing size is checked against `maxFramePixels`** before the worker is told. Over it, `resize` throws `FRAME_TOO_LARGE` and the canvas keeps its size.
+- **The picture is kept.** The worker takes the canvas's picture with `transferToImageBitmap()`, resizes the canvas, and draws the output frame from it letterboxed into the new size, so there's no black flash. Paused, the frame shown is then drawn again, sharp; playing, the next frame is.
+
+### Timestamps rounded to milliseconds
+
+WebM and Matroska store timestamps in whole milliseconds by default. At 30 frames a second, frame 80 is stored at 2.667 s, after the 2.666667 s it stands for, so "the latest frame at or before the time" would land a frame early. **A frame within a millisecond of the output's frame grid is taken as on it,** for seeking and stepping and for when it's drawn, and a frame within a millisecond of a clip's end belongs to the next clip.
+
+### Hidden pages
+
+Chromium and WebKit throttle or stop `requestAnimationFrame` in hidden documents, including in the workers they started, while audio keeps playing.
+
+- **While hidden, the clock runs on and video pauses.** The page tells the worker when `document.visibilityState` changes.
+  - The worker stops its decoders, which close their frames, and decodes and queues nothing for frames nobody will see. The canvas keeps the last frame drawn.
+  - Audio keeps playing and keeps the clock, and its windows are still scheduled ahead.
+  - A plan without audio keeps its performance clock running too, so playback stays where it would have been.
+- **`position()` reports the clock while hidden,** not the last frame drawn, so the playhead the host shows is where the sound is.
+- **On becoming visible again,** the worker resyncs exactly like a seek to `position()`. It decodes from the key packet before it, draws that frame, and goes on playing.
+- **The test:** a pure decision on a fake clock. Hidden means nothing is decoded and the clock advances; visible again means a seek to the clock's position.
+
+### Stepping, and the end of the plan
+
+- **Next frame and previous frame** pause playback if it's running. They seek to the current output frame plus or minus one, clamped to the plan's first and last frames. The frame is drawn exactly: it's a seek, so the latest source frame at or before that time is drawn, and a seek's frame is never dropped. Stepping past either end does nothing.
+- **At the plan's end,** playback stops: the state becomes `stopped`, the playhead is at the end, and the last frame stays drawn. The output fires an `ended` event once, each time playback reaches the end, never on a seek or a step to it. `play()` from the end starts again from the beginning ([ADR 0003](0003-clip-plan-document-model.md)).
+
+### What crosses between the page and the worker
+
+| From | To | What | When |
+|---|---|---|---|
+| Page | Worker | The transferred canvas | Once per mount |
+| Page | Worker | The plan, and the sources' `Blob`s and probes | On load and on every edit |
+| Page | Worker | Play, pause, seek, steps, and clock anchors | On each, and every 250 ms while playing |
+| Page | Worker | Whether the page is visible | On every change |
+| Worker | Page | Dropped frames, and errors | With each anchor's reply |
+| Worker | Page | Audio windows | Ahead of the clock (ADR 0005) |
+
+No full-size frame ever crosses ([ADR 0002](0002-workers-and-assets.md)).
+
+### Order of the work
+
+1. **Video playback on the performance clock:** the scheduler, drawing, dropping, cuts, seeking and the output port.
+2. **Audio:** windows on the `AudioContext`, the audio clock, autoplay, and the flash-and-beep sync test ([ADR 0005](0005-playback-and-export.md)).
+
+### Tests
+
+- **The scheduler's decisions are pure functions,** tested without a browser on a fake clock: which frame to draw, which to drop, when a cut pre-rolls, how seeks coalesce, what stepping targets, when `ended` fires, and what happens while hidden.
+- **The page's decisions** are tested the same way, with a fake worker and fake timers: the anchor, when `ended` fires, stepping, and what it sends while hidden.
+- **In every engine,** a frame-numbered fixture plays, seeks and is edited during playback, and the worker reads back what it drew. It must be the frame the plan places at the clock, or one shortly before it, never a later one; and every frame must be drawn or counted as dropped. Seeks and steps must draw exactly the frame the plan places there, across a cut. The `VideoOutput` contract runs on the real output too.
+- **The frame ledger is zero** after play, pause, seek, an edit during playback and stop ([ADR 0002](0002-workers-and-assets.md)). Destroying the output terminates its worker, which closes everything left.
+- **The page's audio** is tested on a fake `AudioContext` and fake timers: the lead, an underrun, a switch on an exact sample, a stamp that isn't believed, a context that stops, autoplay blocked, and every node released.
+- **The sync test** plays a frame-numbered fixture with tones at four frames, cut out of order. Each flash must be drawn within one output frame, 33 ms, of when its tone is heard: the tone's context time, mapped through the context's own output timestamp. The test allows 2 ms more for the runner's own timing, which isn't part of the design tolerance: the draw time and the output timestamp are read by a busy browser in CI, and WebKit once measured 33.6 ms. On a heavily loaded machine it also allows the runner's measured lag, the 90th percentile of how late the page's timers ran during playback, which is near 0 on a quiet runner. The test places each tone by the same rule as the SDK's clock: the output timestamp only within 200 ms before and 5 ms after now, and otherwise the context's own time and reported latency. Until November 2026 it kept the older ±200 ms rule, so on a machine whose WebKit gives a stamp a little in the future, where the SDK falls back to the context's time, the test measured the gap between the two rules instead: about 20 ms beyond the allowance, at a light load. And a loaded runner drops frames, as the output should when one is late: a flash that was dropped and counted has no draw time to compare, so at least 2 of the 4 must be drawn, and each that is must be within the allowance. It runs, with the gapless mute and release test, in Chromium and WebKit in the pinned image. Firefox there has no audio output, so those two tests are skipped where a context can't start even from a click, and Firefox is checked for silent playback instead.
+
+## Alternatives considered
+
+- **Posting each decoded frame to the page and drawing it there:** `VideoFrame`s can be transferred, but ownership would cross threads every frame, the page would draw on its main thread, and the close discipline would be split between two places.
+- **A `<video>` element fed by Media Source Extensions:** the browser would keep audio and video in sync for us. But every plan and every edit would need remuxing into fragments, decoding would run on the page (sdk-core ADR 0031 rule 1), codec support through Media Source differs from WebCodecs', and frame-accurate seeking and cuts would depend on each browser's buffering.
+- **`setTimeout` as the drawing clock:** it isn't aligned to the display, so frames would tear between refreshes and drift. `requestAnimationFrame` exists in every engine's workers.
+- **The video as the master clock:** audio would have to stretch or skip to follow it, which people hear far more readily than a dropped frame ([ADR 0005](0005-playback-and-export.md)).
+- **Refusing to play when autoplay blocks audio:** playback would fail in headless tests and before any gesture. Playing silently, and saying so, is more useful.
+
+## Consequences
+
+- **Memory stays at the decoder's queue bounds** during playback, at any length, because the wait for a frame's time is the back-pressure.
+- **The page knows the playhead without per-frame messages,** from the same anchor the worker uses.
+- **A frame-accurate preview depends on decoding keeping up.** Where it can't, as with 4K on a slow device, frames are dropped and counted, and the editor can suggest a smaller preview.
+- **Audio playback depends on a user gesture,** as browsers require. Until then the output plays silently and reports `audio: "blocked"`.
+
+## Open questions
+
+- **Bounding the start of playback on the page.** `play()` starts the clock only after three worker replies: the plan loaded, the first frame drawn, and the first audio windows. None has a time limit, so a worker that never replies leaves playback at its first frame with no error. The decoders' stall guards cover the cases known now. A bound on the page, failing with an error after some seconds, would cover any other, at the cost of choosing a time that a slow device under load never reaches. Not decided.

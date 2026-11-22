@@ -1,0 +1,444 @@
+import {
+  createMessages,
+  createShortcutRegistry,
+  createToolRegistry,
+  type MessageOverrides,
+  type Messages,
+  type ShortcutRegistry,
+  type ToolRegistry,
+} from "@hussmartinez/sdk-core";
+import { uiMessages } from "@hussmartinez/ui";
+import { useLatest, usePlatform } from "@hussmartinez/ui/react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { createVideoEngine } from "../adapters/video-engine.js";
+import { createVideoProcessor } from "../adapters/video-processor.js";
+import type { VideoFilePolicyOverrides } from "../core/errors/video-limits.js";
+import { videoLimits } from "../core/errors/video-limits.js";
+import type { VideoPlan } from "../core/model/plan.js";
+import type { VideoEngine } from "../core/ports/video-engine.js";
+import type { VideoOutput, VideoOutputSnapshot } from "../core/ports/video-output.js";
+import type { VideoProcessor } from "../core/ports/video-processor.js";
+import {
+  createVideoSession,
+  type VideoSession,
+  type VideoSessionEvent,
+  type VideoSessionSnapshot,
+} from "../core/session/session.js";
+import { defaultVideoToolbar, type VideoTool, videoTools } from "../features/tools/tools.js";
+import type { VideoEditorMessageCatalogue } from "../messages/editor.js";
+import { videoEditorText } from "../messages/editor-en.js";
+import { videoMessages } from "../messages/en.js";
+
+/**
+ * The editor's catalogue: the SDK's messages, `ui`'s for its components, and
+ * the editor's interface text, as one catalogue for one `Messages` object
+ * (sdk-core ADR 0046, ADR 0059). Every component, the provider and the
+ * element build their `Messages` from it; a host overrides any of its keys,
+ * `ui`'s such as `fileDropZone.choose` included, through the `messages` prop.
+ *
+ * @example
+ * ```ts
+ * const messages = createMessages(videoEditorMessages, { locale: "en" });
+ * messages.t("transport.play"); // "Play"
+ * ```
+ *
+ * @public
+ */
+// In a function marked pure, as a bundler keeps an object literal that
+// spreads another, and with it the whole catalogue, for any import.
+export const videoEditorMessages: VideoEditorMessageCatalogue = /* @__PURE__ */ (() => ({
+  ...videoMessages,
+  ...uiMessages,
+  ...videoEditorText,
+}))();
+
+/**
+ * Props of {@link VideoEditorProvider}.
+ *
+ * @public
+ */
+export interface VideoEditorProviderProps {
+  /** Replaces the SDK's engine. The SDK's preview plays only from its own engine. */
+  readonly engine?: VideoEngine;
+  /**
+   * Replaces the SDK's processor for exports. Without one, the editor makes
+   * its own from the SDK's engine when the first export starts.
+   */
+  readonly processor?: VideoProcessor;
+  /** The limits files and edits are checked against. */
+  readonly filePolicy?: VideoFilePolicyOverrides;
+  /** Where the application serves the package's `dist/assets/`, to self-host the workers. */
+  readonly assetsUrl?: string | URL;
+  /** Text overrides. */
+  readonly messages?: MessageOverrides<VideoEditorMessageCatalogue>;
+  /** The locale numbers, sizes and times are formatted for. */
+  readonly locale?: string;
+  /** Anonymous usage events: never file names or contents. */
+  readonly onEvent?: (event: VideoSessionEvent) => void;
+  /**
+   * Which tools are present, by id, in order, such as
+   * `["video.undo", "video.redo", "video.split"]`. All of them by default. A
+   * tool that's left out has no button and no shortcut.
+   */
+  readonly tools?: readonly string[];
+  /**
+   * The toolbar's groups, by tool id. By default: adding videos, history,
+   * editing and zoom, from the present tools.
+   */
+  readonly toolbar?: readonly (readonly string[])[];
+  readonly children?: ReactNode;
+}
+
+interface EditorContext {
+  readonly engine: VideoEngine;
+  readonly session: VideoSession;
+  /** Sends a usage event of the editor's own, such as `download`, to the host's `onEvent`. */
+  readonly reportEvent: (event: VideoSessionEvent) => void;
+  readonly messages: Messages<VideoEditorMessageCatalogue>;
+  readonly locale: string | undefined;
+  readonly filePolicy: VideoFilePolicyOverrides | undefined;
+  readonly output: VideoOutput | null;
+  readonly setOutput: (output: VideoOutput | null) => void;
+  /**
+   * A plan the preview plays in place of the session's while a gesture is
+   * under way, such as a drag of the volume slider, or `null`. It's never in
+   * the history: the gesture commits one command when it ends
+   * (docs/adr/0007).
+   */
+  readonly preview: VideoPlan | null;
+  readonly setPreview: (plan: VideoPlan | null) => void;
+  /** The clips selected in the timeline, by key, in plan order. */
+  readonly selectedClips: readonly string[];
+  readonly setSelectedClips: (keys: readonly string[]) => void;
+  /** The timeline's zoom, as a multiple of fitting the whole plan. */
+  readonly zoom: number;
+  readonly setZoom: (zoom: number) => void;
+  /** The closest zoom the timeline allows at its width. */
+  readonly maxZoom: number;
+  readonly setMaxZoom: (zoom: number) => void;
+  /** The present tools, and the toolbar's groups of them. */
+  readonly tools: ToolRegistry<VideoTool>;
+  /** The present tools' shortcuts, for this platform. */
+  readonly shortcuts: ShortcutRegistry;
+  /** Adds files at the end, one after another, until cancelled. */
+  readonly insertFiles: (files: readonly Blob[]) => void;
+  /** Cancels the inserts in progress. */
+  readonly cancelInsert: () => void;
+  /**
+   * Registers the toolbar's file picker, for the insert tool, and returns
+   * what unregisters it. A later registration replaces an earlier one.
+   */
+  readonly registerFileChooser: (chooser: () => void) => () => void;
+  /** Opens the registered file picker, if there is one. */
+  readonly chooseFiles: () => void;
+  /** The editor's open dialog, if any. */
+  readonly dialog: VideoEditorDialog | null;
+  readonly setDialog: (dialog: VideoEditorDialog | null) => void;
+  /**
+   * The processor exports use: the host's, or the editor's own, made on
+   * first use. Throws `TypeError` when the engine isn't the SDK's and the
+   * host gave none.
+   */
+  readonly processor: () => VideoProcessor;
+}
+
+/** A dialog the editor shows. */
+type VideoEditorDialog = "export";
+
+/** The default toolbar, from the present tools only. */
+function toolbarOf(present: readonly string[] | undefined): readonly (readonly string[])[] {
+  if (!present) return defaultVideoToolbar;
+  const ids = new Set(present);
+  return defaultVideoToolbar
+    .map((group) => group.filter((id) => ids.has(id)))
+    .filter((group) => group.length > 0);
+}
+
+const Context = /* @__PURE__ */ createContext<EditorContext | null>(null);
+
+/**
+ * Holds one editing session, its engine and its text, for the editor's
+ * building blocks (docs/adr/0007). It creates the SDK's engine unless one is
+ * given, and releases both when it unmounts. A remount within the same
+ * task, as React's StrictMode does, keeps them.
+ *
+ * @public
+ */
+export function VideoEditorProvider(props: VideoEditorProviderProps): ReactNode {
+  const { engine: given, assetsUrl, filePolicy, locale } = props;
+  // The host's latest onEvent, for the session's events and the editor's own.
+  const onEvent = useLatest(props.onEvent);
+  const [engine] = useState(
+    () =>
+      given ??
+      // A server has no page to resolve a relative assetsUrl against, and its
+      // engine never starts a worker: the client's own engine, made when it
+      // hydrates, takes the assetsUrl (sdk-core ADR 0007).
+      createVideoEngine(assetsUrl && typeof location !== "undefined" ? { assetsUrl } : {}),
+  );
+  const ownProcessor = useRef<VideoProcessor | null>(null);
+  const givenProcessor = props.processor;
+  const processor = useCallback(() => {
+    if (givenProcessor) return givenProcessor;
+    ownProcessor.current ??= createVideoProcessor({
+      engine,
+      filePolicy: videoLimits.resolve(filePolicy),
+      ...(assetsUrl ? { assetsUrl } : {}),
+    });
+    return ownProcessor.current;
+  }, [givenProcessor, engine, filePolicy, assetsUrl]);
+  // The latest processor, which the session calls on an export.
+  const exporter = useLatest(processor);
+  const [session] = useState(() =>
+    createVideoSession({
+      engine,
+      ...(filePolicy ? { filePolicy } : {}),
+      onEvent: (event) => onEvent.current?.(event),
+      processor: {
+        // The editor's processor, which is made on the first export (ADR 0005).
+        export: (job, exportOptions) => exporter.current().export(job, exportOptions),
+        // The editor's own processor is released with the editor, below.
+        destroy: async () => {},
+      },
+    }),
+  );
+  const [output, setOutput] = useState<VideoOutput | null>(null);
+  const [preview, setPreview] = useState<VideoPlan | null>(null);
+  const [selectedClips, setSelectedClips] = useState<readonly string[]>([]);
+  const [zoom, setZoom] = useState(1);
+  const [maxZoom, setMaxZoom] = useState(1);
+  const fileChooser = useRef<(() => void) | null>(null);
+  const registerFileChooser = useCallback((chooser: () => void) => {
+    fileChooser.current = chooser;
+    return () => {
+      if (fileChooser.current === chooser) fileChooser.current = null;
+    };
+  }, []);
+  const chooseFiles = useCallback(() => fileChooser.current?.(), []);
+  const [dialog, setDialog] = useState<VideoEditorDialog | null>(null);
+  const inserts = useRef(new Set<AbortController>());
+  const mounts = useRef(0);
+  const platform = usePlatform();
+
+  // The props are plain data, often written inline: compare them by value.
+  const toolsKey = JSON.stringify(props.tools ?? null);
+  const toolbarKey = JSON.stringify(props.toolbar ?? null);
+  const tools = useMemo(
+    () =>
+      createToolRegistry(videoTools, {
+        ...(props.tools ? { tools: props.tools } : {}),
+        toolbar: props.toolbar ?? toolbarOf(props.tools),
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- by value, through the keys
+    [toolsKey, toolbarKey],
+  );
+  const shortcuts = useMemo(
+    () => createShortcutRegistry({ platform, tools: tools.tools }),
+    [platform, tools],
+  );
+
+  const insertFiles = useCallback(
+    (files: readonly Blob[]) => {
+      const controller = new AbortController();
+      inserts.current.add(controller);
+      void (async () => {
+        try {
+          for (const file of files) {
+            if (controller.signal.aborted) return;
+            // A failure is in the session's snapshot, which the stage shows.
+            await session.insert(file, { signal: controller.signal }).catch(() => {});
+          }
+        } finally {
+          inserts.current.delete(controller);
+        }
+      })();
+    },
+    [session],
+  );
+  const cancelInsert = useCallback(() => {
+    for (const controller of inserts.current) controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const mount = ++mounts.current;
+    return () => {
+      // StrictMode unmounts and mounts again at once; only a real unmount releases.
+      queueMicrotask(() => {
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- the count when the microtask runs is the point: a remount has changed it
+        if (mounts.current !== mount) return;
+        void session.destroy();
+        void ownProcessor.current?.destroy();
+        ownProcessor.current = null;
+        if (!given) void engine.destroy();
+      });
+    };
+  }, [engine, given, session]);
+
+  const messages = useMemo(
+    () =>
+      // One object for the SDK's text and ui's (sdk-core ADR 0046). A host's
+      // overrides are checked for unknown keys and placeholders here.
+      createMessages(videoEditorMessages, {
+        ...(locale ? { locale } : {}),
+        ...(props.messages ? { overrides: props.messages } : {}),
+      }),
+    [locale, props.messages],
+  );
+
+  const reportEvent = useCallback(
+    (event: VideoSessionEvent) => onEvent.current?.(event),
+    [onEvent],
+  );
+  const value = useMemo(
+    () => ({
+      engine,
+      session,
+      reportEvent,
+      messages,
+      locale,
+      filePolicy,
+      output,
+      setOutput,
+      preview,
+      setPreview,
+      selectedClips,
+      setSelectedClips,
+      zoom,
+      setZoom,
+      maxZoom,
+      setMaxZoom,
+      tools,
+      shortcuts,
+      insertFiles,
+      cancelInsert,
+      registerFileChooser,
+      chooseFiles,
+      dialog,
+      setDialog,
+      processor,
+    }),
+    [
+      engine,
+      session,
+      reportEvent,
+      messages,
+      locale,
+      filePolicy,
+      output,
+      preview,
+      selectedClips,
+      zoom,
+      maxZoom,
+      tools,
+      shortcuts,
+      insertFiles,
+      cancelInsert,
+      registerFileChooser,
+      chooseFiles,
+      dialog,
+      processor,
+    ],
+  );
+  return <Context.Provider value={value}>{props.children}</Context.Provider>;
+}
+
+/**
+ * The editor's session, engine, text and output, from the nearest
+ * {@link VideoEditorProvider}.
+ *
+ * @internal
+ */
+export function useVideoEditor(): EditorContext {
+  const context = useContext(Context);
+  if (!context) throw new TypeError("Video editor components need a VideoEditorProvider.");
+  return context;
+}
+
+/**
+ * What {@link useVideoSession} returns.
+ *
+ * @public
+ */
+export interface UseVideoSessionResult {
+  readonly session: VideoSession;
+  /** The session's snapshot, which changes with every edit. */
+  readonly snapshot: VideoSessionSnapshot;
+}
+
+/**
+ * The editing session and its snapshot, which changes with every edit.
+ *
+ * @public
+ */
+export function useVideoSession(): UseVideoSessionResult {
+  const { session } = useVideoEditor();
+  const snapshot = useSyncExternalStore(
+    session.subscribe,
+    session.getSnapshot,
+    session.getSnapshot,
+  );
+  return { session, snapshot };
+}
+
+const noSubscription = () => () => {};
+const noSnapshot = () => null;
+
+/**
+ * What {@link useVideoOutput} returns.
+ *
+ * @public
+ */
+export interface UseVideoOutputResult {
+  /** The preview's output, or `null` before the stage has mounted one. */
+  readonly output: VideoOutput | null;
+  readonly snapshot: VideoOutputSnapshot | null;
+}
+
+/**
+ * The preview's output and its snapshot, or `null` before the stage has
+ * mounted one.
+ *
+ * @public
+ */
+export function useVideoOutput(): UseVideoOutputResult {
+  const { output } = useVideoEditor();
+  const snapshot = useSyncExternalStore(
+    output ? output.subscribe : noSubscription,
+    output ? output.getSnapshot : noSnapshot,
+    noSnapshot,
+  );
+  return { output, snapshot };
+}
+
+/**
+ * The playhead, in output frames, read on each animation frame. A component
+ * re-renders only when the frame changes, so only components that show the
+ * time follow it (docs/adr/0007).
+ *
+ * @public
+ */
+export function useVideoPlayhead(): number {
+  const { output } = useVideoOutput();
+  const [frame, setFrame] = useState(() => output?.position() ?? 0);
+  useEffect(() => {
+    if (!output) return;
+    // Seeks and steps change no snapshot field, so the playhead is read on
+    // each animation frame; setting the same frame doesn't re-render.
+    let pending = requestAnimationFrame(function read() {
+      setFrame(output.position());
+      pending = requestAnimationFrame(read);
+    });
+    return () => cancelAnimationFrame(pending);
+  }, [output]);
+  return frame;
+}

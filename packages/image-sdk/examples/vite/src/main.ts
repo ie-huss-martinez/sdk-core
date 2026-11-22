@@ -1,0 +1,79 @@
+import type { DecodeOutcome, FeatureOutcome, GifFrameOutcome, Request } from "./protocol.js";
+
+/** How long a decode may take before the page stops waiting, as the engine will (sdk-core ADR 0031). */
+const DECODE_TIMEOUT = 10_000;
+
+/** Runs one request in a fresh worker, and ends the worker afterwards. */
+function inWorker<T>(request: Request, timeout: number, onTimeout: T): Promise<T> {
+  const worker = new Worker(new URL("./capabilities.worker.ts", import.meta.url), {
+    type: "module",
+  });
+  return new Promise<T>((resolve) => {
+    const timer = setTimeout(() => resolve(onTimeout), timeout);
+    worker.addEventListener("message", (event: MessageEvent<T>) => {
+      clearTimeout(timer);
+      resolve(event.data);
+    });
+    const transfer: Transferable[] =
+      request.kind === "features" ? (request.canvas ? [request.canvas] : []) : [request.bytes];
+    worker.postMessage(request, transfer);
+  }).finally(() => worker.terminate());
+}
+
+const decode = (bytes: ArrayBuffer, imageOrientation: "from-image" | "none" = "from-image") =>
+  inWorker<DecodeOutcome>({ kind: "decode", bytes, imageOrientation }, DECODE_TIMEOUT, {
+    status: "timeout",
+  });
+
+const gifFrame = (bytes: ArrayBuffer, frame: 0 | 1) =>
+  inWorker<GifFrameOutcome>({ kind: "gifFrame", bytes, frame }, DECODE_TIMEOUT, {
+    status: "timeout",
+  });
+
+/** A page canvas handed to the worker, as the preview is, where the browser can. */
+function transferredCanvas(): OffscreenCanvas | undefined {
+  const canvas = document.createElement("canvas");
+  return typeof canvas.transferControlToOffscreen === "function"
+    ? canvas.transferControlToOffscreen()
+    : undefined;
+}
+
+const features = () => {
+  const canvas = transferredCanvas();
+  return inWorker<FeatureOutcome | undefined>(
+    canvas ? { kind: "features", canvas } : { kind: "features" },
+    60_000,
+    undefined,
+  );
+};
+
+declare global {
+  interface Window {
+    /** The hooks the end-to-end tests call. */
+    imageCapabilities: {
+      decode(bytes: ArrayBuffer, imageOrientation?: "from-image" | "none"): Promise<DecodeOutcome>;
+      features(): Promise<FeatureOutcome | undefined>;
+      gifFrame(bytes: ArrayBuffer, frame: 0 | 1): Promise<GifFrameOutcome>;
+    };
+  }
+}
+
+window.imageCapabilities = { decode, features, gifFrame };
+
+const output = document.querySelector<HTMLOutputElement>("#result");
+const input = document.querySelector<HTMLInputElement>("#file");
+input?.addEventListener("change", async () => {
+  const file = input.files?.[0];
+  if (!file || !output) return;
+  output.value = "Decoding…";
+  const outcome = await decode(await file.arrayBuffer());
+  output.value =
+    outcome.status === "decoded"
+      ? `Decoded at ${outcome.width} × ${outcome.height}.`
+      : `This browser couldn't decode it (${outcome.status}).`;
+});
+document.querySelector("#features")?.addEventListener("click", async () => {
+  if (!output) return;
+  output.value = "Measuring…";
+  output.value = JSON.stringify(await features(), null, 2);
+});

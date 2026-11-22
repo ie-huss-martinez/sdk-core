@@ -1,0 +1,363 @@
+@layer hm.components {
+  /*
+   * Layout: kept with unstyled. The track is as wide as the timeline's
+   * length at the current zoom; Timeline.tsx sets its inline size. Its two
+   * rows are the playhead's slider, then the lane the layers and clips
+   * share, stacked in the order written.
+   */
+  .hm-timeline {
+    box-sizing: border-box;
+    display: block;
+    min-inline-size: 0;
+  }
+
+  /*
+   * Half a thumb and a focus ring of room at each end, so the slider's thumb
+   * and its ring can sit on the first and last units without being clipped.
+   */
+  .hm-timeline-viewport {
+    box-sizing: border-box;
+    overflow: auto hidden;
+    padding-inline: calc(
+      var(--hm-slider-thumb-size, var(--hm-icon-size)) /
+      2 +
+      var(--hm-focus-ring-width) +
+      var(--hm-focus-ring-offset)
+    );
+  }
+
+  .hm-timeline-track {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    /* The slider's row holds its thumb and the thumb's focus ring, or a target, if larger. */
+    grid-template-rows:
+      max(
+        var(--hm-slider-thumb-size, var(--hm-icon-size)) +
+        2 *
+        (var(--hm-focus-ring-width) + var(--hm-focus-ring-offset)),
+        var(--hm-target-size)
+      )
+      minmax(var(--hm-timeline-lane-height, var(--hm-control-height)), auto);
+    isolation: isolate;
+    min-inline-size: 100%;
+    position: relative;
+  }
+
+  .hm-timeline-track > * {
+    grid-column: 1;
+    grid-row: 2;
+    min-inline-size: 0;
+  }
+
+  .hm-timeline-layer {
+    box-sizing: border-box;
+  }
+
+  /*
+   * The clips, side by side. Until the timeline has measured itself, as on
+   * a server, they share the track equally; then TimelineClips.tsx sets each
+   * one's inline size.
+   */
+  /*
+   * Only the clips take the pointer: between them, and beside a clip's
+   * title when that's its handle, a press reaches what's under the track,
+   * such as a layer that selects a range of time.
+   */
+  .hm-timeline-clips {
+    box-sizing: border-box;
+    display: flex;
+    pointer-events: none;
+  }
+
+  .hm-timeline-clip {
+    align-items: center;
+    box-sizing: border-box;
+    cursor: pointer;
+    display: flex;
+    flex: 1 1 0;
+    min-inline-size: 0;
+    overflow: hidden;
+    pointer-events: auto;
+    position: relative;
+    user-select: none;
+  }
+
+  .hm-timeline-clips[data-hm-measured] > .hm-timeline-clip {
+    flex: none;
+  }
+
+  /*
+   * A clip's edges, for dragging: at most a third of the clip each, so a
+   * narrow clip keeps a middle to press.
+   */
+  .hm-timeline-clip-edge {
+    cursor: ew-resize;
+    inline-size: min(var(--hm-timeline-clip-edge-size, var(--hm-gap-normal)), 33%);
+    inset-block: 0;
+    position: absolute;
+    touch-action: none;
+  }
+
+  .hm-timeline-clip-edge[data-hm-edge="start"] {
+    inset-inline-start: 0;
+  }
+
+  .hm-timeline-clip-edge[data-hm-edge="end"] {
+    inset-inline-end: 0;
+  }
+
+  /* Inside the clip, where its neighbours and the track's edge can't cover it. */
+  .hm-timeline-clip:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: calc(var(--hm-focus-ring-width) * -1);
+  }
+
+  .hm-timeline-clip-content {
+    min-inline-size: 0;
+    overflow: hidden;
+    padding-inline: var(--hm-timeline-clip-padding-x, var(--hm-gap-tight));
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /*
+   * Clips that can be dragged. A dragged clip is above the lanes and the
+   * playhead as it follows the pointer; TimelineClips.tsx moves it.
+   */
+  .hm-timeline-clips[data-hm-move-handle="clip"] > .hm-timeline-clip,
+  .hm-timeline-clips[data-hm-move-handle="title"] .hm-timeline-clip-content {
+    cursor: grab;
+  }
+
+  /*
+   * With the title as the handle, the rest of a clip lets a press through
+   * to the layer under it, such as one that selects a range of time.
+   */
+  .hm-timeline-clips[data-hm-move-handle="title"] > .hm-timeline-clip {
+    pointer-events: none;
+  }
+
+  .hm-timeline-clips[data-hm-move-handle="title"] .hm-timeline-clip-content,
+  .hm-timeline-clips[data-hm-move-handle="title"] .hm-timeline-clip-edge {
+    pointer-events: auto;
+  }
+
+  .hm-timeline-clips > .hm-timeline-clip[data-hm-moving] {
+    cursor: grabbing;
+    z-index: var(--hm-z-sticky);
+  }
+
+  .hm-timeline-clips > .hm-timeline-clip[data-hm-moving="refused"] {
+    cursor: not-allowed;
+  }
+
+  /* Over both rows, and above the layers; only its slider takes the pointer. */
+  .hm-timeline-playhead {
+    grid-row: 1 / 3;
+    pointer-events: none;
+    position: relative;
+    z-index: var(--hm-z-raised);
+  }
+
+  .hm-timeline-playhead-slider {
+    pointer-events: auto;
+  }
+
+  /* Timeline.tsx sets its inline start; it's centred on that unit. */
+  .hm-timeline-playhead-line {
+    inline-size: 0;
+    inset-block: 0;
+    inset-inline-start: 0;
+    margin-inline-start: calc(var(--hm-focus-ring-width) / -2);
+    position: absolute;
+  }
+
+  /*
+   * Lanes. Each is a row of the track, under the slider's, with its own
+   * layers and clips stacked in it; Timeline.tsx gives each its row. Their
+   * headers share a column before the first unit, in room the timeline adds
+   * to the viewport's padding, and stay there as the track scrolls.
+   */
+  .hm-timeline[data-hm-lanes] .hm-timeline-viewport {
+    overflow: auto;
+  }
+
+  .hm-timeline[data-hm-lanes] .hm-timeline-track {
+    grid-auto-rows: minmax(var(--hm-timeline-lane-height, var(--hm-control-height)), auto);
+    grid-template-rows: max(
+        var(--hm-slider-thumb-size, var(--hm-icon-size)) +
+        2 *
+        (var(--hm-focus-ring-width) + var(--hm-focus-ring-offset)),
+        var(--hm-target-size)
+      );
+  }
+
+  /*
+   * Two columns: the header's, as wide as the header and nothing without
+   * one, then the lane's layers and clips, stacked. TimelineLane.tsx pulls
+   * the lane back over the room kept for the headers, so the header has a
+   * box to stay in.
+   */
+  /*
+   * A lane takes no press itself, and nor do its layers unless they ask:
+   * a press on its empty space, or beside a clip's title, goes on to what's
+   * under the lanes, such as a layer that selects a range of time across
+   * them. Its header and its clips take theirs.
+   */
+  .hm-timeline-lane {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    pointer-events: none;
+  }
+
+  .hm-timeline-lane .hm-timeline-layer:not([data-hm-interactive]) {
+    pointer-events: none;
+  }
+
+  .hm-timeline-lane .hm-timeline-layer[data-hm-interactive] {
+    pointer-events: auto;
+  }
+
+  .hm-timeline-lane > * {
+    grid-column: 2;
+    grid-row: 1;
+    min-inline-size: 0;
+  }
+
+  .hm-timeline-lane > .hm-timeline-lane-header {
+    align-items: center;
+    pointer-events: auto;
+    box-sizing: border-box;
+    display: flex;
+    grid-column: 1;
+    inset-inline-start: 0;
+    overflow: hidden;
+    position: sticky;
+    z-index: var(--hm-z-sticky);
+  }
+
+  /* As wide as its controls, so the timeline can tell how wide the column must be. */
+  .hm-timeline-lane-toolbar {
+    flex: none;
+    inline-size: max-content;
+    max-inline-size: var(--hm-timeline-header-max-width, var(--hm-surface-width-small));
+  }
+
+  /* The slider's row stays at the top as the lanes scroll under it. */
+  .hm-timeline-bar {
+    grid-column: 1;
+    grid-row: 1;
+    inset-block-start: 0;
+    position: sticky;
+    z-index: var(--hm-z-raised);
+  }
+
+  .hm-timeline[data-hm-lanes] .hm-timeline-playhead-slider {
+    inset-block-start: 0;
+    position: sticky;
+  }
+
+  /* Only its cover takes the pointer: the rest of the row is the slider's. */
+  .hm-timeline-corner {
+    grid-column: 1;
+    grid-row: 1;
+    inset-block-start: 0;
+    pointer-events: none;
+    position: sticky;
+    z-index: var(--hm-z-sticky);
+  }
+
+  .hm-timeline-corner-cover {
+    block-size: 100%;
+    inset-inline-start: 0;
+    pointer-events: auto;
+    position: sticky;
+  }
+
+  /* Where the timeline is narrow, each header sits above its lane. */
+  .hm-timeline[data-hm-lanes="above"] .hm-timeline-lane {
+    grid-template-rows: auto minmax(var(--hm-timeline-lane-height, var(--hm-control-height)), auto);
+  }
+
+  .hm-timeline[data-hm-lanes="above"] .hm-timeline-lane > * {
+    grid-row: 2;
+  }
+
+  .hm-timeline[data-hm-lanes="above"] .hm-timeline-lane > .hm-timeline-lane-header {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    justify-self: start;
+  }
+
+  /* Visual styles, dropped with unstyled. */
+  /* On the viewport, so it's behind the slider's ends too, and stays put while the track scrolls. */
+  .hm-timeline:not([data-hm-unstyled]) .hm-timeline-viewport {
+    background: var(--hm-timeline-track-bg, var(--hm-color-surface-sunken));
+    border-radius: var(--hm-timeline-track-radius, var(--hm-radius-control));
+  }
+
+  /*
+   * A thumb wider than the track by its own size travels from the first
+   * unit to the last, so its centre is where the line is. It needs the
+   * styled thumb, whose size is the token's.
+   */
+  .hm-timeline-playhead:not([data-hm-unstyled]) .hm-timeline-playhead-slider {
+    inline-size: calc(100% + var(--hm-slider-thumb-size, var(--hm-icon-size)));
+    margin-inline: calc(var(--hm-slider-thumb-size, var(--hm-icon-size)) / -2);
+  }
+
+  /* A border, so forced-colours mode draws it. */
+  .hm-timeline-playhead:not([data-hm-unstyled]) .hm-timeline-playhead-line {
+    border-inline-start: var(--hm-focus-ring-width) solid
+      var(--hm-timeline-playhead-color, var(--hm-color-accent));
+  }
+
+  .hm-timeline-clips:not([data-hm-unstyled]) > .hm-timeline-clip {
+    background: var(--hm-timeline-clip-bg, var(--hm-color-control));
+    border: var(--hm-border-width) solid
+      var(--hm-timeline-clip-border-color, var(--hm-color-border-strong));
+    border-radius: var(--hm-timeline-clip-radius, var(--hm-radius-control));
+    color: var(--hm-timeline-clip-fg, var(--hm-color-text));
+    font-family: var(--hm-font-family);
+    font-size: var(--hm-font-size-small);
+    letter-spacing: var(--hm-letter-spacing);
+    line-height: var(--hm-line-height-tight);
+  }
+
+  /* A thicker border as well as a colour, so selection isn't shown by colour alone. */
+  .hm-timeline-clips:not([data-hm-unstyled]) > .hm-timeline-clip[aria-selected="true"] {
+    background: var(--hm-timeline-clip-selected-bg, var(--hm-color-accent-subtle));
+    border-color: var(--hm-timeline-clip-selected-border-color, var(--hm-color-accent));
+    border-width: var(--hm-focus-ring-width);
+  }
+
+  /* The clip whose edge is being dragged. */
+  .hm-timeline-clips:not([data-hm-unstyled]) > .hm-timeline-clip[data-hm-dragging] {
+    border-color: var(--hm-timeline-clip-selected-border-color, var(--hm-color-accent));
+  }
+
+  /* Opaque, so clips and the slider's rail pass under them. */
+  .hm-timeline:not([data-hm-unstyled]) .hm-timeline-lane > .hm-timeline-lane-header,
+  .hm-timeline:not([data-hm-unstyled]) .hm-timeline-corner-cover,
+  .hm-timeline:not([data-hm-unstyled]) .hm-timeline-bar {
+    background: var(--hm-timeline-header-bg, var(--hm-color-surface));
+  }
+
+  .hm-timeline:not([data-hm-unstyled]) .hm-timeline-lane {
+    border-block-start: var(--hm-border-width) solid
+      var(--hm-timeline-lane-border-color, var(--hm-color-border));
+  }
+
+  /* A clip being dragged, and one that can't be dropped where it is. */
+  .hm-timeline-clips:not([data-hm-unstyled]) > .hm-timeline-clip[data-hm-moving] {
+    border-color: var(--hm-timeline-clip-selected-border-color, var(--hm-color-accent));
+    box-shadow: var(--hm-timeline-clip-moving-shadow, var(--hm-shadow-raised));
+  }
+
+  .hm-timeline-clips:not([data-hm-unstyled]) > .hm-timeline-clip[data-hm-moving="refused"] {
+    border-color: var(--hm-timeline-clip-refused-border-color, var(--hm-color-danger-text));
+    border-style: dashed;
+  }
+}

@@ -1,0 +1,157 @@
+"use client";
+
+/**
+ * Accessible React components of the `@hussmartinez` design system.
+ *
+ * @remarks
+ * A client entry: it starts with `"use client"`, which the build keeps
+ * (ADR 0007). React and React DOM 18.3 or later are optional peer
+ * dependencies.
+ *
+ * @packageDocumentation
+ */
+
+export type {
+  Announce,
+  AnnouncerProviderProps,
+  Politeness,
+} from "./components/announcer/Announcer.js";
+export { AnnouncerProvider, useAnnounce } from "./components/announcer/Announcer.js";
+export type {
+  ButtonPart,
+  ButtonProps,
+  ButtonSize,
+  ButtonVariant,
+} from "./components/button/Button.js";
+export { Button } from "./components/button/Button.js";
+export type { IconButtonProps } from "./components/button/IconButton.js";
+export { IconButton } from "./components/button/IconButton.js";
+export type {
+  ColorFieldPart,
+  ColorFieldProps,
+  ColorSwatch,
+} from "./components/color-field/ColorField.js";
+export { ColorField } from "./components/color-field/ColorField.js";
+export type { DialogPart, DialogProps } from "./components/dialog/Dialog.js";
+export { Dialog } from "./components/dialog/Dialog.js";
+export type { FieldPart, FieldProps } from "./components/field/Field.js";
+export { Field } from "./components/field/Field.js";
+export type { FieldControlProps } from "./components/field/field-context.js";
+export type {
+  FileDropZonePart,
+  FileDropZoneProps,
+  FileRejection,
+} from "./components/file-drop-zone/FileDropZone.js";
+export { FileDropZone } from "./components/file-drop-zone/FileDropZone.js";
+export type {
+  HeadingLevelProviderProps,
+  HeadingPart,
+  HeadingProps,
+} from "./components/heading/Heading.js";
+export {
+  Heading,
+  HeadingLevelProvider,
+  useHeadingLevel,
+} from "./components/heading/Heading.js";
+export type {
+  UiMessages,
+  UiMessagesProviderProps,
+} from "./components/messages/UiMessagesProvider.js";
+export { UiMessagesProvider, useUiMessages } from "./components/messages/UiMessagesProvider.js";
+export type { NumberFieldProps } from "./components/number-field/NumberField.js";
+export { NumberField } from "./components/number-field/NumberField.js";
+export type { ProgressBarProps } from "./components/progress-bar/ProgressBar.js";
+export { ProgressBar } from "./components/progress-bar/ProgressBar.js";
+export type {
+  ReorderableListItemPart,
+  ReorderableListItemProps,
+  ReorderableListProps,
+} from "./components/reorderable-list/ReorderableList.js";
+export {
+  ReorderableList,
+  ReorderableListItem,
+} from "./components/reorderable-list/ReorderableList.js";
+export type {
+  SegmentedControlOption,
+  SegmentedControlPart,
+  SegmentedControlProps,
+} from "./components/segmented-control/SegmentedControl.js";
+export { SegmentedControl } from "./components/segmented-control/SegmentedControl.js";
+export type { ClassNames, StyleProps } from "./components/shared/style-props.js";
+export type { SliderProps } from "./components/slider/Slider.js";
+export { Slider } from "./components/slider/Slider.js";
+export type { SpinnerProps } from "./components/spinner/Spinner.js";
+export { Spinner } from "./components/spinner/Spinner.js";
+export type { TextAreaProps } from "./components/text-area/TextArea.js";
+export { TextArea } from "./components/text-area/TextArea.js";
+export type { TextFieldProps, TextFieldType } from "./components/text-field/TextField.js";
+export { TextField } from "./components/text-field/TextField.js";
+export type {
+  TimelineLanes,
+  TimelineLayerProps,
+  TimelinePart,
+  TimelineProps,
+  TimelineRange,
+  TimelineScale,
+} from "./components/timeline/Timeline.js";
+export {
+  Timeline,
+  TimelineLayer,
+  useTimelineLanes,
+  useTimelineScale,
+} from "./components/timeline/Timeline.js";
+export type {
+  TimelineClip,
+  TimelineClipDrop,
+  TimelineClipEdge,
+  TimelineClipsHandle,
+  TimelineClipsPart,
+  TimelineClipsProps,
+} from "./components/timeline/TimelineClips.js";
+export { TimelineClips } from "./components/timeline/TimelineClips.js";
+export type {
+  TimelineLanePart,
+  TimelineLaneProps,
+} from "./components/timeline/TimelineLane.js";
+export { TimelineLane } from "./components/timeline/TimelineLane.js";
+export type {
+  TimelinePlayheadPart,
+  TimelinePlayheadProps,
+} from "./components/timeline/TimelinePlayhead.js";
+export { TimelinePlayhead } from "./components/timeline/TimelinePlayhead.js";
+export type {
+  ToggleButtonBaseProps,
+  ToggleButtonIconProps,
+  ToggleButtonProps,
+  ToggleButtonTextProps,
+  ToggleButtonVariant,
+} from "./components/toggle-button/ToggleButton.js";
+export { ToggleButton } from "./components/toggle-button/ToggleButton.js";
+export type { ToolbarProps } from "./components/toolbar/Toolbar.js";
+export { Toolbar } from "./components/toolbar/Toolbar.js";
+export type { ToolbarGroupProps } from "./components/toolbar/ToolbarGroup.js";
+export { ToolbarGroup } from "./components/toolbar/ToolbarGroup.js";
+export type { ToolbarSeparatorProps } from "./components/toolbar/ToolbarSeparator.js";
+export { ToolbarSeparator } from "./components/toolbar/ToolbarSeparator.js";
+export type { TooltipPart, TooltipProps } from "./components/tooltip/Tooltip.js";
+export { Tooltip } from "./components/tooltip/Tooltip.js";
+export type { VisuallyHiddenProps } from "./components/visually-hidden/VisuallyHidden.js";
+export { VisuallyHidden } from "./components/visually-hidden/VisuallyHidden.js";
+// The type an SDK's `headingLevel` prop takes, beside the component that uses it.
+export type { HeadingLevel } from "./heading/heading-level.js";
+export type { IconComponent, IconProps } from "./icons/create-icon.js";
+export type { IconName } from "./icons/icon-name.generated.js";
+// One module-level function per icon, so bundlers keep only those imported
+// (docs/adr/0005).
+export * from "./icons/icons.generated.js";
+export { uiMessages } from "./messages/en.js";
+export type {
+  ThemeProviderBaseProps,
+  ThemeProviderModeProps,
+  ThemeProviderProps,
+  ThemeProviderSingleProps,
+} from "./react/ThemeProvider.js";
+export { ThemeProvider } from "./react/ThemeProvider.js";
+export { useLatest } from "./react/use-latest.js";
+export { usePlatform } from "./react/use-platform.js";
+export type { ColorMode, Density, Theme, ThemePair } from "./theme/types.js";

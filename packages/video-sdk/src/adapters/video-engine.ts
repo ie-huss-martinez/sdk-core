@@ -1,0 +1,318 @@
+import {
+  createWorkerClient,
+  resolveAssetsBase,
+  type WorkerClient,
+  type WorkerLike,
+  withProcessingTime,
+} from "@hussmartinez/sdk-core";
+import { asVideoError, startFailureOf, throwIfAborted } from "../core/errors/error-helpers.js";
+import { VideoError } from "../core/errors/video-error.js";
+import { type VideoFilePolicy, videoLimits } from "../core/errors/video-limits.js";
+import { sourceInfo, type VideoProbe } from "../core/model/source.js";
+import type { VideoEngine } from "../core/ports/video-engine.js";
+import { PACKAGE_VERSION } from "../version.js";
+import type { MediaWorkerContract, PlaybackSource } from "./media-worker/contract.js";
+
+/**
+ * Options for {@link createVideoEngine}.
+ *
+ * @public
+ */
+export interface VideoEngineOptions {
+  /**
+   * Milliseconds without calls after which the media worker stops. It starts
+   * again on the next call. Defaults to sdk-core's 30 seconds.
+   */
+  readonly idleTimeout?: number;
+  /**
+   * Milliseconds a worker may take to load before it fails with
+   * `WORKER_START_FAILED`: the engine's, its outputs' and the export worker of
+   * a processor over it. Defaults to sdk-core's 10
+   * seconds, many times what the packaged worker takes even on a heavily
+   * loaded machine.
+   */
+  readonly startTimeout?: number;
+  /**
+   * Where the application serves the package's `dist/assets/` directory,
+   * absolute or relative to the page, to start the media worker from
+   * `video/media.worker.js` under it rather than inlined (sdk-core ADR 0038).
+   * It needs `worker-src 'self'` in a Content Security Policy, rather than
+   * `blob:`. A worker from another release of the package is refused with
+   * `WORKER_START_FAILED`. Throws `TypeError` for a URL with a query or a
+   * fragment, or a relative one where there's no page.
+   */
+  readonly assetsUrl?: string | URL;
+}
+
+/** The self-hosted media worker, under `assetsUrl` (docs/adr/0002). */
+const MEDIA_WORKER_ASSET = "video/media.worker.js";
+
+/**
+ * How to start a worker from `assetsUrl`'s base: as an ES module, named.
+ *
+ * @internal
+ */
+export function selfHostedWorker(base: string, asset: string, name: string): () => WorkerLike {
+  const url = new URL(asset, base);
+  return () => new Worker(url, { type: "module", name });
+}
+
+/**
+ * What the engine needs from its environment, replaceable in tests.
+ *
+ * @internal
+ */
+export interface EngineEnvironment {
+  /** Loads the worker's code, on the first call, and returns how to start it. */
+  readonly loadWorker: () => Promise<() => WorkerLike>;
+  readonly idleTimeout?: number;
+  readonly startTimeout?: number;
+  /** The self-hosted worker's file under `assetsUrl`, named in a version mismatch, or `undefined` when inlined. */
+  readonly workerAsset?: string;
+}
+
+/**
+ * Creates the SDK's video engine (docs/adr/0001, docs/adr/0002). It probes
+ * MP4, QuickTime, WebM and Matroska files in its media worker: the SDK's own
+ * front check bounds the index and refuses edit lists and encryption it
+ * doesn't support, then mediabunny walks every packet, without decoding
+ * anything. `probe` applies `maxFileSize`, `maxIndexSize` and the packet
+ * walk's caps from the `filePolicy` you pass; check the result against the
+ * other limits with `checkProbe` before opening it.
+ *
+ * Nothing starts until the first call. The worker is inlined, which needs
+ * `worker-src blob:` in a Content Security Policy, and it makes no requests of
+ * its own.
+ *
+ * @example
+ * ```ts
+ * const engine = createVideoEngine();
+ * const policy = videoLimits.resolve(props.filePolicy);
+ * const probe = await engine.probe(file, { filePolicy: policy });
+ * checkProbe(policy, probe);
+ * const source = await engine.open("clip-1", file, probe);
+ * ```
+ *
+ * @public
+ */
+export function createVideoEngine(options: VideoEngineOptions = {}): VideoEngine {
+  // Resolved now, so a mistake fails when the engine is created.
+  const base = options.assetsUrl === undefined ? undefined : resolveAssetsBase(options.assetsUrl);
+  return createEngine({
+    loadWorker: base
+      ? async () => selfHostedWorker(base, MEDIA_WORKER_ASSET, "hm-video-media")
+      : // The inlined worker, or a stub with the hm-self-hosted condition (sdk-core
+        // ADR 0060), through package.json's imports.
+        async () => (await import("#hm-video-media-worker")).createInlineWorker,
+    ...(base ? { workerAsset: MEDIA_WORKER_ASSET } : {}),
+    ...(options.idleTimeout === undefined ? {} : { idleTimeout: options.idleTimeout }),
+    ...(options.startTimeout === undefined ? {} : { startTimeout: options.startTimeout }),
+  });
+}
+
+/**
+ * What the SDK's own output needs from the SDK's own engine (docs/adr/0006):
+ * how to start a media worker, and each open source's file, probe and policy.
+ *
+ * @internal
+ */
+export interface EngineInternals {
+  readonly loadWorker: () => Promise<() => WorkerLike>;
+  /** The self-hosted worker's file, or `undefined` when inlined. */
+  readonly workerAsset: string | undefined;
+  /** How long its workers may take to start, or `undefined` for sdk-core's default. */
+  readonly startTimeout: number | undefined;
+  /** An open source, or `undefined`. */
+  source(id: string): PlaybackSource | undefined;
+}
+
+const internals = new WeakMap<VideoEngine, EngineInternals>();
+
+/**
+ * The internals of an engine made by {@link createVideoEngine}, or
+ * `undefined` for any other engine.
+ *
+ * @internal
+ */
+export function engineInternals(engine: VideoEngine): EngineInternals | undefined {
+  return internals.get(engine);
+}
+
+/**
+ * Whether two probes are the same, field by field. A probe is plain data:
+ * numbers, strings, `null` and objects of them.
+ */
+function sameProbe(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  return keys.every(
+    (key) =>
+      Object.hasOwn(b, key) &&
+      sameProbe((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]),
+  );
+}
+
+/** Freezes a probe and everything in it, so that a trusted probe can't change. */
+function freeze(probe: VideoProbe): VideoProbe {
+  Object.freeze(probe.video);
+  if (probe.audio) Object.freeze(probe.audio);
+  return Object.freeze(probe);
+}
+
+/**
+ * The engine, with its environment passed in.
+ *
+ * @internal
+ */
+export function createEngine(environment: EngineEnvironment): VideoEngine {
+  let startWorker: (() => WorkerLike) | undefined;
+  let client: WorkerClient<MediaWorkerContract> | undefined;
+  let destroyed = false;
+  /** Probes this engine made, which `open` can trust without probing again. */
+  const trusted = new WeakMap<VideoProbe, Blob>();
+  const sources = new Map<string, PlaybackSource>();
+  /** The number of the last `open`, for {@link PlaybackSource.opening}. */
+  let openings = 0;
+
+  const assertAlive = () => {
+    if (destroyed) throw new Error("The video engine has been destroyed.");
+  };
+
+  async function worker(): Promise<WorkerClient<MediaWorkerContract>> {
+    startWorker ??= await environment.loadWorker();
+    client ??= createWorkerClient<MediaWorkerContract>({
+      createWorker: () => {
+        if (!startWorker)
+          throw new VideoError("WORKER_START_FAILED", "The media worker hasn't loaded.");
+        return startWorker();
+      },
+      errorClasses: { VideoError },
+      packageVersion: PACKAGE_VERSION,
+      ...(environment.workerAsset === undefined ? {} : { workerAsset: environment.workerAsset }),
+      ...(environment.idleTimeout === undefined ? {} : { idleTimeout: environment.idleTimeout }),
+      ...(environment.startTimeout === undefined ? {} : { startTimeout: environment.startTimeout }),
+    });
+    return client;
+  }
+
+  async function run<T>(work: () => Promise<T>): Promise<T> {
+    try {
+      return await work();
+    } catch (error) {
+      if (error instanceof TypeError) throw error;
+      throw startFailureOf(error) ?? asVideoError(error);
+    }
+  }
+
+  async function probe(
+    file: Blob,
+    policy: VideoFilePolicy,
+    signal?: AbortSignal,
+  ): Promise<VideoProbe> {
+    const media = await worker();
+    const probed = await withProcessingTime(
+      policy,
+      (timed) => media.call("probe", { file, limits: policy.limits }, { signal: timed }),
+      signal ? { signal } : {},
+    );
+    // Frozen before it's trusted: a caller can't lower a value in it to pass
+    // the limits, then open the file with it.
+    // A probe is trusted only for the Blob it was made from.
+    trusted.set(freeze(probed), file);
+    return probed;
+  }
+
+  const engine: VideoEngine = {
+    probe(file, options = {}) {
+      return run(async () => {
+        assertAlive();
+        throwIfAborted(options.signal);
+        return probe(file, options.filePolicy ?? videoLimits.resolve(), options.signal);
+      });
+    },
+    open(id, file, given, options = {}) {
+      return run(async () => {
+        assertAlive();
+        throwIfAborted(options.signal);
+        if (sources.has(id)) throw new TypeError(`The source "${id}" is already open.`);
+        // A probe the caller rebuilt or copied, such as one restored from a
+        // saved session, or a probe of another file: probe this file again,
+        // under the caller's policy, and open it with the fresh probe only if
+        // every field matches, so that limits were checked against what the
+        // file really holds.
+        const policy = options.filePolicy ?? videoLimits.resolve();
+        let opened = given;
+        if (trusted.get(given) !== file) {
+          const fresh = await probe(file, policy, options.signal);
+          if (!sameProbe(fresh, given)) {
+            throw new VideoError("INVALID_VIDEO", "The probe doesn't describe this file.", {
+              details: { container: fresh.container, reason: "probe" },
+            });
+          }
+          opened = fresh;
+        }
+        // Only a file this browser can decode opens (docs/adr/0001). The
+        // worker checks the file again before mediabunny reads it, under the
+        // same policy and processing time as a probe.
+        const media = await worker();
+        const support = await withProcessingTime(
+          policy,
+          (timed) =>
+            media.call(
+              "support",
+              { file, limits: policy.limits, probe: opened },
+              { signal: timed },
+            ),
+          options.signal ? { signal: options.signal } : {},
+        );
+        throwIfAborted(options.signal);
+        if (sources.has(id)) throw new TypeError(`The source "${id}" is already open.`);
+        // Sound this browser can't decode: the file opens with its picture,
+        // and playback, peaks and export read it as having none (docs/adr/0008).
+        const unplayable = support.audio === "undecodable" ? { codec: support.codec } : undefined;
+        const usable = unplayable ? { ...opened, audio: null } : opened;
+        openings += 1;
+        sources.set(id, { id, opening: openings, file, probe: usable, limits: policy.limits });
+        return sourceInfo(id, opened, unplayable);
+      });
+    },
+    peaks(id, options = {}) {
+      return run(async () => {
+        assertAlive();
+        throwIfAborted(options.signal);
+        const source = sources.get(id);
+        if (!source) throw new TypeError(`The source "${id}" isn't open.`);
+        const policy = options.filePolicy ?? videoLimits.resolve();
+        const media = await worker();
+        return withProcessingTime(
+          policy,
+          (timed) =>
+            media.call(
+              "peaks",
+              { file: source.file, limits: policy.limits, probe: source.probe },
+              { signal: timed },
+            ),
+          options.signal ? { signal: options.signal } : {},
+        );
+      });
+    },
+    async close(id) {
+      assertAlive();
+      sources.delete(id);
+    },
+    async destroy() {
+      destroyed = true;
+      sources.clear();
+      client?.destroy();
+    },
+  };
+  internals.set(engine, {
+    loadWorker: environment.loadWorker,
+    workerAsset: environment.workerAsset,
+    startTimeout: environment.startTimeout,
+    source: (id) => sources.get(id),
+  });
+  return engine;
+}

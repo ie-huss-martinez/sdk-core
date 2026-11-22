@@ -1,0 +1,582 @@
+import {
+  Button,
+  Slider,
+  Timeline,
+  type TimelineClip,
+  TimelineClips,
+  TimelineLane,
+  TimelineLayer,
+  TimelinePlayhead,
+  ToggleButton,
+  useTimelineScale,
+} from "@hussmartinez/ui/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useEffect, useRef, useState } from "react";
+
+/**
+ * A timeline over whole units, such as frames: a track as wide as its length
+ * at the current zoom, a clip track, a playhead, and layers for an editor's
+ * own drawing. Edits are reported, and the editor renders the result.
+ */
+const meta = {
+  title: "Components/Timeline",
+  component: Timeline,
+  args: { label: "Timeline", length: 300 },
+} satisfies Meta<typeof Timeline>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+const FRAMES = 300;
+const RATE = 30;
+const time = (frame: number) => `${(frame / RATE).toFixed(2)} seconds`;
+
+const marks = {
+  blockSize: "var(--hm-control-height)",
+  position: "relative",
+} as const;
+const mark = {
+  borderInlineStart: "var(--hm-border-width) solid var(--hm-color-border-strong)",
+  color: "var(--hm-color-text-muted)",
+  fontSize: "var(--hm-font-size-small)",
+  insetBlock: 0,
+  paddingInlineStart: "var(--hm-gap-tight)",
+  position: "absolute",
+} as const;
+
+/**
+ * An editor's own layer: a mark at each second, placed with the timeline's
+ * scale through the CSSOM, as the timeline places its own parts.
+ */
+function Seconds() {
+  const scale = useTimelineScale();
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    for (const element of root.current?.children ?? []) {
+      const second = Number((element as HTMLElement).dataset["second"]);
+      (element as HTMLElement).style.insetInlineStart = `${scale.toPixels(second * RATE)}px`;
+    }
+  }, [scale]);
+  return (
+    <div ref={root} style={marks} aria-hidden="true">
+      {Array.from({ length: FRAMES / RATE }, (_, second) => (
+        <span key={second} data-second={second} style={mark}>
+          {second}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** A clip as the stories' editor keeps it: what it shows, and its length. */
+interface Shot {
+  readonly key: string;
+  readonly name: string;
+  readonly length: number;
+}
+
+const SHOTS: readonly Shot[] = [
+  { key: "intro", name: "Intro", length: 60 },
+  { key: "talk", name: "Interview", length: 120 },
+  { key: "cut", name: "Cutaway", length: 30 },
+  { key: "outro", name: "Outro", length: 90 },
+];
+
+/**
+ * The clips as the track shows them, each named from where it is now: what
+ * it shows, its place and its range. The names are worked out at every
+ * render, as an SDK's must be. A fixed name goes stale as soon as a clip
+ * moves or is trimmed, and a screen reader then reads the old place.
+ */
+function clipsOf(shots: readonly Shot[]): TimelineClip[] {
+  let end = 0;
+  return shots.map((shot, index) => {
+    const start = end;
+    end += shot.length;
+    return {
+      key: shot.key,
+      length: shot.length,
+      label: `${shot.name}, clip ${index + 1} of ${shots.length}, ${(start / RATE).toFixed(2)} to ${time(end)}`,
+      content: shot.name,
+    };
+  });
+}
+
+function Editor({
+  label = "Timeline",
+  zoom = 1,
+  start = 120,
+  unstyled = false,
+  clips = false,
+  selected: first = ["talk"],
+}: {
+  label?: string;
+  zoom?: number;
+  start?: number;
+  unstyled?: boolean;
+  clips?: false | "single" | "multiple";
+  selected?: readonly string[];
+}) {
+  const [frame, setFrame] = useState(start);
+  const [selected, setSelected] = useState(first);
+  return (
+    <Timeline label={label} length={FRAMES} zoom={zoom} snapTargets={[150]} unstyled={unstyled}>
+      {/* Layers and clips share one lane, so the ruler is shown where there are no clips. */}
+      {clips ? null : (
+        <TimelineLayer>
+          <Seconds />
+        </TimelineLayer>
+      )}
+      {clips ? (
+        <TimelineClips
+          label={`${label} clips`}
+          clips={clipsOf(SHOTS)}
+          selectionMode={clips}
+          selectedKeys={selected}
+          onSelectedKeysChange={setSelected}
+          unstyled={unstyled}
+        />
+      ) : null}
+      <TimelinePlayhead
+        label={`${label} playhead`}
+        position={frame}
+        onPositionChange={setFrame}
+        largeStep={RATE}
+        formatValue={time}
+        unstyled={unstyled}
+      />
+    </Timeline>
+  );
+}
+
+/** Fitted to its width, with a layer that marks each second. A press on the track moves the playhead. */
+export const Default: Story = {
+  render: () => <Editor />,
+};
+
+/** Four times as wide as it fits: the track scrolls, with the playhead brought into view. */
+export const Zoomed: Story = {
+  render: () => <Editor zoom={4} start={210} />,
+};
+
+/**
+ * At its first and last units, the playhead's thumb and line stay inside the
+ * timeline. Two timelines on a page need different names, as any two regions do.
+ */
+export const AtTheEnds: Story = {
+  name: "At the ends",
+  render: () => (
+    <div style={{ display: "grid", gap: "var(--hm-gap-loose)" }}>
+      <Editor label="At the start" start={0} />
+      <Editor label="At the end" start={FRAMES} />
+    </div>
+  ),
+};
+
+/**
+ * With a clip track: a listbox with one Tab stop. ← and → move between clips
+ * and select. Each clip's name says its place and range, which a screen
+ * reader can't see on the track.
+ */
+export const WithClips: Story = {
+  name: "With clips",
+  render: () => <Editor clips="single" />,
+};
+
+/**
+ * The playhead focused on the first unit: its thumb's focus ring shows whole,
+ * above the track and past its start, which the timeline keeps room for.
+ */
+export const PlayheadFocused: Story = {
+  name: "Playhead focused at the start",
+  render: () => <Editor clips="single" start={0} />,
+  // Focused as a keyboard user would find it, so the ring is in the screenshot.
+  play: () => {
+    document.querySelector<HTMLInputElement>('.hm-timeline input[type="range"]')?.focus();
+  },
+};
+
+/** Several clips selected: Shift extends, Ctrl or ⌘ moves without selecting, and Space adds or removes. */
+export const SeveralSelected: Story = {
+  name: "Several selected",
+  render: () => <Editor clips="multiple" selected={["talk", "cut"]} start={30} />,
+};
+
+/** An editor that applies what the track reports: its clips are its own state. */
+function Editable() {
+  const [clips, setClips] = useState(SHOTS);
+  const [selected, setSelected] = useState<readonly string[]>(["talk"]);
+  const [frame, setFrame] = useState(90);
+  const length = clips.reduce((sum, item) => sum + item.length, 0);
+  const move = (keys: readonly string[], direction: -1 | 1) =>
+    setClips((order) => {
+      const moving = order.filter((item) => keys.includes(item.key));
+      const rest = order.filter((item) => !keys.includes(item.key));
+      const at = order.findIndex((item) => item.key === keys[0]);
+      const before = order.slice(0, at).filter((item) => !keys.includes(item.key)).length;
+      const to = Math.min(Math.max(before + direction, 0), rest.length);
+      return [...rest.slice(0, to), ...moving, ...rest.slice(to)];
+    });
+  const trim = (key: string, delta: number) =>
+    setClips((all) =>
+      all.map((item) =>
+        item.key === key ? { ...item, length: Math.max(1, item.length + delta) } : item,
+      ),
+    );
+  const only = selected.length === 1 ? selected[0] : undefined;
+  return (
+    <div style={{ display: "grid", gap: "var(--hm-gap-normal)" }}>
+      <Timeline label="Timeline" length={length}>
+        <TimelineClips
+          label="Clips"
+          clips={clipsOf(clips)}
+          selectionMode="multiple"
+          selectedKeys={selected}
+          onSelectedKeysChange={setSelected}
+          onMove={move}
+          onTrim={(key, _edge, delta) => trim(key, delta)}
+          trimStep={RATE / 2}
+          trimLimits={() => ({ max: RATE * 2 })}
+        />
+        <TimelinePlayhead
+          label="Playhead"
+          position={Math.min(frame, length)}
+          onPositionChange={setFrame}
+          largeStep={RATE}
+          formatValue={time}
+        />
+      </Timeline>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--hm-gap-tight)" }}>
+        <Button
+          size="small"
+          aria-keyshortcuts="Alt+ArrowLeft"
+          disabled={selected.length === 0}
+          focusableWhenDisabled
+          onClick={() => move(selected, -1)}
+        >
+          Move earlier
+        </Button>
+        <Button
+          size="small"
+          aria-keyshortcuts="Alt+ArrowRight"
+          disabled={selected.length === 0}
+          focusableWhenDisabled
+          onClick={() => move(selected, 1)}
+        >
+          Move later
+        </Button>
+        <Button
+          size="small"
+          aria-keyshortcuts="Alt+BracketRight"
+          disabled={only === undefined}
+          focusableWhenDisabled
+          onClick={() => only !== undefined && trim(only, -RATE / 2)}
+        >
+          Shorten
+        </Button>
+        <Button
+          size="small"
+          aria-keyshortcuts="Alt+Shift+BracketRight"
+          disabled={only === undefined}
+          focusableWhenDisabled
+          onClick={() => only !== undefined && trim(only, RATE / 2)}
+        >
+          Lengthen
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Moving and trimming. Alt+← and Alt+→ move the selected clips; Alt+[ and
+ * Alt+] shorten the focused one, and with Shift lengthen it; dragging an
+ * edge trims it. **The buttons are required:** they're the path for touch
+ * and for people who don't know the keys, with the keys named on them.
+ */
+export const Editing: Story = {
+  render: () => <Editable />,
+};
+
+const TRACKS = [
+  { id: "voice", name: "Voice", clips: [90, 60, 150] },
+  { id: "music", name: "Music", clips: [200, 100] },
+  { id: "effects", name: "Effects", clips: [40, 110, 150] },
+];
+
+/** An editor with several tracks: a lane each, one playhead and one selection. */
+function Tracks({ zoom = 1, start = 100 }: { zoom?: number; start?: number }) {
+  const [selected, setSelected] = useState<readonly string[]>(["music-1"]);
+  const [muted, setMuted] = useState<readonly string[]>(["effects"]);
+  const [gain, setGain] = useState<Record<string, number>>({});
+  const [frame, setFrame] = useState(start);
+  return (
+    <Timeline label="Timeline" length={FRAMES} zoom={zoom}>
+      <TimelinePlayhead
+        label="Playhead"
+        position={frame}
+        onPositionChange={setFrame}
+        largeStep={RATE}
+        formatValue={time}
+      />
+      {TRACKS.map((track, index) => (
+        <TimelineLane
+          key={track.id}
+          id={track.id}
+          label={`Track ${index + 1}, ${track.name}${muted.includes(track.id) ? ", muted" : ""}`}
+          header={
+            <>
+              <span style={{ fontSize: "var(--hm-font-size-small)", minInlineSize: "4rem" }}>
+                {track.name}
+              </span>
+              <ToggleButton
+                variant="quiet"
+                size="small"
+                pressed={muted.includes(track.id)}
+                onPressedChange={(on) =>
+                  setMuted((ids) => (on ? [...ids, track.id] : ids.filter((id) => id !== track.id)))
+                }
+              >
+                Mute
+              </ToggleButton>
+              <Slider
+                label={`${track.name} gain`}
+                min={-60}
+                max={12}
+                value={gain[track.id] ?? 0}
+                onValueChange={(value) => setGain((all) => ({ ...all, [track.id]: value }))}
+                formatValue={(value) => `${value} decibels`}
+                style={{ inlineSize: "5rem" }}
+              />
+            </>
+          }
+        >
+          <TimelineClips
+            label={`${track.name} clips`}
+            clips={track.clips.map((length, clip) => ({
+              key: `${track.id}-${clip + 1}`,
+              length,
+              // The name starts with what the clip shows, then says where it is.
+              label: `${track.name} ${clip + 1}, clip ${clip + 1} of ${track.clips.length}`,
+              content: `${track.name} ${clip + 1}`,
+            }))}
+            selectionMode="multiple"
+            selectedKeys={selected}
+            onSelectedKeysChange={setSelected}
+          />
+        </TimelineLane>
+      ))}
+    </Timeline>
+  );
+}
+
+/**
+ * Several tracks, a lane each. A lane's header is a toolbar that stays in
+ * view while the timeline scrolls: one Tab stop, then the lane's clips. ↑
+ * and ↓ on a clip go to the clip nearest in time on the next lane. Every
+ * lane is given the same selection.
+ */
+export const Lanes: Story = {
+  render: () => <Tracks />,
+};
+
+/** Zoomed in: the clips scroll under the headers, which stay where they are. */
+export const LanesZoomed: Story = {
+  name: "Lanes, zoomed",
+  render: () => <Tracks zoom={3} start={200} />,
+};
+
+/** In a timeline narrower than 720 pixels, each header sits above its lane. */
+export const LanesNarrow: Story = {
+  name: "Lanes, narrow",
+  render: () => (
+    <div style={{ maxInlineSize: "32rem" }}>
+      <Tracks />
+    </div>
+  ),
+};
+
+/** A picture lane, back to back, over a sound lane whose clips have a start each. */
+function Placed() {
+  const [selected, setSelected] = useState<readonly string[]>(["sound-2"]);
+  const [frame, setFrame] = useState(150);
+  const picture: TimelineClip[] = [
+    { key: "shot-1", length: 100, label: "Shot 1, clip 1 of 3", content: "Shot 1" },
+    { key: "shot-2", length: 140, label: "Shot 2, clip 2 of 3", content: "Shot 2" },
+    { key: "shot-3", length: 60, label: "Shot 3, clip 3 of 3", content: "Shot 3" },
+  ];
+  const sound: TimelineClip[] = [
+    { key: "sound-1", at: 20, length: 60, label: "Voice, clip 1 of 3", content: "Voice" },
+    { key: "sound-2", at: 120, length: 50, label: "Door, clip 2 of 3", content: "Door" },
+    {
+      key: "sound-3",
+      at: 260,
+      length: 80,
+      label: "Music, clip 3 of 3, past the end of the picture",
+      content: "Music",
+    },
+  ];
+  return (
+    // The sound runs 40 frames past the picture: the track is drawn that far.
+    <Timeline label="Timeline" length={FRAMES} extent={FRAMES + 40}>
+      <TimelinePlayhead
+        label="Playhead"
+        position={frame}
+        onPositionChange={setFrame}
+        largeStep={RATE}
+        formatValue={time}
+      />
+      <TimelineLane id="picture" label="Picture track" header={<span>Picture</span>}>
+        <TimelineClips
+          label="Picture clips"
+          clips={picture}
+          selectionMode="multiple"
+          selectedKeys={selected}
+          onSelectedKeysChange={setSelected}
+        />
+      </TimelineLane>
+      <TimelineLane id="sound" label="Sound track" header={<span>Sound</span>}>
+        <TimelineClips
+          label="Sound clips"
+          clips={sound}
+          selectionMode="multiple"
+          selectedKeys={selected}
+          onSelectedKeysChange={setSelected}
+        />
+      </TimelineLane>
+    </Timeline>
+  );
+}
+
+/**
+ * Clips with a start. The sound lane's clips each have `at`, so there's
+ * room between them; the picture lane's lie back to back. Both share the
+ * scale, and each lane's clip edges are snap targets for the other. The
+ * last sound runs past the timeline's length: `extent` draws the track
+ * that far, and the playhead still ends at the length.
+ */
+export const ClipsWithAStart: Story = {
+  name: "Clips with a start",
+  render: () => <Placed />,
+};
+
+interface Sound {
+  readonly key: string;
+  readonly lane: "voice" | "music";
+  readonly at: number;
+  readonly length: number;
+}
+
+/** An editor that moves clips between two sound lanes, and refuses an overlap. */
+function Movable() {
+  const [sounds, setSounds] = useState<Sound[]>([
+    { key: "voice-1", lane: "voice", at: 20, length: 60 },
+    { key: "voice-2", lane: "voice", at: 120, length: 50 },
+    { key: "music-1", lane: "music", at: 200, length: 80 },
+  ]);
+  const [selected, setSelected] = useState<readonly string[]>(["voice-2"]);
+  const [frame, setFrame] = useState(0);
+  const lanes = ["voice", "music"] as const;
+  const place = (keys: readonly string[], by: number, lane?: string): Sound[] =>
+    sounds.map((sound) =>
+      keys.includes(sound.key)
+        ? { ...sound, at: sound.at + by, lane: (lane as Sound["lane"]) ?? sound.lane }
+        : sound,
+    );
+  const fits = (next: Sound[]): boolean =>
+    next.every(
+      (sound) =>
+        sound.at >= 0 &&
+        lanes.includes(sound.lane) &&
+        next.every(
+          (other) =>
+            other === sound ||
+            other.lane !== sound.lane ||
+            other.at >= sound.at + sound.length ||
+            sound.at >= other.at + other.length,
+        ),
+    );
+  const tryPlace = (next: Sound[]) => fits(next) && setSounds(next);
+  const toLane = (keys: readonly string[], direction: -1 | 1) => {
+    const from = sounds.find((sound) => sound.key === keys[0])?.lane ?? "voice";
+    const to = lanes[lanes.indexOf(from) + direction];
+    if (to) {
+      tryPlace(place(keys, 0, to));
+    }
+  };
+  return (
+    <div style={{ display: "grid", gap: "var(--hm-gap-normal)" }}>
+      <Timeline label="Timeline" length={FRAMES}>
+        <TimelinePlayhead
+          label="Playhead"
+          position={frame}
+          onPositionChange={setFrame}
+          largeStep={RATE}
+          formatValue={time}
+        />
+        {lanes.map((lane) => (
+          <TimelineLane key={lane} id={lane} label={`${lane} track`} header={<span>{lane}</span>}>
+            <TimelineClips
+              label={`${lane} clips`}
+              clips={sounds
+                .filter((sound) => sound.lane === lane)
+                .sort((a, b) => a.at - b.at)
+                .map((sound) => ({
+                  key: sound.key,
+                  at: sound.at,
+                  length: sound.length,
+                  label: `${sound.key}, from ${time(sound.at)}`,
+                  content: sound.key,
+                }))}
+              selectionMode="multiple"
+              selectedKeys={selected}
+              onSelectedKeysChange={setSelected}
+              onMove={(keys, direction) => tryPlace(place(keys, direction * 5))}
+              onMoveLane={toLane}
+              onDrop={(keys, drop) => tryPlace(place(keys, drop.by, drop.lane))}
+              canDrop={(keys, drop) => fits(place(keys, drop.by, drop.lane))}
+            />
+          </TimelineLane>
+        ))}
+      </Timeline>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--hm-gap-tight)" }}>
+        <Button
+          size="small"
+          aria-keyshortcuts="Alt+ArrowLeft"
+          onClick={() => tryPlace(place(selected, -5))}
+        >
+          Move earlier
+        </Button>
+        <Button
+          size="small"
+          aria-keyshortcuts="Alt+ArrowRight"
+          onClick={() => tryPlace(place(selected, 5))}
+        >
+          Move later
+        </Button>
+        <Button size="small" aria-keyshortcuts="Alt+ArrowUp" onClick={() => toLane(selected, -1)}>
+          Move to the lane above
+        </Button>
+        <Button size="small" aria-keyshortcuts="Alt+ArrowDown" onClick={() => toLane(selected, 1)}>
+          Move to the lane below
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Moving clips. Drag a clip along time or to the other lane; it snaps to
+ * the other clips, and shows where it can't go. Alt+↑ and Alt+↓ move it
+ * between lanes. **The buttons are required:** on a touch screen they're
+ * the way to move a clip.
+ */
+export const MovingClips: Story = {
+  name: "Moving clips",
+  render: () => <Movable />,
+};
+
+/** Visual styles dropped: the native slider, with no line, and clips with no colours. */
+export const Unstyled: Story = {
+  render: () => <Editor unstyled clips="single" />,
+};

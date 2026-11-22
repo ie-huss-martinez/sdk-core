@@ -225,7 +225,7 @@ export function imageTag(name) {
 /**
  * Every folder `pnpm-workspace.yaml` covers that has a package.json, in
  * order, except the root itself. It supports what the family's workspaces
- * use: literal folders, `folder/*` and `.`.
+ * use: literal folders, a star as a whole segment at any depth, and `.`.
  *
  * @param {string} root The repository.
  * @returns {string[]} Folders relative to the root, with `/` separators.
@@ -245,12 +245,25 @@ export function workspacePackageDirs(root) {
       continue;
     }
     const clean = pattern.replace(/\/+$/, "");
-    const candidates = clean.endsWith("/*")
-      ? readdirSync(join(root, clean.slice(0, -2)), { withFileTypes: true })
+    // A `*` segment is every folder there, at any depth of the pattern,
+    // such as `packages/*/examples/*`. A folder that doesn't exist matches
+    // nothing.
+    let candidates = [""];
+    for (const segment of clean.split("/")) {
+      candidates = candidates.flatMap((parent) => {
+        if (segment !== "*") {
+          return [parent === "" ? segment : `${parent}/${segment}`];
+        }
+        const folder = join(root, parent);
+        if (!existsSync(folder)) {
+          return [];
+        }
+        return readdirSync(folder, { withFileTypes: true })
           .filter((entry) => entry.isDirectory())
-          .map((entry) => `${clean.slice(0, -2)}/${entry.name}`)
-          .sort()
-      : [clean];
+          .map((entry) => (parent === "" ? entry.name : `${parent}/${entry.name}`))
+          .sort();
+      });
+    }
     for (const candidate of candidates) {
       const dir = posix.normalize(candidate);
       // The root, such as the "." that Changesets needs listed, already has

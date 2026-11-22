@@ -1,0 +1,34 @@
+@layer hm.components {
+  /*
+   * ui's icons (docs/adr/0005). They size to --hm-icon-size; inside a
+   * button's icon slot, the slot sets their size instead. Their colour is
+   * currentColor, so they follow the text.
+   */
+  .hm-icon {
+    block-size: var(--hm-icon-size);
+    flex-shrink: 0;
+    inline-size: var(--hm-icon-size);
+    vertical-align: middle;
+  }
+
+  /* Mirrored in right-to-left text by [dir], not :dir(), which hosts' minifiers lower (docs/adr/0005). */
+  [dir="rtl"] .hm-icon[data-hm-mirror] {
+    transform: scaleX(-1);
+  }
+
+  [dir="ltr"] [dir="rtl"] .hm-icon[data-hm-mirror] {
+    transform: scaleX(-1);
+  }
+
+  [dir="rtl"] [dir="ltr"] .hm-icon[data-hm-mirror] {
+    transform: none;
+  }
+
+  [dir="rtl"] [dir="ltr"] [dir="rtl"] .hm-icon[data-hm-mirror] {
+    transform: scaleX(-1);
+  }
+
+  [dir="ltr"] [dir="rtl"] [dir="ltr"] .hm-icon[data-hm-mirror] {
+    transform: none;
+  }
+}

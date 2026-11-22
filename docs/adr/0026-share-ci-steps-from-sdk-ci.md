@@ -1,6 +1,6 @@
 # 0026. Share the family's CI steps from `sdk-ci`
 
-- **Status:** Accepted
+- **Status:** Accepted; superseded by [ADR 0064](0064-one-repository-for-the-family.md) for everything but the release steps
 - **Date:** 2026-11-12
 - **Refines:** [ADR 0002](0002-one-repository-per-sdk.md), with one more shared repository; [ADR 0021](0021-version-and-release-with-changesets.md), [ADR 0023](0023-verify-releases-in-an-unprivileged-job.md) and [ADR 0025](0025-one-browser-test-image-in-one-place.md) stand, carried out through shared steps
 
