@@ -28,7 +28,7 @@
     "check:single-copy": "hm-check-single-copy",
     "verify:repository": "pnpm lint && pnpm check:single-copy && pnpm check:playwright-image && pnpm test:repo",
     "verify": "pnpm verify:repository && pnpm -r --workspace-concurrency=1 --filter \"./packages/*\" verify",
-    "verify:fast": "pnpm check:single-copy && pnpm check:playwright-image && pnpm test:repo && pnpm --filter \"...[origin/main]...\" --filter \"./packages/*\" --if-present build && pnpm --filter \"...[origin/main]\" --if-present verify:fast"
+    "verify:fast": "pnpm check:single-copy && pnpm check:playwright-image && pnpm test:repo && node scripts/verify-fast.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
