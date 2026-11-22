@@ -1,0 +1,102 @@
+{
+  "name": "@hussmartinez/ui",
+  "version": "0.16.4",
+  "description": "Design system of the @hussmartinez SDK family: tokens, themes, base styles and accessible React components.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ie-huss-martinez/ui.git",
+    "directory": "packages/ui"
+  },
+  "bugs": {
+    "url": "https://github.com/ie-huss-martinez/ui/issues"
+  },
+  "homepage": "https://github.com/ie-huss-martinez/ui/tree/main/packages/ui#readme",
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "build": "vite build && pnpm check:api",
+    "test": "vitest run --project unit",
+    "test:browser": "hm-in-image vitest run --project browser",
+    "test:browser:all": "hm-in-image vitest run --project browser --mode all-browsers",
+    "check:size": "size-limit",
+    "check:api": "tsc -p tsconfig.build.json && api-extractor run && api-extractor run -c api-extractor.react.json && hm-check-api-reports --main api/ui.api.md --types dist/index.d.ts api/ui-react.api.md",
+    "check:package": "publint run --pack pnpm --strict && attw --pack . --profile esm-only --exclude-entrypoints ./styles.css && node scripts/check-packed-types.ts",
+    "api:update": "tsc -p tsconfig.build.json && api-extractor run --local && api-extractor run -c api-extractor.react.json --local && hm-check-api-reports --main api/ui.api.md --types dist/index.d.ts api/ui-react.api.md",
+    "tokens": "node scripts/generate-tokens.ts",
+    "icons": "node scripts/generate-icons.ts",
+    "size:table": "node scripts/size-table.ts",
+    "lint:css": "stylelint \"**/*.css\" --allow-empty-input",
+    "lint:deps": "hm-lint-deps src",
+    "lint:react": "hm-lint-react src",
+    "test:visual": "pnpm --filter @hussmartinez/ui-catalogue test:visual",
+    "test:visual:update": "pnpm --filter @hussmartinez/ui-catalogue test:visual:update",
+    "test:e2e": "pnpm --filter @hussmartinez/ui-e2e test:e2e",
+    "verify": "pnpm lint:css && pnpm lint:react && pnpm typecheck && pnpm lint:deps && pnpm build && pnpm test && pnpm test:browser && pnpm test:visual && pnpm test:e2e && pnpm check:size && pnpm check:package",
+    "verify:fast": "pnpm typecheck && pnpm test && pnpm lint:deps && pnpm check:api"
+  },
+  "dependencies": {
+    "@hussmartinez/sdk-core": "workspace:^"
+  },
+  "peerDependencies": {
+    "react": ">=18.3",
+    "react-dom": ">=18.3"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "catalog:",
+    "@biomejs/biome": "catalog:",
+    "@hussmartinez/sdk-config": "workspace:^",
+    "@microsoft/api-extractor": "catalog:",
+    "@size-limit/esbuild": "catalog:",
+    "@size-limit/file": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "dependency-cruiser": "catalog:",
+    "esbuild": "catalog:",
+    "eslint": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
+    "lucide-static": "catalog:",
+    "playwright": "catalog:",
+    "publint": "catalog:",
+    "react": "catalog:",
+    "react-18": "catalog:",
+    "react-dom": "catalog:",
+    "react-dom-18": "catalog:",
+    "secretlint": "catalog:",
+    "size-limit": "catalog:",
+    "stylelint": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}
