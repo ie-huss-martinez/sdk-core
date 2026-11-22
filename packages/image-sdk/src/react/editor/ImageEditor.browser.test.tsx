@@ -1,0 +1,413 @@
+import { useUiMessages } from "@hussmartinez/ui/react";
+import { act, createRef, StrictMode } from "react";
+import { createRoot, hydrateRoot, type Root } from "react-dom/client";
+import { renderToString } from "react-dom/server";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { loadStyles } from "../../../test/browser/styles.js";
+import { FIRST_OPEN_TIMEOUT } from "../../../test/browser/timeouts.js";
+import type { ImagePlan } from "../../core/model/plan.js";
+import { ImageEditorProvider } from "../ImageEditorProvider.js";
+import { ImageEditor } from "./ImageEditor.js";
+import type { ImageEditorHandle } from "./types.js";
+
+/** A 30 × 20 PNG the browser encodes. */
+async function photo(): Promise<Blob> {
+  const canvas = new OffscreenCanvas(30, 20);
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("no 2D canvas");
+  context.fillStyle = "#3080c0";
+  context.fillRect(0, 0, 30, 20);
+  return canvas.convertToBlob();
+}
+
+// The editor as hosts lay it out, with ui's stylesheet and the package's.
+let unloadStyles: () => void = () => {};
+beforeAll(async () => {
+  unloadStyles = await loadStyles();
+});
+afterAll(() => unloadStyles());
+
+/** Shows ui's text for a dialog's close button, as ui's components read it. */
+function UiTextProbe() {
+  return <output>{useUiMessages().t("dialog.close")}</output>;
+}
+
+let root: Root | undefined;
+let host: HTMLElement | undefined;
+afterEach(async () => {
+  await act(async () => root?.unmount());
+  host?.remove();
+  root = undefined;
+  host = undefined;
+});
+
+async function mount(element: Parameters<Root["render"]>[0]) {
+  host = document.createElement("div");
+  host.style.width = "640px";
+  host.style.height = "480px";
+  document.body.append(host);
+  root = createRoot(host);
+  await act(async () => root?.render(element));
+  return host;
+}
+
+/** Waits for a condition the editor reaches asynchronously, such as an open. */
+async function until(condition: () => boolean, what: string, timeout = 5_000) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    if (condition()) return;
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 25)));
+  }
+  if (condition()) return;
+  throw new Error(`timed out waiting for ${what}`);
+}
+
+const button = (container: HTMLElement, tool: string) => {
+  const found = container.querySelector<HTMLButtonElement>(`button[data-tool="${tool}"]`);
+  if (!found) throw new Error(`no ${tool} button`);
+  return found;
+};
+
+describe("ImageEditor (docs/adr/0007)", () => {
+  it("starts empty, with a button to choose an image, and no named canvas", async () => {
+    const container = await mount(<ImageEditor />);
+    expect(container.querySelector("section")?.getAttribute("aria-label")).toBe("Image editor");
+    expect(container.textContent).toContain("Choose an image");
+    const canvas = container.querySelector("canvas");
+    expect(canvas?.hidden).toBe(true);
+    expect(button(container, "image.rotate-left").disabled).toBe(true);
+  });
+
+  it("leaves the buttons of each stage state under the pointer, with nothing over them", async () => {
+    /** Whether the element is what a click at its centre would reach. */
+    const reachable = (element: Element) => {
+      const { left, top, width, height } = element.getBoundingClientRect();
+      const hit = document.elementFromPoint(left + width / 2, top + height / 2);
+      return hit !== null && element.contains(hit);
+    };
+    const handle = createRef<ImageEditorHandle>();
+    const container = await mount(<ImageEditor ref={handle} />);
+
+    // Empty: the drop zone's button, and the zone itself around it.
+    const choose = [...container.querySelectorAll("button")].find(
+      (candidate) => candidate.textContent === "Choose an image",
+    );
+    if (!choose) throw new Error("no button to choose an image");
+    expect(reachable(choose)).toBe(true);
+    const zone = container.querySelector(".hm-image-stage-drop");
+    const frame = container.querySelector(".hm-image-stage-frame")?.getBoundingClientRect();
+    if (!zone || !frame) throw new Error("no drop zone");
+    // A drop a quarter of the way down the stage lands in the zone.
+    const dropTarget = document.elementFromPoint(
+      frame.left + frame.width / 2,
+      frame.top + frame.height / 4,
+    );
+    expect(dropTarget !== null && zone.contains(dropTarget)).toBe(true);
+
+    // Opening: the Cancel button, checked the moment it's shown, since the
+    // open may finish before a later look.
+    let cancelReachable: boolean | undefined;
+    const observer = new MutationObserver(() => {
+      const cancel = container.querySelector(".hm-image-stage-opening button");
+      if (cancel && cancelReachable === undefined) cancelReachable = reachable(cancel);
+    });
+    observer.observe(container, { childList: true, subtree: true });
+    await act(async () => handle.current?.open(await photo()));
+    await until(
+      () => handle.current?.session.getSnapshot().status === "ready",
+      "the open",
+      FIRST_OPEN_TIMEOUT,
+    );
+    observer.disconnect();
+    expect(cancelReachable).toBe(true);
+
+    // Open: the canvas is under the pointer, so the stage still takes it.
+    const canvas = container.querySelector("canvas");
+    if (!canvas) throw new Error("no canvas");
+    expect(reachable(canvas)).toBe(true);
+  });
+
+  it("opens an image into a named, unfocusable canvas, and moves focus to the first tool", async () => {
+    const handle = createRef<ImageEditorHandle>();
+    const container = await mount(<ImageEditor ref={handle} />);
+    await act(async () => handle.current?.open(await photo()));
+    await until(
+      () => handle.current?.session.getSnapshot().status === "ready",
+      "the open",
+      FIRST_OPEN_TIMEOUT,
+    );
+    const canvas = container.querySelector("canvas");
+    expect(canvas?.getAttribute("role")).toBe("img");
+    expect(canvas?.getAttribute("aria-label")).toBe("Edited image preview, 30 × 20");
+    expect(canvas?.hidden).toBe(false);
+    expect(canvas?.hasAttribute("tabindex")).toBe(false);
+    expect(canvas?.tabIndex).toBe(-1);
+    expect(document.activeElement).toBe(button(container, "image.rotate-left"));
+  });
+
+  it("rotates from the toolbar, names the turned image, undoes, and tells the host once per change", async () => {
+    const handle = createRef<ImageEditorHandle>();
+    const changes: ImagePlan[] = [];
+    const container = await mount(
+      <ImageEditor ref={handle} onChange={(plan) => changes.push(plan)} />,
+    );
+    await act(async () => handle.current?.open(await photo()));
+    await until(
+      () => handle.current?.session.getSnapshot().status === "ready",
+      "the open",
+      FIRST_OPEN_TIMEOUT,
+    );
+    const opened = changes.length;
+    await act(async () => button(container, "image.rotate-right").click());
+    expect(handle.current?.session.getSnapshot().plan?.base.orientation.rotate).toBe(90);
+    expect(container.querySelector("canvas")?.getAttribute("aria-label")).toBe(
+      "Edited image preview, 20 × 30",
+    );
+    expect(changes).toHaveLength(opened + 1);
+    await act(async () => button(container, "image.undo").click());
+    expect(handle.current?.session.getSnapshot().plan?.base.orientation.rotate).toBe(0);
+    await until(
+      () => document.body.textContent?.includes("Undid rotate or flip.") ?? false,
+      "the announcement",
+    );
+  });
+
+  it("flips from the toolbar, and crops from its button, which shows it's active", async () => {
+    const handle = createRef<ImageEditorHandle>();
+    const container = await mount(<ImageEditor ref={handle} />);
+    await act(async () => handle.current?.open(await photo()));
+    await until(
+      () => handle.current?.session.getSnapshot().status === "ready",
+      "the open",
+      FIRST_OPEN_TIMEOUT,
+    );
+    await act(async () => button(container, "image.flip-horizontal").click());
+    await act(async () => button(container, "image.flip-vertical").click());
+    expect(handle.current?.session.getSnapshot().plan?.base.orientation).toEqual({
+      rotate: 0,
+      flipX: true,
+      flipY: true,
+    });
+    const crop = button(container, "image.crop");
+    expect(crop.getAttribute("aria-pressed")).toBe("false");
+    await act(async () => crop.click());
+    expect(crop.getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector('[role="group"][aria-label="Crop area"]')).not.toBeNull();
+    for (const tool of ["image.flip-horizontal", "image.crop", "image.zoom-fit"]) {
+      expect(button(container, tool).querySelector("svg"), tool).not.toBeNull();
+    }
+  });
+
+  it("takes shortcuts while focus is inside it, and not from outside", async () => {
+    const handle = createRef<ImageEditorHandle>();
+    const container = await mount(<ImageEditor ref={handle} />);
+    await act(async () => handle.current?.open(await photo()));
+    await until(
+      () => handle.current?.session.getSnapshot().status === "ready",
+      "the open",
+      FIRST_OPEN_TIMEOUT,
+    );
+    const press = (target: EventTarget, key: string) =>
+      act(async () => {
+        target.dispatchEvent(
+          new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+        );
+      });
+    await press(document.body, "]");
+    expect(handle.current?.session.getSnapshot().plan?.base.orientation.rotate).toBe(0);
+    await press(button(container, "image.rotate-left"), "]");
+    expect(handle.current?.session.getSnapshot().plan?.base.orientation.rotate).toBe(90);
+    expect(button(container, "image.rotate-right").getAttribute("aria-keyshortcuts")).toBe("]");
+    expect(button(container, "image.crop").getAttribute("aria-keyshortcuts")).toBe("C");
+  });
+
+  it("keeps one canvas under StrictMode, which mounts effects twice", async () => {
+    const handle = createRef<ImageEditorHandle>();
+    const container = await mount(
+      <StrictMode>
+        <ImageEditor ref={handle} />
+      </StrictMode>,
+    );
+    await act(async () => handle.current?.open(await photo()));
+    await until(
+      () => handle.current?.session.getSnapshot().status === "ready",
+      "the open",
+      FIRST_OPEN_TIMEOUT,
+    );
+    expect(container.querySelectorAll("canvas")).toHaveLength(1);
+    expect(container.querySelector("canvas")?.getAttribute("aria-label")).toBe(
+      "Edited image preview, 30 × 20",
+    );
+  });
+
+  it("fits a narrow container, wrapping its toolbar rather than overflowing", async () => {
+    const handle = createRef<ImageEditorHandle>();
+    const container = await mount(<ImageEditor ref={handle} />);
+    container.style.width = "320px";
+    await act(async () => handle.current?.open(await photo()));
+    await until(
+      () => handle.current?.session.getSnapshot().status === "ready",
+      "the open",
+      FIRST_OPEN_TIMEOUT,
+    );
+    const editor = container.querySelector("section");
+    expect(editor?.getBoundingClientRect().width).toBeLessThanOrEqual(320);
+    expect(editor?.scrollWidth).toBeLessThanOrEqual(320);
+  });
+
+  it("takes shortcuts inside a host's modal dialog that holds it", async () => {
+    const handle = createRef<ImageEditorHandle>();
+    const dialog = document.createElement("dialog");
+    host = document.createElement("div");
+    host.style.width = "640px";
+    host.style.height = "480px";
+    dialog.append(host);
+    document.body.append(dialog);
+    dialog.showModal();
+    try {
+      root = createRoot(host);
+      await act(async () => root?.render(<ImageEditor ref={handle} />));
+      await act(async () => handle.current?.open(await photo()));
+      await until(
+        () => handle.current?.session.getSnapshot().status === "ready",
+        "the open",
+        FIRST_OPEN_TIMEOUT,
+      );
+      await act(async () => {
+        button(dialog, "image.rotate-left").dispatchEvent(
+          new KeyboardEvent("keydown", { key: "]", bubbles: true, cancelable: true }),
+        );
+      });
+      expect(handle.current?.session.getSnapshot().plan?.base.orientation.rotate).toBe(90);
+    } finally {
+      await act(async () => root?.unmount());
+      root = undefined;
+      dialog.close();
+      dialog.remove();
+    }
+  });
+
+  it("gives ui's components the same text, with the host's overrides (sdk-core ADR 0046)", async () => {
+    const container = await mount(
+      <ImageEditorProvider messages={{ "dialog.close": "Schließen" }} locale="de">
+        <UiTextProbe />
+      </ImageEditorProvider>,
+    );
+    expect(container.querySelector("output")?.textContent).toBe("Schließen");
+  });
+
+  it("hydrates on a Mac without a mismatch, then takes the Mac's keys", async () => {
+    const nav = globalThis.navigator;
+    const faked = ["platform", "userAgentData"] as const;
+    for (const name of faked) {
+      Object.defineProperty(nav, name, {
+        configurable: true,
+        value: name === "platform" ? "MacIntel" : { platform: "macOS" },
+      });
+    }
+    const recoverable: unknown[] = [];
+    try {
+      host = document.createElement("div");
+      host.innerHTML = renderToString(<ImageEditor />);
+      document.body.append(host);
+      const undo = () => button(host as HTMLElement, "image.undo");
+      expect(undo().getAttribute("aria-keyshortcuts")).toContain("Control+Z");
+      const target = host;
+      await act(async () => {
+        root = hydrateRoot(target, <ImageEditor />, {
+          onRecoverableError: (error) => recoverable.push(error),
+        });
+      });
+      expect(recoverable).toEqual([]);
+      expect(undo().getAttribute("aria-keyshortcuts")).toContain("Meta+Z");
+    } finally {
+      for (const name of faked) Reflect.deleteProperty(nav, name);
+    }
+  });
+
+  it("shows a failed first open inside the drop zone, and a later one over the image", async () => {
+    const handle = createRef<ImageEditorHandle>();
+    const container = await mount(<ImageEditor ref={handle} />);
+    const broken = new Blob([new Uint8Array([1, 2, 3, 4])]);
+    await act(async () => handle.current?.open(broken));
+    await until(() => container.querySelector(".hm-image-stage-error") !== null, "the error");
+    const drop = container.querySelector(".hm-image-stage-drop");
+    const error = container.querySelector(".hm-image-stage-error");
+    // Within the drop zone's border, as its content, not over it.
+    expect(drop?.contains(error ?? null)).toBe(true);
+    const zone = drop?.getBoundingClientRect();
+    const box = error?.getBoundingClientRect();
+    expect(box && zone && box.bottom <= zone.bottom && box.top >= zone.top).toBe(true);
+    // Centred across the zone, as its text and button are.
+    const centre = (rect?: DOMRect) => (rect ? rect.left + rect.width / 2 : Number.NaN);
+    expect(Math.abs(centre(box) - centre(zone))).toBeLessThanOrEqual(1);
+
+    await act(async () => handle.current?.open(await photo()));
+    await until(
+      () => handle.current?.session.getSnapshot().status === "ready",
+      "the open",
+      FIRST_OPEN_TIMEOUT,
+    );
+    await act(async () => handle.current?.open(broken));
+    await until(
+      () => container.querySelector(".hm-image-stage-error") !== null,
+      "the second error",
+    );
+    expect(container.querySelector(".hm-image-stage-drop")).toBeNull();
+    expect(container.querySelector(".hm-image-stage-error")?.getAttribute("role")).toBe("alert");
+  });
+
+  it("sets its theme on its root, and inherits the page's without one", async () => {
+    const container = await mount(<ImageEditor theme="dark" />);
+    expect(container.querySelector("section")?.getAttribute("data-hm-theme")).toBe("dark");
+    await act(async () => root?.render(<ImageEditor />));
+    expect(container.querySelector("section")?.hasAttribute("data-hm-theme")).toBe(false);
+  });
+
+  it("offers no export with export off, and its handle still exports", async () => {
+    const handle = createRef<ImageEditorHandle>();
+    const container = await mount(<ImageEditor ref={handle} features={{ export: false }} />);
+    await act(async () => handle.current?.open(await photo()));
+    await until(
+      () => handle.current?.session.getSnapshot().status === "ready",
+      "the open",
+      FIRST_OPEN_TIMEOUT,
+    );
+    expect(container.querySelector('button[data-tool="image.export"]')).toBeNull();
+    expect(container.querySelector("dialog")).toBeNull();
+    const exported = await handle.current?.export({ type: "png" });
+    expect(exported?.blob.type).toBe("image/png");
+  });
+
+  it("shows only the panels that are on, without a choice when one is left", async () => {
+    const handle = createRef<ImageEditorHandle>();
+    const container = await mount(
+      <ImageEditor ref={handle} features={{ adjust: false, filters: false }} />,
+    );
+    await act(async () => handle.current?.open(await photo()));
+    await until(
+      () => handle.current?.session.getSnapshot().status === "ready",
+      "the open",
+      FIRST_OPEN_TIMEOUT,
+    );
+    const inspector = container.querySelector(".hm-image-editor-inspector");
+    expect(inspector?.querySelector('[role="radiogroup"]')).toBeNull();
+    expect(inspector?.querySelector('section[aria-label="Image info"]')).not.toBeNull();
+
+    // With every panel off, only cropping shows a panel.
+    await act(async () =>
+      root?.render(
+        <ImageEditor ref={handle} features={{ adjust: false, filters: false, info: false }} />,
+      ),
+    );
+    expect(inspector?.childElementCount).toBe(0);
+    await act(async () => button(container, "image.crop").click());
+    expect(inspector?.querySelector('section[aria-label="Crop"]')).not.toBeNull();
+  });
+
+  it("renders its empty state on a server, with no canvas", () => {
+    const html = renderToString(<ImageEditor />);
+    expect(html).toContain("Choose an image");
+    expect(html).not.toContain("<canvas");
+  });
+});

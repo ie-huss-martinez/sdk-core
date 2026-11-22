@@ -1,0 +1,134 @@
+{
+  "name": "@hussmartinez/image-sdk",
+  "version": "0.12.3",
+  "description": "Client-side image SDK: a headless core, a React editor and a custom element. Images never leave the device.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ie-huss-martinez/image-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ie-huss-martinez/image-sdk/issues"
+  },
+  "homepage": "https://github.com/ie-huss-martinez/image-sdk#readme",
+  "keywords": [
+    "image",
+    "image-editor",
+    "photo-editor",
+    "react",
+    "web-component",
+    "client-side"
+  ],
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    },
+    "./element": {
+      "types": "./dist/element.d.ts",
+      "default": "./dist/element.js"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./formats/*": "./formats/*",
+    "./package.json": "./package.json"
+  },
+  "imports": {
+    "#hm-image-render-worker": {
+      "hm-self-hosted": "./dist/lazy/no-inline-workers.js",
+      "default": "./dist/lazy/inline-worker.js"
+    },
+    "#hm-image-job-worker": {
+      "hm-self-hosted": "./dist/lazy/no-inline-workers.js",
+      "default": "./dist/lazy/inline-job-worker.js"
+    }
+  },
+  "files": [
+    "dist",
+    "formats",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "lint:css": "stylelint \"**/*.css\" --allow-empty-input",
+    "lint:deps": "hm-lint-deps src",
+    "lint:react": "hm-lint-react",
+    "conformance:update": "vitest run --project unit test/conformance --update",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "build": "vite build && pnpm check:api",
+    "test": "vitest run --project unit",
+    "test:browser": "hm-in-image vitest run --project browser",
+    "test:browser:all": "hm-in-image vitest run --project browser --mode all-browsers",
+    "bench": "vitest run --config vitest.bench.config.ts",
+    "build:examples": "pnpm --filter @hussmartinez/image-sdk-example-vite build",
+    "test:e2e": "pnpm --filter @hussmartinez/image-sdk-e2e test:e2e",
+    "test:visual": "hm-test-visual",
+    "test:visual:update": "hm-test-visual --update",
+    "check:size": "size-limit",
+    "check:api": "tsc -p tsconfig.build.json && api-extractor run && api-extractor run -c api-extractor.react.json && api-extractor run -c api-extractor.element.json && hm-check-api-reports --main api/image-sdk.api.md --types dist/index.d.ts api/image-sdk-react.api.md api/image-sdk-element.api.md",
+    "check:package": "publint run --pack pnpm --strict && attw --pack . --profile esm-only --exclude-entrypoints ./styles.css",
+    "api:update": "tsc -p tsconfig.build.json && api-extractor run --local && api-extractor run -c api-extractor.react.json --local && api-extractor run -c api-extractor.element.json --local",
+    "verify": "pnpm lint:css && pnpm lint:react && pnpm typecheck && pnpm lint:deps && hm-check-bundled-engines && pnpm build && pnpm test && pnpm test:browser && pnpm build:examples && pnpm test:e2e && pnpm test:visual && pnpm check:size && pnpm check:api && pnpm check:package",
+    "verify:fast": "pnpm typecheck && pnpm test && pnpm lint:deps && pnpm check:api"
+  },
+  "dependencies": {
+    "@hussmartinez/sdk-core": "workspace:^",
+    "@hussmartinez/ui": "workspace:^"
+  },
+  "peerDependencies": {
+    "react": ">=18.3",
+    "react-dom": ">=18.3"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "catalog:",
+    "@biomejs/biome": "catalog:",
+    "@changesets/changelog-github": "catalog:",
+    "@changesets/cli": "catalog:",
+    "@commitlint/cli": "catalog:",
+    "@hussmartinez/sdk-config": "workspace:^",
+    "@microsoft/api-extractor": "catalog:",
+    "@size-limit/esbuild": "catalog:",
+    "@size-limit/file": "catalog:",
+    "@types/node": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "dependency-cruiser": "catalog:",
+    "ajv": "catalog:",
+    "esbuild": "catalog:",
+    "eslint": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
+    "fast-check": "catalog:",
+    "gifenc": "catalog:",
+    "husky": "catalog:",
+    "lint-staged": "catalog:",
+    "playwright": "catalog:",
+    "publint": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "secretlint": "catalog:",
+    "size-limit": "catalog:",
+    "stylelint": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}
