@@ -5,12 +5,13 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ie-huss-martinez/ai-core.git"
+    "url": "git+https://github.com/ie-huss-martinez/sdk-core.git",
+    "directory": "packages/ai-core"
   },
   "bugs": {
-    "url": "https://github.com/ie-huss-martinez/ai-core/issues"
+    "url": "https://github.com/ie-huss-martinez/sdk-core/issues"
   },
-  "homepage": "https://github.com/ie-huss-martinez/ai-core#readme",
+  "homepage": "https://github.com/ie-huss-martinez/sdk-core/tree/main/packages/ai-core#readme",
   "keywords": [
     "ai",
     "llm",
