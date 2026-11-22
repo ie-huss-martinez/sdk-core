@@ -1,9 +1,11 @@
 name: Verify
 
-# Runs the full `pnpm verify` on every pull request and every push to main
-# (ADR 0015, in sdk-core), and checks pull requests for changesets (ADR 0021).
-# The job names are the required status checks, so keep them `verify` and
-# `changeset`.
+# Verifies every pull request and every push to main (ADR 0015), and checks
+# pull requests for changesets (ADR 0021). A pull request runs only the
+# packages it can affect; a push to main runs them all (ADR 0064).
+#
+# The required status checks are the jobs named `verify` and `changeset`, so
+# keep those names.
 on:
   pull_request:
   push:
@@ -19,43 +21,179 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Reads the browser test image from ci/Dockerfile (ADR 0025).
+  # Reads the browser test image from ci/Dockerfile, its only copy (ADR 0025).
   image:
     name: image
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      ref: ${{ steps.image.outputs.ref }}
+      ref: ${{ steps.read.outputs.ref }}
     steps:
-      - id: image
-        uses: ie-huss-martinez/sdk-ci/image@ace414beadabbad28a5e2609ebdf731a2cac473b # v2.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: ci
 
-  verify:
-    name: verify
-    needs: image
-    # A job whose dependency failed is skipped, and a skipped required check
-    # counts as passing. So verify still runs then, and fails on the fallback
-    # image name below, which can't be pulled.
-    if: ${{ !cancelled() }}
+      # Exactly one FROM line: Microsoft's Playwright image, pinned by tag and
+      # digest. Anything else fails here, before a container is pulled.
+      - id: read
+        name: Read the image
+        env:
+          DOCKERFILE: ci/Dockerfile
+        run: |
+          refs=$(sed -n 's/^FROM //p' "$DOCKERFILE")
+          pattern='^mcr\.microsoft\.com/playwright:v[0-9]+\.[0-9]+\.[0-9]+-noble@sha256:[0-9a-f]{64}$'
+          if [ "$(printf '%s\n' "$refs" | grep -c .)" -ne 1 ] || ! printf '%s' "$refs" | grep -Eq "$pattern"; then
+            echo "::error file=$DOCKERFILE::$DOCKERFILE needs exactly one FROM line: mcr.microsoft.com/playwright:<tag>-noble@sha256:<digest>."
+            exit 1
+          fi
+          echo "ref=$refs" >> "$GITHUB_OUTPUT"
+
+  # Lists the packages to verify: the ones a pull request can affect, or all
+  # of them on main.
+  affected:
+    name: affected
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
+    outputs:
+      packages: ${{ steps.list.outputs.packages }}
+      any: ${{ steps.list.outputs.any }}
+    steps:
+      # A pull request is checked out as its merge into main, so two commits
+      # are enough: the merge and main's side of it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - id: list
+        name: List the affected packages
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            node .github/scripts/affected-packages.mjs HEAD^1 HEAD
+          else
+            node .github/scripts/affected-packages.mjs --all
+          fi
+
+  # What belongs to the repository, not to one package: Biome and the
+  # hidden-character check over every file, the single-copy and image checks
+  # on the one lockfile, and the tests of the repository's own scripts.
+  repository:
+    name: repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HUSKY: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          cache: true
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm verify:repository
+
+  # One job per affected package: it builds what the package depends on, then
+  # runs the package's own verify, browsers included.
+  package:
+    name: package (${{ matrix.package }})
+    needs: [image, affected]
+    if: needs.affected.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.affected.outputs.packages) }}
     # The browser test image, with the browsers and their system libraries
     # preinstalled. User 1001 owns the runner's workspace, and Firefox won't
     # start as root with a home directory owned by another user.
     container:
-      image: ${{ needs.image.outputs.ref || 'the-image-job-failed@sha256:0000000000000000000000000000000000000000000000000000000000000000' }}
+      image: ${{ needs.image.outputs.ref }}
       options: --user 1001 --ipc=host --init
     env:
       # The job runs in the browser test image, so hm-in-image runs the
       # browser tests directly (ADR 0049).
       HM_VISUAL_CONTAINER: "1"
       HUSKY: "0"
+      PACKAGE: ${{ matrix.package }}
     steps:
-      - uses: ie-huss-martinez/sdk-ci/verify@ace414beadabbad28a5e2609ebdf731a2cac473b # v2.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      # This repository's workflows must match the skeleton of the sdk-ci
-      # version it pins (ADR 0026).
-      - uses: ie-huss-martinez/sdk-ci/check-workflows@ace414beadabbad28a5e2609ebdf731a2cac473b # v2.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          cache: true
+
+      - run: pnpm install --frozen-lockfile
+
+      # A workspace package is used from its built files, as an installed one
+      # is, so what this package depends on is built first.
+      - name: Build the packages it depends on
+        run: pnpm --filter "{./packages/$PACKAGE}^..." --if-present build
+
+      - name: Verify the package
+        run: pnpm --filter "{./packages/$PACKAGE}" verify
+
+      # The results show what failed without running it again, such as a
+      # visual test's diff images. They come from committed fixtures only.
+      # Vitest's attachments are in a hidden folder.
+      - name: Upload the test results
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-results-${{ matrix.package }}
+          path: |
+            **/test-results/
+            **/.vitest/attachments/
+            !**/node_modules/**
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 7
+
+  # The required check. It passes only when every job above passed, and the
+  # package jobs were skipped only because no package was affected. A skipped
+  # required check counts as passing, so this one always runs.
+  verify:
+    name: verify
+    needs: [image, affected, repository, package]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check the jobs
+        env:
+          IMAGE: ${{ needs.image.result }}
+          AFFECTED: ${{ needs.affected.result }}
+          ANY: ${{ needs.affected.outputs.any }}
+          REPOSITORY: ${{ needs.repository.result }}
+          PACKAGES: ${{ needs.package.result }}
+        run: |
+          echo "image: $IMAGE, affected: $AFFECTED (any: $ANY), repository: $REPOSITORY, packages: $PACKAGES"
+          [ "$IMAGE" = "success" ] && [ "$AFFECTED" = "success" ] && [ "$REPOSITORY" = "success" ] || exit 1
+          case "$ANY:$PACKAGES" in
+            true:success | false:skipped) ;;
+            *) exit 1 ;;
+          esac
 
   # The version pull request consumes changesets by design, so it's skipped.
   changeset:
@@ -63,5 +201,31 @@ jobs:
     if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      HUSKY: "0"
     steps:
-      - uses: ie-huss-martinez/sdk-ci/changeset@ace414beadabbad28a5e2609ebdf731a2cac473b # v2.1.0
+      # Full history, so that origin/main is there to compare against.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          cache: true
+
+      - run: pnpm install --frozen-lockfile
+
+      # A package.json change needs a changeset only if a field outside
+      # devDependencies, scripts, packageManager and devEngines changed (ADR
+      # 0027). This restores, in this job's working tree only, each
+      # package.json whose other fields are unchanged, and logs it, so that
+      # changeset status doesn't count it.
+      - name: Leave out dev-only package.json changes
+        run: node .github/scripts/changeset-dev-only.mjs origin/main
+
+      - run: pnpm changeset status --since=origin/main

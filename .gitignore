@@ -19,3 +19,11 @@ temp/
 publish-plan.json
 release-packs/
 release-assets/
+
+# From the packages that joined this repository (ADR 0064).
+.next/
+next-env.d.ts
+dist-server/
+.hm-diagnostics/
+packages/*/examples/next/public/*-sdk/
+storybook-static/

@@ -246,6 +246,9 @@ const config = {
     },
   ],
   options: {
+    // In a workspace, a sibling package is a symlink. Followed, its files are
+    // at ../<folder>/, where no rule that names a package would match them.
+    preserveSymlinks: true,
     doNotFollow: { path: "(?:^|/)node_modules/" },
     exclude: { path: EXCLUDED },
     tsPreCompilationDeps: true,

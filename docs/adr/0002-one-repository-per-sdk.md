@@ -1,6 +1,6 @@
 # 0002. One repository per SDK, with shared `sdk-core` and `ui`
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR 0064](0064-one-repository-for-the-family.md)
 - **Date:** 2026-11-06
 
 ## Context

@@ -97,7 +97,10 @@
     "check:package": "publint run --pack pnpm --strict && attw --pack . --profile esm-only --exclude-entrypoints ./biome ./commitlint ./dependency-cruiser ./eslint-react ./lint-staged ./secretlint ./stylelint",
     "test:browser": "node src/image/cli.js vitest run --project browser",
     "test:browser:all": "node src/image/cli.js vitest run --project browser --mode all-browsers",
-    "types:update": "node -e \"const fs = require('node:fs'); for (const file of fs.globSync('src/{testing,size}/*.d.ts')) fs.rmSync(file);\" && tsc -p tsconfig.types.json"
+    "types:update": "node -e \"const fs = require('node:fs'); for (const file of fs.globSync('src/{testing,size}/*.d.ts')) fs.rmSync(file);\" && tsc -p tsconfig.types.json",
+    "lint:deps": "hm-lint-deps src",
+    "verify": "pnpm typecheck && pnpm lint:deps && pnpm test && pnpm test:browser && pnpm check:package",
+    "verify:fast": "pnpm typecheck && pnpm test && pnpm lint:deps"
   },
   "dependencies": {
     "@commitlint/config-conventional": "catalog:",

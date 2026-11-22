@@ -5,7 +5,24 @@
     "includes": [
       "**",
       "!packages/sdk-config/src/testing/*.d.ts",
-      "!packages/sdk-config/src/size/*.d.ts"
+      "!packages/sdk-config/src/size/*.d.ts",
+      "!packages/audio-sdk/conformance",
+      "!packages/image-sdk/conformance",
+      "!packages/learn-sdk/conformance",
+      "!packages/pdf-sdk/conformance",
+      "!packages/video-sdk/conformance"
     ]
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["packages/pdf-sdk/**", "packages/audio-sdk/**", "packages/learn-sdk/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "useExhaustiveDependencies": "error"
+          }
+        }
+      }
+    }
+  ]
 }
