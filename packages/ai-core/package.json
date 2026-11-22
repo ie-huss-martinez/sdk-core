@@ -1,0 +1,105 @@
+{
+  "name": "@hussmartinez/ai-core",
+  "version": "0.1.1",
+  "description": "Headless AI provider layer for the @hussmartinez family: Anthropic, Gemini and OpenAI-compatible adapters, a server handler and a browser transport. The family's only package with network code.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ie-huss-martinez/ai-core.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ie-huss-martinez/ai-core/issues"
+  },
+  "homepage": "https://github.com/ie-huss-martinez/ai-core#readme",
+  "keywords": [
+    "ai",
+    "llm",
+    "anthropic",
+    "claude",
+    "gemini",
+    "openai-compatible",
+    "kimi",
+    "streaming",
+    "sse"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    },
+    "./anthropic": {
+      "types": "./dist/anthropic.d.ts",
+      "default": "./dist/anthropic.js"
+    },
+    "./gemini": {
+      "types": "./dist/gemini.d.ts",
+      "default": "./dist/gemini.js"
+    },
+    "./openai-compatible": {
+      "types": "./dist/openai-compatible.d.ts",
+      "default": "./dist/openai-compatible.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "default": "./dist/testing.js"
+    },
+    "./formats/*": "./formats/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "formats"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "lint:deps": "hm-lint-deps src",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "build": "vite build && pnpm check:api",
+    "test": "vitest run --project unit",
+    "test:browser": "hm-in-image vitest run --project browser",
+    "test:browser:all": "hm-in-image vitest run --project browser --mode all-browsers",
+    "build:examples": "pnpm --filter @hussmartinez/ai-core-example-next build",
+    "test:e2e": "pnpm --filter @hussmartinez/ai-core-e2e test:e2e",
+    "check:size": "size-limit",
+    "check:api": "tsc -p tsconfig.build.json && api-extractor run -c api-extractor.json && api-extractor run -c api-extractor.server.json && api-extractor run -c api-extractor.anthropic.json && api-extractor run -c api-extractor.gemini.json && api-extractor run -c api-extractor.openai-compatible.json && api-extractor run -c api-extractor.testing.json && hm-check-api-reports --main api/ai-core.api.md --types dist/index.d.ts api/ai-core-server.api.md api/ai-core-anthropic.api.md api/ai-core-gemini.api.md api/ai-core-openai-compatible.api.md api/ai-core-testing.api.md",
+    "check:package": "publint run --pack pnpm --strict && attw --pack . --profile esm-only",
+    "record-fixtures": "node scripts/record-fixtures.mjs",
+    "api:update": "tsc -p tsconfig.build.json && api-extractor run -c api-extractor.json --local && api-extractor run -c api-extractor.server.json --local && api-extractor run -c api-extractor.anthropic.json --local && api-extractor run -c api-extractor.gemini.json --local && api-extractor run -c api-extractor.openai-compatible.json --local && api-extractor run -c api-extractor.testing.json --local && hm-check-api-reports --main api/ai-core.api.md --types dist/index.d.ts api/ai-core-server.api.md api/ai-core-anthropic.api.md api/ai-core-gemini.api.md api/ai-core-openai-compatible.api.md api/ai-core-testing.api.md",
+    "verify": "pnpm typecheck && pnpm lint:deps && pnpm build && pnpm test && pnpm test:browser && pnpm build:examples && pnpm test:e2e && pnpm check:size && pnpm check:api && pnpm check:package",
+    "verify:fast": "pnpm typecheck && pnpm test && pnpm lint:deps && pnpm check:api"
+  },
+  "dependencies": {
+    "@hussmartinez/sdk-core": "workspace:^"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "catalog:",
+    "@biomejs/biome": "catalog:",
+    "@changesets/changelog-github": "catalog:",
+    "@changesets/cli": "catalog:",
+    "@commitlint/cli": "catalog:",
+    "@hussmartinez/sdk-config": "workspace:^",
+    "@microsoft/api-extractor": "catalog:",
+    "@size-limit/file": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "ajv": "catalog:",
+    "dependency-cruiser": "catalog:",
+    "husky": "catalog:",
+    "lint-staged": "catalog:",
+    "playwright": "catalog:",
+    "publint": "catalog:",
+    "secretlint": "catalog:",
+    "size-limit": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}
