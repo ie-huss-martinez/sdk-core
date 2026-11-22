@@ -1,0 +1,124 @@
+{
+  "name": "@hussmartinez/audio-sdk",
+  "version": "0.11.0",
+  "description": "Client-side audio SDK: a headless core, a React editor and a custom element. Audio never leaves the device.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ie-huss-martinez/audio-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ie-huss-martinez/audio-sdk/issues"
+  },
+  "homepage": "https://github.com/ie-huss-martinez/audio-sdk#readme",
+  "keywords": [
+    "audio",
+    "audio-editor",
+    "web-audio",
+    "react",
+    "web-component",
+    "client-side"
+  ],
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    },
+    "./element": {
+      "types": "./dist/element.d.ts",
+      "default": "./dist/element.js"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./formats/*": "./formats/*",
+    "./package.json": "./package.json"
+  },
+  "imports": {
+    "#hm-audio-inline-worker": {
+      "hm-self-hosted": "./dist/lazy/no-inline-worker.js",
+      "default": "./dist/lazy/inline-worker.js"
+    }
+  },
+  "files": [
+    "dist",
+    "formats"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "lint:css": "stylelint \"**/*.css\" --allow-empty-input",
+    "lint:deps": "hm-lint-deps src",
+    "conformance:update": "vitest run --project unit test/conformance test/v1 --update",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "build": "vite build && pnpm check:api",
+    "test": "vitest run --project unit",
+    "test:browser": "hm-in-image vitest run --project browser",
+    "test:browser:all": "hm-in-image vitest run --project browser --mode all-browsers",
+    "build:examples": "pnpm --filter \"./examples/*\" build",
+    "test:e2e": "pnpm --filter @hussmartinez/audio-sdk-e2e test:e2e",
+    "test:visual": "hm-test-visual",
+    "test:visual:update": "hm-test-visual --update",
+    "check:size": "size-limit",
+    "check:api": "tsc -p tsconfig.build.json && api-extractor run && api-extractor run -c api-extractor.react.json && api-extractor run -c api-extractor.element.json && hm-check-api-reports --main api/audio-sdk.api.md --types dist/index.d.ts api/audio-sdk-react.api.md api/audio-sdk-element.api.md",
+    "check:package": "publint run --pack pnpm --strict && attw --pack . --profile esm-only --exclude-entrypoints ./styles.css",
+    "api:update": "tsc -p tsconfig.build.json && api-extractor run --local && api-extractor run -c api-extractor.react.json --local && api-extractor run -c api-extractor.element.json --local",
+    "verify": "pnpm lint:css && pnpm typecheck && pnpm lint:deps && pnpm build && pnpm test && pnpm test:browser && pnpm build:examples && pnpm test:e2e && pnpm test:visual && pnpm check:size && pnpm check:api && pnpm check:package",
+    "verify:fast": "pnpm typecheck && pnpm test && pnpm lint:deps && pnpm check:api"
+  },
+  "dependencies": {
+    "@hussmartinez/sdk-core": "workspace:^",
+    "@hussmartinez/ui": "workspace:^"
+  },
+  "peerDependencies": {
+    "react": ">=18.3",
+    "react-dom": ">=18.3"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "catalog:",
+    "@biomejs/biome": "catalog:",
+    "@changesets/changelog-github": "catalog:",
+    "@changesets/cli": "catalog:",
+    "@commitlint/cli": "catalog:",
+    "@hussmartinez/sdk-config": "workspace:^",
+    "@microsoft/api-extractor": "catalog:",
+    "@size-limit/esbuild": "catalog:",
+    "@size-limit/file": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "ajv": "catalog:",
+    "axe-core": "catalog:",
+    "dependency-cruiser": "catalog:",
+    "esbuild": "catalog:",
+    "fast-check": "catalog:",
+    "husky": "catalog:",
+    "lint-staged": "catalog:",
+    "playwright": "catalog:",
+    "publint": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "secretlint": "catalog:",
+    "size-limit": "catalog:",
+    "stylelint": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

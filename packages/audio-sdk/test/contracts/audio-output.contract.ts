@@ -1,0 +1,196 @@
+import { describe, expect, it } from "vitest";
+import {
+  type AudioClipBody,
+  type AudioOutput,
+  type AudioPlan,
+  type DecodedAudio,
+  NO_FADE,
+} from "../../src/index.js";
+import { singleTrack } from "../helpers/plans.js";
+
+/**
+ * What an output's contract test needs: a way to create the output, and to
+ * let time pass while it plays. The Web Audio adapter waits on the audio
+ * clock; the fake advances a manual one.
+ */
+export interface AudioOutputHarness {
+  create(): { readonly output: AudioOutput; elapse(frames: number): Promise<void> };
+  decoded(sampleRate: number, channels: readonly (readonly number[])[]): DecodedAudio;
+  /**
+   * How far the playhead may be from where it's expected, in frames, for
+   * outputs whose clock runs in real time. 0 for a manual clock.
+   */
+  readonly positionTolerance: number;
+}
+
+const RATE = 8_000;
+
+function clip(key: string, end: number): AudioClipBody {
+  return { key, source: "a", start: 0, end, gainDb: 0, fadeIn: NO_FADE, fadeOut: NO_FADE };
+}
+
+/** One track, with the clips back to back. */
+function plan(...clips: AudioClipBody[]): AudioPlan {
+  return singleTrack(clips, { sampleRate: RATE });
+}
+
+/**
+ * The behaviour every {@link AudioOutput} must have (ADR 0002, ADR 0003,
+ * ADR 0008). Adapters run it with their own harness.
+ */
+export function describeAudioOutputContract(name: string, harness: AudioOutputHarness): void {
+  describe(`${name}: the AudioOutput contract`, () => {
+    const sources = () =>
+      new Map([["a", harness.decoded(RATE, [new Array<number>(4_000).fill(0.1)])]]);
+    const near = (actual: number, expected: number) =>
+      expect(Math.abs(actual - expected)).toBeLessThanOrEqual(harness.positionTolerance);
+
+    it("starts stopped at the start", () => {
+      const { output } = harness.create();
+      expect(output.getSnapshot()).toEqual({ state: "stopped" });
+      expect(output.position()).toBe(0);
+    });
+
+    it("notifies subscribers when the playhead jumps, with a new snapshot in the same state", () => {
+      const { output } = harness.create();
+      output.load(plan(clip("a", 4_000)), sources());
+      const seen: { state: string; position: number }[] = [];
+      let last = output.getSnapshot();
+      output.subscribe(() => {
+        const snapshot = output.getSnapshot();
+        expect(snapshot).not.toBe(last);
+        last = snapshot;
+        seen.push({ state: snapshot.state, position: output.position() });
+      });
+      output.seek(1_000);
+      output.seek(1_500.4);
+      output.stop();
+      // A shorter plan moves the playhead too.
+      output.seek(3_000);
+      output.load(plan(clip("a", 2_000)), sources());
+      expect(seen).toEqual([
+        { state: "stopped", position: 1_000 },
+        { state: "stopped", position: 1_500 },
+        { state: "stopped", position: 0 },
+        { state: "stopped", position: 3_000 },
+        { state: "stopped", position: 2_000 },
+      ]);
+      // What doesn't move it doesn't notify: a seek to where it is, and a
+      // stop at the start.
+      const count = seen.length;
+      output.stop();
+      output.seek(0);
+      output.stop();
+      expect(seen.length).toBe(count + 1);
+      expect(Number.isInteger(output.position())).toBe(true);
+    });
+
+    it("works with its methods passed on their own, as useSyncExternalStore takes them", async () => {
+      const { output, elapse } = harness.create();
+      const { getSnapshot, subscribe, load, play, pause, position } = output;
+      const states: string[] = [];
+      const unsubscribe = subscribe(() => states.push(getSnapshot().state));
+      load(plan(clip("a", 4_000)), sources());
+      await play();
+      await elapse(400);
+      pause();
+      unsubscribe();
+      expect(states).toEqual(["playing", "paused"]);
+      expect(position()).toBeGreaterThan(0);
+      await output.destroy();
+    });
+
+    it("plays, notifying subscribers, and moves the playhead with the clock", async () => {
+      const { output, elapse } = harness.create();
+      output.load(plan(clip("a", 4_000)), sources());
+      const states: string[] = [];
+      output.subscribe(() => states.push(output.getSnapshot().state));
+      await output.play();
+      await elapse(1_000);
+      expect(states).toEqual(["playing"]);
+      near(output.position(), 1_000);
+      await output.destroy();
+    });
+
+    it("pauses and resumes from the same place", async () => {
+      const { output, elapse } = harness.create();
+      output.load(plan(clip("a", 4_000)), sources());
+      await output.play();
+      await elapse(1_000);
+      output.pause();
+      const paused = output.position();
+      await elapse(1_000);
+      expect(output.getSnapshot().state).toBe("paused");
+      expect(output.position()).toBe(paused);
+      await output.play();
+      await elapse(500);
+      near(output.position(), paused + 500);
+      await output.destroy();
+    });
+
+    it("stops at the end, and plays again from the start", async () => {
+      const { output, elapse } = harness.create();
+      output.load(plan(clip("a", 1_000), clip("b", 500)), sources());
+      await output.play();
+      await elapse(2_000);
+      expect(output.getSnapshot().state).toBe("stopped");
+      expect(output.position()).toBe(1_500);
+      await output.play();
+      await elapse(100);
+      near(output.position(), 100);
+      await output.destroy();
+    });
+
+    it("seeks within the plan, and keeps playing from there", async () => {
+      const { output, elapse } = harness.create();
+      output.load(plan(clip("a", 4_000)), sources());
+      output.seek(-50);
+      expect(output.position()).toBe(0);
+      output.seek(10_000);
+      expect(output.position()).toBe(4_000);
+      output.seek(1_000);
+      await output.play();
+      output.seek(3_000);
+      await elapse(200);
+      near(output.position(), 3_200);
+      expect(output.getSnapshot().state).toBe("playing");
+      await output.destroy();
+    });
+
+    it("keeps playing from the playhead when the plan changes, clamping it to a shorter plan", async () => {
+      const { output, elapse } = harness.create();
+      output.load(plan(clip("a", 4_000)), sources());
+      output.seek(3_000);
+      output.load(plan(clip("a", 2_000)), sources());
+      expect(output.position()).toBe(2_000);
+      output.seek(500);
+      await output.play();
+      output.load(plan(clip("a", 1_000), clip("b", 1_000)), sources());
+      await elapse(500);
+      near(output.position(), 1_000);
+      expect(output.getSnapshot().state).toBe("playing");
+      await output.destroy();
+    });
+
+    it("stops back to the start, and doesn't play an empty plan", async () => {
+      const { output, elapse } = harness.create();
+      output.load(plan(clip("a", 4_000)), sources());
+      await output.play();
+      await elapse(1_000);
+      output.stop();
+      expect(output.getSnapshot().state).toBe("stopped");
+      expect(output.position()).toBe(0);
+      output.load(plan(), sources());
+      await output.play();
+      expect(output.getSnapshot().state).toBe("stopped");
+      await output.destroy();
+    });
+
+    it("throws on calls after destroy", async () => {
+      const { output } = harness.create();
+      await output.destroy();
+      expect(() => output.load(plan(), sources())).toThrow();
+      await expect(output.play()).rejects.toThrow();
+    });
+  });
+}
