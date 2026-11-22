@@ -166,16 +166,24 @@ Each repository's **`release` environment**, restricted to `main` so the `versio
 
 ### npm
 
-1. **The `npm` environment,** restricted to `main`, is created by `pnpm create-sdk-repo`. Add yourself as a required reviewer if you want to approve each publish.
-2. **Bootstrap the first publish.** npm can only configure a trusted publisher for a package that already exists, so the first version needs a token:
-   1. Create a granular access token that can publish only `@hussmartinez/sdk-core` and `@hussmartinez/sdk-config`, with an expiry of a few days. Store it only as the secret `NPM_TOKEN` in the `npm` environment.
-   2. Merge the first version pull request. The publish job uses the token, logs a warning that it did, and still attaches provenance.
-   3. **Straight away,** configure the trusted publisher for each package: Package settings → Trusted Publisher → GitHub Actions, with organisation or user `ie-huss-martinez`, repository `sdk-core`, workflow `release.yml`, environment `npm`, and direct `npm publish` allowed. npm expires a configuration that hasn't published within two days, which is why this comes right after the bootstrap.
-   4. Delete the `NPM_TOKEN` secret, revoke the token on npm, and turn on "Require two-factor authentication and disallow tokens" for each package, under Settings → Publishing access.
+Every package is published from this repository, by `.github/workflows/release.yml`, in the `npm` environment, through npm's trusted publishing ([ADR 0064](docs/adr/0064-one-repository-for-the-family.md)). There's no npm token anywhere.
 
-From then on, publishing uses trusted publishing only, with no token anywhere.
+1. **The `npm` environment,** restricted to `main`. Add yourself as a required reviewer if you want to approve each publish.
+2. **Each package's trusted publisher,** under the package's Settings → Trusted Publisher → GitHub Actions on npmjs.com, says:
 
-**If the repository moves to another owner,** update each package's trusted publisher to the new owner before the next release. npm rejects a publish from an owner its trusted publisher doesn't name, and provenance rejects one whose `repository.url` doesn't match the repository the workflow runs in.
+   | Field | Value |
+   |---|---|
+   | Organization or user | `ie-huss-martinez` |
+   | Repository | `sdk-core` |
+   | Workflow filename | `release.yml` |
+   | Environment name | `npm` |
+
+   and "Require two-factor authentication and disallow tokens" is on, under Settings → Publishing access.
+3. **A package's `repository` field names this repository,** with its folder as `directory`. Provenance rejects a publish whose `repository.url` doesn't match the repository the workflow runs in.
+
+**A package that isn't on npm yet** can't have a trusted publisher, and the workflow has no token to publish it with. Its first publish is a decision of its own, made when such a package is added.
+
+**If the repository moves to another owner or is renamed,** update every package's trusted publisher before the next release. npm rejects a publish from a repository its trusted publisher doesn't name.
 
 ## Licence
 

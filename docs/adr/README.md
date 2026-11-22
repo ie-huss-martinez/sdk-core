@@ -31,7 +31,7 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0023](0023-verify-releases-in-an-unprivileged-job.md) | Verify releases in an unprivileged job | Accepted; refines how [0021](0021-version-and-release-with-changesets.md) verifies releases; the image's location superseded by [0025](0025-one-browser-test-image-in-one-place.md); amended by [0041](0041-publish-the-verified-tarballs.md) |
 | [0024](0024-github-organisation-for-the-sdk-family.md) | A GitHub organisation for the SDK family | Accepted; supersedes where [0021](0021-version-and-release-with-changesets.md) keeps the App's credentials |
 | [0025](0025-one-browser-test-image-in-one-place.md) | One browser test image, in one place | Accepted; supersedes where [0023](0023-verify-releases-in-an-unprivileged-job.md) keeps the image |
-| [0026](0026-share-ci-steps-from-sdk-ci.md) | Share the family's CI steps from `sdk-ci` | Accepted; superseded by [0064](0064-one-repository-for-the-family.md) but for the release steps |
+| [0026](0026-share-ci-steps-from-sdk-ci.md) | Share the family's CI steps from `sdk-ci` | Superseded by [0064](0064-one-repository-for-the-family.md) |
 | [0027](0027-dev-only-package-json-changes-need-no-changeset.md) | Dev-only `package.json` changes need no changeset | Accepted; supersedes part of [0021](0021-version-and-release-with-changesets.md) |
 | [0028](0028-third-party-engines.md) | Third-party engines: no code from file data, proven offline, and their own workers | Accepted; supersedes [0012](0012-hostile-input-and-no-network.md)'s pdf.js eval rule |
 | [0029](0029-session-store-and-history.md) | Shared session primitives: a store, a history and a reducer type | Accepted; refines [0008](0008-ports-adapters-and-session.md) and [0010](0010-edits-as-commands.md) |
@@ -69,4 +69,4 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0061](0061-bundled-engines-declared-to-the-dependency-rules.md) | Bundled engines are declared to the dependency rules | Accepted; refines [0008](0008-ports-adapters-and-session.md) and [0028](0028-third-party-engines.md); corrected on what pdf-sdk imports |
 | [0062](0062-fonts-in-browser-tests.md) | Fonts in browser tests | Accepted; refines [0048](0048-visual-regression-for-sdk-editors.md) and [0025](0025-one-browser-test-image-in-one-place.md) |
 | [0063](0063-a-lint-for-what-react-components-do-while-rendering.md) | A lint for what React components do while rendering | Accepted; refines [0015](0015-verification-and-releases.md) |
-| [0064](0064-one-repository-for-the-family.md) | One repository for the family | Accepted; supersedes [0002](0002-one-repository-per-sdk.md), and [0026](0026-share-ci-steps-from-sdk-ci.md) but for the release steps |
+| [0064](0064-one-repository-for-the-family.md) | One repository for the family | Accepted; supersedes [0002](0002-one-repository-per-sdk.md) and [0026](0026-share-ci-steps-from-sdk-ci.md); noted on releases |
