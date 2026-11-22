@@ -26,6 +26,9 @@ const FAKES = fileURLToPath(new URL(".", import.meta.url));
 const REPOSITORY = "ie-huss-martinez/sdk-core";
 export const THIS_REPOSITORY = `https://github.com/${REPOSITORY}`;
 
+/** The commit every fake version's provenance says it was published from. */
+export const PUBLISHED_COMMIT = "6a9f057024af1438a6ad3bdf26193064be736d85";
+
 export const SCRIPTS = {
   publish: join(ROOT, ".github", "release", "publish-packages.mjs"),
   finish: join(ROOT, ".github", "release", "finish-releases.mjs"),
@@ -136,7 +139,10 @@ export async function createSandbox(packages) {
       }
       const statement = {
         predicate: {
-          buildDefinition: { externalParameters: { workflow: { repository: source } } },
+          buildDefinition: {
+            externalParameters: { workflow: { repository: source } },
+            resolvedDependencies: [{ digest: { gitCommit: PUBLISHED_COMMIT } }],
+          },
         },
       };
       const payload = Buffer.from(JSON.stringify(statement)).toString("base64");

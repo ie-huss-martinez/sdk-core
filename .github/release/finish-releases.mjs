@@ -100,11 +100,14 @@ async function registryIntegrity(name, version) {
 }
 
 /**
- * The repository whose workflow published a version, from the SLSA
- * provenance npm keeps with it, such as https://github.com/ie-huss-martinez/sdk-core,
- * or undefined for a version without provenance.
+ * Where a version was published from, by the SLSA provenance npm keeps with
+ * it: the repository whose workflow published it, such as
+ * https://github.com/ie-huss-martinez/sdk-core, and the commit it ran on.
+ * Undefined for a version without provenance.
+ *
+ * @returns {Promise<{ repository: string, commit?: string } | undefined>}
  */
-async function provenanceRepository(name, version) {
+async function provenanceSource(name, version) {
   const url = `${registry}-/npm/v1/attestations/${name.replace("/", "%2f")}@${version}`;
   const response = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store" });
   if (response.status === 404) {
@@ -121,9 +124,16 @@ async function provenanceRepository(name, version) {
   if (typeof payload !== "string") {
     return undefined;
   }
-  const statement = JSON.parse(Buffer.from(payload, "base64").toString("utf8"));
-  const source = statement?.predicate?.buildDefinition?.externalParameters?.workflow?.repository;
-  return typeof source === "string" ? source : undefined;
+  const definition = JSON.parse(Buffer.from(payload, "base64").toString("utf8"))?.predicate
+    ?.buildDefinition;
+  const repository = definition?.externalParameters?.workflow?.repository;
+  if (typeof repository !== "string") {
+    return undefined;
+  }
+  const commit = definition?.resolvedDependencies?.find(
+    (dependency) => typeof dependency?.digest?.gitCommit === "string",
+  )?.digest.gitCommit;
+  return { repository, ...(commit ? { commit } : {}) };
 }
 
 /**
@@ -258,14 +268,17 @@ async function prepare() {
     // or this run's publish says it's ours. Without any of them, such as
     // after a publish whose tag failed, npm's provenance decides: it names
     // the repository whose workflow published the version.
+    /** The commit npm's provenance says was published, when it has no tag here. */
+    let untaggedCommit;
     if (!thisRun && !planned.has(tag) && !assets && !tagExists(tag)) {
-      const source = await provenanceRepository(pkg.name, pkg.version);
-      if (source?.toLowerCase() !== `https://github.com/${repository}`.toLowerCase()) {
+      const source = await provenanceSource(pkg.name, pkg.version);
+      if (source?.repository.toLowerCase() !== `https://github.com/${repository}`.toLowerCase()) {
         print(
-          `${tag}: on npm, but published from ${source ?? "no repository, with no provenance"}, not this repository, so it isn't finished here.`,
+          `${tag}: on npm, but published from ${source?.repository ?? "no repository, with no provenance"}, not this repository, so it isn't finished here.`,
         );
         continue;
       }
+      untaggedCommit = source.commit ?? "unknown";
       print(`${tag}: no tag or release here, but npm's provenance names this repository.`);
     }
     if (thisRun) {
@@ -303,7 +316,14 @@ async function prepare() {
     writeFileSync(join(target, SUMS), `${sha256}  ./${file}\n`);
     writeFileSync(
       join(target, "release.json"),
-      JSON.stringify({ tag, path: pkg.path, version: pkg.version, file, needsRelease: !assets }),
+      JSON.stringify({
+        tag,
+        path: pkg.path,
+        version: pkg.version,
+        file,
+        needsRelease: !assets,
+        ...(untaggedCommit ? { untaggedCommit } : {}),
+      }),
     );
     print(
       `${tag}: ${assets ? "attaching missing files" : "creating the release and attaching files"} (${thisRun ? "this run's tarball" : "downloaded from npm"}).`,
@@ -348,6 +368,16 @@ function attach() {
     const target = join(dir, entry);
     const meta = JSON.parse(readFileSync(join(target, "release.json"), "utf8"));
     try {
+      // A version with no tag here gets no release until someone creates
+      // the tag: this script never creates one from what the registry
+      // serves. The message says which commit npm's provenance names.
+      if (meta.needsRelease && meta.untaggedCommit && !tagExists(meta.tag)) {
+        failed = true;
+        fail(
+          `${meta.tag}: it has no tag in this repository, so its release can't be created. npm's provenance says it was published from commit ${meta.untaggedCommit}. Check that commit, create the tag there with \`git tag --annotate ${meta.tag} --message ${meta.tag} ${meta.untaggedCommit}\` and \`git push origin ${meta.tag}\`, then re-run the workflow.`,
+        );
+        continue;
+      }
       if (meta.needsRelease) {
         // Only from an existing tag: a release must point at the commit that
         // was actually published, which only its tag records.

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createSandbox, SCRIPTS, TIMING, tarballName } from "./harness.js";
+import { createSandbox, PUBLISHED_COMMIT, SCRIPTS, TIMING, tarballName } from "./harness.js";
 
 const CORE = { name: "@hussmartinez/sdk-core", version: "1.0.0", dir: "a-core" };
 const CONFIG = { name: "@hussmartinez/sdk-config", version: "2.0.0", dir: "b-config" };
@@ -366,6 +366,28 @@ describe.concurrent("finish-releases prepare", () => {
     );
     expect(run.output).toBe("count=1\n");
     expect(Object.keys(await prepared(box))).toEqual(["hussmartinez__sdk-core@1.0.0"]);
+
+    // No tag, so attach refuses to create the release, and says which
+    // commit to tag. It never creates a tag itself.
+    const attached = await attach(box);
+
+    expect(attached.code).toBe(1);
+    expect(attached.stderr).toContain(
+      `@hussmartinez/sdk-core@1.0.0: it has no tag in this repository, so its release can't be created. npm's provenance says it was published from commit ${PUBLISHED_COMMIT}.`,
+    );
+    expect(attached.stderr).toContain(
+      `git tag --annotate @hussmartinez/sdk-core@1.0.0 --message @hussmartinez/sdk-core@1.0.0 ${PUBLISHED_COMMIT}`,
+    );
+    const gh = (await box.calls()).filter((call) => call.tool === "gh");
+    expect(gh.some((call) => call.args[1] === "create" || call.args[1] === "upload")).toBe(false);
+    expect((await box.github()).releases).toEqual({});
+
+    // Once the tag exists, a re-run finishes it.
+    await box.tag(CORE_TAG);
+    const again = await attach(box);
+
+    expect(again.code, again.stderr).toBe(0);
+    expect((await box.github()).releases[CORE_TAG]?.assets).toEqual([CORE_FILE, "SHA256SUMS"]);
   });
 
   it("checks once, without waiting, for a version with no sign that it should be on npm", async ({
