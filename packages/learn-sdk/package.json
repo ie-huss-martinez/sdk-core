@@ -5,12 +5,13 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ie-huss-martinez/learn-sdk.git"
+    "url": "git+https://github.com/ie-huss-martinez/sdk-core.git",
+    "directory": "packages/learn-sdk"
   },
   "bugs": {
-    "url": "https://github.com/ie-huss-martinez/learn-sdk/issues"
+    "url": "https://github.com/ie-huss-martinez/sdk-core/issues"
   },
-  "homepage": "https://github.com/ie-huss-martinez/learn-sdk#readme",
+  "homepage": "https://github.com/ie-huss-martinez/sdk-core/tree/main/packages/learn-sdk#readme",
   "keywords": [
     "learning",
     "education",

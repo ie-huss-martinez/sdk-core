@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-22
-- **Supersedes:** [ADR 0002](0002-one-repository-per-sdk.md), and [ADR 0026](0026-share-ci-steps-from-sdk-ci.md) for everything but the release steps, which move in the release pull request that follows
+- **Supersedes:** [ADR 0002](0002-one-repository-per-sdk.md) and [ADR 0026](0026-share-ci-steps-from-sdk-ci.md)
 
 ## Context
 
@@ -35,6 +35,12 @@ The maintainer decided on 2026-11-22 to bring the family into one repository.
 - **A pull request verifies the packages it can affect:** a package with a changed file, and every package that depends on one, through any dependency on a workspace package. A change outside `packages/` that isn't documentation, such as the lockfile, the catalog or a workflow, affects all of them. A push to `main` verifies all of them.
 - **One job per affected package,** in the browser test image: it builds what the package depends on, then runs the package's own `verify`. A job for the repository runs what isn't any one package's: Biome and the hidden-character check over every file, the single-copy and image checks on the one lockfile, and the tests of the repository's scripts.
 - **The required checks keep their names, `verify` and `changeset`.** `verify` passes only when every job above did.
+
+### Releases
+
+- **Noted, 2026-11-22, on moving the release steps here:** `release.yml` holds the steps `sdk-ci` shared, with its scripts and their tests under `.github/release` and `test/release`. Its verify job runs the `verify` of each package the release publishes, one after another, then packs and checks the tarballs ([ADR 0041](0041-publish-the-verified-tarballs.md)).
+  - **A version a package's old repository released isn't finished here.** The step that repairs incomplete GitHub Releases would otherwise find each moved package's current version on npm, with no release in this repository, and attest a tarball it never built. It now skips a version whose npm provenance names another repository, or none. A tag, release, plan or this run's publish is enough to count as this repository's; without one, provenance decides, so a version published here whose tag then failed isn't silently skipped. Its release needs the tag, which the workflow never creates from what the registry serves: the step stops, names the commit npm's provenance gives, and says how to tag it.
+  - **No npm token.** The workflow's bootstrap token, for a package's first publish, is gone. Every package publishes through its trusted publisher, which names this repository. A package that isn't on npm yet needs its first publish decided when it's added.
 
 ### What was imported
 
