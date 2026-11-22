@@ -212,6 +212,26 @@ describe("workspacePackageDirs", () => {
   });
 });
 
+describe("a workspace with packages inside packages", () => {
+  it("expands a * in any segment, and takes a folder that isn't there as empty", async () => {
+    const root = await repository({
+      "pnpm-workspace.yaml":
+        "packages:\n  - packages/*\n  - packages/*/examples/*\n  - packages/*/e2e\n  - missing/*/apps/*\n",
+      "packages/image-sdk/examples/vite/package.json": "{}",
+      "packages/image-sdk/examples/next/package.json": "{}",
+      "packages/image-sdk/e2e/package.json": "{}",
+      "packages/ui/package.json": "{}",
+    });
+    expect(workspacePackageDirs(root)).toEqual([
+      "packages/image-sdk",
+      "packages/ui",
+      "packages/image-sdk/examples/next",
+      "packages/image-sdk/examples/vite",
+      "packages/image-sdk/e2e",
+    ]);
+  });
+});
+
 describe("a workspace that lists its root, as Changesets needs", () => {
   /** pnpm-workspace.yaml as most SDKs have it, with the root listed as ".", and other spellings of it. */
   const listsRoot = {
