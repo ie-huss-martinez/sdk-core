@@ -1,0 +1,173 @@
+# pdf-sdk
+
+A client-side PDF SDK: view, edit, merge, compress and protect PDFs entirely in the browser. Files never leave the device. It offers a headless core, a React editor (`PdfEditor`) and a `<hm-pdf-editor>` custom element.
+
+This repository will publish **`@hussmartinez/pdf-sdk`**, which replaces the private `@phalabsteam/pdf`. It follows the family standards in [`sdk-core`'s `STANDARDS.md`](https://github.com/ie-huss-martinez/sdk-core/blob/main/STANDARDS.md), and in particular the decisions on [hostile input and no network](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0012-hostile-input-and-no-network.md), [workers and assets](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0011-worker-messaging-and-assets.md) and [ports and adapters](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0008-ports-adapters-and-session.md).
+
+> Status: being bootstrapped. No packages are published yet.
+
+## The React editor
+
+```tsx
+import { PdfEditor, type PdfEditorHandle } from "@hussmartinez/pdf-sdk/react";
+import "@hussmartinez/ui/styles.css";
+import "@hussmartinez/pdf-sdk/styles.css";
+
+const editor = useRef<PdfEditorHandle>(null);
+
+<div style={{ height: "100dvh" }}>
+  <PdfEditor ref={editor} file={file} onChange={({ reason }) => setDirty(reason === "edit")} />
+</div>;
+
+const bytes = await editor.current?.export();
+```
+
+**Styles: ui's stylesheet is required.** Import `@hussmartinez/ui/styles.css` once in your application, before `@hussmartinez/pdf-sdk/styles.css`, as above. The editor's toolbar is built from [`@hussmartinez/ui`](https://www.npmjs.com/package/@hussmartinez/ui)'s components, and their focus rings and minimum target sizes are in ui's stylesheet, along with the design tokens, themes and density ([sdk-core ADR 0036](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0036-ui-as-a-dependency-of-the-sdks.md)). The SDK's stylesheet never includes it, so a page with several SDKs loads it once. Every value is also a `--hm-pdf-*` property you can set on any ancestor.
+
+**One copy of ui and sdk-core.** The SDK depends on `@hussmartinez/ui` `^0.16.0` and `@hussmartinez/sdk-core` `^0.4.7`. If your application uses either itself, depend on the same minor versions, and check that `npm ls @hussmartinez/ui @hussmartinez/sdk-core` lists one version of each: a second copy doesn't share providers with the first, so text falls back to English and announcements are lost.
+
+**A bounded height.** `PdfEditor` fills the height of its container, and its viewer and thumbnails scroll within it, so give it a bounded height: a fixed height, or a grid row such as `minmax(0, 1fr)`. The same goes for `PdfViewer` and `PdfThumbnails` used on their own.
+
+**Text.** `messages` overrides any text the editor shows, by key, including ui's, such as `"spinner.label"`. The editor builds one set of text from them and your `locale`, for its own components and for ui's ([sdk-core ADR 0046](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0046-ui-text-through-the-sdk.md)). `pdfEditorMessages`, from `@hussmartinez/pdf-sdk/react`, is the English catalogue, and `MessageOverrides<PdfEditorMessageCatalogue>` types your overrides. `pdfMessages`, from the server-safe entry, holds only error and warning text, for hosts that show the session's errors themselves ([ADR 0010](docs/adr/0010-interface-text-outside-the-server-safe-entry.md)).
+
+`file` opens a document, and a different one replaces it; `null` closes it. Users can also open one with the editor's button or by dropping it on the editor. `onChange` reports each `open`, `edit` and `close`, and the ref's `PdfEditorHandle` exports, undoes, redoes and closes.
+
+**The file's name.** On `open`, `onChange` also gives the opened file's `fileName`, from the `File`, or from the `name` option of `handle.open(bytes, { name })`. The session's `sources` carry it as `name`. It's cleaned first: one path segment, with no control or bidirectional formatting characters and at most 128 code points ([ADR 0009](docs/adr/0009-saving-the-document.md)). It comes from the file, so show it only as text. It's never sent to `onEvent`.
+
+### Saving
+
+The download tool builds the document in the processing worker and downloads it. The file is named after the opened file, or `document.pdf` ([ADR 0009](docs/adr/0009-saving-the-document.md)). The download uses a `blob:` URL, so it makes no request and needs nothing more in your Content Security Policy.
+
+- **`downloadName(info)`** names the file yourself. `info` has the opened file's `sourceName` and the `pageCount`. The result is cleaned as a file name and gets a `.pdf` extension.
+- **`onExport(bytes, info)`** receives the bytes instead of the browser downloading them, for example to keep them in your app's storage. `info` has the `fileName` the download would have had, and the `pageCount`. If it throws or rejects, the editor says the PDF couldn't be saved. Your error is yours to log, and the editor doesn't read it.
+- **While it builds,** the button is disabled but keeps focus, and the header says "Preparing the PDF…". After a second, a Cancel button appears beside it.
+- **Cancelling:** cancelling, or opening or closing a document, stops the build quietly.
+- **Failures:** a failed build shows its error's text in the header.
+
+### Tools, the toolbar and shortcuts
+
+The editor's tools are in `pdfTools`:
+
+| Tool | Shortcut | What it does |
+|---|---|---|
+| `pdf.open` | none: `Ctrl+O` is the browser's own | Opens a PDF, replacing the current one |
+| `pdf.insert-pages` | none | Inserts every page of another PDF after the current page, which merges the two |
+| `pdf.undo` | `Ctrl+Z`, or `⌘Z` on Apple platforms | Undoes the last edit |
+| `pdf.redo` | `Ctrl+Shift+Z` or `Ctrl+Y`, or `⇧⌘Z` | Redoes the last undone edit |
+| `pdf.rotate-left` | `[` | Turns the selected pages, or the current one, a quarter turn anticlockwise |
+| `pdf.rotate-right` | `]` | Turns them a quarter turn clockwise |
+| `pdf.move-earlier` | `Alt+↑` (`Option+↑` on macOS), in the thumbnails only | Moves the selected pages, or the current one, one position earlier |
+| `pdf.move-later` | `Alt+↓` (`Option+↓`), in the thumbnails only | Moves them one position later |
+| `pdf.delete-pages` | `Delete` or `Backspace`, in the thumbnails only | Deletes the selected pages, or the current one; a document keeps at least one page |
+| `pdf.download` | none: `Ctrl+S` is the browser's own | Builds the document and downloads it, or hands it to `onExport` |
+
+Choose which tools are present with `tools`, and arrange the toolbar with `toolbar`, as groups of tool ids; `toolbar={[]}` hides it and keeps the shortcuts. An unknown id throws when the editor renders, so a typo never leaves a tool silently missing. `icons` replaces any icon by name with your own component.
+
+```tsx
+<PdfEditor
+  tools={["pdf.undo", "pdf.redo", "pdf.rotate-left", "pdf.rotate-right"]}
+  toolbar={[["pdf.undo", "pdf.redo"], ["pdf.rotate-left", "pdf.rotate-right"]]}
+/>
+```
+
+Shortcuts work only while focus is inside the editor, never on the rest of your page, and never while typing in a field. The toolbar is one tab stop, with arrow keys between its buttons; each button names its shortcut in `aria-keyshortcuts`. A button that can't run is disabled with `aria-disabled`, so it keeps focus. Undoing, redoing, rotating and deleting are announced to screen readers.
+
+Inserting puts every page of the chosen PDF after the current page, selects the inserted pages and shows the first. The file policy's limits apply to the combined document: `maxPages` counts the pages after the insert, and `maxSessionSize` counts every document held. A failed insert leaves the document unchanged and shows why in the header. When undo steps had to be dropped to make room within `maxSessionSize`, the header says so.
+
+Moving gathers pages that aren't next to each other into one block, in their order, and moves the block one position. The moved pages stay selected, and focus stays on them. The keys were chosen so they don't clash with browser or system shortcuts; ADR 0008 records the check.
+
+Deleting and moving work on the thumbnails' selection, so their keys work only while focus is in the thumbnails ([ADR 0008](docs/adr/0008-page-organisation-in-the-editor.md)). The page that takes the first deleted page's place is selected, and focus moves to it if its thumbnail had focus. Undo and redo bring back the selection and the current page with the pages. `PdfThumbnails` used on its own takes `onDelete` and `onMove` props for those keys.
+
+## Saving a project
+
+`toPdfPlanDocument(plan, sources)` writes the session's plan as portable JSON, `hm-pdf-plan` version 1: the pages in order, their rotations and annotations, and form values, with each source's page count. It holds no PDF bytes and no file names, so store the source files alongside it. `readPdfPlanDocument(json)` reads one back, refusing another format or a later version with `UNSUPPORTED_FORMAT`, and anything invalid with `INVALID_DOCUMENT`, each with a stable `details.reason`. The JSON Schemas ship with the package, under `@hussmartinez/pdf-sdk/formats/`, for validating documents elsewhere, such as on a server. [The format record](docs/formats/hm-pdf-plan.md) describes the format, how to load its schemas, and its conformance vectors ([sdk-core ADR 0045](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0045-portable-formats-and-conformance-vectors.md)).
+
+## Assets and Content Security Policy
+
+The SDK runs two workers: pdf.js's, which renders, and one with qpdf and pdf-lib, which builds documents. Some documents also need extra data: CMaps for CJK text whose fonts aren't embedded, standard fonts, and decoders for JBIG2 and JPX images, which are common in scanned documents. The SDK never fetches any of them from another origin. Choose one of two modes ([ADR 0002](docs/adr/0002-workers-and-assets.md), [ADR 0006](docs/adr/0006-icc-colour-and-self-hosted-assets.md), [ADR 0007](docs/adr/0007-one-assets-directory.md)):
+
+| | Inline (default) | Self-hosted |
+|---|---|---|
+| Setup | Nothing | Serve `node_modules/@hussmartinez/pdf-sdk/dist/assets/` from your origin, and pass its URL to both: `createPdfJsEngine({ assetsUrl: "/pdf-sdk/" })` and `createPdfProcessor({ assetsUrl: "/pdf-sdk/" })` |
+| Where files come from | Your bundle: the workers are inlined, and each data file is its own lazy chunk, loaded only by documents that need it | Your origin, under `assetsUrl`: `pdfjs/` and `processing/` |
+| CMYK and ICC-based colour | Approximate | Accurate, with pdf.js's colour management |
+| Content Security Policy | `worker-src blob:` and `script-src 'wasm-unsafe-eval'` | `worker-src 'self'`, `script-src 'self' 'wasm-unsafe-eval'` and `connect-src 'self'` |
+
+**Which to choose:**
+- **Inline** for the simplest setup. Most documents use RGB or grey and look the same in both modes.
+- **Self-hosted** if your Content Security Policy doesn't allow `blob:` workers, or if print colour must be accurate, for example for proofs and CMYK artwork.
+
+**In self-hosted mode, copy the whole directory again whenever you upgrade the package.** A worker left over from another version is refused with `WORKER_START_FAILED`, whose `details` name the file and both versions, `{ asset, expected, actual }`: the processing worker checks the package's version, pdf.js checks its own, and the processing worker also refuses a `qpdf.wasm` from another version.
+
+`assetsUrl` can be absolute or relative to the page, such as `/pdf-sdk/`. A relative one is resolved when a worker first starts, in the browser, so `PdfEditor`, `PdfSessionProvider`, `createPdfJsEngine` and `createPdfProcessor` all accept it on a server. A URL with a query or a fragment is refused, because the files resolved from it would lose them: the components throw `TypeError` as they render, and `createPdfJsEngine` and `createPdfProcessor` throw it when you call them.
+
+### Leaving the inlined workers out
+
+An app that passes `assetsUrl` never loads the inlined workers, decoders and data files, but its bundler still emits them: about 5 MB of chunks that are never used. Set the `hm-self-hosted` resolve condition in the app's bundler to leave them out. The SDK reaches them through its package's `imports`, and the condition maps each one to a small stub instead ([sdk-core ADR 0060](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0060-leaving-inlined-workers-out-of-a-self-hosted-build.md)).
+
+With Vite, which replaces its default conditions with the list you give, so keep them:
+
+```ts
+import { defaultClientConditions, defineConfig } from "vite";
+
+export default defineConfig({
+  resolve: { conditions: [...defaultClientConditions, "hm-self-hosted"] },
+});
+```
+
+With esbuild, which drops its `module` condition once you set any, so keep it:
+
+```js
+await build({ /* ... */ conditions: ["hm-self-hosted", "module"] });
+```
+
+webpack (`resolve.conditionNames: ["hm-self-hosted", "..."]`), Rollup (`nodeResolve({ exportConditions: ["hm-self-hosted"] })`) and Next.js through its webpack configuration should work the same way, but they aren't tested yet.
+
+Set the condition only in a build that passes `assetsUrl` everywhere it creates an engine or a processor. A worker started without it in such a build fails with `WORKER_START_FAILED`, whose `details` are `{ condition: "hm-self-hosted", missing: "assetsUrl" }`.
+
+## Development
+
+The repository root is the published package, laid out as in the family's [standard layout](https://github.com/ie-huss-martinez/sdk-core/blob/main/STANDARDS.md#repository-layout): the source is in [`src`](src), and the pnpm workspace adds the examples in [`examples`](examples) and the end-to-end tests in [`e2e`](e2e) ([sdk-core ADR 0039](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0039-test-applications-in-each-repository.md)).
+
+You need Node 24 (see [`.node-version`](.node-version)) and pnpm. The exact pnpm version is pinned in `package.json`, and pnpm switches to it automatically.
+
+```sh
+pnpm install       # also installs the git hooks
+pnpm verify:fast   # the subset the pre-push hook runs
+pnpm verify        # everything CI runs; it needs Docker for the browser tests
+```
+
+The examples use the built package as an application would: [`examples/next`](examples/next) renders the editor in a Next.js App Router Server Component, and [`examples/vite`](examples/vite) has one page per asset mode, each under the Content Security Policy this README gives for it. The plain HTML example joins them with the standalone script.
+
+The browser and end-to-end tests also need Docker. They run in the pinned browser test image from [`ci/Dockerfile`](ci/Dockerfile), as in CI, through `hm-in-image` from `@hussmartinez/sdk-config` ([sdk-core ADR 0049](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0049-local-browser-tests-in-the-pinned-image.md)). The first run builds the image and installs the dependencies into its volumes. `pnpm test:browser:all` runs all three engines, as CI does.
+
+`pnpm verify` runs, in order:
+
+| Step | Script | Tool |
+|---|---|---|
+| Format and lint | `lint` | Biome, with sdk-config's `noUncheckedAbortListener` plugin, then `hm-check-hidden-unicode`, which fails on characters an editor or a diff doesn't show, or that reorder text, in any tracked text file. Write them as escapes (sdk-core ADR 0052) |
+| CSS rules | `lint:css` | stylelint, with the `hm-` namespace and token rules |
+| Types | `typecheck` | TypeScript |
+| Dependency rules | `lint:deps` | dependency-cruiser, through `hm-lint-deps` |
+| Playwright pinned to the browser test image | `check:playwright-image` | `hm-check-playwright-image` (sdk-core ADR 0025) |
+| Build | `build` | Vite, then api-extractor for the type declarations |
+| Unit tests | `test` | Vitest |
+| Browser tests | `test:browser` | Vitest in Chromium in the browser test image, and in Firefox and WebKit too in CI |
+| Examples | `build:examples` | Production builds of the Next.js and Vite examples, against the built package |
+| End-to-end tests | `test:e2e` | Playwright in the browser test image, against the examples: server rendering and hydration, axe, no foreign requests, and both asset modes under the Content Security Policies above |
+| Visual regression | `test:visual` | `hm-test-visual`: screenshots of the editor's states in [`e2e/visual`](e2e/visual), on Chromium in the browser test image, in light and dark, compact and comfortable (sdk-core ADR 0048). `pnpm test:visual:update` rewrites the baselines |
+| Size budgets | `check:size` | size-limit, in brotli: each entry's ceiling as built, what an application ships when it imports part of the core or React entry, and each lazy chunk ([`.size-limit.js`](.size-limit.js), sdk-core ADR 0055 and ADR 0056). `pnpm exec hm-size --exports dist/react.js` shows what each export costs |
+| API reports | `check:api` | api-extractor, one report per entry point in [`api`](api), and `hm-check-api-reports` across them |
+| Package checks | `check:package` | publint and Are the Types Wrong? |
+
+The configuration extends the shared presets in [`@hussmartinez/sdk-config`](https://www.npmjs.com/package/@hussmartinez/sdk-config). The git hooks ([ADR 0016](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0016-git-hooks-and-merge-guards.md)) run automatically: a secret scan and lint of staged files on commit, a Conventional Commits check of the message, and `pnpm verify:fast` on push.
+
+When a change alters the public API on purpose, update the reports with `pnpm api:update` and commit them. api-extractor rolls up one entry point per run, so the React and element entries' declarations carry copies of the core types their APIs use, such as `PdfSession`. Their reports list those copies, and `hm-check-api-reports` from [`@hussmartinez/sdk-config`](https://www.npmjs.com/package/@hussmartinez/sdk-config) then checks that the core entry exports every one of them, and that none is a class with private members, whose copy TypeScript would treat as a different type. All three configurations extend sdk-config's api-extractor preset.
+
+## Contributing
+
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a pull request. Coding agents also start with [`AGENTS.md`](AGENTS.md). Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md). Report vulnerabilities privately, as described in the [security policy](SECURITY.md).
+
+## License
+
+[Apache-2.0](LICENSE)
