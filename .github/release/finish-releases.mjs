@@ -11,7 +11,7 @@
 //
 // `prepare` looks at each public workspace package at its current version.
 // Versions that aren't on npm, releases that already have both files, and
-// versions released from another repository, with no tag here, are skipped. For the rest, it takes the tarball this run published (listed in
+// versions another repository published, by npm's provenance, are skipped. For the rest, it takes the tarball this run published (listed in
 // $PUBLISHED_RECORD) or downloads it from the registry, verifies it against the
 // registry's dist.integrity, and writes it with SHA256SUMS to <dir>. It sets
 // `count` in $GITHUB_OUTPUT, so the workflow attests only those files. A
@@ -97,6 +97,33 @@ async function registryIntegrity(name, version) {
   }
   const manifest = await response.json();
   return typeof manifest?.dist?.integrity === "string" ? manifest.dist.integrity : undefined;
+}
+
+/**
+ * The repository whose workflow published a version, from the SLSA
+ * provenance npm keeps with it, such as https://github.com/ie-huss-martinez/sdk-core,
+ * or undefined for a version without provenance.
+ */
+async function provenanceRepository(name, version) {
+  const url = `${registry}-/npm/v1/attestations/${name.replace("/", "%2f")}@${version}`;
+  const response = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store" });
+  if (response.status === 404) {
+    return undefined;
+  }
+  if (!response.ok) {
+    throw new Error(`${name}@${version}: the registry answered ${response.status} for ${url}.`);
+  }
+  const { attestations = [] } = await response.json();
+  const provenance = attestations.find((attestation) =>
+    String(attestation?.predicateType).startsWith("https://slsa.dev/provenance/"),
+  );
+  const payload = provenance?.bundle?.dsseEnvelope?.payload;
+  if (typeof payload !== "string") {
+    return undefined;
+  }
+  const statement = JSON.parse(Buffer.from(payload, "base64").toString("utf8"));
+  const source = statement?.predicate?.buildDefinition?.externalParameters?.workflow?.repository;
+  return typeof source === "string" ? source : undefined;
 }
 
 /**
@@ -225,13 +252,21 @@ async function prepare() {
         continue;
       }
     }
-    // A version with no sign of a release from this repository was published
-    // from elsewhere: the package's old repository, before it moved here (ADR
-    // 0064). Its tarball wasn't built here, so this repository doesn't attest
-    // it or give it a release.
+    // A version this repository didn't publish isn't finished here: a
+    // package's old repository released it, before the package moved here
+    // (ADR 0064), and its tarball wasn't built here. A tag, a release, a plan
+    // or this run's publish says it's ours. Without any of them, such as
+    // after a publish whose tag failed, npm's provenance decides: it names
+    // the repository whose workflow published the version.
     if (!thisRun && !planned.has(tag) && !assets && !tagExists(tag)) {
-      print(`${tag}: on npm, but not released from this repository, so it isn't finished here.`);
-      continue;
+      const source = await provenanceRepository(pkg.name, pkg.version);
+      if (source?.toLowerCase() !== `https://github.com/${repository}`.toLowerCase()) {
+        print(
+          `${tag}: on npm, but published from ${source ?? "no repository, with no provenance"}, not this repository, so it isn't finished here.`,
+        );
+        continue;
+      }
+      print(`${tag}: no tag or release here, but npm's provenance names this repository.`);
     }
     if (thisRun) {
       // Recorded on every release, to learn how long npm really takes.

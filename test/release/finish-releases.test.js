@@ -324,9 +324,36 @@ describe.concurrent("finish-releases prepare", () => {
     expect(run.output).toBe("count=0\n");
   });
 
-  it("leaves alone a version on npm that another repository released", async ({
+  it("leaves alone a version on npm that another repository published", async ({
     onTestFinished,
   }) => {
+    const box = await sandbox(onTestFinished);
+    const { bytes } = await box.tarball(CORE.name, CORE.version);
+    await box.onNpm(CORE.name, CORE.version, bytes, {
+      source: "https://github.com/ie-huss-martinez/pdf-sdk",
+    });
+    await box.onNpm(CONFIG.name, CONFIG.version, bytes, { source: null });
+
+    const run = await prepare(box);
+
+    expect(run.code, run.stderr).toBe(0);
+    expect(run.stdout).toContain(
+      "@hussmartinez/sdk-core@1.0.0: on npm, but published from https://github.com/ie-huss-martinez/pdf-sdk, not this repository, so it isn't finished here.",
+    );
+    expect(run.stdout).toContain(
+      "@hussmartinez/sdk-config@2.0.0: on npm, but published from no repository, with no provenance, not this repository, so it isn't finished here.",
+    );
+    expect(run.output).toBe("count=0\n");
+    expect((await box.calls()).filter((call) => call.tool === "npm")).toEqual([]);
+    expect(await prepared(box)).toEqual({});
+  });
+
+  it("finishes a version this repository published, even with no tag or record left", async ({
+    onTestFinished,
+  }) => {
+    // A publish whose tag then failed: an earlier run's record is gone with
+    // its job, and there's no tag or release. npm's provenance names this
+    // repository, so the version is still finished, not skipped.
     const box = await sandbox(onTestFinished);
     const { bytes } = await box.tarball(CORE.name, CORE.version);
     await box.onNpm(CORE.name, CORE.version, bytes);
@@ -335,11 +362,10 @@ describe.concurrent("finish-releases prepare", () => {
 
     expect(run.code, run.stderr).toBe(0);
     expect(run.stdout).toContain(
-      "@hussmartinez/sdk-core@1.0.0: on npm, but not released from this repository, so it isn't finished here.",
+      "@hussmartinez/sdk-core@1.0.0: no tag or release here, but npm's provenance names this repository.",
     );
-    expect(run.output).toBe("count=0\n");
-    expect((await box.calls()).filter((call) => call.tool === "npm")).toEqual([]);
-    expect(await prepared(box)).toEqual({});
+    expect(run.output).toBe("count=1\n");
+    expect(Object.keys(await prepared(box))).toEqual(["hussmartinez__sdk-core@1.0.0"]);
   });
 
   it("checks once, without waiting, for a version with no sign that it should be on npm", async ({

@@ -22,6 +22,10 @@ import { fileURLToPath } from "node:url";
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const FAKES = fileURLToPath(new URL(".", import.meta.url));
 
+/** The repository the workflow runs in, and its URL as provenance names it. */
+const REPOSITORY = "ie-huss-martinez/sdk-core";
+export const THIS_REPOSITORY = `https://github.com/${REPOSITORY}`;
+
 export const SCRIPTS = {
   publish: join(ROOT, ".github", "release", "publish-packages.mjs"),
   finish: join(ROOT, ".github", "release", "finish-releases.mjs"),
@@ -121,6 +125,34 @@ export async function createSandbox(packages) {
   /** @type {Map<string, number[]>} */
   const polls = new Map();
   const server = createServer((request, response) => {
+    // npm's attestations for a version, with the SLSA provenance that names
+    // the repository whose workflow published it. Not counted as polls.
+    const attestations = /^\/-\/npm\/v1\/attestations\/(.+)$/.exec(request.url ?? "");
+    if (attestations) {
+      const source = versions.get(decodeURIComponent(attestations[1] ?? ""))?.source;
+      if (!source) {
+        response.writeHead(404, { "content-type": "application/json" }).end("{}");
+        return;
+      }
+      const statement = {
+        predicate: {
+          buildDefinition: { externalParameters: { workflow: { repository: source } } },
+        },
+      };
+      const payload = Buffer.from(JSON.stringify(statement)).toString("base64");
+      response.writeHead(200, { "content-type": "application/json" }).end(
+        JSON.stringify({
+          attestations: [
+            { predicateType: "https://github.com/npm/attestation/tree/main/specs/publish/v0.1" },
+            {
+              predicateType: "https://slsa.dev/provenance/v1",
+              bundle: { dsseEnvelope: { payload } },
+            },
+          ],
+        }),
+      );
+      return;
+    }
     const match = /^\/(.+)\/([^/]+)$/.exec(request.url ?? "");
     const key = match ? `${decodeURIComponent(match[1] ?? "")}@${match[2]}` : (request.url ?? "");
     const times = polls.get(key) ?? [];
@@ -167,18 +199,26 @@ export async function createSandbox(packages) {
      * `visibleAfter` polls (Infinity for never) and from the time
      * `visibleFrom`, as npm serves a version once it has processed it. Also
      * the tarball `npm pack`
-     * downloads, which is `bytes` unless `served` is given.
+     * downloads, which is `bytes` unless `served` is given, and its
+     * provenance, naming the repository `source`: this one by default, or
+     * none with null.
      *
      * @param {string} name
      * @param {string} version
      * @param {Buffer} bytes
-     * @param {{ visibleAfter?: number, visibleFrom?: number, served?: string }} [options]
+     * @param {{ visibleAfter?: number, visibleFrom?: number, served?: string, source?: string | null }} [options]
      */
-    async onNpm(name, version, bytes, { visibleAfter = 0, visibleFrom = 0, served } = {}) {
+    async onNpm(
+      name,
+      version,
+      bytes,
+      { visibleAfter = 0, visibleFrom = 0, served, source = THIS_REPOSITORY } = {},
+    ) {
       versions.set(`${name}@${version}`, {
         integrity: integrityOf(bytes, "sha512"),
         visibleAfter,
         visibleFrom,
+        source,
       });
       const pack = served ?? join(await mkdtemp(join(root, "npm-")), tarballName(name, version));
       if (!served) {
@@ -256,7 +296,7 @@ export async function createSandbox(packages) {
               ...TIMING,
               PATH: `${bin}:${process.env["PATH"]}`,
               FAKE_STATE: state,
-              GITHUB_REPOSITORY: "ie-huss-martinez/sdk-core",
+              GITHUB_REPOSITORY: REPOSITORY,
               GITHUB_OUTPUT: output,
               NPM_REGISTRY_URL: `http://127.0.0.1:${port}/`,
               ...env,
