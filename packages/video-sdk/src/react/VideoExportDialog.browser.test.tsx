@@ -1,0 +1,494 @@
+import "@hussmartinez/ui/styles.css";
+import "../styles.css";
+import axe from "axe-core";
+import { act, createRef, useEffect } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
+import landscapeVp8 from "../../test/fixtures/video/landscape-vp8.webm?url";
+import { DEV_WORKER_START_TIMEOUT } from "../../test/support/load.js";
+import { createVideoEngine } from "../adapters/video-engine.js";
+import { VideoError } from "../core/errors/video-error.js";
+import type {
+  VideoExportJob,
+  VideoExportResult,
+  VideoProcessor,
+} from "../core/ports/video-processor.js";
+import type { VideoSessionEvent } from "../core/session/session.js";
+import { useVideoSession, VideoEditorProvider } from "./context.js";
+import { VideoEditor, type VideoEditorHandle } from "./VideoEditor.js";
+import { VideoExportDialog } from "./VideoExportDialog.js";
+import { VideoToolbar } from "./VideoToolbar.js";
+
+// Real decoding and export run in workers, and a loaded machine slows them.
+// The waits inside name a hang, not the test's timeout: one that waits on
+// the UI gets 15 s, and one that waits on a file opening, an export or its
+// unwind gets 30 s, each well before WebKit's page died in verify run
+// 44410142740, about 44 s after its last progress, and before the family's
+// 60 s a test (sdk-core ADR 0057). Clicks wait at most 15 s too.
+
+/** How long a wait on the UI gets. */
+const UI_WAIT = 15_000;
+/** How long a wait on a file opening, an export, or an export's unwind gets. */
+const WORK_WAIT = 30_000;
+
+// The export dialog (docs/adr/0007): its summary before anything is written,
+// a real export, stopping, and closing at any point, over the SDK's own
+// engine and processor. The fixture is 2 s of 30 fps video.
+
+let root: Root | undefined;
+let container: HTMLElement | undefined;
+
+beforeEach(() => {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+});
+afterEach(async () => {
+  act(() => root?.unmount());
+  root = undefined;
+  container?.remove();
+  container = undefined;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+});
+
+/** Waits for an assertion, with room for a loaded machine: exports run in a worker. */
+const eventually = <T,>(assertion: () => T | Promise<T>, timeout = UI_WAIT) =>
+  vi.waitFor(assertion, { timeout });
+
+/** A click that fails by name, rather than waiting out the test, if its target never becomes clickable. */
+const press = (element: Element) => userEvent.click(element, { timeout: UI_WAIT });
+
+const fixture = async () => {
+  const blob = await (await fetch(landscapeVp8)).blob();
+  return new File([blob], "landscape.webm", { type: "video/webm" });
+};
+
+function mount(element: React.ReactElement): HTMLElement {
+  container = document.createElement("div");
+  container.style.inlineSize = "640px";
+  container.style.blockSize = "520px";
+  document.body.append(container);
+  act(() => {
+    root = createRoot(container as HTMLElement);
+    root.render(element);
+  });
+  return container;
+}
+
+/** The editor with the fixture in it, once its export tool can run. */
+async function editor() {
+  const handle = createRef<VideoEditorHandle>();
+  const view = mount(<VideoEditor ref={handle} initialFiles={[await fixture()]} />);
+  await eventually(
+    () => expect(exportTool(view).getAttribute("aria-disabled")).toBeNull(),
+    WORK_WAIT,
+  );
+  return { view, handle: handle.current as VideoEditorHandle };
+}
+
+const exportTool = (view: HTMLElement) =>
+  view.querySelector('[data-hm-tool="video.export"]') as HTMLButtonElement;
+const dialogOf = (view: HTMLElement) => view.querySelector("dialog") as HTMLDialogElement;
+const button = (view: HTMLElement, name: string) =>
+  [...view.querySelectorAll("dialog button")].find((each) => each.textContent === name) as
+    | HTMLButtonElement
+    | undefined;
+const announced = (view: HTMLElement) =>
+  [...view.querySelectorAll(".hm-announcer [aria-live]")].map((each) => each.textContent).join(" ");
+
+/** Waits for the dialog's fade-in, so axe checks contrast on its final colours. */
+async function settled(dialog: HTMLDialogElement): Promise<void> {
+  await Promise.all(dialog.getAnimations({ subtree: true }).map((animation) => animation.finished));
+}
+
+/** Inserts a file on mount: a host's own layout, with the dialog and a handler for the file. */
+function Insert({ file }: { readonly file: File }) {
+  const { session } = useVideoSession();
+  useEffect(() => {
+    void session.insert(file);
+  }, [session, file]);
+  return null;
+}
+
+/** A host's own layout: a session whose plan has a title and a date no file can hold. */
+function Dated({ file }: { readonly file: File }) {
+  const { session, snapshot } = useVideoSession();
+  useEffect(() => {
+    void session.insert(file);
+  }, [session, file]);
+  const ready = snapshot.plan !== null;
+  useEffect(() => {
+    if (!ready) return;
+    session.execute([
+      { type: "video.setMetadata", field: "title", value: "Harbour" },
+      { type: "video.setMetadata", field: "date", value: "2025-02-31" },
+    ]);
+  }, [ready, session]);
+  return null;
+}
+
+describe("the export dialog", () => {
+  it("summarises the file before writing anything, with no accessibility violations", async () => {
+    const { view } = await editor();
+    await press(exportTool(view));
+    const dialog = dialogOf(view);
+    await eventually(() => expect(dialog.open).toBe(true));
+    expect(dialog.textContent).toContain("Export the video");
+    expect(dialog.textContent).toMatch(/× \d+ pixels, 30 frames per second, 0:02\.00 long/);
+    expect(dialog.textContent).toContain("Nothing else from your original files is copied");
+    expect(button(view, "Export")).toBeDefined();
+    // Each group of choices has a visible name, which names it (WCAG 2.5.3).
+    const names = [...dialog.querySelectorAll('[role="radiogroup"]')].map((group) => {
+      const label = document.getElementById(group.getAttribute("aria-labelledby") ?? "");
+      expect(label?.getBoundingClientRect().height).toBeGreaterThan(0);
+      return label?.textContent;
+    });
+    expect(names).toEqual(["File type", "Quality"]);
+    await settled(dialog);
+    const result = await axe.run(dialog);
+    expect(result.violations.map((each) => `${each.id}: ${each.help}`)).toEqual([]);
+    // Cancel closes it, and focus goes back to the tool that opened it.
+    await press(button(view, "Cancel") as HTMLButtonElement);
+    await eventually(() => expect(dialog.open).toBe(false));
+    expect(document.activeElement).toBe(exportTool(view));
+  });
+
+  it("says a date that isn't a real year-month-day date won't be written, and leaves it out of what is", async () => {
+    const view = mount(
+      <VideoEditorProvider>
+        <Dated file={await fixture()} />
+        <VideoToolbar />
+        <VideoExportDialog />
+      </VideoEditorProvider>,
+    );
+    await eventually(
+      () => expect(exportTool(view).getAttribute("aria-disabled")).toBeNull(),
+      WORK_WAIT,
+    );
+    await press(exportTool(view));
+    const dialog = dialogOf(view);
+    await eventually(() => expect(dialog.open).toBe(true));
+    await eventually(() =>
+      expect(dialog.textContent).toContain("Also written, as you set it: title."),
+    );
+    expect(dialog.textContent).toContain("The date isn't written");
+  });
+
+  it("exports a file the SDK reads back, and hands it to a host's onExport", async () => {
+    const file = await fixture();
+    const exported: { blob: Blob; result: VideoExportResult }[] = [];
+    const view = mount(
+      <VideoEditorProvider>
+        <Insert file={file} />
+        <VideoToolbar />
+        <VideoExportDialog onExport={(blob, result) => exported.push({ blob, result })} />
+      </VideoEditorProvider>,
+    );
+    await eventually(
+      () => expect(exportTool(view).getAttribute("aria-disabled")).toBeNull(),
+      WORK_WAIT,
+    );
+    await press(exportTool(view));
+    await press(button(view, "Export") as HTMLButtonElement);
+    await eventually(() => expect(exported).toHaveLength(1), WORK_WAIT);
+    // The dialog closes once a host takes the file.
+    await eventually(() => expect(dialogOf(view).open).toBe(false));
+    const [{ blob, result }] = exported as [{ blob: Blob; result: VideoExportResult }];
+    expect(result.size).toBe(blob.size);
+    expect(blob.type).toContain(result.container);
+    const engine = createVideoEngine({ startTimeout: DEV_WORKER_START_TIMEOUT });
+    try {
+      const probe = await engine.probe(blob);
+      expect(probe.duration).toBeGreaterThan(1_900_000);
+      expect(probe.duration).toBeLessThan(2_100_000);
+    } finally {
+      await engine.destroy();
+    }
+  });
+
+  it("offers the file for download, focused, and says it's ready; Done closes it fresh", async () => {
+    const { view } = await editor();
+    await press(exportTool(view));
+    await press(button(view, "Export") as HTMLButtonElement);
+    const download = await eventually(() => {
+      const found = button(view, "Download");
+      expect(found).toBeDefined();
+      return found as HTMLButtonElement;
+    }, WORK_WAIT);
+    await eventually(() => expect(document.activeElement).toBe(download));
+    expect(dialogOf(view).textContent).toMatch(/Your (MP4|WebM) video is ready: /);
+    await eventually(() => expect(announced(view)).toMatch(/video is ready/));
+    expect(button(view, "Close")).toBeUndefined();
+    await press(button(view, "Done") as HTMLButtonElement);
+    await eventually(() => expect(dialogOf(view).open).toBe(false));
+    // Reopened, it's back at its summary.
+    await press(exportTool(view));
+    await eventually(() => expect(button(view, "Export")).toBeDefined(), WORK_WAIT);
+    expect(button(view, "Download")).toBeUndefined();
+  });
+
+  it("downloads under the editor's fileName, or else the title, cleaned, with the container's extension", async () => {
+    // The link's click is the download: record the name instead of saving.
+    const names: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      names.push(this.download);
+    });
+    try {
+      const handle = createRef<VideoEditorHandle>();
+      const view = mount(
+        <VideoEditor
+          ref={handle}
+          fileName={"Holiday/day 1.mov"}
+          initialFiles={[await fixture()]}
+        />,
+      );
+      await eventually(
+        () => expect(exportTool(view).getAttribute("aria-disabled")).toBeNull(),
+        WORK_WAIT,
+      );
+      await press(exportTool(view));
+      await press(button(view, "Export") as HTMLButtonElement);
+      const download = await eventually(() => {
+        const found = button(view, "Download");
+        expect(found).toBeDefined();
+        return found as HTMLButtonElement;
+      }, WORK_WAIT);
+      await press(download);
+      expect(names).toHaveLength(1);
+      // The last path segment, without the host's video extension.
+      expect(names[0]).toMatch(/^day 1\.(mp4|webm)$/);
+    } finally {
+      click.mockRestore();
+    }
+  });
+
+  it("reports a download when Download hands the file over, not when the file is ready", async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    try {
+      const events: VideoSessionEvent[] = [];
+      const view = mount(
+        <VideoEditor initialFiles={[await fixture()]} onEvent={(event) => events.push(event)} />,
+      );
+      await eventually(
+        () => expect(exportTool(view).getAttribute("aria-disabled")).toBeNull(),
+        WORK_WAIT,
+      );
+      await press(exportTool(view));
+      await press(button(view, "Export") as HTMLButtonElement);
+      const download = await eventually(() => {
+        const found = button(view, "Download");
+        expect(found).toBeDefined();
+        return found as HTMLButtonElement;
+      }, WORK_WAIT);
+      // Ready isn't saved: export is reported, and no download yet.
+      expect(events.filter((event) => event.type === "export")).toEqual([
+        { type: "export", outcome: "done", commands: [] },
+      ]);
+      expect(events.some((event) => event.type === "download")).toBe(false);
+      await press(download);
+      expect(events.filter((event) => event.type === "download")).toEqual([
+        { type: "download", outcome: "done", commands: [] },
+      ]);
+      expect(events.at(-1)?.type).toBe("download");
+    } finally {
+      click.mockRestore();
+    }
+  });
+
+  it("hands the file to the editor's onExport instead of a download, and closes", async () => {
+    const clicks: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      clicks.push(this.download);
+    });
+    try {
+      const exported: { blob: Blob; result: VideoExportResult }[] = [];
+      const events: VideoSessionEvent[] = [];
+      const view = mount(
+        <VideoEditor
+          initialFiles={[await fixture()]}
+          onExport={(blob, result) => exported.push({ blob, result })}
+          onEvent={(event) => events.push(event)}
+        />,
+      );
+      await eventually(
+        () => expect(exportTool(view).getAttribute("aria-disabled")).toBeNull(),
+        WORK_WAIT,
+      );
+      await press(exportTool(view));
+      await press(button(view, "Export") as HTMLButtonElement);
+      await eventually(() => expect(exported).toHaveLength(1), WORK_WAIT);
+      const [only] = exported;
+      expect(only?.result.size).toBe(only?.blob.size);
+      expect(only?.result.size).toBeGreaterThan(0);
+      expect(["mp4", "webm"]).toContain(only?.result.container);
+      // The host has the file: no download, and the dialog closes.
+      await eventually(() => expect(dialogOf(view).open).toBe(false));
+      expect(button(view, "Download")).toBeUndefined();
+      expect(clicks).toEqual([]);
+      // The host saves the file: the editor reports no download.
+      expect(events.some((event) => event.type === "download")).toBe(false);
+    } finally {
+      click.mockRestore();
+    }
+  });
+
+  it("downloads under the video's title when the editor has no fileName", async () => {
+    const names: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      names.push(this.download);
+    });
+    try {
+      const { view } = await editor();
+      // The title, from the inspector's details, with no clip selected.
+      const clip = view.querySelector('[role="option"]') as HTMLElement;
+      if (clip.getAttribute("aria-selected") === "true") {
+        await userEvent.keyboard("{Control>}");
+        await press(clip);
+        await userEvent.keyboard("{/Control}");
+      }
+      const title = await eventually(() => {
+        const label = [...view.querySelectorAll("label")].find(
+          (each) => each.textContent === "Title",
+        );
+        const field =
+          label && (view.querySelector(`#${CSS.escape(label.htmlFor)}`) as HTMLInputElement);
+        expect(field).toBeTruthy();
+        return field as HTMLInputElement;
+      });
+      await press(title);
+      await userEvent.keyboard("Take 1{Enter}");
+      await press(exportTool(view));
+      await press(button(view, "Export") as HTMLButtonElement);
+      const download = await eventually(() => {
+        const found = button(view, "Download");
+        expect(found).toBeDefined();
+        return found as HTMLButtonElement;
+      }, WORK_WAIT);
+      await press(download);
+      expect(names[0]).toMatch(/^Take 1\.(mp4|webm)$/);
+    } finally {
+      click.mockRestore();
+    }
+  });
+
+  it("says when the sound was louder than a file holds, and by how much", async () => {
+    const { view } = await editor();
+    // +24 dB on the clip, from the inspector's exact volume field.
+    await press(view.querySelector('[role="option"]') as HTMLElement);
+    const label = await eventually(() => {
+      const found = [...view.querySelectorAll("label")].find(
+        (each) => each.textContent === "Volume in decibels",
+      );
+      expect(found).toBeDefined();
+      return found as HTMLLabelElement;
+    });
+    const field = view.querySelector(`#${CSS.escape(label.htmlFor)}`) as HTMLInputElement;
+    await userEvent.clear(field);
+    await userEvent.type(field, "24{Enter}");
+    await press(exportTool(view));
+    await press(button(view, "Export") as HTMLButtonElement);
+    await eventually(() => expect(button(view, "Download")).toBeDefined(), WORK_WAIT);
+    const note = [...dialogOf(view).querySelectorAll('[role="status"]')]
+      .map((each) => each.textContent)
+      .join(" ");
+    expect(note).toMatch(/louder than a file can hold, by up to \d+(\.\d)? dB/);
+  });
+
+  it("offers an export without sound when the browser can't encode sound, and says so before and after", async () => {
+    const jobs: VideoExportJob[] = [];
+    // A host's processor in a browser that can encode pictures but not sound.
+    const processor: VideoProcessor = {
+      async export(job) {
+        jobs.push(job);
+        if (job.audio !== "omit") {
+          throw new VideoError("UNSUPPORTED_CODEC", "No sound encoder.", {
+            details: { codec: "AudioEncoder", track: "audio" },
+          });
+        }
+        const blob = new Blob(["picture only"], { type: "video/mp4" });
+        return {
+          blob,
+          container: "mp4",
+          size: blob.size,
+          peakDb: Number.NEGATIVE_INFINITY,
+          clippedFrames: 0,
+        };
+      },
+      async destroy() {},
+    };
+    const view = mount(<VideoEditor processor={processor} initialFiles={[await fixture()]} />);
+    await eventually(
+      () => expect(exportTool(view).getAttribute("aria-disabled")).toBeNull(),
+      WORK_WAIT,
+    );
+    await press(exportTool(view));
+    await press(button(view, "Export") as HTMLButtonElement);
+    const alert = await eventually(() => {
+      const found = dialogOf(view).querySelector('[role="alert"]');
+      expect(found?.textContent).toContain("can't save this video's sound");
+      return found as HTMLElement;
+    }, WORK_WAIT);
+    expect(alert.textContent).toContain("export it without sound");
+    // The way on is said in its own button, not the plain Export.
+    expect(button(view, "Export")).toBeUndefined();
+    await press(button(view, "Export without sound") as HTMLButtonElement);
+    await eventually(() => expect(button(view, "Download")).toBeDefined(), WORK_WAIT);
+    expect(jobs.map((job) => job.audio)).toEqual([undefined, "omit"]);
+    // Reopened, it starts over, with the sound.
+    await press(button(view, "Done") as HTMLButtonElement);
+    await eventually(() => expect(dialogOf(view).open).toBe(false));
+    await press(exportTool(view));
+    await eventually(() => expect(button(view, "Export")).toBeDefined(), WORK_WAIT);
+    expect(dialogOf(view).textContent).not.toContain("No sound");
+  });
+
+  it("stops an export, says so, and keeps the dialog open at its summary", async () => {
+    const { view } = await editor();
+    await press(exportTool(view));
+    await press(button(view, "Export") as HTMLButtonElement);
+    const stop = await eventually(() => {
+      const found = button(view, "Stop");
+      expect(found).toBeDefined();
+      return found as HTMLButtonElement;
+    }, WORK_WAIT);
+    await press(stop);
+    await eventually(() => expect(button(view, "Export")).toBeDefined(), WORK_WAIT);
+    await eventually(() => expect(announced(view)).toContain("Export stopped."));
+    expect(dialogOf(view).open).toBe(true);
+    expect(view.querySelector('dialog [role="alert"]')).toBeNull();
+  });
+
+  it("drops an export it no longer owns when it's closed while exporting", async () => {
+    const file = await fixture();
+    const exported: Blob[] = [];
+    const view = mount(
+      <VideoEditorProvider>
+        <Insert file={file} />
+        <VideoToolbar />
+        <VideoExportDialog onExport={(blob) => exported.push(blob)} />
+      </VideoEditorProvider>,
+    );
+    await eventually(
+      () => expect(exportTool(view).getAttribute("aria-disabled")).toBeNull(),
+      WORK_WAIT,
+    );
+    await press(exportTool(view));
+    await press(button(view, "Export") as HTMLButtonElement);
+    await eventually(() => expect(button(view, "Stop")).toBeDefined());
+    // Escape closes it, which stops the export it started.
+    await userEvent.keyboard("{Escape}");
+    await eventually(() => expect(dialogOf(view).open).toBe(false));
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    expect(exported).toEqual([]);
+    expect(announced(view)).not.toMatch(/ready|stopped/);
+    // It reopens at its summary, and exports again.
+    await press(exportTool(view));
+    await press(button(view, "Export") as HTMLButtonElement);
+    await eventually(() => expect(exported).toHaveLength(1), WORK_WAIT);
+  });
+});

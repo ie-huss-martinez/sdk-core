@@ -1,0 +1,135 @@
+{
+  "name": "@hussmartinez/video-sdk",
+  "version": "0.10.4",
+  "description": "Client-side video SDK: a headless core, a React editor and a custom element. Videos never leave the device.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ie-huss-martinez/video-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ie-huss-martinez/video-sdk/issues"
+  },
+  "homepage": "https://github.com/ie-huss-martinez/video-sdk#readme",
+  "keywords": [
+    "video",
+    "video-editor",
+    "webcodecs",
+    "react",
+    "web-component",
+    "client-side"
+  ],
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    },
+    "./element": {
+      "types": "./dist/element.d.ts",
+      "default": "./dist/element.js"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./formats/*": "./formats/*",
+    "./package.json": "./package.json"
+  },
+  "imports": {
+    "#hm-video-media-worker": {
+      "hm-self-hosted": "./dist/lazy/no-inline-workers.js",
+      "default": "./dist/lazy/inline-media-worker.js"
+    },
+    "#hm-video-export-worker": {
+      "hm-self-hosted": "./dist/lazy/no-inline-workers.js",
+      "default": "./dist/lazy/inline-export-worker.js"
+    }
+  },
+  "files": [
+    "dist",
+    "formats",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "lint:css": "stylelint \"**/*.css\" --allow-empty-input",
+    "lint:deps": "hm-lint-deps src",
+    "lint:react": "hm-lint-react",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "build": "vite build && pnpm check:api",
+    "test": "vitest run --project unit",
+    "test:browser": "hm-in-image vitest run --project browser",
+    "test:browser:all": "hm-in-image vitest run --project browser --mode all-browsers",
+    "build:examples": "pnpm --filter @hussmartinez/video-sdk-example-vite build && pnpm --filter @hussmartinez/video-sdk-example-next build",
+    "test:e2e": "pnpm --filter @hussmartinez/video-sdk-e2e test:e2e",
+    "test:visual": "hm-test-visual",
+    "test:visual:update": "hm-test-visual --update",
+    "check:bundled-engines": "hm-check-bundled-engines",
+    "conformance:update": "vitest run --project unit test/conformance --update",
+    "check:size": "size-limit",
+    "check:api": "tsc -p tsconfig.build.json && api-extractor run && api-extractor run -c api-extractor.react.json && api-extractor run -c api-extractor.element.json && hm-check-api-reports --main api/video-sdk.api.md --types dist/index.d.ts api/video-sdk-react.api.md api/video-sdk-element.api.md",
+    "check:package": "publint run --pack pnpm --strict && attw --pack . --profile esm-only --exclude-entrypoints ./styles.css",
+    "api:update": "tsc -p tsconfig.build.json && api-extractor run --local && api-extractor run -c api-extractor.react.json --local && api-extractor run -c api-extractor.element.json --local && hm-check-api-reports --main api/video-sdk.api.md --types dist/index.d.ts api/video-sdk-react.api.md api/video-sdk-element.api.md",
+    "verify": "pnpm lint:css && pnpm lint:react && pnpm typecheck && pnpm lint:deps && pnpm check:bundled-engines && pnpm build && pnpm test && pnpm test:browser && pnpm build:examples && pnpm test:e2e && pnpm test:visual && pnpm check:size && pnpm check:api && pnpm check:package",
+    "verify:fast": "pnpm typecheck && pnpm test && pnpm lint:deps && pnpm check:api"
+  },
+  "dependencies": {
+    "@hussmartinez/sdk-core": "workspace:^",
+    "@hussmartinez/ui": "workspace:^"
+  },
+  "peerDependencies": {
+    "react": ">=18.3",
+    "react-dom": ">=18.3"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "catalog:",
+    "@biomejs/biome": "catalog:",
+    "@changesets/changelog-github": "catalog:",
+    "@changesets/cli": "catalog:",
+    "@commitlint/cli": "catalog:",
+    "@hussmartinez/sdk-config": "workspace:^",
+    "@microsoft/api-extractor": "catalog:",
+    "@size-limit/esbuild": "catalog:",
+    "@size-limit/file": "catalog:",
+    "@types/node": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "ajv": "catalog:",
+    "axe-core": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "dependency-cruiser": "catalog:",
+    "esbuild": "catalog:",
+    "eslint": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
+    "fast-check": "catalog:",
+    "husky": "catalog:",
+    "lint-staged": "catalog:",
+    "mediabunny": "catalog:",
+    "playwright": "catalog:",
+    "publint": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "secretlint": "catalog:",
+    "size-limit": "catalog:",
+    "stylelint": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

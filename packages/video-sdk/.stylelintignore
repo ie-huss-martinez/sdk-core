@@ -1,0 +1,9 @@
+# Build output the sdk-config stylelint preset doesn't ignore yet; it covers
+# dist, temp, coverage, storybook-static and node_modules. The examples'
+# builds can contain CSS with the token values inlined.
+**/.next/**
+**/dist-server/**
+# The examples' own CSS is a host page's, around the editor, not the SDK's:
+# the family's token and scope rules are for the SDK's stylesheet.
+examples/*/src/**/*.css
+examples/*/app/**/*.css

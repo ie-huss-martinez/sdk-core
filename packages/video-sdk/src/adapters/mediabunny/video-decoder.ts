@@ -1,0 +1,338 @@
+import { type EncodedPacket, EncodedPacketSink, type InputVideoTrack } from "mediabunny";
+import { abortError } from "../../core/errors/error-helpers.js";
+import { isVideoError, VideoError } from "../../core/errors/video-error.js";
+import { CODED_PADDING } from "../../core/model/probe-limits.js";
+import { boundedFlush } from "../bounded-flush.js";
+
+/** The most packets waiting in the decoder's own queue (docs/adr/0002). */
+export const MAX_DECODE_QUEUE = 8;
+/**
+ * The most packets the decoder's queue may grow to while the decoder holds
+ * them without output (docs/adr/0002). Firefox decodes VP8 on several threads
+ * at once and outputs nothing until about as many packets as it has threads
+ * are in flight, which can be more than {@link MAX_DECODE_QUEUE}.
+ */
+export const MAX_STALLED_DECODE_QUEUE = 32;
+/** How long a full queue may go without output before the decoder is given one more packet, in milliseconds. */
+export const STALL_TIMEOUT = 50;
+
+/**
+ * Counts the `VideoFrame`s this worker's decoders have output and not yet
+ * closed, the deepest the decoder's queue has been, and how many times a
+ * stalled decoder was given one more packet, for the tests that prove every
+ * frame is closed on every path and the queue grows only on a stall
+ * (docs/adr/0002).
+ *
+ * @internal
+ */
+export const videoFrameLedger = { open: 0, peakDecodeQueue: 0, stalls: 0 };
+
+/**
+ * What a decoded frame must stay within: the probe's coded size and the
+ * track's walked timestamps, in microseconds (docs/adr/0001).
+ */
+export interface FrameBounds {
+  readonly codedWidth: number;
+  readonly codedHeight: number;
+  readonly firstTimestamp: number;
+  readonly lastTimestamp: number;
+}
+
+/** Which frames to decode, by presentation time in microseconds. */
+export interface FrameRange {
+  /** The first timestamp to deliver, inclusive. */
+  readonly from: number;
+  /** The timestamp to stop before, exclusive. */
+  readonly to: number;
+  /**
+   * Where decoding starts: at the key packet at or before this timestamp.
+   * Defaults to `from`. A seek decodes from the key packet before its
+   * target, and delivers frames before it too, to find the one shown there.
+   */
+  readonly keyFrom?: number;
+  /** Stop after delivering this many frames. */
+  readonly limit?: number;
+}
+
+/**
+ * Decodes the frames of `range` from a video track with WebCodecs, in the
+ * worker, and lends each one to `onFrame` in presentation order (docs/adr/0001,
+ * docs/adr/0002). Decoding starts at the key packet at or before
+ * `range.keyFrom`, or `range.from`.
+ *
+ * - **Bounded:** at most {@link MAX_DECODE_QUEUE} packets wait in the
+ *   decoder, with back-pressure on its `dequeue` event, and no packet is fed
+ *   while a decoded frame waits for `onFrame`: frames that come while the
+ *   loop waits for room are drained first, since nothing else takes them. A
+ *   decoder that holds a full queue without output gets one more packet at a
+ *   time, up to {@link MAX_STALLED_DECODE_QUEUE}, so one that needs more
+ *   packets in flight than that bound can't deadlock. One that still holds
+ *   them all without output fails with `DECODE_FAILED` and
+ *   `details.reason: "stalled"`. So does a flush that gives back nothing for
+ *   `FLUSH_STALL_TIMEOUT`, as from a decoder that stopped altogether; frames
+ *   are lent to `onFrame` as the flush gives them, and the time `onFrame`
+ *   holds one isn't counted as the decoder's silence.
+ * - **Borrowed frames:** a frame is closed as soon as `onFrame` settles, so
+ *   every frame is closed in one place. `onFrame` clones a frame to keep it,
+ *   and then owns the clone.
+ * - **Checked:** a frame whose visible picture is larger than `bounds`, whose
+ *   coded size exceeds them by more than {@link CODED_PADDING}, or whose
+ *   timestamp is outside the track's walked range, closes everything and
+ *   fails with `INVALID_VIDEO`. Frames
+ *   outside `range` are closed without being delivered.
+ * - **Closed on every path:** on success, failure, a consumer that throws, or
+ *   cancellation, every frame waiting is closed, and so is the decoder.
+ *
+ * Throws `VideoError`: `DECODE_FAILED` with `details.codec` when the browser
+ * fails to decode, and `details.reason: "stalled"` when it stops producing
+ * frames, `INVALID_VIDEO` for a frame out of bounds, and `ABORTED`
+ * or the abort reason's code when cancelled. Whatever `onFrame` throws is
+ * passed on as it is. Resolves with the number of frames delivered.
+ *
+ * @internal
+ */
+export async function decodeVideoFrames(
+  track: InputVideoTrack,
+  config: VideoDecoderConfig,
+  bounds: FrameBounds,
+  range: FrameRange,
+  onFrame: (frame: VideoFrame) => void | Promise<void>,
+  signal?: AbortSignal,
+): Promise<number> {
+  const limit = range.limit ?? Number.POSITIVE_INFINITY;
+  /** Set once the call settles; any output after it is closed at once. */
+  let finished = false;
+  const waiting: VideoFrame[] = [];
+  let failure: unknown;
+  /** What the consumer threw, which is passed on as it is. */
+  let consumerFailure: unknown;
+  let delivered = 0;
+  /** When the decoder last gave back a frame, or the consumer last let one go. */
+  let heard = performance.now();
+  /** Whether the consumer has a frame: the decoder may then rightly wait for it. */
+  let consuming = false;
+  let wake: (() => void) | undefined;
+  const notify = () => {
+    const resolve = wake;
+    wake = undefined;
+    resolve?.();
+  };
+  const close = (frame: VideoFrame) => {
+    frame.close();
+    videoFrameLedger.open -= 1;
+  };
+
+  const decoder = new VideoDecoder({
+    output(frame) {
+      // Firefox can run an output task it queued before close(): nothing
+      // would take this one, so it's closed here.
+      if (finished) return frame.close();
+      videoFrameLedger.open += 1;
+      heard = performance.now();
+      waiting.push(frame);
+      notify();
+    },
+    error(error) {
+      failure ??= new VideoError("DECODE_FAILED", "The browser couldn't decode the video track.", {
+        details: { codec: config.codec },
+        cause: error,
+      });
+      notify();
+    },
+  });
+  decoder.addEventListener("dequeue", notify);
+  signal?.addEventListener("abort", notify);
+
+  const check = () => {
+    if (signal?.aborted) throw abortError(signal);
+    if (failure !== undefined) throw failure;
+  };
+  /**
+   * Waits for the decoder, cancellation or a failure, unless `ready` already
+   * holds. When nothing happens for {@link STALL_TIMEOUT}, `onStall` is
+   * called, and may make `ready` hold.
+   */
+  const until = async (ready: () => boolean, onStall?: () => void) => {
+    while (!ready()) {
+      check();
+      let stalled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await new Promise<void>((resolve) => {
+        wake = resolve;
+        if (ready() || signal?.aborted || failure !== undefined) return notify();
+        if (onStall) {
+          timer = setTimeout(() => {
+            stalled = true;
+            notify();
+          }, STALL_TIMEOUT);
+        }
+      });
+      clearTimeout(timer);
+      if (stalled) onStall?.();
+    }
+    check();
+  };
+  /**
+   * How many packets may wait in the decoder. A decoder that holds a full
+   * queue without output, with no frame waiting for the consumer, needs more
+   * packets before it can output one: it gets one more at a time, up to
+   * {@link MAX_STALLED_DECODE_QUEUE}.
+   */
+  let queueLimit = MAX_DECODE_QUEUE;
+  const onStall = () => {
+    if (waiting.length > 0 || decoder.decodeQueueSize < queueLimit) return;
+    if (queueLimit >= MAX_STALLED_DECODE_QUEUE) {
+      throw new VideoError(
+        "DECODE_FAILED",
+        "The browser's decoder stopped producing frames for the video track.",
+        { details: { codec: config.codec, reason: "stalled" } },
+      );
+    }
+    queueLimit += 1;
+    videoFrameLedger.stalls += 1;
+  };
+  /** Lends every waiting frame to the consumer, in order. */
+  const drain = async () => {
+    while (waiting.length > 0) {
+      const frame = waiting.shift() as VideoFrame;
+      try {
+        const visible = frame.visibleRect;
+        const width = visible?.width ?? frame.codedWidth;
+        const height = visible?.height ?? frame.codedHeight;
+        if (
+          width > bounds.codedWidth ||
+          height > bounds.codedHeight ||
+          frame.codedWidth > bounds.codedWidth + CODED_PADDING ||
+          frame.codedHeight > bounds.codedHeight + CODED_PADDING
+        ) {
+          throw new VideoError(
+            "INVALID_VIDEO",
+            "A decoded frame is larger than the probe allows.",
+            {
+              details: { reason: "frame-size" },
+            },
+          );
+        }
+        if (frame.timestamp < bounds.firstTimestamp || frame.timestamp > bounds.lastTimestamp) {
+          throw new VideoError(
+            "INVALID_VIDEO",
+            "A decoded frame is outside the track's timestamps.",
+            {
+              details: { reason: "frame-timestamp" },
+            },
+          );
+        }
+        if (frame.timestamp >= range.from && frame.timestamp < range.to && delivered < limit) {
+          delivered += 1;
+          consuming = true;
+          try {
+            await onFrame(frame);
+          } catch (error) {
+            consumerFailure = error;
+            throw error;
+          } finally {
+            consuming = false;
+            heard = performance.now();
+          }
+        }
+      } finally {
+        close(frame);
+      }
+      check();
+    }
+  };
+
+  try {
+    configure(decoder, config);
+    const sink = new EncodedPacketSink(track);
+    const start =
+      (await sink.getKeyPacket((range.keyFrom ?? range.from) / 1_000_000)) ??
+      (await sink.getFirstPacket());
+    let packet: EncodedPacket | null = start;
+    while (packet !== null && delivered < limit) {
+      check();
+      // Packets after the range can't hold frames in it, once the decoder
+      // has seen a key packet past its end.
+      if (packet.type === "key" && packet !== start && packet.microsecondTimestamp >= range.to)
+        break;
+      // Room for one more packet. Output that came meanwhile, as while the
+      // next packet was read, is drained first: the wait can't take it, and
+      // would never end with it waiting.
+      await drain();
+      while (delivered < limit && decoder.decodeQueueSize >= queueLimit) {
+        await until(() => waiting.length > 0 || decoder.decodeQueueSize < queueLimit, onStall);
+        await drain();
+      }
+      // A drain can deliver the last frame wanted: nothing more is fed.
+      if (delivered >= limit) break;
+      decoder.decode(packet.toEncodedVideoChunk());
+      videoFrameLedger.peakDecodeQueue = Math.max(
+        videoFrameLedger.peakDecodeQueue,
+        decoder.decodeQueueSize,
+      );
+      await drain();
+      packet = await sink.getNextPacket(packet);
+    }
+    if (delivered < limit) {
+      // The flush, bounded: a decoder that stopped would leave it pending.
+      // Frames are lent to the consumer as they come, since a decoder may
+      // wait for its frames back before it outputs more; and the time the
+      // consumer holds one, as playback does until the frame's time, isn't
+      // the decoder's silence.
+      let flushed = false;
+      heard = performance.now();
+      const flushing = boundedFlush(
+        decoder,
+        () => (consuming ? performance.now() : heard),
+        () =>
+          new VideoError(
+            "DECODE_FAILED",
+            "The browser's decoder stopped producing frames for the video track.",
+            { details: { codec: config.codec, reason: "stalled" } },
+          ),
+      ).finally(() => {
+        flushed = true;
+        notify();
+      });
+      flushing.catch(() => {});
+      while (!flushed) {
+        await until(() => flushed || waiting.length > 0);
+        await drain();
+      }
+      await flushing;
+      await drain();
+    }
+    check();
+    return delivered;
+  } catch (error) {
+    if (isVideoError(error) || (consumerFailure !== undefined && error === consumerFailure)) {
+      throw error;
+    }
+    if (failure !== undefined) throw failure;
+    if (signal?.aborted) throw abortError(signal);
+    throw new VideoError("DECODE_FAILED", "The browser couldn't decode the video track.", {
+      details: { codec: config.codec },
+      cause: error,
+    });
+  } finally {
+    finished = true;
+    signal?.removeEventListener("abort", notify);
+    for (const frame of waiting.splice(0)) close(frame);
+    if (decoder.state !== "closed") decoder.close();
+  }
+}
+
+function configure(decoder: VideoDecoder, config: VideoDecoderConfig): void {
+  try {
+    decoder.configure(config);
+  } catch (cause) {
+    throw new VideoError(
+      "DECODE_FAILED",
+      "The browser couldn't set up a decoder for the video track.",
+      {
+        details: { codec: config.codec },
+        cause,
+      },
+    );
+  }
+}

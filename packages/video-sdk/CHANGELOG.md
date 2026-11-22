@@ -1,0 +1,357 @@
+# @hussmartinez/video-sdk
+
+## 0.10.4
+
+### Patch Changes
+
+- [#159](https://github.com/ie-huss-martinez/video-sdk/pull/159) [`db50aec`](https://github.com/ie-huss-martinez/video-sdk/commit/db50aec086a4b1925b37704d63ac2b780eb0c3f5) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The editor no longer writes refs while rendering, which React's concurrent rendering doesn't allow for. `VideoEditorProvider` keeps the host's latest `onEvent`, and its export processor, with `useLatest` from `@hussmartinez/ui`, which updates them as React commits. `VideoToolbar` registers its file picker with the editor through a function. Nothing changes for users.
+
+## 0.10.3
+
+### Patch Changes
+
+- [#157](https://github.com/ie-huss-martinez/video-sdk/pull/157) [`a0afd8c`](https://github.com/ie-huss-martinez/video-sdk/commit/a0afd8cf0ff4ea9a72c732678149d8d18ada95ea) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Some editor state now resets while the editor renders, instead of in an effect after the screen has updated:
+  
+  - `VideoInspector` drops a volume gesture's value in the same update as an undo or another change to the volume, so the old value no longer shows for a frame.
+  - `VideoExportDialog` resets as it opens and closes. Closing drops a finished export's file, so a closed dialog keeps no video in memory. Opening starts fresh.
+  - `VideoStage` tells from the engine and the browser whether the preview is available, before it creates a canvas. If creating the preview still fails, it shows the same notice as before.
+
+## 0.10.2
+
+### Patch Changes
+
+- [#155](https://github.com/ie-huss-martinez/video-sdk/pull/155) [`84efa56`](https://github.com/ie-huss-martinez/video-sdk/commit/84efa56c00c5c6107f8414b7097a11ad75d6e282) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `VideoTimeline` no longer recomputes its waveform layout and re-checks the clip selection on every render while no video is open. Nothing visible changes.
+
+## 0.10.1
+
+### Patch Changes
+
+- [#149](https://github.com/ie-huss-martinez/video-sdk/pull/149) [`e6cb05e`](https://github.com/ie-huss-martinez/video-sdk/commit/e6cb05e7915c4818a94bd0f4ca085f661cfc9954) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Apps that self-host the workers can now leave the inlined copies out of their build, about 605 kB minified, with the `hm-self-hosted` resolve condition (sdk-core ADR 0060). It's opt-in: without it, nothing changes.
+  
+  ```ts
+  // vite.config.ts
+  import { defaultClientConditions } from "vite";
+  export default { resolve: { conditions: ["hm-self-hosted", ...defaultClientConditions] } };
+  ```
+  
+  With the condition, the package's `#hm-video-media-worker` and `#hm-video-export-worker` imports resolve to a small stub instead of the inlined workers, so pass `assetsUrl` to `VideoEditor`, `createVideoEngine` and `createVideoProcessor`. Without `assetsUrl`, starting a worker fails with `WORKER_START_FAILED` and `details: { condition: "hm-self-hosted", missing: "assetsUrl" }`. esbuild's `conditions` works too; the README lists the other bundlers.
+
+## 0.10.0
+
+### Minor Changes
+
+- [#147](https://github.com/ie-huss-martinez/video-sdk/pull/147) [`b243afa`](https://github.com/ie-huss-martinez/video-sdk/commit/b243afaf8c2a99c716b0be6abba4ff13ab4e2878) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The editor's interface text has left the server-safe entry, so a server or a headless app no longer ships it (sdk-core ADR 0059). Importing `videoMessages` now costs 1.6 kB instead of 3.5 kB, and the core entry is 2 kB smaller.
+  
+  - **`videoMessages`** (from `.`) now holds only what the headless API hands you to show: sdk-core's text, and errors' and warnings' text.
+  - **`videoEditorMessages`** is new, from `@hussmartinez/video-sdk/react`: the editor's whole catalogue, with `videoMessages`, `ui`'s text and the interface text. The editor, its components and `<hm-video-editor>` use it, so what they show doesn't change.
+  - **`VideoEditorMessageCatalogue`** is new, from `.`: its type, for typing overrides with `MessageOverrides<VideoEditorMessageCatalogue>`. `VideoEditorCatalogue`, `VideoEditorMessages` and `VideoEditorMessageOverrides` still work, deprecated, until the next breaking minor.
+  
+  **Migrating:** if you read interface text such as `transport.play` from `videoMessages`, or typed overrides of it with `VideoMessageCatalogue`, use `videoEditorMessages` and `VideoEditorMessageCatalogue` instead. Keys and their text are unchanged, and the editor's `messages` prop takes the same overrides as before. Server code, such as a React Server Component, can't read `videoEditorMessages`, because `./react` is a client entry: show the editor's text from client components, where the editor runs, or keep your own text for what a server renders. `videoMessages` stays server-safe for errors and warnings.
+
+## 0.9.2
+
+### Patch Changes
+
+- [#144](https://github.com/ie-huss-martinez/video-sdk/pull/144) [`88c58c7`](https://github.com/ie-huss-martinez/video-sdk/commit/88c58c7560ee454863b9988639316392ad916450) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `videoErrorText` and `videoWarningText` are deprecated. Call `messages.error(error)` and `messages.warning(warning)` on the catalogue's `Messages` instead: since `@hussmartinez/sdk-core` 0.4.6 they give the same text, an error's by its code and reason, and a warning's by its limit or type. Both functions keep working as one-line calls to them, so nothing you show changes.
+  
+  ```ts
+  const messages = createMessages(videoMessages, { locale: "en" });
+  showError(messages.error(error));           // was videoErrorText(messages, error)
+  show(messages.warning(snapshot.warnings[0])); // was videoWarningText(messages, warning)
+  ```
+
+## 0.9.1
+
+### Patch Changes
+
+- [#139](https://github.com/ie-huss-martinez/video-sdk/pull/139) [`3f74f3f`](https://github.com/ie-huss-martinez/video-sdk/commit/3f74f3f457604c8e94bc362c18a54314caf058f9) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Importing part of the core entry no longer brings the whole message catalogue into your bundle. A helper such as `frameTime` ships about 0.65 kB instead of 3.5 kB, and `createVideoSession` 7.7 kB instead of 10.6 kB, brotli-compressed with your bundler minifying. The catalogue, `videoMessages`, was built in a way some bundlers, such as esbuild, couldn't drop when unused. Nothing changes at run time.
+
+## 0.9.0
+
+### Minor Changes
+
+- [#137](https://github.com/ie-huss-martinez/video-sdk/pull/137) [`19d386d`](https://github.com/ie-huss-martinez/video-sdk/commit/19d386deb4629c23324f1b0751046b2921939536) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Requires `@hussmartinez/ui` 0.16.0 or later, the version the family's editors now share. ui 0.16.0 adds heading levels (`HeadingLevel`, `Heading`) for editors that sit in someone else's page. The video editor renders no headings, so nothing changes in what it shows, and it has no `headingLevel` prop. If your app also depends on `@hussmartinez/ui`, update it to ^0.16.0, so there's one copy.
+
+## 0.8.3
+
+### Patch Changes
+
+- [#133](https://github.com/ie-huss-martinez/video-sdk/pull/133) [`dc1d151`](https://github.com/ie-huss-martinez/video-sdk/commit/dc1d15179441acec13b635e309bcc733128564b8) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The name an export downloads under is now cleaned by `@hussmartinez/sdk-core`'s `cleanFileName`, which the family's editors share, instead of video-sdk's own copy of it. It also drops a lone surrogate, half of a character pair, as from a name cut mid-character, which no file system can store. Everything else about the name is as before. The package now needs `@hussmartinez/sdk-core` 0.4.7 or later; if your app depends on it too, update it to ^0.4.7, so there's one copy.
+  
+  With sdk-core 0.4.6 and later, the editor's `messages.error(error)` also finds an error's text by its reason, such as "That output size has … pixels" for an output over `maxFramePixels`, as `videoErrorText` already did. Before, it gave the code's general text.
+
+## 0.8.2
+
+### Patch Changes
+
+- [#131](https://github.com/ie-huss-martinez/video-sdk/pull/131) [`2c83be8`](https://github.com/ie-huss-martinez/video-sdk/commit/2c83be801d7c4d6493dd76c1f84af6364d4f7502) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The React entry now comes apart in your bundle: importing one part no longer brings the whole editor. A hook such as `useVideoSession` ships about 0.7 kB instead of 18.5 kB, and `VideoExportDialog` 6.5 kB, brotli-compressed with your bundler minifying. Calls at the top level of the package's modules, such as the tool definitions, `forwardRef` and `createContext`, are now marked side-effect free, so bundlers can drop what you don't use. Nothing changes at run time.
+
+## 0.8.1
+
+### Patch Changes
+
+- [#128](https://github.com/ie-huss-martinez/video-sdk/pull/128) [`c679130`](https://github.com/ie-huss-martinez/video-sdk/commit/c67913015b6dc4e5cf27ff0f0d2bf7e63c2bea89) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The transport's sound notices, "Sound is off: press play to turn it on." and "The sound couldn't be decoded, so the video plays without it.", are now announced to screen readers when they appear, through the editor's announcer, as the stage's notices are. Before, each was a live region that appeared together with its text, which many screen readers don't announce. They look the same.
+
+## 0.8.0
+
+### Minor Changes
+
+- [#126](https://github.com/ie-huss-martinez/video-sdk/pull/126) [`76e54b6`](https://github.com/ie-huss-martinez/video-sdk/commit/76e54b610e1fc2f02709098c24988258ebab392e) Thanks [@hussmartinez](https://github.com/hussmartinez)! - A new usage event tells you when the export dialog's Download hands the file to the browser. `export` comes when the file is ready, before anyone clicks Download, so a leave-page warning can't clear on it. The browser can still cancel or fail the save, so `download` marks the hand-off, not a confirmed save. The editor now sends `{ type: "download", outcome: "done", commands: [] }` to `onEvent`, and to `<hm-video-editor>`'s `hm-video-editor-event`, when Download hands the file to the browser. `VideoSessionEvent["type"]` gains `"download"`; if you switch on it, handle the new value. Like every usage event, it carries no file name or size. When you pass `onExport`, you save the file, so no `download` comes.
+
+## 0.7.2
+
+### Patch Changes
+
+- [#124](https://github.com/ie-huss-martinez/video-sdk/pull/124) [`a850298`](https://github.com/ie-huss-martinez/video-sdk/commit/a8502987828550c2e81e04bdbd4a6d1d743ee514) Thanks [@hussmartinez](https://github.com/hussmartinez)! - A video decoder that stops altogether no longer leaves playback, thumbnails or an export waiting forever at the end of a stretch of video. Its final flush now gives up after 2 seconds with no frame, with `DECODE_FAILED` and `details.reason: "stalled"`, and the decoder is closed. Frames are now handed on as the flush produces them. A slow consumer, such as playback holding a frame until its time, isn't mistaken for a stall.
+
+## 0.7.1
+
+### Patch Changes
+
+- [#122](https://github.com/ie-huss-martinez/video-sdk/pull/122) [`cbe7d7a`](https://github.com/ie-huss-martinez/video-sdk/commit/cbe7d7a60ee49de87a16d8e2738d58fbebeee27b) Thanks [@hussmartinez](https://github.com/hussmartinez)! - An export no longer waits on an encoder or decoder that stopped while the export checks what this browser can encode. The check's flushes now give up after 2 seconds without output, and the check then proves nothing: the export tries the next format, or fails with `UNSUPPORTED_CODEC` and `details.track` set to `"audio"` or `"video"`, so you can offer an export without sound. Before, such an export waited for its `maxProcessingTime` and failed with `PROCESSING_TIME_EXCEEDED`.
+  
+  Fixed in 0.7.0, though its changelog didn't mention it: decoding no longer deadlocks when the browser's decoder hands back several frames or chunks of sound while the next packet is read. Both the video and audio decoders now take that output before waiting for room. Before, playback, thumbnails or an export could wait forever.
+
+## 0.7.0
+
+### Minor Changes
+
+- [#119](https://github.com/ie-huss-martinez/video-sdk/pull/119) [`26149dc`](https://github.com/ie-huss-martinez/video-sdk/commit/26149dceb4e9786f1cc2cecff44eee9ca3bec360) Thanks [@hussmartinez](https://github.com/hussmartinez)! - A stalled audio decoder no longer freezes playback. Before, pressing play could leave the preview on its first frame, "playing" with no error, when the browser's audio decoder held packets or missed a `dequeue` event, as WebKit's sometimes did.
+  
+  - **Decoding:** the audio decoder now has the same stall guard as the video decoder. A stall gives it more packets, and one that stops for good fails with `DECODE_FAILED` and `details: { reason: "stalled", track: "audio" }`.
+  - **Playback goes on with the picture only** when the sound doesn't decode. `VideoOutputSnapshot.audio` has a new value, `"undecodable"`, and the editor's transport shows "The sound couldn't be decoded, so the video plays without it." The next `play()` tries the sound again. If you switch on `audio`, handle the new value.
+  - **Export fails instead:** an export whose sources' audio stalls rejects with that `DECODE_FAILED` error; it never writes a file without its sound. A stall while the export checks that the browser can encode AAC isn't bounded by this guard: the export's `maxProcessingTime` stops it, with `PROCESSING_TIME_EXCEEDED`.
+
+## 0.6.1
+
+### Patch Changes
+
+- [#117](https://github.com/ie-huss-martinez/video-sdk/pull/117) [`ce3f1fe`](https://github.com/ie-huss-martinez/video-sdk/commit/ce3f1fe1703a6d3cdc88d9c3bf9cf2bb9a3926a4) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `<hm-video-editor>`'s methods now run in the order you call them. Once the editor is ready, `open`, `insert`, `export` and `play` call it at once instead of a microtask later, so `editor.play(); editor.pause();` in one task ends paused, and an `open` or `insert` followed by `undo` acts in that order. Before the editor is ready they still wait for it, and reject with `ABORTED` if the element is removed first.
+
+## 0.6.0
+
+### Minor Changes
+
+- [#115](https://github.com/ie-huss-martinez/video-sdk/pull/115) [`488861f`](https://github.com/ie-huss-martinez/video-sdk/commit/488861f380772f0b3561539651c9454413c116b2) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The `<hm-video-editor>` custom element, for pages without React of their own. Import `defineVideoEditorElement` from `@hussmartinez/video-sdk/element` and call it once; importing registers nothing. It renders `VideoEditor` into its light DOM, so React and React DOM are still needed.
+  
+  - **Attributes:** `theme`, `locale` and `tools`.
+  - **Properties:** `file`, which opens a video in place of the plan when set (a failed open keeps the plan), plus `fileName`, `filePolicy`, `assetsUrl`, `messages`, `engine` and `processor`.
+  - **Methods:** `open`, `insert`, `export`, `undo`, `redo`, `play`, `pause` and `seek`. `open`, `insert` and `export` wait for the editor's first render, and `play` for its preview; they reject with `ABORTED` if the element is removed first, and `play` does nothing where the preview can't play. `undo` and `redo` return `false`, and `pause` and `seek` do nothing, before the first render.
+  - **Events:** `hm-video-editor-change` (the plan), `-event` (the usage event), `-export` (a `VideoExportReport`: container, size, peak and clamped frames, never the file) and `-error` (a failure's `code` and `details`). None carries a file name or contents.
+
+## 0.5.0
+
+### Minor Changes
+
+- [#111](https://github.com/ie-huss-martinez/video-sdk/pull/111) [`ef4529c`](https://github.com/ie-huss-martinez/video-sdk/commit/ef4529c87c589e3448c4c97a2a9430afce574a47) Thanks [@hussmartinez](https://github.com/hussmartinez)! - **Breaking, for TypeScript only:** the types `VideoEditorCatalogue`, `VideoEditorMessages` and `VideoEditorMessageOverrides` are now exported from the main entry, `@hussmartinez/video-sdk`, and no longer from `@hussmartinez/video-sdk/react`. Nothing changes at run time. Change your imports:
+  
+  ```ts
+  // Before
+  import type { VideoEditorMessageOverrides } from "@hussmartinez/video-sdk/react";
+  // After
+  import type { VideoEditorMessageOverrides } from "@hussmartinez/video-sdk";
+  ```
+  
+  They moved because the React editor and the coming `<hm-video-editor>` element both use them, and the family keeps types shared by several entry points in the main one.
+
+- [#113](https://github.com/ie-huss-martinez/video-sdk/pull/113) [`16f1493`](https://github.com/ie-huss-martinez/video-sdk/commit/16f14936c4bfaeb917522ac098c8972577b397e3) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `session.open(file)` and the editor handle's `open(file)` open a file in place of everything open: a new plan of all of it as one clip, whose output the file sets. The files open before are closed, and the history is cleared, so it can't be undone, as audio-sdk's `open` behaves. If the file fails, such as for a limit, the plan that was open stays, with its undo history. A newer `open` supersedes one still in progress. An `insert` still in progress when an `open` commits is rejected with `ABORTED` and `details.reason: "replaced"`, while one in flight during an open that fails or is cancelled still lands. Usage events gain the type `open`.
+
+### Patch Changes
+
+- [#114](https://github.com/ie-huss-martinez/video-sdk/pull/114) [`5c86100`](https://github.com/ie-huss-martinez/video-sdk/commit/5c8610029846224dc6fb4d4464e5a8401df92efd) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Requires `@hussmartinez/ui` 0.15.0 or later, the version the family's editors now share. Its `Slider` cancels a gesture with Escape, and the editor uses that. Pressing Escape while dragging the inspector's volume slider, or while holding an arrow key on it, puts the volume back where the gesture started, commits nothing, and stops playing the drag's preview. If your app also depends on `@hussmartinez/ui`, update it to ^0.15.0, so there's one copy.
+
+## 0.4.0
+
+### Minor Changes
+
+- [#92](https://github.com/ie-huss-martinez/video-sdk/pull/92) [`0038ac6`](https://github.com/ie-huss-martinez/video-sdk/commit/0038ac69062a5338701fb431a2a39e7134df9aa0) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `VideoEditor`'s ref handle has `export(options?)`, as the family's editors' handles do, for a host's own export button. It exports the plan as it is when it's called, through the editor's processor or the host's `processor`, without opening the dialog, and resolves with `{ blob, container, size, peakDb, clippedFrames }`. It takes `session.export`'s options: `container`, `quality`, `audio: "omit"`, `signal`, `onProgress` and `onWarning`. It never downloads anything, and doesn't call `onExport`, since the caller has the file.
+
+- [#97](https://github.com/ie-huss-martinez/video-sdk/pull/97) [`72d3eff`](https://github.com/ie-huss-martinez/video-sdk/commit/72d3eff32b2d1cccc628b747db45fa655e93def1) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Refusals that aren't about a file now say what was refused. Setting an output over a limit, such as a size over `maxFramePixels`, used to show the text for a video that's too large to open; an edit that would make the video longer than `maxDuration` said the video was too long to open. Now:
+  
+  - `checkOutput` throws with `details.reason: "output"`, and `checkPlanLength` with `details.reason: "plan-too-long"`, on the same codes as before.
+  - The catalogue has their text under `errors.<CODE>.<reason>`: `errors.FRAME_TOO_LARGE.output`, `errors.FRAME_RATE_TOO_HIGH.output`, `errors.TOO_MANY_CHANNELS.output`, `errors.SAMPLE_RATE_TOO_HIGH.output` and `errors.DURATION_TOO_LONG.plan-too-long`. Override them like any other message.
+  - New `videoErrorText(messages, error)` returns that text when the error has a reason the catalogue knows, and `messages.error(error)` otherwise. The editor's stage and export dialog use it. If you show the session's errors yourself, call it in place of `messages.error(error)`:
+  
+  ```ts
+  showError(videoErrorText(messages, error));
+  ```
+  
+  A file's own refusals carry no reason, and their text is unchanged.
+
+- [#102](https://github.com/ie-huss-martinez/video-sdk/pull/102) [`90255fb`](https://github.com/ie-huss-martinez/video-sdk/commit/90255fbf3c4c5b302d46311057cab75ad3d62efb) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The editor's timeline now shows each clip's sound as a waveform under the clips, at the clip's volume and fades, so a muted clip shows flat. The clips let it show through, each with a short title such as "Clip 2".
+  
+  For your own drawing:
+  
+  - **`session.getPeaks(source)`** returns a source's waveform peaks, the lowest and highest sample of each 10 ms. They're built in the background after a file is inserted, so the clip appears without waiting for them. Until they arrive it returns `undefined`, and when they do, the snapshot's new `peaksVersion` goes up. A source without sound never has peaks.
+  - **`peakColumns(peaks, { from, to, columns })`** turns peaks into one lowest and one highest sample per column, for a source's time from `from` to `to` in microseconds.
+
+### Patch Changes
+
+- [#96](https://github.com/ie-huss-martinez/video-sdk/pull/96) [`0385438`](https://github.com/ie-huss-martinez/video-sdk/commit/0385438c926d2713d862666ccdccb67d8864871e) Thanks [@hussmartinez](https://github.com/hussmartinez)! - When the sound stalls during playback, the picture now waits for it within about one frame, instead of running up to a quarter of a second ahead. The preview reads the audio clock more often, and corrects the picture as soon as the clock has moved by more than a frame. The correction no longer restarts decoding from a key frame, so the picture doesn't fall further behind while it catches up.
+
+- [#95](https://github.com/ie-huss-martinez/video-sdk/pull/95) [`d8ce000`](https://github.com/ie-huss-martinez/video-sdk/commit/d8ce000fa28fffd73f4fc7c090ec11c53a7137fd) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Playback no longer piles up frames in a browser that can't draw a `VideoFrame` directly and falls back to drawing through `ImageBitmap`s. If making bitmaps was slower than the video's frame rate, every frame still waiting to be drawn was kept open, so memory grew for as long as playback ran. Now at most one frame waits, and a newer one replaces it, as when frames arrive late. Nothing changes in your code.
+
+- [#99](https://github.com/ie-huss-martinez/video-sdk/pull/99) [`613b91d`](https://github.com/ie-huss-martinez/video-sdk/commit/613b91d3cb0cb4aed9637c41ffd9604b31f4fe13) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The video editor now says when playback fails. Before, when the browser couldn't decode or draw the video, playback paused silently: the stage stayed as it was and Play did nothing, with no message. Now the failure's text shows at the foot of the stage as an alert, looked up by its code like the editor's other errors, such as "This browser couldn't play part of this video." Pressing Play again clears it and tries again.
+
+- [#98](https://github.com/ie-huss-martinez/video-sdk/pull/98) [`0fb317c`](https://github.com/ie-huss-martinez/video-sdk/commit/0fb317cb5b9b7746442064ede4d6bdc401a83c0a) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The video editor now shows the session's warnings, which it computed but never showed. A video that is long or large, one whose sound this browser can't play, or a session using a lot of memory now gets a notice at the foot of the stage, above any error. There's one notice per kind of warning, so a long file and the long video it makes say it once. Each notice is announced to screen readers once and can be dismissed with its Dismiss button, and a dismissed kind doesn't come back, even after an undo and a redo. Two new messages name the area and the button: `stage.notices` and `stage.dismiss`. The text of each warning comes from `videoWarningText`, as before.
+
+- [#105](https://github.com/ie-huss-martinez/video-sdk/pull/105) [`236607d`](https://github.com/ie-huss-martinez/video-sdk/commit/236607d7d83e6b60795a894bbf1cb3d7c70a65b0) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Stopping an export in its first moment now stops it. The first export of a session loads its worker code first, and an export stopped or closed during that load, which takes longer on a busy device, used to start anyway and run to its end unseen. Meanwhile the next export failed with "A video is already being saved", for as long as the hidden one ran. Now an export stopped while its code loads never starts, `processor.export()` rejects it with `ABORTED`, and the next one runs at once.
+
+- [#100](https://github.com/ie-huss-martinez/video-sdk/pull/100) [`6c063ca`](https://github.com/ie-huss-martinez/video-sdk/commit/6c063ca0b907efe65834d28a283134c971dbf47d) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The editor's timeline is now built on `ui`'s `Timeline`, as audio-sdk's is, so both editors' timelines look and behave the same. The keys, the clips' names, trimming, snapping and zoom are unchanged. Two things differ:
+  
+  - **The playhead slider sits on the track,** as wide as it, instead of above it with a visible "Playhead" label. Screen readers still hear it as "Playhead", with the time.
+  - **The playhead goes to the end of the video,** one frame past the last, which is where playback stops.
+  
+  Nothing changes in your code.
+
+- [#101](https://github.com/ie-huss-martinez/video-sdk/pull/101) [`b7c5172`](https://github.com/ie-huss-martinez/video-sdk/commit/b7c5172edfee721e7e4f550fa39ac1c8558c341c) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Requires `@hussmartinez/ui` 0.14.1 or later. In the editor, the timeline's playhead now shows its whole focus ring when it has keyboard focus, which 0.14.0 cut off. If your app also depends on `@hussmartinez/ui`, update it to ^0.14.1, so there's one copy.
+
+- [#103](https://github.com/ie-huss-martinez/video-sdk/pull/103) [`8e87de4`](https://github.com/ie-huss-martinez/video-sdk/commit/8e87de4c47778cd942c10a93b511f445bf2a907d) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Requires `@hussmartinez/ui` 0.14.3 or later. Its announcer says every message sent in the same moment, such as a new warning and "Undone.", rather than only the last one, so the editor now leaves that to `ui`, and its "Undone." and "Redone." announcements end with a full stop, so they read as sentences when joined. In a right-to-left layout, `ui` 0.14.3 also mirrors the icons that point along time, such as the step and move arrows. If your app also depends on `@hussmartinez/ui`, update it to ^0.14.3, so there's one copy.
+
+- [#108](https://github.com/ie-huss-martinez/video-sdk/pull/108) [`b6fc808`](https://github.com/ie-huss-martinez/video-sdk/commit/b6fc808cf2cadf973fbe5db4a49ec5feb1fcc7f3) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Requires `@hussmartinez/ui` 0.14.4 or later, whose icons that point along time stay mirrored in a right-to-left layout after a bundler such as Vite lowers its CSS. In 0.14.3 they could point the wrong way there. If your app also depends on `@hussmartinez/ui`, update it to ^0.14.4, so there's one copy.
+
+## 0.3.1
+
+### Patch Changes
+
+- [#90](https://github.com/ie-huss-martinez/video-sdk/pull/90) [`1a07b29`](https://github.com/ie-huss-martinez/video-sdk/commit/1a07b29b39d9a558832c3abc0c212065dddc2c13) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The package now depends on `@hussmartinez/ui` ^0.14.0, up from ^0.11.0, so a host on ui 0.14 has one copy of it. An application that installs `@hussmartinez/ui` itself, for its stylesheet or its components, should move to 0.14 too. `@hussmartinez/sdk-core` stays at ^0.4.4.
+  
+  The inspector's volume slider now ends a gesture as ui's `Slider` does: when the pointer is let go, when the last key held is let go, or when focus leaves. Each press of an arrow key is its own undo step, and a key held down is one, instead of a run of presses being joined when they came within 400 ms of each other.
+
+## 0.3.0
+
+### Minor Changes
+
+- [#84](https://github.com/ie-huss-martinez/video-sdk/pull/84) [`a89b904`](https://github.com/ie-huss-martinez/video-sdk/commit/a89b9043c59145c8df727ca353717378c5ed0c41) Thanks [@hussmartinez](https://github.com/hussmartinez)! - A browser that can't decode or encode a video's sound no longer stops you editing it.
+  
+  - **A file whose sound this browser can't decode opens with its picture,** instead of failing with `UNSUPPORTED_CODEC`. Its `VideoSourceInfo` has `audio: null` and `unplayableAudio: { codec }`, and the session's warnings include `{ type: "audioUndecodable", source, codec }`, whose text says the video opened without sound. A browser without `AudioDecoder` in workers behaves the same way. A video codec it can't decode still fails, now with `details.track: "video"`.
+  - **An export needs an audio encoder only when the plan has sound.** Where the browser can't encode the sound, the export fails with `UNSUPPORTED_CODEC` and `details.track: "audio"`, instead of `UNSUPPORTED_ENVIRONMENT` or a failure naming the video. `VideoExportJob.audio` and `session.export`'s `audio` take `"omit"` to export without sound; sound is never left out otherwise. The export dialog says the browser can't save the sound and offers "Export without sound", with "No sound" in its summary.
+
+- [#82](https://github.com/ie-huss-martinez/video-sdk/pull/82) [`a13e086`](https://github.com/ie-huss-martinez/video-sdk/commit/a13e0861bc4245bdeb7398dc5b1bf19db5b4ba67) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `VideoEditor` takes `onExport(blob, result)`, as the family's editors do: it receives each export's file instead of the download, with `result.container` (`mp4` or `webm`) and `result.size`, so a host can upload it or save it its own way. The export dialog closes once it's called. `VideoExportDialog` already had it; the editor didn't pass it on.
+
+- [#83](https://github.com/ie-huss-martinez/video-sdk/pull/83) [`1708e42`](https://github.com/ie-huss-martinez/video-sdk/commit/1708e424b16c139272f6dca3a97bb5799c60e8b9) Thanks [@hussmartinez](https://github.com/hussmartinez)! - **Breaking.** Exports say what they did to the sound, and the session can export.
+  
+  - **`VideoProcessor.export` resolves with a result, not a `Blob`:** `{ blob, container, size, peakDb, clippedFrames }`. `peakDb` is the mix's peak before clamping, in decibels relative to full scale (above 0 means it was too loud, by that much; `-Infinity` for silence), and `clippedFrames` counts the sample frames that were over full scale. The same shape as `@hussmartinez/audio-sdk`'s. Migrate with `const { blob } = await processor.export(job)`.
+  - **The sound is clamped at full scale,** in playback and export alike, and a sample that isn't a number is silence. Before, a clip turned up past full scale was passed to the encoder over it. Nothing is limited or normalised: the export dialog says when the sound was clamped, and by how much.
+  - **`session.export(options)`** exports the plan as it is when the call starts, with `container`, `quality`, `signal`, `onProgress` and `onWarning`. `createVideoSession` takes a `processor` for it, such as `createVideoProcessor({ engine })`; without one, `export()` throws `TypeError`. An export emits an `export` event with its outcome.
+  - **The snapshot's `warnings` are objects,** `{ type: "limit", limit, actual, source? }`, not limit names: the value that came near the limit, and the source a file's own warning is about. `checkProbe` and `checkOutput` return them too, and `checkPlanLength` returns its warning or `undefined` instead of a boolean. Show their text with the new `videoWarningText(messages, warning)`. Migrate `warnings.includes("maxDuration")` to `warnings.some((w) => w.limit === "maxDuration")`.
+  - **`VideoExportResult` is now the core's,** exported from `@hussmartinez/video-sdk`, and is what `VideoEditor`'s and `VideoExportDialog`'s `onExport` receive as their second argument. `@hussmartinez/video-sdk/react` no longer exports its own `VideoExportResult`: import it from `@hussmartinez/video-sdk`.
+
+- [#80](https://github.com/ie-huss-martinez/video-sdk/pull/80) [`e041aa3`](https://github.com/ie-huss-martinez/video-sdk/commit/e041aa369a7c3ffeadfff858cc2505e1eb07c029) Thanks [@hussmartinez](https://github.com/hussmartinez)! - With no clip selected, the inspector shows the whole video's settings. "The exported video" sets the width and height in pixels, the frames per second (29.97 becomes the exact 30000/1001), the sound quality (44.1 or 48 kHz) and mono or stereo; a size or rate over your `filePolicy`'s limit is refused in the field, with the limit. "Details in the file" sets the title, artist, date, description and comment, the only metadata an export writes; a value is set on Enter or when focus leaves, and the date must be a real date as year-month-day. Each change is one undo step.
+  
+  The catalogue gains the messages for it, under `inspector.*`, and `inspector.empty` now also says that these settings are for the whole video.
+
+- [#76](https://github.com/ie-huss-martinez/video-sdk/pull/76) [`cd3b60e`](https://github.com/ie-huss-martinez/video-sdk/commit/cd3b60eabc01ae4d1e12855e441dc07784eb7f8c) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The inspector has a second group, for the selected clips' picture: "Rotate left" and "Rotate right", a quarter turn each; how the picture fills the frame, "Show all" or "Fill"; and, with one clip selected, its crop in pixels, with a button that removes it. Each change is one undo step for every selected clip, and a crop turns with its picture.
+  
+  The catalogue gains the messages for it, under `inspector.*`, and `inspector.empty` now reads "Select a clip to change its sound and picture."
+
+### Patch Changes
+
+- [#86](https://github.com/ie-huss-martinez/video-sdk/pull/86) [`a6dad8c`](https://github.com/ie-huss-martinez/video-sdk/commit/a6dad8ce4e0adbeac89775912f9f6aaffb66ae8f) Thanks [@hussmartinez](https://github.com/hussmartinez)! - An export writes the metadata date only as the real calendar date it names. Before, a date that doesn't exist, such as `2025-02-31`, was written as the day it rolls over to, 3 March, which nobody set. Now a date that isn't a real `YYYY-MM-DD` date isn't written at all, and the export dialog's summary says so before anything is written, rather than leaving it out silently.
+  
+  Also note for this release, from 0.3.0's earlier changes: the snapshot's `warnings` are now a union, `VideoWarning`, of `{ type: "limit", … }` and `{ type: "audioUndecodable", … }`. TypeScript code that reads `warning.limit` must check `warning.type === "limit"` first; `videoWarningText(messages, warning)` handles both.
+
+- [#81](https://github.com/ie-huss-martinez/video-sdk/pull/81) [`a76b16f`](https://github.com/ie-huss-martinez/video-sdk/commit/a76b16f13fd5fc14a2f4cfd7ed38894fd2545ca9) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `VideoEditor` takes a `fileName`: the name an export downloads under, such as the name of the file being edited. Before, the editor had no way to pass one to its export dialog, so every download was `video.mp4` or `video.webm`. Without a `fileName`, the video's title from the inspector is used, and then `video`.
+  
+  The name is cleaned as the family cleans a file name, by the same rules as `@hussmartinez/pdf-sdk` and `@hussmartinez/audio-sdk` ([pdf-sdk ADR 0009](https://github.com/ie-huss-martinez/pdf-sdk/blob/main/docs/adr/0009-saving-the-document.md)): only the last path segment is kept, so `Holiday/day 1.mov` gives `day 1`; control characters, bidirectional formatting characters and the characters Windows refuses are removed; leading dots are trimmed; and it's at most 128 characters. Then a video extension is dropped, as the export adds its own.
+
+- [#87](https://github.com/ie-huss-martinez/video-sdk/pull/87) [`9480ff0`](https://github.com/ie-huss-martinez/video-sdk/commit/9480ff0956b03c08cdec2269e9184f2d92010c69) Thanks [@hussmartinez](https://github.com/hussmartinez)! - After an edit or a seek during playback, the preview no longer draws a frame it already knows is late when a newer one has just been decoded. The first frame after the decoder restarts now follows the same rule as every other late frame: held until the next animation frame and replaced by a newer one decoded by then, and counted in `droppedFrames`. A paused seek still draws its frame as soon as it's decoded.
+
+- [#88](https://github.com/ie-huss-martinez/video-sdk/pull/88) [`8f98d53`](https://github.com/ie-huss-martinez/video-sdk/commit/8f98d53a9916a3db796dd354fa00f0574b60aafe) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The toolbar's buttons now update in the same render as the editor. Before, a button's enabled state followed one render later: right after Zoom in widened the timeline, Zoom out still read as disabled for a moment, and a click on it then did nothing. The same applied to undo, redo, split, delete and the other tools.
+
+## 0.2.1
+
+### Patch Changes
+
+- [#77](https://github.com/ie-huss-martinez/video-sdk/pull/77) [`06528b3`](https://github.com/ie-huss-martinez/video-sdk/commit/06528b3e41437b03e9d50ae760189cfa63ce731a) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Changing a clip's sound while the video plays no longer pauses playback. In 0.2.0, a mute, a volume change, a fade, or a drag of the inspector's volume slider while playing could stop playback after a moment, in every browser, because the preview's worker closed the file the picture was being decoded from. Playback now goes on, and the change is heard.
+
+## 0.2.0
+
+### Minor Changes
+
+- [#74](https://github.com/ie-huss-martinez/video-sdk/pull/74) [`981978c`](https://github.com/ie-huss-martinez/video-sdk/commit/981978c09144daeef3bb88c2dabb9120cc92f950) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The editor has an inspector for the selected clips' sound: a volume slider with a number field in decibels, mute, and a fade in and fade out, each with its length in seconds and its shape. A change applies to every selected clip as one undo step, and a drag of the volume slider is one step too. While the video plays, the drag is heard as it moves.
+  
+  A change of volume, mute or a fade while playing no longer restarts the picture's decoding: only the sound changes.
+  
+  `VideoEditor` shows it under the timeline in a narrow container and beside the other regions from 720 px. `VideoInspector` is exported from `@hussmartinez/video-sdk/react` as a building block, for a layout of your own inside a `VideoEditorProvider`. The catalogue gains the `inspector.*` messages.
+  
+  The editor's root is now a two-column grid. Host CSS that sets `grid-template-columns` or `gap` on `.hm-video-editor` should be checked against it.
+
+### Patch Changes
+
+- [#75](https://github.com/ie-huss-martinez/video-sdk/pull/75) [`35c93a2`](https://github.com/ie-huss-martinez/video-sdk/commit/35c93a2bfbb8c057badc0fcc928c2076e6a5b29f) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `@hussmartinez/video-sdk/react` exports three types its API already used without naming them: `VideoEditorCatalogue`, the shape of the catalogue behind `VideoEditorMessages` and `VideoEditorMessageOverrides`, and `UseVideoSessionResult` and `UseVideoOutputResult`, what the `useVideoSession` and `useVideoOutput` hooks return. Nothing changes at run time. The core's types that the React entry mentions, such as `VideoSession` and `VideoOutput`, are imported from `@hussmartinez/video-sdk`, as before.
+
+- [#71](https://github.com/ie-huss-martinez/video-sdk/pull/71) [`5be0365`](https://github.com/ie-huss-martinez/video-sdk/commit/5be0365131968982b9bbf6b7999b9c1bf93d71a2) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The editor's root now has ui's `hm-text` class, which sets its own text's font, size, weight, letter spacing, line height and colour from the theme's tokens. It replaces the SDK's own rules on `.hm-video-editor`, so the editor's text follows ui's type tokens with the other SDKs'. The stylesheet from `@hussmartinez/ui` 0.11 or later must be loaded, as before. Host CSS that styles `.hm-video-editor` still wins.
+
+- [#69](https://github.com/ie-huss-martinez/video-sdk/pull/69) [`adbdff8`](https://github.com/ie-huss-martinez/video-sdk/commit/adbdff8342662edbb8433ec11f08220104652937) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The package now depends on `@hussmartinez/ui` ^0.11.0 and `@hussmartinez/sdk-core` ^0.4.4, up from ^0.7.0 and ^0.4.3. Nothing in the editor changes yet: this brings in ui's `Timeline` and its `hm-text` class, which later releases use. An application that installs `@hussmartinez/ui` itself, for its stylesheet or its components, should move to 0.11 too, so it has one copy.
+
+## 0.1.2
+
+### Patch Changes
+
+- [#64](https://github.com/ie-huss-martinez/video-sdk/pull/64) [`6c85b5b`](https://github.com/ie-huss-martinez/video-sdk/commit/6c85b5b4e344bca3aae689e53c95f742d539bd25) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The VideoTransport time display now has space after the frame-step buttons, following the theme’s spacing tokens.
+
+## 0.1.1
+
+### Patch Changes
+
+- [#59](https://github.com/ie-huss-martinez/video-sdk/pull/59) [`d17c93b`](https://github.com/ie-huss-martinez/video-sdk/commit/d17c93be587f0dcf060dffaa34a3a9c554d69160) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The editor's own text, such as the transport's time, uses ui's font, size and text colour instead of inheriting the host page's, so it stays readable in the dark theme.
+
+- [#61](https://github.com/ie-huss-martinez/video-sdk/pull/61) [`14febe2`](https://github.com/ie-huss-martinez/video-sdk/commit/14febe28fb7ebb8af9855c637607a411736bcf59) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The editor shows a failed first open inside the empty stage's drop zone, by the button that retries, instead of as plain text below it. Over open clips, a failure is an alert banner at the foot of the stage, in the danger colours. Both keep `role="alert"`.
+
+- [#62](https://github.com/ie-huss-martinez/video-sdk/pull/62) [`194ffdf`](https://github.com/ie-huss-martinez/video-sdk/commit/194ffdfe345393ff457af5639a2aefdad08bf8dd) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The timeline's playhead slider and the export dialog's file type and quality choices have visible labels, which also name them (WCAG 2.5.3, label in name). The playhead is in a ui `Field`, and each group of choices is named by its visible label.
+
+## 0.1.0
+
+### Minor Changes
+
+- [#3](https://github.com/ie-huss-martinez/video-sdk/pull/3) [`b3d7ea9`](https://github.com/ie-huss-martinez/video-sdk/commit/b3d7ea9e67c2f51184e98c90a0fa13d79175b83c) Thanks [@hussmartinez](https://github.com/hussmartinez)! - First release of `@hussmartinez/video-sdk`, a video SDK that works entirely in the browser: videos are opened, edited and exported on the user's device and never uploaded.
+  
+  - **Package shape:** an ES module package with a server-safe headless core (`@hussmartinez/video-sdk`), a React entry (`@hussmartinez/video-sdk/react`), a custom element entry (`@hussmartinez/video-sdk/element`) and one stylesheet (`@hussmartinez/video-sdk/styles.css`), which applications import once. React and React DOM 18.3 or later are optional peer dependencies.
+  - **Errors:** every failure is a `VideoError` with a stable `code`, such as `INVALID_VIDEO`, `UNSUPPORTED_FORMAT`, `UNSUPPORTED_CODEC` or `FRAME_TOO_LARGE`, and structured `details`. `isVideoError(error, code)` checks one, across workers and copies of the package.
+  - **Limits for untrusted files:** `videoLimits` adds `maxFramePixels`, `maxFrameRate`, `maxDuration`, `maxBitrate`, `maxPacketSize`, `maxTracks`, `maxIndexSize`, `maxChannels`, `maxSampleRate`, `maxSessionSize` and `maxClips` to the family's limits on file size, file count, decoded size and processing time, with defaults sized for video: 4K frames, 3 hours and 4 GB files. `maxDuration`, `maxChannels`, `maxSampleRate`, `maxSessionSize` and `maxClips` have the same names and codes as in `@hussmartinez/audio-sdk`. Set them with a `filePolicy`; a misspelt limit name throws instead of being ignored.
+  - **Translatable text:** `videoMessages` is the English catalogue for every error code and limit warning, for `createMessages` from `@hussmartinez/sdk-core`. Error text comes from the code and its details, never from the error's message.
+  - **The clip plan:** a `VideoPlan` is an output (size, an exact frame rate such as `{ num: 30000, den: 1001 }`, and audio layout), clips over immutable sources, and metadata. Times are whole microseconds, and every clip covers whole output frames, so edits land on frames and nothing drifts. `outputFromSource`, `clipOffsets`, `planFrames`, `locateFrame`, `frameTime` and `gainAt` work with it.
+  - **Edits as commands:** `createVideoReducer` applies the 13 `video.*` commands, such as `video.splitClip`, `video.deleteRange`, `video.trimClip` and `video.setTransform`, and returns the command that undoes each. An invalid command throws `VideoError` with `INVALID_COMMAND`.
+  - **Ports:** `VideoEngine`, `VideoOutput` and `VideoProcessor` describe reading, playing and exporting, for hosts that bring their own. `VideoEngine.probe` takes the host's `filePolicy`, and applies the file-size and index limits before anything reads the file's structure; `checkProbe` checks the probe against every other limit before anything decodes it.
+  - **The video engine:** `createVideoEngine()` probes MP4, QuickTime, WebM and Matroska files in a worker, without decoding them: the SDK's own checks bound each file's index and refuse encrypted files and edit lists it doesn't support, then every packet is walked to measure the frame size, frame rate, duration and bitrate. `open` accepts a file only if this browser can decode its tracks, and otherwise rejects with `UNSUPPORTED_CODEC`, naming the codec and track; it decodes the first frame to prove it, and rejects with `DECODE_FAILED` if that fails. `peaks(id)` decodes an open source's audio in the worker into its waveform overview, the lowest and highest sample of every 10 ms, or `null` without audio. The worker is inlined and loads on first use; its Content Security Policy needs only `worker-src blob:`, and it makes no requests.
+  - **The session:** `createVideoSession({ engine, filePolicy, onEvent })` holds the plan over the files it opened. `insert(file, { at, signal })` probes a file, checks it against every limit before opening it, and inserts it as one clip, splitting a clip to insert inside it; a failed or cancelled insert leaves nothing open and no undo step. `execute`, `undo` and `redo` apply commands as undoable steps, checked against `maxClips`, the plan's `maxDuration` and the output's limits. Files that neither the plan nor the undo history refers to are closed. `getSnapshot` and `subscribe` suit React's `useSyncExternalStore`.
+  - **Video playback:** `createVideoOutput({ engine, canvas })` plays the plan's video into a canvas, which it hands to a worker of its own, so decoded frames never reach the page. Each frame is drawn when the clock reaches it, with the clip's rotation, crop and fit, and the next clip is decoded ahead of each cut; a frame that's late is dropped only when a later one is due, and counted in the snapshot's `droppedFrames`. `seek` and `step(1)` or `step(-1)` draw exactly the frame the plan places there, rapid seeks draw only the latest, and an edit during playback continues from the playhead. When playback reaches the end it stops on the last frame and fires `ended` once; subscribe with `on("ended", listener)`. While the page is hidden it decodes nothing, and it catches up with the clock when the page is visible again. `resize(width, height, devicePixelRatio)` sizes the canvas for the stage, with the ratio capped at 4 and the size checked against `maxFramePixels`, and keeps the frame shown. A failure pauses playback, with the error in the snapshot.
+  - **Audio playback:** the plan's audio plays through an `AudioContext`, mixed in the output's worker with each clip's volume, mute and fades, and resampled to the device's rate. The audio is the clock, and each frame is drawn within one output frame of its sound. A change of volume or mute during playback is heard without a gap. The first `play` must come from a user gesture: until then, or where the browser can't play audio, playback goes on silently and the snapshot's `audio` is `"blocked"`. The context is closed when the output is destroyed.
+  - **Export:** `createVideoProcessor({ engine })` exports a plan to a `Blob` in a worker of its own. Every frame is decoded, composed with the clip's rotation, crop and fit, and encoded again, and the audio is mixed with each clip's volume, mute and fades, so the file holds exactly the plan, and nothing that was cut. The container and codecs are chosen by what the browser can encode, proved by encoding with them first: MP4 with H.264 and AAC, else H.264 and Opus, else WebM with VP9 or VP8 and Opus; ask for `container: "webm"` to get WebM. `quality` sets the bitrate, `onProgress` reports the fraction done, and `signal` cancels. Only the title, description, artist, comment and date the plan sets are written, with no creation time. One export runs at a time, and another rejects with `BUSY`; one that stops making progress for `maxProcessingTime` fails with `PROCESSING_TIME_EXCEEDED`.
+  - **Self-hosted workers:** pass `assetsUrl`, where the application serves the package's `dist/assets/`, to `createVideoEngine` and `createVideoProcessor`, to start the workers from `video/media.worker.js` and `video/export.worker.js` under it rather than inlined. The Content Security Policy then needs `worker-src 'self'` instead of `blob:`. A worker from another release of the package is refused with `WORKER_START_FAILED`, naming the file and both versions.
+  - **The editor, first part:** `<VideoEditor>` from `@hussmartinez/video-sdk/react` shows the preview and its playback controls over one editing session. Empty, it offers a drop zone with a button to choose files. While files are added it shows progress that can be cancelled. Errors show the catalogue's text for their code. The preview canvas is named as an image, "Video preview, frame 12 of 60", and its size follows the stage and the device pixel ratio. A ref handle inserts files, undoes and redoes, plays, pauses and seeks. `VideoEditorProvider`, `VideoStage`, `VideoTransport`, `useVideoSession`, `useVideoOutput` and `useVideoPlayhead` let hosts build their own layout. Import `@hussmartinez/ui/styles.css` before this package's `styles.css`. The inspector follows.
+  - **The timeline:** `<VideoTimeline>`, in the editor and on its own inside a `VideoEditorProvider`, shows the clips on one track as a listbox with one tab stop. Arrow keys, Home and End move between clips, and Shift, Mod and clicks choose several. `Alt` with Left or Right moves the selected clips past their neighbour; `[` and `]` trim the focused clip's start or end to the playhead, and with `Alt` move them a frame. A clip's edges also trim by dragging, snapping to clip edges and the playhead unless `Alt` is held, and the trim buttons do the same with one click. The playhead is a slider that reads the time, such as "0:12.40". Space toggles the focused clip's selection, and `Shift+Space` selects up to it.
+  - **Tools and shortcuts:** `<VideoToolbar>`, in the editor and on its own, shows the editor's tools from sdk-core's tool registry: add videos, undo and redo, split at the playhead (`S`), delete the selected clips (`Delete`), mute them (`M`), and zoom (`+`, `-` and `0`, without a modifier). Space plays and pauses, the arrows step a frame, and Home and End go to the start and end, while focus is in the editor and not on a control. Each button has its keys as `aria-keyshortcuts` and in its tooltip, written for the platform, such as "Undo (⌘Z)". The `tools` and `toolbar` props choose the tools and their groups by id. After a split, focus goes to the second part; after a delete, to the clip that took its place.
+  - **Export dialog:** `<VideoExportDialog>`, opened by the toolbar's export tool, summarises the file before anything is written: the picture, frame rate, length and audio, and that nothing else from the source files is copied. It offers a file type and a quality, shows progress that can be stopped, then a focused Download button with the file's size, and announces the result. A host's `onExport(blob, result)` can take the file instead, and the provider's `processor` prop replaces the SDK's processor.
+  - **One set of text:** the editor's `messages` prop also overrides the text of `@hussmartinez/ui`'s components in it, such as the drop zone's "Choose files".
+
+- [#49](https://github.com/ie-huss-martinez/video-sdk/pull/49) [`7cf1683`](https://github.com/ie-huss-martinez/video-sdk/commit/7cf168309959d937f9386d1710226d115d73e816) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The clip plan and its edit commands have portable, versioned JSON formats, `hm-video-plan` and `hm-video-command` version 1, with JSON Schemas in the repository's `formats/` and conformance vectors in `conformance/` (docs/formats/hm-video-plan.md).
+  
+  - `readVideoPlanDocument(json)` reads a plan document and `toVideoPlanDocument(plan, sources)` writes one. `videoPlanDocumentSource(info)` gives what a document records of an open source. A document of another format or a later version is refused with `UNSUPPORTED_FORMAT`, and any other invalid document with the new code `INVALID_DOCUMENT`.
+  - Every refusal of a command carries a stable `details.reason`, such as `off-grid`, `unknown-clip` or `key-taken`, listed as `VideoCommandRejection`. Hosts can compare it instead of the message.
+  - The reducer reads commands strictly: a command with a field it doesn't have is refused as `malformed-command`, rather than the field being ignored. `createVideoReducer` needs only each source's duration and picture size and rotation, as `VideoSourceBounds`.
+  - Metadata values are limited to 1,000 Unicode code points, as the formats count lengths, rather than 1,000 UTF-16 code units: an emoji counts once.
+  - Undo of `video.setOutput` is its own command, `video.restoreOutput`, so `video.setOutput` no longer takes `clips`.
+
+### Patch Changes
+
+- [#47](https://github.com/ie-huss-martinez/video-sdk/pull/47) [`0def1c6`](https://github.com/ie-huss-martinez/video-sdk/commit/0def1c6fafcfbd63a0577cd527bbba53d17557b2) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Destroying a video output while its audio is still starting, as when the editor unmounts right after play is pressed, no longer rejects `play()` with a `TypeError`. The audio player's start is cancelled with `ABORTED`, and the output treats that as a cancelled play.
+
+- [#54](https://github.com/ie-huss-martinez/video-sdk/pull/54) [`8d4728e`](https://github.com/ie-huss-martinez/video-sdk/commit/8d4728e6534e78fb085f71e4d293bc1953a9758e) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `createVideoEngine({ startTimeout })` sets how long the engine's workers, its outputs' and a processor's over it, may take to start before they fail with `WORKER_START_FAILED`. It defaults to sdk-core's 10 seconds, which the packaged worker stays well within even on a heavily loaded machine.
+
+- [#53](https://github.com/ie-huss-martinez/video-sdk/pull/53) [`37e5af0`](https://github.com/ie-huss-martinez/video-sdk/commit/37e5af0cd60252c5249f954474bbf0b86c10b4b5) Thanks [@hussmartinez](https://github.com/hussmartinez)! - An export's `Blob` has its container's media type, `video/mp4` or `video/webm`, so a host can name and play the file.
+
+- [#46](https://github.com/ie-huss-martinez/video-sdk/pull/46) [`f45c6dd`](https://github.com/ie-huss-martinez/video-sdk/commit/f45c6dd253ffd483c4db44535d792a6cd625d1c5) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Depends on `@hussmartinez/sdk-core` ^0.4.1 and `@hussmartinez/ui` ^0.6.0, so an application gets one copy of `sdk-core` (sdk-core ADR 0047).
+
+- [#44](https://github.com/ie-huss-martinez/video-sdk/pull/44) [`a52ecf1`](https://github.com/ie-huss-martinez/video-sdk/commit/a52ecf1af54cee8716747d12c70b692171fc54ec) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Playback no longer drops a few frames about a quarter of a second in on WebKit on Linux. Its audio output timestamps run on another timeline, and while the audio context was young they passed the check for believable timestamps, so the clock started up to 200 ms late and then jumped forward.
+
+- [#43](https://github.com/ie-huss-martinez/video-sdk/pull/43) [`bd53b23`](https://github.com/ie-huss-martinez/video-sdk/commit/bd53b23eb778e45e9ba84fffd7597093dfc8419e) Thanks [@hussmartinez](https://github.com/hussmartinez)! - A video frame or audio chunk that the browser's decoder delivers after the SDK has closed it, as Firefox can after an export or playback is cancelled, is now closed at once instead of being held until the worker ends.
+
+- [#56](https://github.com/ie-huss-martinez/video-sdk/pull/56) [`9a45fd6`](https://github.com/ie-huss-martinez/video-sdk/commit/9a45fd675dcdd3171ae431aba7e23ff32f286a79) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `<VideoEditor assetsUrl="/video-sdk/">`, with self-hosted workers at a path relative to the page, renders on a server, as in Next.js. It threw there, because a server has no page to resolve the path against.
+
+- [#51](https://github.com/ie-huss-martinez/video-sdk/pull/51) [`0c6f812`](https://github.com/ie-huss-martinez/video-sdk/commit/0c6f81208ada0528cae1847b168e7779c9a2ea54) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `session.newClipKey()` gives a key for a new clip, such as a split's second part, that no clip has had in the plan or its undo history, including keys a host chose itself. The editor's split tool uses it.
+
+- [#50](https://github.com/ie-huss-martinez/video-sdk/pull/50) [`c8a4e7b`](https://github.com/ie-huss-martinez/video-sdk/commit/c8a4e7b2e354dbb6d3cdbf583496ef92c9e4e012) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The JSON Schemas of `hm-video-plan` and `hm-video-command` now ship with the package, as `@hussmartinez/video-sdk/formats/hm-video-plan/v1.schema.json` and `@hussmartinez/video-sdk/formats/hm-video-command/v1.schema.json`, so a host can validate documents against the schemas that match its installed reader (sdk-core ADR 0045, section 8).
+
+- [#48](https://github.com/ie-huss-martinez/video-sdk/pull/48) [`ea87cfa`](https://github.com/ie-huss-martinez/video-sdk/commit/ea87cfa76e0af74be63687d57e79a4b29c36670a) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The editor's shortcuts work when a host shows the editor inside its own modal `<dialog>`. It depends on `@hussmartinez/sdk-core` ^0.4.2.
