@@ -176,7 +176,13 @@ describe("the scripts", () => {
   it("each have a site, a page and steps with keys", async () => {
     const dir = new URL("../.github/screen-readers/scripts/", import.meta.url);
     const files = readdirSync(dir).filter((file) => file.endsWith(".mjs"));
-    expect(files.sort()).toEqual(["lanes.mjs", "learn.mjs", "list.mjs", "moving-clips.mjs"]);
+    expect(files.sort()).toEqual([
+      "lanes.mjs",
+      "learn.mjs",
+      "list-controls.mjs",
+      "list.mjs",
+      "moving-clips.mjs",
+    ]);
     for (const file of files) {
       const { default: script } = await import(new URL(file, dir).href);
       expect(["catalogue", "learn"]).toContain(script.site);

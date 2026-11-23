@@ -112,7 +112,7 @@ jobs:
       - name: Run the scripts
         env:
           BROWSER: ${{ matrix.browser }}
-        run: node run.mjs --reader nvda --browser "$BROWSER" --scripts list,lanes,moving-clips --out transcripts --assert
+        run: node run.mjs --reader nvda --browser "$BROWSER" --scripts list,list-controls,lanes,moving-clips --out transcripts --assert
 
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -231,7 +231,7 @@ jobs:
       - name: Run the scripts
         env:
           RUNS: ${{ github.event_name == 'pull_request' && '3' || '1' }}
-        run: node run.mjs --reader voiceover --browser safari --scripts list,lanes,moving-clips,learn --out transcripts --runs "$RUNS"
+        run: node run.mjs --reader voiceover --browser safari --scripts list,list-controls,lanes,moving-clips,learn --out transcripts --runs "$RUNS"
 
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

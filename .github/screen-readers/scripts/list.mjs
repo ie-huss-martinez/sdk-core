@@ -53,6 +53,5 @@ export default {
       knownFailures: known(202),
     },
     { does: "Press Delete.", keys: ["Delete"], expect: ["Background"], knownFailures: known(202) },
-    { does: "Press Tab.", keys: ["Tab"], expect: ["Move up", "button"] },
   ],
 };
