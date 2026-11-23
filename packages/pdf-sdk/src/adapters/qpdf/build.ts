@@ -39,6 +39,11 @@ function validate(job: PdfBuildJob): void {
     if (!ids.has(page.source)) {
       throw new TypeError(`A page refers to ${page.source}, which isn't one of the sources.`);
     }
+    if (page.overlay && !ids.has(page.overlay.source)) {
+      throw new TypeError(
+        `An overlay refers to ${page.overlay.source}, which isn't one of the sources.`,
+      );
+    }
     addRotation(0, page.rotation ?? 0);
   }
 }
@@ -69,8 +74,9 @@ async function fillForm(
 /**
  * Builds a document from a {@link PdfBuildJob} (docs/adr/0003): normalise and
  * fill each source with qpdf and pdf-lib, assemble the pages with their
- * rotations, compress, and encrypt, skipping every step with nothing to do.
- * pdf-lib only ever reads qpdf's output (docs/adr/0001).
+ * rotations, draw the page overlays (docs/adr/0011), compress, and encrypt,
+ * skipping every step with nothing to do. pdf-lib only ever reads qpdf's
+ * output (docs/adr/0001).
  */
 export async function runBuild(job: PdfBuildJob, context: BuildContext): Promise<Uint8Array> {
   const { signal } = context;
@@ -86,6 +92,7 @@ export async function runBuild(job: PdfBuildJob, context: BuildContext): Promise
   }
 
   const steps: PdfBuildStep[] = ["fill", "assemble"];
+  if (job.pages.some((page) => page.overlay)) steps.push("overlay");
   if (job.compress) steps.push("compress");
   if (job.encrypt) steps.push("encrypt");
   const done = (step: PdfBuildStep) =>
@@ -94,8 +101,11 @@ export async function runBuild(job: PdfBuildJob, context: BuildContext): Promise
   const pdf = await context.toolkit();
   throwIfAborted(signal);
 
-  // 1. Normalise each source that's used, then fill its form values.
-  const used = new Set(job.pages.map((page) => page.source));
+  // 1. Normalise each source that's used, by a page or by an overlay, then
+  // fill its form values.
+  const used = new Set(
+    job.pages.flatMap((page) => [page.source, ...(page.overlay ? [page.overlay.source] : [])]),
+  );
   const sources = new Map<string, { bytes: Uint8Array; pageCount: number }>();
   for (const source of job.sources) {
     if (!used.has(source.id)) continue;
@@ -122,30 +132,34 @@ export async function runBuild(job: PdfBuildJob, context: BuildContext): Promise
     }
     sources.set(source.id, { bytes, pageCount });
   }
-  for (const page of job.pages) {
-    assertPageIndex(page.pageIndex, sources.get(page.source)?.pageCount ?? 0);
-  }
+  // One page of a normalised source, as qpdf takes it, once its index is checked.
+  const pageOf = (id: string, pageIndex: number): MergeSource => {
+    const source = sources.get(id);
+    if (!source) throw new TypeError(`${id} isn't one of the sources.`);
+    assertPageIndex(pageIndex, source.pageCount);
+    return { data: source.bytes, pages: String(pageIndex + 1) };
+  };
+  const planned = job.pages.map((page) => pageOf(page.source, page.pageIndex));
+  // The overlay pages, each with the number of the output page it goes on.
+  const overlays = job.pages.flatMap((page, index) =>
+    page.overlay
+      ? [{ to: index + 1, page: pageOf(page.overlay.source, page.overlay.pageIndex) }]
+      : [],
+  );
   done("fill");
 
   // 2. Assemble the pages in order, then add their rotations, one qpdf pass
-  // per angle. One source in its own order, unrotated, needs neither.
-  const [first] = sources.values();
+  // per angle. Every page of one source, in its own order and unrotated,
+  // needs neither, and the document keeps what a merge drops, such as its
+  // outline.
+  const [firstPage] = job.pages;
+  const only = firstPage && sources.get(firstPage.source);
   const identity =
-    sources.size === 1 &&
-    job.pages.length === first?.pageCount &&
-    job.pages.every((page, index) => page.pageIndex === index);
+    job.pages.length === only?.pageCount &&
+    job.pages.every((page, index) => page.source === firstPage?.source && page.pageIndex === index);
   let output: Uint8Array;
   try {
-    output = identity
-      ? (first as { bytes: Uint8Array }).bytes
-      : await pdf.merge(
-          job.pages.map(
-            (page): MergeSource => ({
-              data: (sources.get(page.source) as { bytes: Uint8Array }).bytes,
-              pages: String(page.pageIndex + 1),
-            }),
-          ),
-        );
+    output = identity ? only.bytes : await pdf.merge(planned);
     throwIfAborted(signal);
     const byAngle = new Map<Exclude<PdfRotation, 0>, number[]>();
     job.pages.forEach((page, index) => {
@@ -161,7 +175,26 @@ export async function runBuild(job: PdfBuildJob, context: BuildContext): Promise
   }
   done("assemble");
 
-  // 3. Compress losslessly: object streams, and recompressed streams.
+  // 3. Draw the overlays: one stamp document holds the overlay pages, in the
+  // order of the pages they go on, and one qpdf pass draws the n-th stamp
+  // page over the n-th of those pages.
+  if (overlays.length > 0) {
+    try {
+      const stamp = await pdf.merge(overlays.map((overlay) => overlay.page));
+      throwIfAborted(signal);
+      output = await pdf.watermark(output, stamp, {
+        mode: "overlay",
+        to: overlays.map((overlay) => overlay.to).join(","),
+        from: "1-z",
+      });
+    } catch (reason) {
+      throw fromQpdfError(reason, "PROCESSING_FAILED", "The overlays couldn't be drawn.");
+    }
+    throwIfAborted(signal);
+    done("overlay");
+  }
+
+  // 4. Compress losslessly: object streams, and recompressed streams.
   if (job.compress) {
     try {
       output = await pdf.compress(output);
@@ -172,7 +205,7 @@ export async function runBuild(job: PdfBuildJob, context: BuildContext): Promise
     done("compress");
   }
 
-  // 4. Encrypt with AES-256.
+  // 5. Encrypt with AES-256.
   if (job.encrypt) {
     const { userPassword, ownerPassword } = job.encrypt;
     try {

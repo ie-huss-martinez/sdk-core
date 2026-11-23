@@ -1,0 +1,215 @@
+/*
+ * The pages of an open notebook, and what's drawn over them. The viewport
+ * handles every touch itself (touch-action: none): the pen writes, and
+ * fingers pan and pinch through the ink engine (docs/adr/0002). The tool in
+ * hand is data-hm-tool on the viewport.
+ */
+@layer hm.sdk {
+  .hm-notes-viewport {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    cursor: crosshair;
+  }
+
+  .hm-notes-viewport[data-hm-tool="hand"] {
+    cursor: grab;
+  }
+
+  .hm-notes-viewport[data-hm-tool="text"] {
+    cursor: text;
+  }
+
+  .hm-notes-viewport[data-hm-tool="eraser"] {
+    cursor: cell;
+  }
+
+  .hm-notes-viewport:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: calc(var(--hm-focus-ring-width) * -1);
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-viewport {
+    background: var(--hm-notes-viewport-bg, var(--hm-color-surface-sunken));
+  }
+
+  .hm-notes-pages {
+    position: relative;
+    transform-origin: 0 0;
+  }
+
+  .hm-notes-page-slot {
+    position: absolute;
+  }
+
+  .hm-notes-page {
+    position: relative;
+    display: block;
+  }
+
+  /* Paper is white in every theme: ink colours are chosen against it. */
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-page {
+    background: var(--hm-notes-paper, var(--hm-white));
+    box-shadow: var(--hm-notes-page-shadow, var(--hm-shadow-raised));
+  }
+
+  .hm-notes-page-canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  /* A PDF page shows once it has been drawn, never half drawn. */
+  .hm-notes-page-background[data-hm-pending] {
+    visibility: hidden;
+  }
+
+  .hm-notes-page-wet {
+    transform-origin: 0 0;
+  }
+
+  /* A page whose contents couldn't be read: a short notice in its middle, with a way to try again. */
+  .hm-notes-page-failure {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: var(--hm-z-raised);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--hm-notes-page-failure-gap, var(--hm-gap-normal));
+    max-width: 90%;
+    padding: var(--hm-notes-page-failure-inset, var(--hm-inset-normal));
+    text-align: center;
+    cursor: default;
+    translate: -50% -50%;
+  }
+
+  .hm-notes-page-failure-text {
+    margin: 0;
+  }
+
+  /* On a surface of its own: the paper is white in every theme, and the theme's text isn't always dark. */
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-page-failure {
+    color: var(--hm-notes-page-failure-text, var(--hm-color-text));
+    background: var(--hm-notes-page-failure-bg, var(--hm-color-surface-raised));
+    border-radius: var(--hm-notes-page-failure-radius, var(--hm-radius-surface));
+    box-shadow: var(--hm-notes-page-failure-shadow, var(--hm-shadow-raised));
+  }
+
+  /* The selection: a dashed box with four corner handles, and a bar of actions above it. */
+  .hm-notes-selection {
+    position: absolute;
+    z-index: var(--hm-z-raised);
+  }
+
+  .hm-notes-selection-box {
+    position: absolute;
+    inset: 0;
+    cursor: move;
+    touch-action: none;
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-selection-box {
+    border: var(--hm-border-width-2) dashed var(--hm-notes-selection-color, var(--hm-color-accent));
+  }
+
+  .hm-notes-selection-box:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: var(--hm-focus-ring-offset);
+  }
+
+  .hm-notes-selection-handle {
+    position: absolute;
+    width: var(--hm-notes-selection-handle, var(--hm-target-size));
+    height: var(--hm-notes-selection-handle, var(--hm-target-size));
+    touch-action: none;
+    translate: -50% -50%;
+  }
+
+  /* The handle is as large as a target must be; its mark is the small square in its middle. */
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-selection-handle::after {
+    content: "";
+    position: absolute;
+    inset: 30%;
+    background: var(--hm-notes-selection-handle-bg, var(--hm-color-surface));
+    border: var(--hm-border-width-2) solid var(--hm-notes-selection-color, var(--hm-color-accent));
+    border-radius: var(--hm-notes-selection-handle-radius, var(--hm-radius-sm));
+  }
+
+  .hm-notes-selection-handle[data-hm-corner="nw"] {
+    top: 0;
+    left: 0;
+    cursor: nwse-resize;
+  }
+
+  .hm-notes-selection-handle[data-hm-corner="ne"] {
+    top: 0;
+    left: 100%;
+    cursor: nesw-resize;
+  }
+
+  .hm-notes-selection-handle[data-hm-corner="sw"] {
+    top: 100%;
+    left: 0;
+    cursor: nesw-resize;
+  }
+
+  .hm-notes-selection-handle[data-hm-corner="se"] {
+    top: 100%;
+    left: 100%;
+    cursor: nwse-resize;
+  }
+
+  .hm-notes-selection-bar {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--hm-notes-selection-bar-gap, var(--hm-gap-tight));
+    margin-block-end: var(--hm-notes-selection-bar-offset, var(--hm-space-5));
+    padding: var(--hm-notes-selection-bar-inset, var(--hm-inset-tight));
+    white-space: nowrap;
+    cursor: default;
+    user-select: none;
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-selection-bar {
+    background: var(--hm-notes-selection-bar-bg, var(--hm-color-surface-raised));
+    border-radius: var(--hm-notes-selection-bar-radius, var(--hm-radius-control));
+    box-shadow: var(--hm-notes-selection-bar-shadow, var(--hm-shadow-overlay));
+  }
+
+  /* The field a text box is typed in: the box's own font, size and colour, set from the item. */
+  .hm-notes-text-editor {
+    position: absolute;
+    z-index: var(--hm-z-raised);
+    display: block;
+    box-sizing: content-box;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+    resize: none;
+    border: 0;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-text-editor {
+    background: var(--hm-notes-paper, var(--hm-white));
+    outline: var(--hm-border-width-2) dashed var(--hm-notes-selection-color, var(--hm-color-accent));
+    outline-offset: var(--hm-space-1);
+  }
+}

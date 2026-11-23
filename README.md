@@ -17,6 +17,7 @@ This repository is one pnpm workspace that holds every package of the family ([A
 | [`@hussmartinez/video-sdk`](packages/video-sdk) | Video |
 | [`@hussmartinez/audio-sdk`](packages/audio-sdk) | Audio |
 | [`@hussmartinez/learn-sdk`](packages/learn-sdk) | Learning content |
+| [`@hussmartinez/notes-sdk`](packages/notes-sdk) | Handwritten notes |
 
 The standards every package follows live in [`STANDARDS.md`](STANDARDS.md). The reasoning behind them is recorded as architecture decision records in [`docs/adr`](docs/adr); a package's own records are in its `docs/adr`.
 

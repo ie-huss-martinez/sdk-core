@@ -109,6 +109,7 @@ export interface PdfBuildOptions extends PdfTransferOptions {
 // @public
 export interface PdfBuildPage {
     readonly annotations?: readonly PdfAnnotation[];
+    readonly overlay?: PdfPageOverlay;
     readonly pageIndex: number;
     readonly rotation?: PdfRotation;
     readonly source: string;
@@ -131,7 +132,7 @@ export interface PdfBuildSource {
 }
 
 // @public
-export type PdfBuildStep = "fill" | "assemble" | "flatten" | "compress" | "encrypt";
+export type PdfBuildStep = "fill" | "assemble" | "overlay" | "flatten" | "compress" | "encrypt";
 
 // @public
 export type PdfBytes = ArrayBuffer | Uint8Array;
@@ -421,6 +422,12 @@ export interface PdfPageInfo {
     readonly height: number;
     readonly rotation: PdfRotation;
     readonly width: number;
+}
+
+// @public
+export interface PdfPageOverlay {
+    readonly pageIndex: number;
+    readonly source: string;
 }
 
 // @public

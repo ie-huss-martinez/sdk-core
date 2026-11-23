@@ -1,0 +1,291 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ie-huss-martinez/sdk-core/blob/main/packages/notes-sdk/formats/hm-notes-command/v1.schema.json",
+  "title": "hm-notes-command, version 1",
+  "description": "One edit of a notebook of the notes SDK (docs/formats/hm-notes-command.md, sdk-core ADR 0045). A command is its own document, with no format or version field: its type names it, and this schema's version is its version. A change that breaks a command is a new version of this schema. The schema refers to the hm-notes-page and hm-notes-notebook schemas by their $id. Beyond this schema, the reader checks what those formats' readers check of an item, a page and an outline: a stroke's points, lone surrogates, and outline ids that are unique. Applying a command then checks it against the notebook: the pages and items it names, its positions, that its lists aren't empty or repeated, and the file policy's limits.",
+  "oneOf": [
+    {
+      "description": "Adds items to a page, on top of its others, or at index from the bottom.",
+      "type": "object",
+      "required": ["type", "page", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "notes.addItems"
+        },
+        "page": {
+          "$ref": "#/$defs/id"
+        },
+        "items": {
+          "$ref": "#/$defs/items"
+        },
+        "index": {
+          "description": "Where the first new item goes, counted from the bottom.",
+          "$ref": "#/$defs/index"
+        }
+      }
+    },
+    {
+      "description": "Removes items from a page.",
+      "type": "object",
+      "required": ["type", "page", "ids"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "notes.removeItems"
+        },
+        "page": {
+          "$ref": "#/$defs/id"
+        },
+        "ids": {
+          "$ref": "#/$defs/ids"
+        }
+      }
+    },
+    {
+      "description": "Puts removed items back where they were: the inverse of notes.removeItems.",
+      "type": "object",
+      "required": ["type", "page", "entries"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "notes.restoreItems"
+        },
+        "page": {
+          "$ref": "#/$defs/id"
+        },
+        "entries": {
+          "description": "Each item with the index it returns to, in ascending order.",
+          "type": "array",
+          "maxItems": 1000000,
+          "items": {
+            "type": "object",
+            "required": ["index", "item"],
+            "additionalProperties": false,
+            "properties": {
+              "index": {
+                "$ref": "#/$defs/index"
+              },
+              "item": {
+                "$ref": "https://github.com/ie-huss-martinez/sdk-core/blob/main/packages/notes-sdk/formats/hm-notes-page/v1.schema.json#/$defs/item"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Replaces items by others of the same kind with the same ids, each in its place: a move, a resize, a new colour or new text.",
+      "type": "object",
+      "required": ["type", "page", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "notes.replaceItems"
+        },
+        "page": {
+          "$ref": "#/$defs/id"
+        },
+        "items": {
+          "$ref": "#/$defs/items"
+        }
+      }
+    },
+    {
+      "description": "Adds pages, with their contents, at a position.",
+      "type": "object",
+      "required": ["type", "at", "pages"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "notes.addPages"
+        },
+        "at": {
+          "description": "The index of the first new page.",
+          "$ref": "#/$defs/index"
+        },
+        "pages": {
+          "type": "array",
+          "maxItems": 1000000,
+          "items": {
+            "type": "object",
+            "required": ["info", "items"],
+            "additionalProperties": false,
+            "properties": {
+              "info": {
+                "$ref": "https://github.com/ie-huss-martinez/sdk-core/blob/main/packages/notes-sdk/formats/hm-notes-notebook/v1.schema.json#/$defs/pageInfo"
+              },
+              "items": {
+                "$ref": "#/$defs/items"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Removes pages, with the outline entries that led to them. A notebook keeps at least one page.",
+      "type": "object",
+      "required": ["type", "pages"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "notes.removePages"
+        },
+        "pages": {
+          "$ref": "#/$defs/ids"
+        }
+      }
+    },
+    {
+      "description": "Puts removed pages back where they were, with the outline as it was: the inverse of notes.removePages.",
+      "type": "object",
+      "required": ["type", "entries", "outline"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "notes.restorePages"
+        },
+        "entries": {
+          "description": "Each page with the index it returns to, in ascending order.",
+          "type": "array",
+          "maxItems": 1000000,
+          "items": {
+            "type": "object",
+            "required": ["index", "info", "items"],
+            "additionalProperties": false,
+            "properties": {
+              "index": {
+                "$ref": "#/$defs/index"
+              },
+              "info": {
+                "$ref": "https://github.com/ie-huss-martinez/sdk-core/blob/main/packages/notes-sdk/formats/hm-notes-notebook/v1.schema.json#/$defs/pageInfo"
+              },
+              "items": {
+                "$ref": "#/$defs/items"
+              }
+            }
+          }
+        },
+        "outline": {
+          "description": "The outline once the pages are back: the notebook's own entries, in order, with those that lead to the pages restored.",
+          "$ref": "https://github.com/ie-huss-martinez/sdk-core/blob/main/packages/notes-sdk/formats/hm-notes-notebook/v1.schema.json#/$defs/outline"
+        }
+      }
+    },
+    {
+      "description": "Puts the pages in a new order: every page's id, once.",
+      "type": "object",
+      "required": ["type", "order"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "notes.reorderPages"
+        },
+        "order": {
+          "$ref": "#/$defs/ids"
+        }
+      }
+    },
+    {
+      "description": "Changes the paper of pages.",
+      "type": "object",
+      "required": ["type", "templates"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "notes.setTemplates"
+        },
+        "templates": {
+          "type": "array",
+          "maxItems": 1000000,
+          "items": {
+            "type": "object",
+            "required": ["page", "template"],
+            "additionalProperties": false,
+            "properties": {
+              "page": {
+                "$ref": "#/$defs/id"
+              },
+              "template": {
+                "$ref": "https://github.com/ie-huss-martinez/sdk-core/blob/main/packages/notes-sdk/formats/hm-notes-notebook/v1.schema.json#/$defs/template"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Replaces the notebook's outline.",
+      "type": "object",
+      "required": ["type", "outline"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "notes.setOutline"
+        },
+        "outline": {
+          "$ref": "https://github.com/ie-huss-martinez/sdk-core/blob/main/packages/notes-sdk/formats/hm-notes-notebook/v1.schema.json#/$defs/outline"
+        }
+      }
+    },
+    {
+      "description": "Renames the notebook.",
+      "type": "object",
+      "required": ["type", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "notes.rename"
+        },
+        "title": {
+          "$ref": "https://github.com/ie-huss-martinez/sdk-core/blob/main/packages/notes-sdk/formats/hm-notes-notebook/v1.schema.json#/$defs/title"
+        }
+      }
+    },
+    {
+      "description": "Replaces the notebook's list of recordings.",
+      "type": "object",
+      "required": ["type", "recordings"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "notes.setRecordings"
+        },
+        "recordings": {
+          "$ref": "https://github.com/ie-huss-martinez/sdk-core/blob/main/packages/notes-sdk/formats/hm-notes-notebook/v1.schema.json#/$defs/recordings"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "id": {
+      "description": "An identifier: 1 to 64 characters from A-Z, a-z, 0-9, _ and -.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$",
+      "not": { "pattern": "[^A-Za-z0-9_-]" }
+    },
+    "index": {
+      "description": "A zero-based position in a list.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "ids": {
+      "description": "Ids of pages or of items: up to 1,000,000.",
+      "type": "array",
+      "maxItems": 1000000,
+      "items": {
+        "$ref": "#/$defs/id"
+      }
+    },
+    "items": {
+      "description": "Items, from the bottom to the top: up to 1,000,000.",
+      "type": "array",
+      "maxItems": 1000000,
+      "items": {
+        "$ref": "https://github.com/ie-huss-martinez/sdk-core/blob/main/packages/notes-sdk/formats/hm-notes-page/v1.schema.json#/$defs/item"
+      }
+    }
+  }
+}

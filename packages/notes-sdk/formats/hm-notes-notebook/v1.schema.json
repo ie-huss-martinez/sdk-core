@@ -1,0 +1,238 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ie-huss-martinez/sdk-core/blob/main/packages/notes-sdk/formats/hm-notes-notebook/v1.schema.json",
+  "title": "hm-notes-notebook, version 1",
+  "description": "A notebook of the notes SDK: its title, its pages in order, its outline and its recordings (docs/formats/hm-notes-notebook.md, sdk-core ADR 0045). Each page's contents are an hm-notes-page document of their own. Sizes are whole units, 100 to a PDF point, and times are whole milliseconds since the Unix epoch. Beyond this schema, the reader checks that page ids, outline ids and recording ids are each unique, that every outline entry leads to a page the notebook lists, and that no text holds a lone surrogate.",
+  "type": "object",
+  "required": [
+    "format",
+    "version",
+    "id",
+    "title",
+    "cover",
+    "createdAt",
+    "updatedAt",
+    "pages",
+    "outline",
+    "recordings"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "hm-notes-notebook"
+    },
+    "version": {
+      "const": 1
+    },
+    "id": {
+      "$ref": "#/$defs/id"
+    },
+    "title": {
+      "$ref": "#/$defs/title"
+    },
+    "cover": {
+      "$ref": "#/$defs/cover"
+    },
+    "createdAt": {
+      "description": "When the notebook was created.",
+      "$ref": "#/$defs/time"
+    },
+    "updatedAt": {
+      "description": "When the notebook last changed.",
+      "$ref": "#/$defs/time"
+    },
+    "pages": {
+      "description": "The pages, in order: 1 to 100,000.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100000,
+      "items": {
+        "$ref": "#/$defs/pageInfo"
+      }
+    },
+    "outline": {
+      "$ref": "#/$defs/outline"
+    },
+    "recordings": {
+      "$ref": "#/$defs/recordings"
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "An identifier: 1 to 64 characters from A-Z, a-z, 0-9, _ and -.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$",
+      "not": { "pattern": "[^A-Za-z0-9_-]" }
+    },
+    "time": {
+      "description": "A time, in whole milliseconds since the Unix epoch, up to the last one a date holds.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 8640000000000000
+    },
+    "duration": {
+      "description": "A length of time, in whole milliseconds.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 8640000000000000
+    },
+    "title": {
+      "description": "A title or a name: up to 200 Unicode code points, with no lone surrogate.",
+      "type": "string",
+      "maxLength": 200
+    },
+    "pageSide": {
+      "description": "A page's width or height, in whole units: from one inch to 200 inches.",
+      "type": "integer",
+      "minimum": 7200,
+      "maximum": 1440000
+    },
+    "template": {
+      "description": "The paper a page is ruled with.",
+      "enum": ["blank", "lined", "grid", "dotted"]
+    },
+    "cover": {
+      "description": "The colour of a notebook's cover, by name.",
+      "enum": ["blue", "green", "amber", "red", "gray"]
+    },
+    "assetName": {
+      "description": "A file's name: sha256: and the SHA-256 of its bytes, as 64 lowercase hexadecimal digits.",
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "maxLength": 71
+    },
+    "assetSize": {
+      "description": "A file's size, in bytes.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "pdfAsset": {
+      "description": "A reference to a PDF's file.",
+      "type": "object",
+      "required": ["asset", "mediaType", "size"],
+      "additionalProperties": false,
+      "properties": {
+        "asset": {
+          "$ref": "#/$defs/assetName"
+        },
+        "mediaType": {
+          "enum": ["application/pdf"]
+        },
+        "size": {
+          "$ref": "#/$defs/assetSize"
+        }
+      }
+    },
+    "audioAsset": {
+      "description": "A reference to a recording's file.",
+      "type": "object",
+      "required": ["asset", "mediaType", "size"],
+      "additionalProperties": false,
+      "properties": {
+        "asset": {
+          "$ref": "#/$defs/assetName"
+        },
+        "mediaType": {
+          "enum": ["audio/webm", "audio/mp4", "audio/ogg", "audio/wav"]
+        },
+        "size": {
+          "$ref": "#/$defs/assetSize"
+        }
+      }
+    },
+    "pageInfo": {
+      "description": "A page as its notebook lists it: its size and its paper. Its contents are an hm-notes-page document.",
+      "type": "object",
+      "required": ["id", "width", "height", "template"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "width": {
+          "$ref": "#/$defs/pageSide"
+        },
+        "height": {
+          "$ref": "#/$defs/pageSide"
+        },
+        "template": {
+          "$ref": "#/$defs/template"
+        },
+        "background": {
+          "description": "The page of a PDF under the page's ink, for a page of an imported PDF.",
+          "type": "object",
+          "required": ["pdf", "pageIndex"],
+          "additionalProperties": false,
+          "properties": {
+            "pdf": {
+              "$ref": "#/$defs/pdfAsset"
+            },
+            "pageIndex": {
+              "description": "The page's zero-based index in the PDF.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            }
+          }
+        }
+      }
+    },
+    "outlineEntry": {
+      "description": "One entry of the outline: a title that leads to a page.",
+      "type": "object",
+      "required": ["id", "title", "page"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "page": {
+          "description": "The id of the page it leads to.",
+          "$ref": "#/$defs/id"
+        }
+      }
+    },
+    "outline": {
+      "description": "A notebook's outline, in order: up to 2,000 entries.",
+      "type": "array",
+      "maxItems": 2000,
+      "items": {
+        "$ref": "#/$defs/outlineEntry"
+      }
+    },
+    "recording": {
+      "description": "A sound recording kept with the notebook.",
+      "type": "object",
+      "required": ["id", "audio", "startedAt", "duration"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "audio": {
+          "$ref": "#/$defs/audioAsset"
+        },
+        "startedAt": {
+          "description": "When it started.",
+          "$ref": "#/$defs/time"
+        },
+        "duration": {
+          "description": "Its length.",
+          "$ref": "#/$defs/duration"
+        }
+      }
+    },
+    "recordings": {
+      "description": "A notebook's recordings: up to 2,000.",
+      "type": "array",
+      "maxItems": 2000,
+      "items": {
+        "$ref": "#/$defs/recording"
+      }
+    }
+  }
+}

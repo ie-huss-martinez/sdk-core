@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      The README's policy: pdf-sdk's workers from blob: URLs and its
+      WebAssembly, and recordings played from blob: URLs. Nothing is fetched
+      from another origin.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src blob:; style-src 'self'; media-src blob:"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>notes-sdk editor</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

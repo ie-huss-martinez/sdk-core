@@ -59,6 +59,7 @@ export type {
   PdfCompression,
   PdfEncryption,
   PdfImageCompression,
+  PdfPageOverlay,
 } from "./core/model/build-job.js";
 export type {
   PdfBytes,

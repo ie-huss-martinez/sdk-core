@@ -1,0 +1,63 @@
+import { fontLaunchEnv } from "@hussmartinez/sdk-config/testing/fonts";
+import { webServersFor } from "@hussmartinez/sdk-config/testing/require-image";
+import { endToEndTimeouts } from "@hussmartinez/sdk-config/testing/timeouts";
+import { defineConfig, devices } from "@playwright/test";
+
+const ci = Boolean(process.env["CI"]);
+
+/**
+ * End-to-end tests against production builds of the examples (ADR 0039 in
+ * sdk-core): the Next.js App Router application renders the editor on the
+ * server and hydrates it, and the Vite page runs it under the README's
+ * Content Security Policy. Chromium locally, all three engines in CI, as
+ * for the other browser tests.
+ */
+export default defineConfig({
+  // The family's limits (sdk-core ADR 0057): 60 s for a test, 10 s for an
+  // assertion that waits.
+  ...endToEndTimeouts,
+  testDir: "tests",
+  // Only in the pinned image or CI, where a run can be trusted; elsewhere
+  // this stops the suite with what to run instead (sdk-core ADR 0049).
+  globalSetup: "@hussmartinez/sdk-config/testing/require-image",
+  forbidOnly: ci,
+  retries: 0,
+  reporter: ci ? "line" : "list",
+  use: {
+    trace: "retain-on-failure",
+    // The family's fonts in the browser test image (sdk-core ADR 0062), so
+    // text is laid out as in the screenshots. The whole environment, never
+    // the one variable: Playwright replaces the browser's.
+    launchOptions: { env: fontLaunchEnv() },
+  },
+  projects: (
+    [
+      ["chromium", "Desktop Chrome"],
+      ["firefox", "Desktop Firefox"],
+      ["webkit", "Desktop Safari"],
+    ] as const
+  )
+    .filter(([name]) => ci || name === "chromium")
+    .map(([name, device]) => ({ name, use: { ...devices[device] } })),
+  // Started with Node directly, so the suite also runs where pnpm isn't
+  // installed, such as a pinned browser image.
+  // None where the guard will refuse, so its message is the first and only
+  // thing a host run shows, before any example is built.
+  webServer: webServersFor([
+    {
+      command: "node node_modules/next/dist/bin/next start --port 4351",
+      cwd: "../examples/next",
+      env: { NEXT_TELEMETRY_DISABLED: "1" },
+      url: "http://localhost:4351",
+      reuseExistingServer: !ci,
+      timeout: 60_000,
+    },
+    {
+      command: "node node_modules/vite/bin/vite.js preview --port 4350 --strictPort",
+      cwd: "../examples/vite",
+      url: "http://localhost:4350",
+      reuseExistingServer: !ci,
+      timeout: 60_000,
+    },
+  ]),
+});
