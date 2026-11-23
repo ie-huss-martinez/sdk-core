@@ -32,7 +32,7 @@ The maintainer decided on 2026-11-22 to bring the family into one repository.
 ### CI
 
 - **Plain workflows here replace `sdk-ci`'s shared actions.** With one repository there's nothing to share them with. `verify.yml` and `pr-title.yml` hold the steps themselves; the release workflow follows in its own pull request.
-- **A pull request verifies the packages it can affect:** a package with a changed file, and every package that depends on one, through any dependency on a workspace package. A change outside `packages/` that isn't documentation, such as the lockfile, the catalog or a workflow, affects all of them. A push to `main` verifies all of them.
+- **A pull request verifies the packages it can affect:** a package with a changed file, and every package that depends on one, through any dependency on a workspace package. A change outside `packages/` that isn't documentation, such as the lockfile, the catalog or a workflow, affects all of them. A push to `main` verified all of them, until the amendment below.
 - **One job per affected package,** in the browser test image: it builds what the package depends on, then runs the package's own `verify`. A job for the repository runs what isn't any one package's: Biome and the hidden-character check over every file, the single-copy and image checks on the one lockfile, and the tests of the repository's scripts.
 - **The required checks keep their names, `verify` and `changeset`.** `verify` passes only when every job above did.
 
@@ -57,6 +57,16 @@ On 2026-11-22, each from its repository's `main`:
 | ai-core | `ie-huss-martinez/ai-core` | `f6e01674942def737adcf5d4281709077f70d15d` |
 
 Each repository's own tooling files weren't carried: its workflows, hooks, lockfile, workspace file, and its copies of the contributor documents. `ui` was a workspace itself; its package, catalogue, examples and end-to-end suite are all under `packages/ui`.
+
+### Amendment, 2026-11-23: run only what a change needs
+
+The first release from here showed the cost of the rules above: its `verify release` job re-ran the full `verify` of eight packages, browser suites included, for 31 minutes, on a commit whose push had just verified all nine. A one-package pull request cost a full nine-package run again on its push to `main`.
+
+- **A push to `main` verifies the packages it can affect,** by the same rules as a pull request, against the commit `main` was on before it. When that commit isn't known, it verifies every package.
+- **A weekly run, and a run started by hand, verify every package.** They're the safety net for what a change's affected list can't see, such as a dependency that broke without a change here.
+- **A release doesn't run the tests again.** Its read-only job waits for a Verify run on the same commit that succeeded and ran every package the release publishes, then builds them, packs them from the publish plan and checks the tarballs, which stays the gate before anything publishes ([ADR 0041](0041-publish-the-verified-tarballs.md)). [ADR 0023](0023-verify-releases-in-an-unprivileged-job.md)'s rule still holds: the tests ran in Verify, without the release's permissions, and the publish job runs none. A version pull request's push changes every package it releases, so its own Verify run covers them. A release that has to be re-run from a later commit needs a Verify run by hand first, and the job says so.
+- **Each Verify run on `main` has a concurrency group of its own commit,** so none waits behind or replaces another, and every commit keeps its own result for a release to check.
+- **Changesets:** a patch already releases only its package: Changesets brings a dependent along only when the new version leaves its range, and under 0.x a minor does. `updateInternalDependencies` is `"minor"`, and peer dependents are updated only when out of range. With `workspace:^`, the published range is the sibling's current version either way, so neither changes a release today; they keep a dependent's range from being rewritten for a patch if a package ever stops using the workspace protocol. The patterns that decide which files need a changeset now include what's published from outside `src/`: `formats/`, `api-extractor/` and the notice files. They leave out stories, snapshots and `.test.tsx` files.
 
 ## Alternatives considered
 

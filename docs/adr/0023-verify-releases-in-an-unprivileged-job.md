@@ -22,6 +22,7 @@ The pinned Playwright image, which `ui` already uses, has the browsers and their
   - **`verify release`** (`contents: read`, in the image) runs `pnpm verify` when the plan has something to publish. Its steps are `verify.yml`'s, apart from pnpm's store cache, which a release doesn't use, and a test enforces that.
   - **`publish`** keeps the privileged permissions and runs no tests. It publishes only if `verify release` succeeded in the same run: a step fails the job before any publishing step otherwise, including when a version became publishable after the plan job ran. Its finishing steps still run, so a failed verification doesn't stop earlier releases from being repaired.
 - **The test suite never runs alongside `id-token: write` or write permissions.**
+  - **Noted, 2026-11-23:** since [ADR 0064](0064-one-repository-for-the-family.md)'s amendment, the release's read-only job doesn't run the tests itself. It requires a successful Verify run on the same commit that covered every package it publishes, then builds, packs and checks them. The tests still run only without the release's permissions.
 
 ## Alternatives considered
 

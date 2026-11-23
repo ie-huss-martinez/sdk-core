@@ -119,12 +119,12 @@ Nobody publishes by hand.
 1. **The version pull request.** When changesets reach `main`, the release workflow opens or updates a **`chore: version packages`** pull request. It applies the changesets: it bumps the versions, writes the changelogs and deletes the changeset files.
 2. **Merging it.** The version pull request is reviewed and merged like any other.
 3. **Publishing.** Once it's merged, the same workflow:
-   - runs `pnpm verify`;
+   - waits for the Verify workflow to have verified each package it publishes on the same commit, then builds them, packs them and checks the tarballs;
    - publishes each new version to npm through trusted publishing, with provenance and no npm token;
    - creates a tag such as `@hussmartinez/sdk-core@0.2.0` and a GitHub Release with the changelog entry;
    - attaches the tarball and `SHA256SUMS`, with artifact attestations.
 
-**If a release partly fails,** for example because one package's publish is rejected, the packages that did publish still get their tarball, `SHA256SUMS` and attestation, and the workflow run fails. After fixing the cause, re-run the workflow or push to `main` again. Every run checks each package's current version against npm and its GitHub Release, publishes what's missing, and repairs releases without their files, using tarballs downloaded from npm and verified against the registry's integrity. A complete release is left alone.
+**If a release partly fails,** for example because one package's publish is rejected, the packages that did publish still get their tarball, `SHA256SUMS` and attestation, and the workflow run fails. After fixing the cause, re-run the workflow or push to `main` again. A re-run from a later commit needs Verify on that commit to have run the packages it publishes: run Verify by hand on `main`, which verifies every package, if it didn't. Every run checks each package's current version against npm and its GitHub Release, publishes what's missing, and repairs releases without their files, using tarballs downloaded from npm and verified against the registry's integrity. A complete release is left alone.
 
 **npm can take several minutes** to serve a version it has just accepted. The workflow waits up to 10 minutes from each publish, and logs a "Visible on npm" notice with the time it took. If a version still isn't visible by then, the run fails after finishing the other packages; re-run the failed job once npm shows the version, and it repairs the release from npm.
 
