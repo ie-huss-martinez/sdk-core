@@ -59,7 +59,7 @@ export default {
       does: "Press Space.",
       keys: ["Space"],
       expect: ["selected"],
-      knownFailures: known(204, [...NVDA, "voiceover-safari"]),
+      knownFailures: known(204),
     },
   ],
 };

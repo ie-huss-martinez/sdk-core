@@ -268,6 +268,21 @@ function summary(transcript) {
   return lines.join("\n");
 }
 
+/**
+ * Safari's first launch on a fresh runner reads its window title over the
+ * first page, and the first script's transcript is lost to it. It's started
+ * once, with nothing to test, and quit, before the scripts run.
+ */
+async function warmUp() {
+  if (browserName !== "safari") {
+    return;
+  }
+  const page = await openPage("about:blank");
+  await sleep(15_000);
+  await page.close();
+  await sleep(3_000);
+}
+
 const names = values.scripts.split(",");
 const scripts = await Promise.all(
   names.map(async (name) => (await import(`./scripts/${name}.mjs`)).default),
@@ -279,6 +294,7 @@ let failed = false;
 const base = versions();
 try {
   const setup = await startReader();
+  await warmUp();
   for (let attempt = 1; attempt <= Number(values.runs); attempt += 1) {
     for (const script of scripts) {
       const transcript = await runScript(script, attempt, { ...base, ...setup });
