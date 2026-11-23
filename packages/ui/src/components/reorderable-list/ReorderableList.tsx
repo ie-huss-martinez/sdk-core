@@ -121,6 +121,37 @@ function rowsOf(list: HTMLElement): HTMLElement[] {
   );
 }
 
+/** Cells that `focusReorderableListItem` asked to focus, which keep focus from outside. */
+const requested = new WeakSet<HTMLElement>();
+
+/** How long after a pointer press a focus counts as that press's. */
+const PRESS_MS = 500;
+
+/**
+ * Focuses an item of a {@link ReorderableList} from outside it, and so
+ * selects it, as focus on an item does. Focus that comes from outside the
+ * list otherwise goes to its Tab stop, the selected item, whichever cell
+ * it was given: that's where a keyboard user enters it, and NVDA's browse
+ * mode can give focus to any cell (#201).
+ *
+ * @param list - The list's element, its `ref`.
+ * @param id - The item's `id`.
+ * @returns Whether the item now has focus.
+ *
+ * @public
+ */
+export function focusReorderableListItem(list: HTMLElement | null, id: string): boolean {
+  const row = list ? rowsOf(list).find((candidate) => idOf(candidate) === id) : undefined;
+  const cell = row ? cellsOf(row)[0] : undefined;
+  if (!cell) {
+    return false;
+  }
+  requested.add(cell);
+  cell.focus();
+  requested.delete(cell);
+  return document.activeElement === cell;
+}
+
 /** A control cell's control. */
 const controlOf = (cell: HTMLElement): HTMLElement | undefined => focusableItems(cell)[0];
 
@@ -219,8 +250,13 @@ function syncTabStop(list: HTMLElement, active?: Element | null): void {
  *
  * - **↑ and ↓** move between rows and select; with Ctrl or ⌘, they move
  *   without selecting. The selection follows focus however it reaches an
- *   item: the keys, Tab, a click, or your own `focus()`. Focus on a
- *   control's cell never changes it. **← and →**, Home and End move between
+ *   item: the keys, a click, or a `focus()` from inside the list. Focus on
+ *   a control's cell never changes it.
+ * - **Focus from outside enters at the Tab stop,** the selected item,
+ *   without selecting, whichever cell it was given; a pointer press keeps
+ *   the cell it pressed. To focus another item from outside, call
+ *   {@link focusReorderableListItem}, which selects it, or set `selectedId`
+ *   first. **← and →**, Home and End move between
  *   a row's cells. Ctrl or ⌘ with Home or End goes to the first or last
  *   row. Space or Enter on an item selects it, and on a control's cell
  *   presses its control.
@@ -283,6 +319,7 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
       classNames,
       unstyled,
       onKeyDown,
+      onPointerDown,
       onClick,
       onFocus,
       onBlur,
@@ -296,6 +333,8 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
     const lastSelected = useRef(selectedId);
     // Set while the list moves focus itself, when that focus mustn't select.
     const quiet = useRef(false);
+    // When a pointer last pressed in the list: a press keeps the cell it focused.
+    const pressedAt = useRef(Number.NEGATIVE_INFINITY);
     const announce = useAnnounce();
     const messages = useUiMessages();
 
@@ -489,20 +528,46 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
     // The selection follows focus however it arrives on an item: Tab, a
     // click, or a host's own `focus()`. Not on a control, whose cell never
     // changes the selection, and only when it would change.
+    const focusQuietly = (cell: HTMLElement): void => {
+      if (list.current) {
+        syncTabStop(list.current, cell);
+      }
+      quiet.current = true;
+      try {
+        cell.focus();
+      } finally {
+        quiet.current = false;
+      }
+    };
+
     const handleFocus = (event: FocusEvent<HTMLDivElement>): void => {
       onFocus?.(event);
       const target = event.target as HTMLElement;
+      const element = event.currentTarget;
+      // Focus from outside the list enters at its Tab stop, without
+      // selecting, whichever cell it was given: NVDA's browse mode can give
+      // focus to any cell, and a Tab must never change the selection (#201).
+      // A pointer press keeps the cell it pressed, and so does
+      // focusReorderableListItem.
+      const related = event.relatedTarget;
+      const fromOutside = !(related instanceof Node && element.contains(related));
+      const cell = target.closest<HTMLElement>("[data-hm-cell]");
+      const pressed = performance.now() - pressedAt.current < PRESS_MS;
+      if (fromOutside && cell && !pressed && !requested.has(cell)) {
+        const all = rowsOf(element).flatMap(cellsOf);
+        const stop =
+          all.find((candidate) => candidate.dataset["hmTabStop"] !== undefined) ??
+          cellsOf(selectedRow(rowsOf(element)) ?? element)[0];
+        if (stop && stop !== cell) {
+          focusQuietly(stop);
+          return;
+        }
+      }
       // A control that took focus, from a press for instance, hands it to
       // its cell, which stands for it.
       const controlCell = target.closest<HTMLElement>('[data-hm-cell="control"]');
-      if (controlCell && controlCell !== target && event.currentTarget.contains(controlCell)) {
-        syncTabStop(event.currentTarget, controlCell);
-        quiet.current = true;
-        try {
-          controlCell.focus();
-        } finally {
-          quiet.current = false;
-        }
+      if (controlCell && controlCell !== target && element.contains(controlCell)) {
+        focusQuietly(controlCell);
         return;
       }
       syncTabStop(event.currentTarget, event.target);
@@ -539,6 +604,10 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
         className={cx("hm-reorderable-list", classNames?.root, className)}
         data-hm-unstyled={unstyledAttribute(unstyled)}
         onKeyDown={handleKeyDown}
+        onPointerDown={(event) => {
+          pressedAt.current = performance.now();
+          onPointerDown?.(event);
+        }}
         onClick={handleClick}
         onFocus={handleFocus}
         onBlur={handleBlur}

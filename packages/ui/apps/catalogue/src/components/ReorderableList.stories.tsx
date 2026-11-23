@@ -11,7 +11,7 @@ import {
   VisibleIcon,
 } from "@hussmartinez/ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 
 /**
  * A list whose items the user selects, reorders and removes, with one Tab
@@ -30,16 +30,7 @@ type Story = StoryObj<typeof meta>;
 const panel = { display: "grid", gap: "var(--hm-gap-normal)", maxInlineSize: "18rem" } as const;
 const buttons = { display: "flex", gap: "var(--hm-gap-tight)" } as const;
 
-function Layers({
-  unstyled = false,
-  withButtons = true,
-  // Temporary probes for NVDA (#202): removed before merging.
-  probe,
-}: {
-  unstyled?: boolean;
-  withButtons?: boolean;
-  probe?: "application" | "switch";
-}) {
+function Layers({ unstyled = false, withButtons = true }) {
   const [layers, setLayers] = useState(["Title", "Photo", "Shape", "Background"]);
   const [selected, setSelected] = useState<string | null>("Photo");
   const [hidden, setHidden] = useState<readonly string[]>(["Shape"]);
@@ -59,55 +50,40 @@ function Layers({
   return (
     <AnnouncerProvider>
       <div style={panel}>
-        <ProbeWrap probe={probe}>
-          <ReorderableList
-            label="Layers"
-            selectedId={selected}
-            onSelectedChange={setSelected}
-            onMove={move}
-            onRemove={remove}
-            unstyled={unstyled}
-          >
-            {layers.map((layer) => (
-              <ReorderableListItem
-                key={layer}
-                id={layer}
-                label={layer}
-                unstyled={unstyled}
-                controls={[
-                  probe === "switch" ? (
-                    <ProbeSwitchControl
-                      key="visible"
-                      label={`Show ${layer}`}
-                      on={!hidden.includes(layer)}
-                      onToggle={(visible) =>
-                        setHidden((ids) =>
-                          visible ? ids.filter((id) => id !== layer) : [...ids, layer],
-                        )
-                      }
-                    />
-                  ) : (
-                    <ToggleButton
-                      key="visible"
-                      variant="quiet"
-                      size="small"
-                      label={`Show ${layer}`}
-                      icon={hidden.includes(layer) ? <HiddenIcon /> : <VisibleIcon />}
-                      pressed={!hidden.includes(layer)}
-                      onPressedChange={(visible) =>
-                        setHidden((ids) =>
-                          visible ? ids.filter((id) => id !== layer) : [...ids, layer],
-                        )
-                      }
-                    />
-                  ),
-                ]}
-              >
-                {layer}
-              </ReorderableListItem>
-            ))}
-          </ReorderableList>
-        </ProbeWrap>
+        <ReorderableList
+          label="Layers"
+          selectedId={selected}
+          onSelectedChange={setSelected}
+          onMove={move}
+          onRemove={remove}
+          unstyled={unstyled}
+        >
+          {layers.map((layer) => (
+            <ReorderableListItem
+              key={layer}
+              id={layer}
+              label={layer}
+              unstyled={unstyled}
+              controls={[
+                <ToggleButton
+                  key="visible"
+                  variant="quiet"
+                  size="small"
+                  label={`Show ${layer}`}
+                  icon={hidden.includes(layer) ? <HiddenIcon /> : <VisibleIcon />}
+                  pressed={!hidden.includes(layer)}
+                  onPressedChange={(visible) =>
+                    setHidden((ids) =>
+                      visible ? ids.filter((id) => id !== layer) : [...ids, layer],
+                    )
+                  }
+                />,
+              ]}
+            >
+              {layer}
+            </ReorderableListItem>
+          ))}
+        </ReorderableList>
         {withButtons ? (
           <div style={buttons}>
             <IconButton
@@ -173,51 +149,4 @@ export const SelectOnly: Story = {
       </div>
     );
   },
-};
-
-// Temporary probes for NVDA (#202): removed before merging.
-function ProbeWrap({ probe, children }: { probe: string | undefined; children: ReactNode }) {
-  return probe === "application" ? (
-    <div role="application" aria-label="Layers panel">
-      {children}
-    </div>
-  ) : (
-    children
-  );
-}
-
-function ProbeSwitchControl({
-  label,
-  on,
-  onToggle,
-}: {
-  label: string;
-  on: boolean;
-  onToggle: (on: boolean) => void;
-}) {
-  return (
-    <span
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      tabIndex={-1}
-      onClick={() => onToggle(!on)}
-      onKeyDown={(event) => {
-        if (event.key === " " || event.key === "Enter") {
-          event.preventDefault();
-          onToggle(!on);
-        }
-      }}
-    >
-      {on ? "on" : "off"}
-    </span>
-  );
-}
-
-export const ProbeApplication: Story = {
-  render: () => <Layers probe="application" />,
-};
-
-export const ProbeSwitch: Story = {
-  render: () => <Layers probe="switch" />,
 };

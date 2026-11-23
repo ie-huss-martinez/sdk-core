@@ -6,7 +6,11 @@ import { page, userEvent } from "vitest/browser";
 import { cleanUp, loadStyles, mount, track } from "../../test/dom.js";
 import { AnnouncerProvider } from "../announcer/Announcer.js";
 import { ToggleButton } from "../toggle-button/ToggleButton.js";
-import { ReorderableList, ReorderableListItem } from "./ReorderableList.js";
+import {
+  focusReorderableListItem,
+  ReorderableList,
+  ReorderableListItem,
+} from "./ReorderableList.js";
 
 let root: Root | undefined;
 
@@ -145,6 +149,34 @@ const item = (container: HTMLElement, id: string) =>
   container.querySelector(`[data-hm-id="${id}"] [data-hm-cell="item"]`) as HTMLElement;
 const toggle = (container: HTMLElement, id: string) =>
   container.querySelector(`[data-hm-id="${id}"] button`) as HTMLElement;
+const grid = (container: HTMLElement) => container.querySelector('[role="grid"]') as HTMLElement;
+
+/** Focuses an item from outside the list, as a host does: it's selected too. */
+const enter = (container: HTMLElement, id: string) => {
+  act(() => {
+    focusReorderableListItem(grid(container), id);
+  });
+};
+
+/**
+ * Reaches a cell as a keyboard user does: in at the Tab stop, then Ctrl
+ * with the arrows, which don't select, and → to the control's cell.
+ */
+async function reach(container: HTMLElement, id: string, cell: "item" | "control" = "item") {
+  const stop = grid(container).querySelector<HTMLElement>("[data-hm-tab-stop]") as HTMLElement;
+  act(() => stop.focus());
+  const order = rows(container);
+  const from = order.indexOf(stop.closest<HTMLElement>("[data-hm-id]")?.dataset["hmId"]);
+  const to = order.indexOf(id);
+  const key = to > from ? "{ArrowDown}" : "{ArrowUp}";
+  for (let step = 0; step < Math.abs(to - from); step += 1) {
+    await userEvent.keyboard(`{Control>}${key}{/Control}`);
+  }
+  if (cell === "control") {
+    await userEvent.keyboard("{ArrowRight}");
+  }
+}
+
 /** A control's cell, which takes focus in its place (docs/adr/0009, #202). */
 const controlCell = (container: HTMLElement, id: string) =>
   toggle(container, id).closest('[data-hm-cell="control"]') as HTMLElement;
@@ -264,8 +296,8 @@ describe("ReorderableList", () => {
   it("moves between a row's cells with ←, →, Home and End, and never changes the selection", async () => {
     const onSelectedChange = vi.fn();
     const container = render(<Layers calls={{ onSelectedChange }} />);
-    // Focusing an item selects its row, however focus arrives.
-    item(container, "Title").focus();
+    // A host focusing an item selects its row.
+    enter(container, "Title");
     expect(onSelectedChange.mock.calls).toEqual([["Title"]]);
     onSelectedChange.mockClear();
     expect(await press("{ArrowRight}")).toEqual({ prevented: true, scrolled: false });
@@ -289,7 +321,7 @@ describe("ReorderableList", () => {
         <Layers />
       </div>,
     );
-    item(container, "Title").focus();
+    enter(container, "Title");
     await press("{ArrowLeft}");
     expect(document.activeElement).toBe(controlCell(container, "Title"));
     await press("{ArrowRight}");
@@ -299,7 +331,7 @@ describe("ReorderableList", () => {
   it("leaves Space and Enter on a control to the control", async () => {
     const onSelectedChange = vi.fn();
     const container = render(<Layers calls={{ onSelectedChange }} />);
-    toggle(container, "Title").focus();
+    await reach(container, "Title", "control");
     await userEvent.keyboard(" ");
     expect(toggle(container, "Title").getAttribute("aria-pressed")).toBe("false");
     await userEvent.keyboard("{Enter}");
@@ -310,7 +342,7 @@ describe("ReorderableList", () => {
   it("keeps focus on a control's cell, named after the control and its state, never on the control", async () => {
     const onSelectedChange = vi.fn();
     const container = render(<Layers calls={{ onSelectedChange }} />);
-    item(container, "Title").focus();
+    enter(container, "Title");
     onSelectedChange.mockClear();
     await press("{ArrowRight}");
     const cell = controlCell(container, "Title");
@@ -372,7 +404,7 @@ describe("ReorderableList", () => {
   it("takes the move keys at the first and last rows, without calling onMove", async () => {
     const onMove = vi.fn();
     const container = render(<Layers calls={{ onMove }} />);
-    item(container, "Title").focus();
+    enter(container, "Title");
     expect(await press("{Alt>}{ArrowUp}{/Alt}")).toEqual({ prevented: true, scrolled: false });
     item(container, "Background").focus();
     expect(await press("{Alt>}{ArrowDown}{/Alt}")).toEqual({ prevented: true, scrolled: false });
@@ -570,13 +602,43 @@ describe("ReorderableList", () => {
       expect(onSelectedChange).not.toHaveBeenCalled();
     });
 
-    it("selects the row a host focuses, but not for a focused control", () => {
+    it("enters at the Tab stop, without selecting, when focus from outside lands on another cell", () => {
+      // As NVDA's browse mode does with Tab, or a host's own focus() (#201).
       const onSelectedChange = vi.fn();
       const container = render(<Layers calls={{ onSelectedChange }} />);
+      const before = page.getByRole("button", { name: "Before" }).element() as HTMLElement;
+      act(() => before.focus());
       act(() => item(container, "Shape").focus());
-      expect(onSelectedChange.mock.calls).toEqual([["Shape"]]);
+      expect(document.activeElement).toBe(item(container, "Photo"));
+      act(() => before.focus());
       act(() => toggle(container, "Background").focus());
-      expect(onSelectedChange).toHaveBeenCalledTimes(1);
+      expect(document.activeElement).toBe(item(container, "Photo"));
+      expect(onSelectedChange).not.toHaveBeenCalled();
+      expect(selected(container)).toBe("Photo");
+      expect(tabStops(container)).toEqual(["Photo"]);
+    });
+
+    it("selects and focuses the item focusReorderableListItem names, from outside", () => {
+      const onSelectedChange = vi.fn();
+      const container = render(<Layers calls={{ onSelectedChange }} />);
+      let focused = false;
+      act(() => {
+        focused = focusReorderableListItem(grid(container), "Shape");
+      });
+      expect(focused).toBe(true);
+      expect(document.activeElement).toBe(item(container, "Shape"));
+      expect(onSelectedChange.mock.calls).toEqual([["Shape"]]);
+      expect(focusReorderableListItem(grid(container), "Nothing")).toBe(false);
+      expect(focusReorderableListItem(null, "Shape")).toBe(false);
+    });
+
+    it("keeps the cell a pointer presses, coming from outside", async () => {
+      const onSelectedChange = vi.fn();
+      const container = render(<Layers calls={{ onSelectedChange }} />);
+      (page.getByRole("button", { name: "Before" }).element() as HTMLElement).focus();
+      await userEvent.click(item(container, "Shape"));
+      expect(document.activeElement).toBe(item(container, "Shape"));
+      expect(onSelectedChange.mock.calls).toEqual([["Shape"]]);
     });
 
     it("still moves between rows without selecting with Ctrl or ⌘", async () => {

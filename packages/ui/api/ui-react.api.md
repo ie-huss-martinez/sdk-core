@@ -212,6 +212,9 @@ export function FlipHorizontalIcon(props: IconProps): ReactElement;
 export function FlipVerticalIcon(props: IconProps): ReactElement;
 
 // @public
+export function focusReorderableListItem(list: HTMLElement | null, id: string): boolean;
+
+// @public
 export const Heading: ForwardRefExoticComponent<HeadingProps & RefAttributes<HTMLHeadingElement>>;
 
 // @public

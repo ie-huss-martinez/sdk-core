@@ -12,3 +12,5 @@ Now a control's cell takes focus in its place:
 - The control itself has no Tab stop.
 
 Four new messages word the state: `reorderableList.control.pressed`, `notPressed`, `checked` and `notChecked`, each with a `{label}`. Translate them with your other overrides. If your tests expect focus on a row's control after →, expect it on the control's cell (`[data-hm-cell="control"]`) instead.
+
+**Focus from outside the list enters at its Tab stop,** the selected item, without selecting, whichever cell it was given. With NVDA, Tab used to land on the first row and select it. A pointer press still keeps the cell it pressed. If your code focuses an item that isn't selected from outside the list, call the new `focusReorderableListItem(list, id)` from `@hussmartinez/ui/react`, which selects the item and focuses it, or set `selectedId` first. A `focus()` from inside the list works as before.
