@@ -1,3 +1,4 @@
+import { fontLaunchEnv } from "@hussmartinez/sdk-config/testing/fonts";
 import { webServersFor } from "@hussmartinez/sdk-config/testing/require-image";
 import { endToEndTimeouts } from "@hussmartinez/sdk-config/testing/timeouts";
 import { defineConfig, devices } from "@playwright/test";
@@ -22,7 +23,13 @@ export default defineConfig({
   forbidOnly: ci,
   retries: 0,
   reporter: ci ? "line" : "list",
-  use: { trace: "retain-on-failure" },
+  use: {
+    trace: "retain-on-failure",
+    // The family's fonts in the browser test image (sdk-core ADR 0062), so
+    // text is laid out as in the screenshots. The whole environment, never
+    // the one variable: Playwright replaces the browser's.
+    launchOptions: { env: fontLaunchEnv() },
+  },
   projects: (
     [
       ["chromium", "Desktop Chrome"],

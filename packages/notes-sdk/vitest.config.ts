@@ -53,6 +53,9 @@ export default defineConfig(({ mode }) => {
             // ADR 0049). The unit project above still runs anywhere.
             globalSetup: ["@hussmartinez/sdk-config/testing/require-image"],
             include: ["src/**/*.browser.test.{ts,tsx}", "test/**/*.browser.test.{ts,tsx}"],
+            // Firefox crashes when a role or label query and axe both read
+            // `ariaLabelledByElements` (ui#61); the guard removes it first.
+            setupFiles: ["@hussmartinez/sdk-config/testing/firefox-labelled-by/setup"],
             browser: {
               enabled: true,
               headless: true,

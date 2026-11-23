@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page, test } from "@playwright/test";
+import { removeLabelledByElements } from "@hussmartinez/sdk-config/testing/firefox-labelled-by";
+import { expect, type Page, test } from "../test.js";
 import {
   inkAt,
   isInk,
@@ -113,6 +114,8 @@ test.describe("the notes editor", () => {
 
     // Another profile: a new device, or this one after its data was cleared.
     const context = await browser.newContext();
+    // A context made here isn't covered by the fixture's guard (see ../test.ts).
+    await context.addInitScript(removeLabelledByElements);
     const other = await context.newPage();
     const otherProblems = watch(other, origin);
     await openEditor(other, url);
