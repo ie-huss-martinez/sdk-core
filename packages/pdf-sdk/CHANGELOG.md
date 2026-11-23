@@ -1,5 +1,13 @@
 # @hussmartinez/pdf-sdk
 
+## 0.7.1
+
+### Patch Changes
+
+- [#214](https://github.com/ie-huss-martinez/sdk-core/pull/214) [`32ce51f`](https://github.com/ie-huss-martinez/sdk-core/commit/32ce51f5cf8d7fcfb3edf0ef42162f81e0fdf067) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The editor's message catalogue has two more keys from ui's `TimelineClips`: `timelineClips.selected` and `timelineClips.notSelected`, "{label}, selected" and "{label}, not selected". They announce a clip added to a timeline's selection or taken out of it. Override them with your other translations.
+- Updated dependencies [[`32ce51f`](https://github.com/ie-huss-martinez/sdk-core/commit/32ce51f5cf8d7fcfb3edf0ef42162f81e0fdf067)]:
+  - @hussmartinez/ui@0.16.7
+
 ## 0.7.0
 
 ### Minor Changes
