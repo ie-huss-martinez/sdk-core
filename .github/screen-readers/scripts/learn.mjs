@@ -2,8 +2,8 @@
 // table, with the Thai prompts. Run where a Thai voice is installed.
 /** NVDA in both browsers: where its default browse mode diverges (see the issues). */
 const NVDA = ["nvda-chrome", "nvda-firefox"];
-const known = (issue, on = NVDA) => [
-  { on, issue: `https://github.com/ie-huss-martinez/sdk-core/issues/${issue}` },
+const known = (issue, on = NVDA, fragments = undefined) => [
+  { on, issue: `https://github.com/ie-huss-martinez/sdk-core/issues/${issue}`, fragments },
 ];
 // NVDA in Firefox sometimes misses a script's first keys: the runner's
 // problem, so it's reported there, not judged (#213).
@@ -21,8 +21,11 @@ export default {
       does: "Tab from the top of the page into the player.",
       keys: ["Tab"],
       expect: ["กิน", "to eat", "toggle button", "not pressed"],
-      // NVDA doesn't read the group's description, the prompt กิน (#217).
-      knownFailures: known(217),
+      // NVDA doesn't read the group's description, the prompt กิน (#217):
+      // only that is expected to be missing. In Firefox, NVDA sometimes
+      // misses the first keys, so it's reported there (#213).
+      knownFailures: known(217, ["nvda-chrome"], ["กิน"]),
+      reportOnly: FIREFOX_START,
     },
     {
       does: "Press Enter on “to eat”.",
@@ -34,7 +37,7 @@ export default {
       does: "Tab to the second question.",
       keys: ["Tab"],
       expect: ["น้ำ", "rice", "not pressed"],
-      knownFailures: known(217),
+      knownFailures: known(217, NVDA, ["น้ำ"]),
     },
     { does: "Choose “rice” with Space.", keys: ["Space"], expect: [["pressed", "selected"]] },
     {

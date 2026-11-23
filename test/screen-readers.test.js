@@ -193,6 +193,19 @@ describe("outcome", () => {
     expect(outcome(reported, ["moved"], "nvda-chrome")).toEqual({ outcome: "fail" });
   });
 
+  it("fails a marked step on a missing fragment that its bug doesn't cover", () => {
+    const prompt = {
+      does: "Tab into the question.",
+      keys: ["Tab"],
+      expect: ["กิน", "to eat", "not pressed"],
+      knownFailures: [{ on: ["nvda-chrome"], issue, fragments: ["กิน"] }],
+    };
+    expect(outcome(prompt, ["กิน"], "nvda-chrome")).toEqual({ outcome: "expected failure", issue });
+    expect(outcome(prompt, ["กิน", "not pressed"], "nvda-chrome")).toEqual({ outcome: "fail" });
+    expect(outcome(prompt, ["to eat"], "nvda-chrome")).toEqual({ outcome: "fail" });
+    expect(outcome(prompt, [], "nvda-chrome")).toEqual({ outcome: "unexpected pass", issue });
+  });
+
   it("judges a step normally on a pairing its marker doesn't name", () => {
     expect(outcome(step, ["moved"], "voiceover-safari")).toEqual({ outcome: "fail" });
     expect(outcome(step, [], "voiceover-safari")).toEqual({ outcome: "pass" });
@@ -243,6 +256,11 @@ describe("the scripts", () => {
         for (const failure of [...(step.knownFailures ?? []), ...(step.reportOnly ?? [])]) {
           expect(failure.on.length, `${script.name}: ${step.does}`).toBeGreaterThan(0);
           expect(failure.on.every((pairing) => PAIRINGS.includes(pairing))).toBe(true);
+          for (const fragment of failure.fragments ?? []) {
+            expect(step.expect, `${script.name}: ${step.does} expects ${fragment}`).toContain(
+              fragment,
+            );
+          }
           expect(failure.issue).toMatch(
             /^https:\/\/github\.com\/ie-huss-martinez\/sdk-core\/issues\/\d+$/,
           );
