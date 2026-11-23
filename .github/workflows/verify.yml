@@ -42,12 +42,14 @@ jobs:
 
       # Exactly one FROM line: Microsoft's Playwright image, pinned by tag and
       # digest. Anything else fails here, before a container is pulled.
+      # Dockerfile instructions ignore case and may be indented, so a second
+      # "from …" or an indented "FROM … AS x" is counted too, and fails.
       - id: read
         name: Read the image
         env:
           DOCKERFILE: ci/Dockerfile
         run: |
-          refs=$(sed -n 's/^FROM //p' "$DOCKERFILE")
+          refs=$(sed -nE 's/^[[:space:]]*[Ff][Rr][Oo][Mm][[:space:]]+//p' "$DOCKERFILE")
           pattern='^mcr\.microsoft\.com/playwright:v[0-9]+\.[0-9]+\.[0-9]+-noble@sha256:[0-9a-f]{64}$'
           if [ "$(printf '%s\n' "$refs" | grep -c .)" -ne 1 ] || ! printf '%s' "$refs" | grep -Eq "$pattern"; then
             echo "::error file=$DOCKERFILE::$DOCKERFILE needs exactly one FROM line: mcr.microsoft.com/playwright:<tag>-noble@sha256:<digest>."
