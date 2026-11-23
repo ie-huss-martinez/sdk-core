@@ -1,5 +1,11 @@
 # @hussmartinez/ai-core
 
+## 0.1.2
+
+### Patch Changes
+
+- [#195](https://github.com/ie-huss-martinez/sdk-core/pull/195) [`b477508`](https://github.com/ie-huss-martinez/sdk-core/commit/b4775089697ef4dd220053d6e55571f51ed38877) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The package's source now lives in the SDK family's repository, [`ie-huss-martinez/sdk-core`](https://github.com/ie-huss-martinez/sdk-core/tree/main/packages/ai-core), and is released from there. Its `repository`, `homepage` and `bugs` fields point to it. Nothing changes in the package's code or API. Report issues in that repository from now on.
+
 ## 0.1.1
 
 ### Patch Changes

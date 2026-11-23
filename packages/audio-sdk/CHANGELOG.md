@@ -1,5 +1,13 @@
 # @hussmartinez/audio-sdk
 
+## 0.11.1
+
+### Patch Changes
+
+- [#195](https://github.com/ie-huss-martinez/sdk-core/pull/195) [`b477508`](https://github.com/ie-huss-martinez/sdk-core/commit/b4775089697ef4dd220053d6e55571f51ed38877) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The package's source now lives in the SDK family's repository, [`ie-huss-martinez/sdk-core`](https://github.com/ie-huss-martinez/sdk-core/tree/main/packages/audio-sdk), and is released from there. Its `repository`, `homepage` and `bugs` fields point to it. Nothing changes in the package's code or API. Report issues in that repository from now on.
+- Updated dependencies [[`b477508`](https://github.com/ie-huss-martinez/sdk-core/commit/b4775089697ef4dd220053d6e55571f51ed38877)]:
+  - @hussmartinez/ui@0.16.5
+
 ## 0.11.0
 
 ### Minor Changes
