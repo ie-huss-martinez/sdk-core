@@ -301,6 +301,19 @@ describe("outlineOfPoints, for a uniform stroke", () => {
       ),
       {
         examples: [
+          // A short line that turns straight back on itself: its outline once
+          // went the wrong way around the turn, and cancelled the ink under it.
+          [
+            [
+              [0, 2],
+              [2, 2],
+              [1, 2],
+            ],
+            true,
+            "pen",
+            40,
+            [],
+          ],
           // An end given twice: the point before a flat end isn't inside the line.
           [
             [
@@ -327,6 +340,24 @@ describe("outlineOfPoints, for a uniform stroke", () => {
         ],
       },
     );
+  });
+
+  it("fills a line that turns straight back on itself", () => {
+    const style: StrokeStyle = { tool: "pen", size: 40, uniform: true };
+    // There and back, as a stylus held still can give, open and closed.
+    for (const closed of [false, true]) {
+      const path = [0, 2, 500, 2, 2, 500, 1, 2, 500, ...(closed ? [0, 2, 500] : [])];
+      const outline = outlineOfPoints(path, style, true);
+      for (const [x, y] of [
+        [1.5, 2.5],
+        [2.5, 2.5],
+        [1, 12],
+        [1, -8],
+      ] as const) {
+        expect(windingNumber(outline, x, y), `${closed} at ${x}, ${y}`).not.toBe(0);
+      }
+      expect(windingNumber(outline, 1, 30)).toBe(0);
+    }
   });
 
   it("ends a highlighter's line flat at an end given twice", () => {

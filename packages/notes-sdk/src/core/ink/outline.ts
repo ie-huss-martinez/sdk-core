@@ -281,6 +281,12 @@ function taperLength(points: ArrayLike<number>, count: number, size: number): nu
  * A closed path, whose first and last points are the same, is drawn from the
  * middle of its first segment to just past it, with flat ends. Its corners
  * then all look alike, and its two ends lie under the line itself.
+ *
+ * The outline goes the same way around every part of the stroke: the band of
+ * each segment, the round outside each turn and the round of each end. The
+ * non-zero rule then adds up the parts that overlap, and none cancels
+ * another, however short the segments and however sharp the turns. `join`
+ * keeps it so on the inside of a turn.
  */
 function uniformOutline(
   points: ArrayLike<number>,
@@ -404,6 +410,11 @@ function arc(
  * Adds one side of the join at `(x, y)`, where the path turns from the
  * direction `(ux, uy)` to `(vx, vy)`. `side` is 1 for the left of the path
  * and -1 for the right; `reach` is the length of the shorter segment there.
+ *
+ * Outside the turn the join is a round, which adds its fan to the two
+ * segments' bands. Inside the turn the bands overlap. The outline either
+ * goes through the path's own point, which leaves both bands whole, or takes
+ * a mitre, which counts their overlap once instead of twice.
  */
 function join(
   outline: number[],
@@ -426,24 +437,35 @@ function join(
   const sumY = ay + vx * side;
   // Where the two segments' edges meet on this side: the point of a mitre.
   const mitre = half / (1 + dot);
-  const inside = cross * side > 0;
-  // Whether both segments are long enough for their edges to meet there. If
-  // not, the mitre's point is further from the path than half the width.
-  const meets = dot > -1 && half * Math.sqrt((1 - dot) / (1 + dot)) <= reach;
+  // A path that turns straight back on itself turns neither way, and is
+  // taken to turn left. With no inside, both sides would be rounds, one of
+  // them going the wrong way around, and it would cancel the ink under it.
+  const inside = cross * side > 0 || (cross === 0 && dot < 0 && side > 0);
+  // Whether a mitre fits. It leaves out a kite: the path's point, the ends
+  // of the two edges there, and the edges' crossing. Both bands cover that
+  // kite only if neither segment is shorter than the kite is long: half the
+  // width times the tangent of half the turn, to the crossing, or times the
+  // sine of the turn, to the end of the other edge. On a shorter segment the
+  // mitre would leave out ink that only the other band gives, or put its
+  // point further from the path than half the width.
+  const fits =
+    dot > -1 && half * Math.max(Math.sqrt((1 - dot) / (1 + dot)), Math.abs(cross)) <= reach;
 
-  if (dot > GENTLE_COSINE && (!inside || meets)) {
+  if (dot > GENTLE_COSINE && (!inside || fits)) {
     // Part of a curve: one point, on the edges' crossing inside the bend and
     // at the stroke's width outside it, so the outline is never too wide.
     const scale = inside ? mitre : half / Math.sqrt(2 + 2 * dot);
     outline.push(x + sumX * scale, y + sumY * scale);
   } else if (!inside) {
-    arc(outline, x, y, ax, ay, Math.atan2(cross, dot), half);
-  } else if (meets) {
+    // Around the outside of the turn: to the right on the left side, and to
+    // the left on the right side, whatever the sign of a cross product of 0.
+    arc(outline, x, y, ax, ay, -side * Math.atan2(Math.abs(cross), dot), half);
+  } else if (fits) {
     corner(outline, x + sumX * mitre, y + sumY * mitre);
   } else {
-    // The segments are too short for their edges to meet, at a corner or at
-    // a gentle bend: go through the path's own point, which keeps the
-    // outline inside the line.
+    // The segments are too short for a mitre, at a corner or at a gentle
+    // bend: go through the path's own point, which keeps the outline inside
+    // the line and both bands whole.
     corner(outline, x + ax * half, y + ay * half);
     corner(outline, x, y);
     corner(outline, x - vy * side * half, y + vx * side * half);

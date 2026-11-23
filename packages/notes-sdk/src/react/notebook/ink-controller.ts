@@ -756,10 +756,11 @@ export function attachInk(host: InkHost): () => void {
       // The event's own position may lie past its last sample: the way there
       // belongs to what the pen was doing too, so no gap is left before the
       // other tool starts from it.
+      // Not for the hand: it moves the page by the event's own movement,
+      // which the samples above already used.
       const last = samples.at(-1);
-      if (last && (last.clientX !== event.clientX || last.clientY !== event.clientY)) {
-        add(current, event, [event]);
-      }
+      const moved = last && (last.clientX !== event.clientX || last.clientY !== event.clientY);
+      if (moved && current.tool !== "hand") add(current, event, [event]);
       swap(current, event);
     }
   };
