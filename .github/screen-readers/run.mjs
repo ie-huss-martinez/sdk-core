@@ -290,6 +290,10 @@ const names = values.scripts
   .split(",")
   .map((name) => name.trim())
   .filter(Boolean);
+if (names.length === 0) {
+  process.stderr.write(`No script named in --scripts "${values.scripts}".\n`);
+  process.exit(2);
+}
 const scripts = await Promise.all(
   names.map(async (name) => (await import(`./scripts/${name}.mjs`)).default),
 );
