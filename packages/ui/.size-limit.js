@@ -126,12 +126,15 @@ export default [
   entryBudget({
     name: "React entry (./react), with the shared code it loads",
     entry: "dist/react.js",
-    // 25 kB; 24.71 kB with Heading and HeadingLevelProvider (sdk-core ADR
-    // 0058), which only the Dialog and editor scenarios import, through
-    // Dialog's context for its content's headings. Every component counts here, though no
+    // 26 kB; 25.53 kB once ReorderableList kept focus on its cells and
+    // entered at its Tab stop under NVDA (sdk-core#201, #202), +0.60 kB of it
+    // in the ReorderableList import below. Before, 25 kB; 24.71 kB with
+    // Heading and HeadingLevelProvider (sdk-core ADR 0058), which only the
+    // Dialog and editor scenarios import, through Dialog's context for its
+    // content's headings. Every component counts here, though no
     // application ships them all, so a component's pull request raises it as
     // expected growth; review reads the import scenarios below to judge it.
-    limit: "25 kB",
+    limit: "26 kB",
   }),
   entryBudget({
     name: "Stylesheet (./styles.css)",

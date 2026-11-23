@@ -175,6 +175,17 @@ function cellsOf(row: HTMLElement): HTMLElement[] {
   return targets;
 }
 
+/** A control's name, as far as the cell needs it: its label, the elements that label it, or its text. */
+function nameOf(control: HTMLElement): string {
+  const labelledBy = control
+    .getAttribute("aria-labelledby")
+    ?.split(/\s+/)
+    .map((id) => control.ownerDocument.getElementById(id)?.textContent?.trim() ?? "")
+    .filter(Boolean)
+    .join(" ");
+  return (control.getAttribute("aria-label") || labelledBy || control.textContent || "").trim();
+}
+
 /** The words for a control's state, from its `aria-pressed` or `aria-checked`. */
 type ControlWords = (
   state: "pressed" | "notPressed" | "checked" | "notChecked" | null,
@@ -194,7 +205,7 @@ function syncControlCells(list: HTMLElement, words: ControlWords): void {
     }
     control.dataset["hmRoving"] = "";
     control.tabIndex = -1;
-    const label = (control.getAttribute("aria-label") ?? control.textContent ?? "").trim();
+    const label = nameOf(control);
     const pressed = control.getAttribute("aria-pressed");
     const checked = control.getAttribute("aria-checked");
     const state =
@@ -337,6 +348,30 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
     const pressedAt = useRef(Number.NEGATIVE_INFINITY);
     const announce = useAnnounce();
     const messages = useUiMessages();
+    // How a control cell names its control's state, in the current messages.
+    const words = useRef<ControlWords>(() => "");
+    words.current = (state, controlLabel) =>
+      state === null
+        ? controlLabel
+        : messages.t(`reorderableList.control.${state}`, { label: controlLabel });
+
+    // A control can change its own state without the list rendering, such as
+    // a toggle that keeps its state itself, so its cell follows the DOM.
+    useEffect(() => {
+      const element = list.current;
+      if (!element || typeof MutationObserver === "undefined") {
+        return;
+      }
+      const observer = new MutationObserver(() => syncControlCells(element, words.current));
+      observer.observe(element, {
+        subtree: true,
+        childList: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ["aria-pressed", "aria-checked", "aria-label", "aria-labelledby"],
+      });
+      return () => observer.disconnect();
+    }, []);
 
     // After every render: one Tab stop, and the focus a move or a removal
     // asked for, once the host has rendered it.
@@ -381,11 +416,7 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
           );
         }
       }
-      syncControlCells(element, (state, controlLabel) =>
-        state === null
-          ? controlLabel
-          : messages.t(`reorderableList.control.${state}`, { label: controlLabel }),
-      );
+      syncControlCells(element, words.current);
       // With focus elsewhere, the Tab stop follows a selection made elsewhere,
       // such as on an editor's stage; with focus inside, it stays with focus.
       const inside = element.contains(document.activeElement);
@@ -429,6 +460,17 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
       onKeyDown?.(event);
       // Whatever was asked for before, the user has moved on.
       pending.current = undefined;
+      if (event.key === "Escape" && editsText(event.target)) {
+        // Escape leaves a text field among a row's controls for its cell.
+        const fieldCell = (event.target as HTMLElement).closest<HTMLElement>(
+          '[data-hm-cell="control"]',
+        );
+        if (fieldCell && event.currentTarget.contains(fieldCell)) {
+          event.preventDefault();
+          focusQuietly(fieldCell);
+        }
+        return;
+      }
       if (
         event.defaultPrevented ||
         event.nativeEvent.isComposing ||
@@ -445,7 +487,11 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
         return;
       }
       const cells = cellsOf(row);
-      const cell = cells.indexOf(event.target as HTMLElement);
+      // A key from inside a cell, such as from a control that has focus, is
+      // its cell's.
+      const cell = cells.indexOf(
+        (event.target as HTMLElement).closest<HTMLElement>("[data-hm-cell]") as HTMLElement,
+      );
       if (cell === -1) {
         return;
       }
@@ -509,8 +555,14 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
         if (cell === 0) {
           select(idOf(row));
         } else if (target) {
-          // A control's cell presses its control, as the control would.
-          controlOf(target)?.click();
+          // A control's cell presses its control, as the control would, or
+          // puts focus in it when it takes text.
+          const control = controlOf(target);
+          if (editsText(control ?? null)) {
+            control?.focus();
+          } else {
+            control?.click();
+          }
         }
       }
     };
@@ -553,7 +605,9 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
       const fromOutside = !(related instanceof Node && element.contains(related));
       const cell = target.closest<HTMLElement>("[data-hm-cell]");
       const pressed = performance.now() - pressedAt.current < PRESS_MS;
-      if (fromOutside && cell && !pressed && !requested.has(cell)) {
+      // Entering is never a selection, even onto the Tab stop itself.
+      const entering = fromOutside && cell !== null && !pressed && !requested.has(cell);
+      if (entering) {
         const all = rowsOf(element).flatMap(cellsOf);
         const stop =
           all.find((candidate) => candidate.dataset["hmTabStop"] !== undefined) ??
@@ -564,14 +618,19 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
         }
       }
       // A control that took focus, from a press for instance, hands it to
-      // its cell, which stands for it.
+      // its cell, which stands for it. A text field keeps it, so it can be
+      // typed into; Escape returns to the cell.
       const controlCell = target.closest<HTMLElement>('[data-hm-cell="control"]');
       if (controlCell && controlCell !== target && element.contains(controlCell)) {
+        if (editsText(target)) {
+          syncTabStop(element, controlCell);
+          return;
+        }
         focusQuietly(controlCell);
         return;
       }
       syncTabStop(event.currentTarget, event.target);
-      if (!quiet.current && target.dataset["hmCell"] === "item") {
+      if (!quiet.current && !entering && target.dataset["hmCell"] === "item") {
         const row = rowsOf(event.currentTarget).find((candidate) => candidate.contains(target));
         if (row) {
           select(idOf(row));
