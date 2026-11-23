@@ -22,7 +22,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
 import { nvda, voiceOver } from "@guidepup/guidepup";
 import { chromium } from "playwright";
-import { missingFragments, outcome, platformKey, waitForSpeech } from "./steps.mjs";
+import { missingFragments, outcome, platformKey, stepsFor, waitForSpeech } from "./steps.mjs";
 
 const { values } = parseArgs({
   options: {
@@ -227,7 +227,7 @@ async function runScript(script, attempt, info) {
     if (startFocus) {
       transcript.startFocus = startFocus;
     }
-    for (const step of script.steps) {
+    for (const step of stepsFor(script, `${readerName}-${browserName}`)) {
       const before = await count();
       for (const key of step.keys) {
         await reader.press(platformKey(key, process.platform), CAPTURE);

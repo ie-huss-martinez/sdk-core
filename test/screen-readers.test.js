@@ -7,6 +7,7 @@ import {
   normalize,
   outcome,
   platformKey,
+  stepsFor,
   waitForSpeech,
 } from "../.github/screen-readers/steps.mjs";
 
@@ -183,6 +184,17 @@ describe("outcome", () => {
   });
 });
 
+describe("stepsFor", () => {
+  const tab = { does: "Tab.", keys: ["Tab"], expect: [] };
+  const back = { does: "Shift+Tab.", keys: ["Shift+Tab"], expect: [], only: ["nvda-chrome"] };
+  const script = { name: "s", site: "catalogue", path: "/", steps: [tab, back] };
+
+  it("runs a step with `only` on the pairings it names, and every other step everywhere", () => {
+    expect(stepsFor(script, "nvda-chrome")).toEqual([tab, back]);
+    expect(stepsFor(script, "voiceover-safari")).toEqual([tab]);
+  });
+});
+
 const PAIRINGS = ["nvda-chrome", "nvda-firefox", "voiceover-safari"];
 
 describe("the scripts", () => {
@@ -195,8 +207,6 @@ describe("the scripts", () => {
       "list-controls.mjs",
       "list.mjs",
       "moving-clips.mjs",
-      // Temporary probe for #203, removed before merging.
-      "probe-after-button.mjs",
     ]);
     for (const file of files) {
       const { default: script } = await import(new URL(file, dir).href);
@@ -211,6 +221,10 @@ describe("the scripts", () => {
       for (const step of script.steps) {
         expect(step.keys.length, `${script.name}: ${step.does}`).toBeGreaterThan(0);
         expect(Array.isArray(step.expect)).toBe(true);
+        if (step.only) {
+          expect(step.only.length, `${script.name}: ${step.does}`).toBeGreaterThan(0);
+          expect(step.only.every((pairing) => PAIRINGS.includes(pairing))).toBe(true);
+        }
         for (const failure of step.knownFailures ?? []) {
           expect(failure.on.length, `${script.name}: ${step.does}`).toBeGreaterThan(0);
           expect(failure.on.every((pairing) => PAIRINGS.includes(pairing))).toBe(true);

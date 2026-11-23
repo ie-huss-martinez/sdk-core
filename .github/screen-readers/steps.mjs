@@ -14,6 +14,9 @@
  *   ["pressed", "selected"], which screen readers say for the same state.
  * @property {KnownFailure[]} [knownFailures] Where the step is a known bug:
  *   it still asserts, and must fail there until the bug is fixed.
+ * @property {string[]} [only] The pairings the step runs on, for a key one
+ *   screen reader needs and another doesn't, such as NVDA's first Tab
+ *   going past the page's first control. Without it, the step runs on all.
  */
 
 /**
@@ -42,6 +45,17 @@ export function outcome(step, missing, pairing) {
       : { outcome: "unexpected pass", issue: known.issue };
   }
   return { outcome: missing.length > 0 ? "fail" : "pass" };
+}
+
+/**
+ * The steps of a script that run on a pairing.
+ *
+ * @param {Script} script
+ * @param {string} pairing Such as "nvda-firefox".
+ * @returns {Step[]}
+ */
+export function stepsFor(script, pairing) {
+  return script.steps.filter((step) => !step.only || step.only.includes(pairing));
 }
 
 /**
