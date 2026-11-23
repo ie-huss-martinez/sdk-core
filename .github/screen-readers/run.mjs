@@ -220,6 +220,13 @@ async function runScript(script, attempt, info) {
     // heard as nothing.
     await sleep(browserName === "firefox" ? 15_000 : 8_000);
     await waitForSpeech(count, { firstMs: 3_000, quietMs: 2_000 });
+    // Where focus is before the first key: a screen reader can move it
+    // itself while reading the page, and then "Tab from the top" starts
+    // from there. Only Chrome has a page to ask.
+    const startFocus = await page.focus?.().catch(() => undefined);
+    if (startFocus) {
+      transcript.startFocus = startFocus;
+    }
     for (const step of script.steps) {
       const before = await count();
       for (const key of step.keys) {
