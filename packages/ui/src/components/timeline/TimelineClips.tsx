@@ -385,8 +385,8 @@ export const TimelineClips = /* @__PURE__ */ forwardRef<TimelineClipsHandle, Tim
     } | null>(null);
 
     // Screen readers don't say that the focused option's selection changed,
-    // so the clips say it. A change the host refused, or replaced with
-    // another, isn't announced.
+    // so the clips say it, with the clip's name as rendered then. A change
+    // the host refused, or replaced with another, isn't announced.
     useEffect(() => {
       const change = toggled.current;
       if (!change || change.from === selected) {
@@ -394,13 +394,14 @@ export const TimelineClips = /* @__PURE__ */ forwardRef<TimelineClipsHandle, Tim
       }
       toggled.current = null;
       if (selected.has(change.key) === change.added) {
+        const label = clips.find((clip) => clip.key === change.key)?.label ?? change.label;
         announce(
           messages.t(change.added ? "timelineClips.selected" : "timelineClips.notSelected", {
-            label: change.label,
+            label,
           }),
         );
       }
-    }, [selected, announce, messages]);
+    }, [selected, clips, announce, messages]);
     const tabStop =
       clips.find((clip) => clip.key === focusKey) ??
       clips.find((clip) => selected.has(clip.key)) ??
@@ -930,7 +931,16 @@ export const TimelineClips = /* @__PURE__ */ forwardRef<TimelineClipsHandle, Tim
       anchor.current = key;
       select(next, true);
       const label = clips.find((clip) => clip.key === key)?.label ?? "";
-      toggled.current = { key, label, added, from: selected };
+      const change = { key, label, added, from: selected };
+      toggled.current = change;
+      // React renders what an event changed before the next frame. A toggle
+      // the host hasn't rendered by then was refused, and a later change to
+      // the selection mustn't announce it.
+      requestAnimationFrame(() => {
+        if (toggled.current === change) {
+          toggled.current = null;
+        }
+      });
     };
 
     const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {

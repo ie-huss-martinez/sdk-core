@@ -47,6 +47,7 @@ function Probe() {
 }
 
 let setClips: (clips: TimelineClip[]) => void;
+let setSelection: (keys: readonly string[]) => void;
 const handle = createRef<TimelineClipsHandle>();
 
 interface Options {
@@ -74,6 +75,7 @@ function Fixture({
   const [selected, setSelected] = useState(first);
   const [frame, setFrame] = useState(0);
   setClips = set;
+  setSelection = setSelected;
   const length = clips.reduce((sum, clip) => sum + clip.length, 0);
   return (
     <div dir={dir} style={{ inlineSize: "600px" }}>
@@ -97,6 +99,26 @@ function Fixture({
       </Timeline>
       <input type="text" aria-label="Name" />
     </div>
+  );
+}
+
+/** A host that renames the clips as it renders the selection, as a range moved or trimmed in the same update would. */
+function Renaming() {
+  const [keys, setKeys] = useState<readonly string[]>(["c2"]);
+  const [version, setVersion] = useState(1);
+  return (
+    <Timeline label="Timeline" length={300}>
+      <TimelineClips
+        label="Clips"
+        clips={five().map((clip) => ({ ...clip, label: `${clip.label}, version ${version}` }))}
+        selectionMode="multiple"
+        selectedKeys={keys}
+        onSelectedKeysChange={(next) => {
+          setKeys(next);
+          setVersion((value) => value + 1);
+        }}
+      />
+    </Timeline>
   );
 }
 
@@ -298,6 +320,18 @@ describe("TimelineClips", () => {
     await expect.poll(status).toBe("Clip 2, not selected");
   });
 
+  it("announces a clip by its name as rendered with the new selection", async () => {
+    const container = render(
+      <AnnouncerProvider>
+        <Renaming />
+      </AnnouncerProvider>,
+    );
+    const status = () => container.querySelector('[role="status"]')?.textContent;
+    clip(container, "c2").focus();
+    await press(" ");
+    await expect.poll(status).toBe("Clip 2, version 2, not selected");
+  });
+
   it("doesn't announce a plain selection, or a change the host refused", async () => {
     const container = render(
       <AnnouncerProvider>
@@ -325,6 +359,9 @@ describe("TimelineClips", () => {
     await press(" ");
     expect(onChange.mock.calls).toEqual([[[]]]);
     expect(selected(container)).toEqual(["c2"]);
+    // Nor later, when the host changes the selection for its own reasons.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    act(() => setSelection([]));
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(status()).toBe("");
   });
