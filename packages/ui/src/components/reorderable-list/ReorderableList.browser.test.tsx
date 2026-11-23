@@ -145,6 +145,9 @@ const item = (container: HTMLElement, id: string) =>
   container.querySelector(`[data-hm-id="${id}"] [data-hm-cell="item"]`) as HTMLElement;
 const toggle = (container: HTMLElement, id: string) =>
   container.querySelector(`[data-hm-id="${id}"] button`) as HTMLElement;
+/** A control's cell, which takes focus in its place (docs/adr/0009, #202). */
+const controlCell = (container: HTMLElement, id: string) =>
+  toggle(container, id).closest('[data-hm-cell="control"]') as HTMLElement;
 const selected = (container: HTMLElement) =>
   container.querySelector<HTMLElement>('[role="row"][aria-selected="true"]')?.dataset["hmId"];
 const tabStops = (container: HTMLElement) =>
@@ -266,14 +269,14 @@ describe("ReorderableList", () => {
     expect(onSelectedChange.mock.calls).toEqual([["Title"]]);
     onSelectedChange.mockClear();
     expect(await press("{ArrowRight}")).toEqual({ prevented: true, scrolled: false });
-    expect(document.activeElement).toBe(toggle(container, "Title"));
+    expect(document.activeElement).toBe(controlCell(container, "Title"));
     // The same cell in the next row.
     await press("{Control>}{ArrowDown}{/Control}");
-    expect(document.activeElement).toBe(toggle(container, "Photo"));
+    expect(document.activeElement).toBe(controlCell(container, "Photo"));
     await press("{ArrowLeft}");
     expect(document.activeElement).toBe(item(container, "Photo"));
     await press("{End}");
-    expect(document.activeElement).toBe(toggle(container, "Photo"));
+    expect(document.activeElement).toBe(controlCell(container, "Photo"));
     await press("{Home}");
     expect(document.activeElement).toBe(item(container, "Photo"));
     expect(onSelectedChange).not.toHaveBeenCalled();
@@ -288,7 +291,7 @@ describe("ReorderableList", () => {
     );
     item(container, "Title").focus();
     await press("{ArrowLeft}");
-    expect(document.activeElement).toBe(toggle(container, "Title"));
+    expect(document.activeElement).toBe(controlCell(container, "Title"));
     await press("{ArrowRight}");
     expect(document.activeElement).toBe(item(container, "Title"));
   });
@@ -302,6 +305,38 @@ describe("ReorderableList", () => {
     await userEvent.keyboard("{Enter}");
     expect(toggle(container, "Title").getAttribute("aria-pressed")).toBe("true");
     expect(onSelectedChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps focus on a control's cell, named after the control and its state, never on the control", async () => {
+    const onSelectedChange = vi.fn();
+    const container = render(<Layers calls={{ onSelectedChange }} />);
+    item(container, "Title").focus();
+    onSelectedChange.mockClear();
+    await press("{ArrowRight}");
+    const cell = controlCell(container, "Title");
+    expect(document.activeElement).toBe(cell);
+    expect(cell.getAttribute("role")).toBe("gridcell");
+    expect(cell.getAttribute("aria-label")).toBe("Visible, pressed");
+    // The control is part of its cell: never a Tab stop of its own.
+    expect(toggle(container, "Title").tabIndex).toBe(-1);
+    expect(await press(" ")).toEqual({ prevented: true, scrolled: false });
+    expect(toggle(container, "Title").getAttribute("aria-pressed")).toBe("false");
+    await vi.waitFor(() => expect(cell.getAttribute("aria-label")).toBe("Visible, not pressed"));
+    expect(document.activeElement).toBe(cell);
+    await press("{Enter}");
+    expect(toggle(container, "Title").getAttribute("aria-pressed")).toBe("true");
+    await vi.waitFor(() => expect(cell.getAttribute("aria-label")).toBe("Visible, pressed"));
+    expect(onSelectedChange).not.toHaveBeenCalled();
+  });
+
+  it("hands focus from a clicked control to its cell, without selecting the row", async () => {
+    const onSelectedChange = vi.fn();
+    const container = render(<Layers calls={{ onSelectedChange }} />);
+    await userEvent.click(toggle(container, "Shape"));
+    expect(document.activeElement).toBe(controlCell(container, "Shape"));
+    expect(onSelectedChange).not.toHaveBeenCalled();
+    // Alt with an arrow still reaches the list from there.
+    expect(await press("{Alt>}{ArrowUp}{/Alt}")).toEqual({ prevented: true, scrolled: false });
   });
 
   it("selects a row on a click, but not on a click on its control", async () => {
@@ -330,7 +365,7 @@ describe("ReorderableList", () => {
     toggle(container, "Photo").focus();
     await press("{Alt>}{ArrowUp}{ArrowUp}{/Alt}");
     expect(rows(container)).toEqual(["Photo", "Title", "Shape", "Background"]);
-    expect(document.activeElement).toBe(toggle(container, "Photo"));
+    expect(document.activeElement).toBe(controlCell(container, "Photo"));
     expect(tabStops(container)).toEqual(["Photo"]);
   });
 
@@ -385,7 +420,7 @@ describe("ReorderableList", () => {
     toggle(container, "Background").focus();
     expect(await press("{Backspace}")).toEqual({ prevented: true, scrolled: false });
     expect(rows(container)).toEqual(["Title", "Shape"]);
-    expect(document.activeElement).toBe(toggle(container, "Shape"));
+    expect(document.activeElement).toBe(controlCell(container, "Shape"));
     expect(tabStops(container)).toEqual(["Shape"]);
   });
 

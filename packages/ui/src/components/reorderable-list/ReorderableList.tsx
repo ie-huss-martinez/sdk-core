@@ -121,23 +121,66 @@ function rowsOf(list: HTMLElement): HTMLElement[] {
   );
 }
 
-/** A row's focus targets: the item's cell, then each cell's control. */
+/** A control cell's control. */
+const controlOf = (cell: HTMLElement): HTMLElement | undefined => focusableItems(cell)[0];
+
+/**
+ * A row's focus targets: the item's cell, then each control's cell. Focus
+ * stays on cells, never on the controls inside them: NVDA, by default,
+ * leaves focus mode for its browse mode when focus lands on a button, even
+ * inside a grid, and then keeps the arrow keys and Alt with them for itself
+ * (#202). On a cell it stays in focus mode.
+ */
 function cellsOf(row: HTMLElement): HTMLElement[] {
   const targets: HTMLElement[] = [];
   for (const cell of row.children) {
     if (!(cell instanceof HTMLElement)) {
       continue;
     }
-    if (cell.dataset["hmCell"] === "item") {
+    if (cell.dataset["hmCell"] === "item" || controlOf(cell)) {
       targets.push(cell);
-    } else {
-      const control = focusableItems(cell)[0];
-      if (control) {
-        targets.push(control);
-      }
     }
   }
   return targets;
+}
+
+/** The words for a control's state, from its `aria-pressed` or `aria-checked`. */
+type ControlWords = (
+  state: "pressed" | "notPressed" | "checked" | "notChecked" | null,
+  label: string,
+) => string;
+
+/**
+ * Makes each control cell stand for its control: the control leaves the Tab
+ * order, and the cell's name is the control's name with its state, since
+ * the cell, not the control, has focus.
+ */
+function syncControlCells(list: HTMLElement, words: ControlWords): void {
+  for (const cell of list.querySelectorAll<HTMLElement>('[data-hm-cell="control"]')) {
+    const control = controlOf(cell);
+    if (!control) {
+      continue;
+    }
+    control.dataset["hmRoving"] = "";
+    control.tabIndex = -1;
+    const label = (control.getAttribute("aria-label") ?? control.textContent ?? "").trim();
+    const pressed = control.getAttribute("aria-pressed");
+    const checked = control.getAttribute("aria-checked");
+    const state =
+      pressed === "true"
+        ? "pressed"
+        : pressed === "false"
+          ? "notPressed"
+          : checked === "true"
+            ? "checked"
+            : checked === "false"
+              ? "notChecked"
+              : null;
+    const name = words(state, label);
+    if (cell.getAttribute("aria-label") !== name) {
+      cell.setAttribute("aria-label", name);
+    }
+  }
 }
 
 const idOf = (row: HTMLElement | undefined): string => row?.dataset["hmId"] ?? "";
@@ -176,10 +219,15 @@ function syncTabStop(list: HTMLElement, active?: Element | null): void {
  *
  * - **↑ and ↓** move between rows and select; with Ctrl or ⌘, they move
  *   without selecting. The selection follows focus however it reaches an
- *   item: the keys, Tab, a click, or your own `focus()`. Focus on a control
- *   never changes it. **← and →**, Home and End move between a row's
- *   cells. Ctrl or ⌘ with Home or End goes to the first or last row.
- *   Space or Enter on an item selects it.
+ *   item: the keys, Tab, a click, or your own `focus()`. Focus on a
+ *   control's cell never changes it. **← and →**, Home and End move between
+ *   a row's cells. Ctrl or ⌘ with Home or End goes to the first or last
+ *   row. Space or Enter on an item selects it, and on a control's cell
+ *   presses its control.
+ * - **Focus stays on cells.** A control is part of its cell: the cell takes
+ *   focus, is named after the control and its `aria-pressed` or
+ *   `aria-checked` state, and passes Space, Enter and clicks to it. Screen
+ *   readers then stay in the mode that sends keys to the list.
  * - **Alt+↑ and Alt+↓** (Option on macOS) move the focused item, through
  *   `onMove`. **Delete and Backspace** remove it, through `onRemove`.
  * - **You own the order.** The list calls `onMove` and `onRemove`, and you
@@ -294,6 +342,11 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
           );
         }
       }
+      syncControlCells(element, (state, controlLabel) =>
+        state === null
+          ? controlLabel
+          : messages.t(`reorderableList.control.${state}`, { label: controlLabel }),
+      );
       // With focus elsewhere, the Tab stop follows a selection made elsewhere,
       // such as on an editor's stage; with focus inside, it stays with focus.
       const inside = element.contains(document.activeElement);
@@ -411,10 +464,15 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
         event.preventDefault();
         pending.current = { kind: "remove", id: idOf(row), index, cell, order: orderOf(rows) };
         onRemove(idOf(row));
-      } else if ((event.key === " " || event.key === "Enter") && cell === 0) {
-        // A control keeps Space and Enter for its own action.
+      } else if (event.key === " " || event.key === "Enter") {
         event.preventDefault();
-        select(idOf(row));
+        const target = cells[cell];
+        if (cell === 0) {
+          select(idOf(row));
+        } else if (target) {
+          // A control's cell presses its control, as the control would.
+          controlOf(target)?.click();
+        }
       }
     };
 
@@ -433,8 +491,21 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
     // changes the selection, and only when it would change.
     const handleFocus = (event: FocusEvent<HTMLDivElement>): void => {
       onFocus?.(event);
-      syncTabStop(event.currentTarget, event.target);
       const target = event.target as HTMLElement;
+      // A control that took focus, from a press for instance, hands it to
+      // its cell, which stands for it.
+      const controlCell = target.closest<HTMLElement>('[data-hm-cell="control"]');
+      if (controlCell && controlCell !== target && event.currentTarget.contains(controlCell)) {
+        syncTabStop(event.currentTarget, controlCell);
+        quiet.current = true;
+        try {
+          controlCell.focus();
+        } finally {
+          quiet.current = false;
+        }
+        return;
+      }
+      syncTabStop(event.currentTarget, event.target);
       if (!quiet.current && target.dataset["hmCell"] === "item") {
         const row = rowsOf(event.currentTarget).find((candidate) => candidate.contains(target));
         if (row) {

@@ -791,6 +791,10 @@ export const uiMessages: {
     readonly "fileDropZone.hintMultiple": "or drop them here";
     readonly "progress.label": "Progress";
     readonly "reorderableList.moved": "{label} moved to position {position} of {count}";
+    readonly "reorderableList.control.checked": "{label}, checked";
+    readonly "reorderableList.control.notChecked": "{label}, not checked";
+    readonly "reorderableList.control.pressed": "{label}, pressed";
+    readonly "reorderableList.control.notPressed": "{label}, not pressed";
     readonly "spinner.label": "Loading";
     readonly "errors.INVALID_THEME_TOKEN": "The theme setting {token} has a value that can't be used.";
     readonly "errors.INVALID_THEME_SELECTOR": "The theme can't be applied to the selector {selector}.";
