@@ -35,7 +35,6 @@ export default {
       does: "Press Control+Enter, ⌘Enter on a Mac.",
       keys: ["Mod+Enter"],
       expect: ["1 of 2 right"],
-      knownFailures: known(207, ["nvda-chrome"]),
     },
   ],
 };

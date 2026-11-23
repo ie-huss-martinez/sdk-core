@@ -31,7 +31,7 @@ export default {
       does: "Press ↑, then ↓: focus is still on the clip, now in the music lane.",
       keys: ["ArrowUp", "ArrowDown"],
       expect: ["voice-2"],
-      knownFailures: known(203),
+      knownFailures: known(203, ["nvda-firefox"]),
     },
     { does: "Press Alt+↑.", keys: ["Alt+ArrowUp"], expect: [] },
   ],
