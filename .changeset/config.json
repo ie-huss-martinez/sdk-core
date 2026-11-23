@@ -12,18 +12,29 @@
   "changedFilePatterns": [
     "src/**",
     "!src/**/*.test.ts",
+    "!src/**/*.test.tsx",
     "!src/**/*.test.js",
+    "!src/**/*.stories.tsx",
+    "!src/**/*.check.ts",
     "!src/**/fixtures/**",
+    "!src/**/__snapshots__/**",
+    "formats/**",
+    "api-extractor/**",
     "biome/**",
     "tsconfig/**",
+    "NOTICE",
+    "THIRD_PARTY_NOTICES.md",
     "package.json"
   ],
   "fixed": [],
   "linked": [],
-  "updateInternalDependencies": "patch",
+  "updateInternalDependencies": "minor",
   "ignore": [],
   "privatePackages": {
     "version": false,
     "tag": false
+  },
+  "___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
+    "onlyUpdatePeerDependentsWhenOutOfRange": true
   }
 }
