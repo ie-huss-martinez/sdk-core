@@ -1,8 +1,10 @@
 name: Verify
 
 # Verifies every pull request and every push to main (ADR 0015), and checks
-# pull requests for changesets (ADR 0021). A pull request runs only the
-# packages it can affect; a push to main runs them all (ADR 0064).
+# pull requests for changesets (ADR 0021). Each runs only the packages it can
+# affect: a pull request against main, a push against the commit main was on
+# before it (ADR 0064). A weekly run, and one started by hand, verify every
+# package, as a safety net and before a release that needs it.
 #
 # The required status checks are the jobs named `verify` and `changeset`, so
 # keep those names.
@@ -10,14 +12,18 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "17 4 * * 1" # Mondays, 04:17 UTC
+  workflow_dispatch:
 
 permissions:
   contents: read
 
-# Cancel a superseded run on the same pull request, but let every run on main
-# finish, so each commit on main keeps its own result.
+# Cancel a superseded run on the same pull request. Every other run has a
+# group of its own commit and event, so none waits behind or replaces
+# another: each commit on main keeps its own result, which a release checks.
 concurrency:
-  group: verify-${{ github.event.pull_request.number || github.ref }}
+  group: verify-${{ github.event.pull_request.number || format('{0}-{1}', github.event_name, github.sha) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -49,8 +55,9 @@ jobs:
           fi
           echo "ref=$refs" >> "$GITHUB_OUTPUT"
 
-  # Lists the packages to verify: the ones a pull request can affect, or all
-  # of them on main.
+  # Lists the packages to verify: the ones the change can affect, or all of
+  # them for a scheduled run, a run by hand, or a push whose previous commit
+  # isn't known.
   affected:
     name: affected
     runs-on: ubuntu-latest
@@ -60,7 +67,8 @@ jobs:
       any: ${{ steps.list.outputs.any }}
     steps:
       # A pull request is checked out as its merge into main, so two commits
-      # are enough: the merge and main's side of it.
+      # are enough: the merge and main's side of it. A push fetches the
+      # commit before it below.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -74,12 +82,27 @@ jobs:
         name: List the affected packages
         env:
           EVENT: ${{ github.event_name }}
+          # The commit main was on before this push: all zeros for a new
+          # branch, and missing for other events.
+          BEFORE: ${{ github.event.before }}
         run: |
-          if [ "$EVENT" = "pull_request" ]; then
-            node .github/scripts/affected-packages.mjs HEAD^1 HEAD
-          else
-            node .github/scripts/affected-packages.mjs --all
-          fi
+          case "$EVENT" in
+            pull_request)
+              node .github/scripts/affected-packages.mjs HEAD^1 HEAD
+              ;;
+            push)
+              if [[ "$BEFORE" =~ ^[0-9a-f]{40}$ ]] && [[ ! "$BEFORE" =~ ^0+$ ]] \
+                && git fetch --no-tags --depth=1 origin "$BEFORE"; then
+                node .github/scripts/affected-packages.mjs "$BEFORE" HEAD
+              else
+                echo "::notice::The previous commit isn't known, so every package is verified."
+                node .github/scripts/affected-packages.mjs --all
+              fi
+              ;;
+            *)
+              node .github/scripts/affected-packages.mjs --all
+              ;;
+          esac
 
   # What belongs to the repository, not to one package: Biome and the
   # hidden-character check over every file, the single-copy and image checks
