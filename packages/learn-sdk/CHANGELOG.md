@@ -1,5 +1,13 @@
 # @hussmartinez/learn-sdk
 
+## 0.4.2
+
+### Patch Changes
+
+- [#209](https://github.com/ie-huss-martinez/sdk-core/pull/209) [`4c7b4b6`](https://github.com/ie-huss-martinez/sdk-core/commit/4c7b4b63e49f18ec57934267c02d46c10d5b65b5) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The editor's message catalogue has four more keys from ui's `ReorderableList`: `reorderableList.control.pressed`, `notPressed`, `checked` and `notChecked`. They name a row control's state, such as "Visible, pressed", now that focus stays on the control's cell. Override them with your other translations.
+- Updated dependencies [[`4c7b4b6`](https://github.com/ie-huss-martinez/sdk-core/commit/4c7b4b63e49f18ec57934267c02d46c10d5b65b5)]:
+  - @hussmartinez/ui@0.16.6
+
 ## 0.4.1
 
 ### Patch Changes

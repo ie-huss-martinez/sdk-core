@@ -1,6 +1,6 @@
 {
   "name": "@hussmartinez/notes-sdk",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Client-side handwriting notes SDK: a library of notebooks kept on the device, a low-latency ink engine, paper templates, PDFs to write on, backup and restore. A headless core, a React editor and a custom element.",
   "license": "Apache-2.0",
   "repository": {

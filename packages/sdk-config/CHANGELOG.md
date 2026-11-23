@@ -1,5 +1,11 @@
 # @hussmartinez/sdk-config
 
+## 0.13.7
+
+### Patch Changes
+
+- [#198](https://github.com/ie-huss-martinez/sdk-core/pull/198) [`4d6c12b`](https://github.com/ie-huss-martinez/sdk-core/commit/4d6c12b751ef91a44abeec81dc211fafc1b5e1e7) Thanks [@hussmartinez](https://github.com/hussmartinez)! - A new entry, `@hussmartinez/sdk-config/testing/screen-reader`, for browser tests that check what a screen reader says. `startScreenReader()` starts a virtual screen reader, and its `spoken(step)` runs a step, such as a key press, waits until speech stops, and returns the phrases spoken since the previous step. Install `@guidepup/virtual-screen-reader` 0.33 as a dev dependency where you use it: it's an optional peer dependency, and nothing changes for packages that don't.
+
 ## 0.13.6
 
 ### Patch Changes
