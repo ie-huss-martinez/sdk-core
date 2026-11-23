@@ -380,6 +380,17 @@ export const Lanes: Story = {
   render: () => <Tracks />,
 };
 
+// Temporary probe for #203, removed before merging: the same timeline with
+// a focusable button before it, as on a real page.
+export const ProbeAfterButton: Story = {
+  render: () => (
+    <>
+      <button type="button">Before</button>
+      <Tracks />
+    </>
+  ),
+};
+
 /** Zoomed in: the clips scroll under the headers, which stay where they are. */
 export const LanesZoomed: Story = {
   name: "Lanes, zoomed",

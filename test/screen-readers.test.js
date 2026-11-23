@@ -195,6 +195,8 @@ describe("the scripts", () => {
       "list-controls.mjs",
       "list.mjs",
       "moving-clips.mjs",
+      // Temporary probe for #203, removed before merging.
+      "probe-after-button.mjs",
     ]);
     for (const file of files) {
       const { default: script } = await import(new URL(file, dir).href);
