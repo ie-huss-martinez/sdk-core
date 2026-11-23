@@ -211,6 +211,7 @@ async function runScript(script, attempt, info) {
   };
   let page;
   try {
+    const opened = await count();
     page = await openPage(url);
     transcript.browserVersion = page.version;
     // Let the page load and the screen reader finish reading it before the
@@ -220,6 +221,10 @@ async function runScript(script, attempt, info) {
     // heard as nothing.
     await sleep(browserName === "firefox" ? 15_000 : 8_000);
     await waitForSpeech(count, { firstMs: 3_000, quietMs: 2_000 });
+    // What was said while the page loaded, before the first key: it shows
+    // where the screen reader starts, which a browser opened by the OS
+    // doesn't say otherwise.
+    transcript.loading = [...(await reader.spokenPhraseLog())].slice(opened);
     // Where focus is before the first key: a screen reader can move it
     // itself while reading the page, and then "Tab from the top" starts
     // from there. Only Chrome has a page to ask.
