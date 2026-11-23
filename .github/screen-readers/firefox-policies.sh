@@ -3,9 +3,11 @@
 # the screen reader would read them instead. Firefox's own enterprise
 # policies, read from its distribution folder, skip them.
 #
-# The runner ends Firefox with taskkill /F after each script, which Firefox
-# takes for a crash: the next launch restored the last script's tab beside
-# the new one, and focus started outside the page. So it doesn't restore.
+# The runner starts Firefox once per job and ends it with taskkill /F, which
+# Firefox takes for a crash: a later launch would restore the old tabs, so
+# it doesn't restore. Its welcome, upgrade and default-browser prompts,
+# where it asks to be pinned to the taskbar, are off too: NVDA read that
+# prompt over the page.
 set -euo pipefail
 dir="/c/Program Files/Mozilla Firefox/distribution"
 mkdir -p "$dir"
@@ -18,7 +20,10 @@ cat > "$dir/policies.json" <<'JSON'
     "OverrideFirstRunPage": "",
     "OverridePostUpdatePage": "",
     "Preferences": {
-      "browser.sessionstore.resume_from_crash": { "Value": false, "Status": "locked" }
+      "browser.sessionstore.resume_from_crash": { "Value": false, "Status": "locked" },
+      "browser.shell.checkDefaultBrowser": { "Value": false, "Status": "locked" },
+      "browser.startup.upgradeDialog.enabled": { "Value": false, "Status": "locked" },
+      "browser.aboutwelcome.enabled": { "Value": false, "Status": "locked" }
     },
     "UserMessaging": {
       "SkipOnboarding": true,

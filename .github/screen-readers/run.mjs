@@ -90,6 +90,24 @@ function versions() {
 }
 
 /**
+ * Whether this job has started Firefox. It's started once: a second launch
+ * of Firefox lost the page to NVDA, which heard "blank" or the tab strip.
+ */
+let firefoxStarted = false;
+
+/** Ends Firefox, at the end of the job. */
+function endFirefox() {
+  if (!firefoxStarted) {
+    return;
+  }
+  try {
+    run("taskkill", ["/IM", "firefox.exe", "/F"]);
+  } catch {
+    // Already gone.
+  }
+}
+
+/**
  * Opens a page in the real browser and returns how to close it.
  *
  * @param {string} url
@@ -126,16 +144,14 @@ async function openPage(url) {
     };
   }
   if (browserName === "firefox") {
-    spawn(FIREFOX, ["-new-window", url], { detached: true, stdio: "ignore" }).unref();
-    return {
-      close: async () => {
-        try {
-          run("taskkill", ["/IM", "firefox.exe", "/F"]);
-        } catch {
-          // Already gone.
-        }
-      },
-    };
+    // The first script starts Firefox; the others open in a new tab of it,
+    // which takes focus. Firefox ends with the job, not with each script.
+    spawn(FIREFOX, [firefoxStarted ? "-new-tab" : "-new-window", url], {
+      detached: true,
+      stdio: "ignore",
+    }).unref();
+    firefoxStarted = true;
+    return { close: async () => undefined };
   }
   run("open", ["-a", "Safari", url]);
   return {
@@ -370,6 +386,7 @@ try {
     `::error title=${readerName}::The screen reader couldn't start: ${error instanceof Error ? error.message : error}`,
   );
 } finally {
+  endFirefox();
   await reader.stop().catch(() => undefined);
 }
 process.exitCode = failed ? 1 : 0;
