@@ -9,11 +9,6 @@ export default {
   timeout: 180_000,
   reporter: [["list"]],
   use: { headless: false, video: "retain-on-failure" },
-  projects:
-    os === "win32"
-      ? [
-          { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome" } },
-          { name: "firefox", use: { ...devices["Desktop Firefox"] } },
-        ]
-      : [{ name: "webkit", use: { ...devices["Desktop Safari"] } }],
+  // Real Chrome only: Firefox and Safari run without Playwright (native.mjs).
+  projects: [{ name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome" } }],
 };

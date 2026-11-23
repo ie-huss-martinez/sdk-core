@@ -38,20 +38,29 @@ jobs:
           npx --no-install guidepup setup --ci
           npx --no-install guidepup install nvda
 
-      - run: npx --no-install playwright install firefox
-
-      # learn-sdk's pass needs a Thai voice. Windows installs it as a feature
-      # on demand, from Windows Update.
+      # learn-sdk's pass needs a Thai voice. Windows installs voices as the
+      # TextToSpeech feature on demand, from Windows Update.
       - name: Try to install a Thai voice
         id: thai
         continue-on-error: true
         shell: pwsh
         run: |
-          Add-WindowsCapability -Online -Name "Language.Speech~~~th-TH~0.0.1.0"
+          Get-WindowsCapability -Online -Name "Language.TextToSpeech~~~th-TH*" | Format-List Name, State
+          Add-WindowsCapability -Online -Name "Language.TextToSpeech~~~th-TH~0.0.1.0" | Format-List
+          Get-WindowsCapability -Online -Name "Language.TextToSpeech~~~th-TH*" | Format-List Name, State
+          "OneCore voices:"
           Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Speech_OneCore\Voices\Tokens" | ForEach-Object { $_.PSChildName }
+          "SAPI voices:"
+          Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Speech\Voices\Tokens" | ForEach-Object { $_.PSChildName }
 
-      - name: Run the probe
+      - name: NVDA with real Chrome, through Playwright
+        continue-on-error: true
         run: npx --no-install playwright test
+
+      - name: NVDA with real Firefox, without Playwright
+        run: |
+          ls "/c/Program Files/Mozilla Firefox/firefox.exe"
+          node native.mjs nvda-firefox
 
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -85,13 +94,13 @@ jobs:
         run: |
           sw_vers
           csrutil status || true
-          npx --no-install guidepup setup --ci --macos-record
+          npx --no-install guidepup setup --ci
           npx --no-install guidepup install voiceover
 
-      - run: npx --no-install playwright install webkit
-
-      - name: Run the probe
-        run: npx --no-install playwright test
+      - name: VoiceOver with real Safari, without Playwright
+        run: |
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" /Applications/Safari.app/Contents/Info.plist
+          node native.mjs voiceover-safari
 
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -100,6 +109,5 @@ jobs:
           path: |
             .github/screen-readers/probe/transcript-*.json
             .github/screen-readers/probe/test-results/
-            .github/screen-readers/probe/recordings/
           if-no-files-found: warn
           retention-days: 7
