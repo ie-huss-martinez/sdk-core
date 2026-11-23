@@ -10,6 +10,7 @@ import {
   useEffect,
   useRef,
 } from "react";
+import { useLatest } from "../../react/use-latest.js";
 import { useAnnounce } from "../announcer/Announcer.js";
 import { useUiMessages } from "../messages/UiMessagesProvider.js";
 import { cx, type StyleProps, unstyledAttribute } from "../shared/style-props.js";
@@ -123,9 +124,6 @@ function rowsOf(list: HTMLElement): HTMLElement[] {
 
 /** Cells that `focusReorderableListItem` asked to focus, which keep focus from outside. */
 const requested = new WeakSet<HTMLElement>();
-
-/** How long after a pointer press a focus counts as that press's. */
-const PRESS_MS = 500;
 
 /**
  * Focuses an item of a {@link ReorderableList} from outside it, and so
@@ -350,16 +348,19 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
     const lastSelected = useRef(selectedId);
     // Set while the list moves focus itself, when that focus mustn't select.
     const quiet = useRef(false);
-    // When a pointer last pressed in the list: a press keeps the cell it focused.
-    const pressedAt = useRef(Number.NEGATIVE_INFINITY);
+    // Set from a pointer press in the list until the focus it causes, which
+    // keeps the cell it pressed. On touch, focus comes when the finger lifts,
+    // however long it was held, so it's state, not a time.
+    const pressing = useRef(false);
     const announce = useAnnounce();
     const messages = useUiMessages();
     // How a control cell names its control's state, in the current messages.
-    const words = useRef<ControlWords>(() => "");
-    words.current = (state, controlLabel) =>
+    // Read only in effects, the observer's included, which run after it updates.
+    const words = useLatest<ControlWords>((state, controlLabel) =>
       state === null
         ? controlLabel
-        : messages.t(`reorderableList.control.${state}`, { label: controlLabel });
+        : messages.t(`reorderableList.control.${state}`, { label: controlLabel }),
+    );
 
     // A control can change its own state without the list rendering, such as
     // a toggle that keeps its state itself, so its cell follows the DOM.
@@ -385,7 +386,8 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
         element.removeEventListener("change", sync);
         element.removeEventListener("input", sync);
       };
-    }, []);
+      // `words` is the same object on every render, so this runs once.
+    }, [words]);
 
     // After every render: one Tab stop, and the focus a move or a removal
     // asked for, once the host has rendered it.
@@ -629,7 +631,8 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
       const related = event.relatedTarget;
       const fromOutside = !(related instanceof Node && element.contains(related));
       const cell = target.closest<HTMLElement>("[data-hm-cell]");
-      const pressed = performance.now() - pressedAt.current < PRESS_MS;
+      const pressed = pressing.current;
+      pressing.current = false;
       // Entering is never a selection, even onto the Tab stop itself.
       const entering = fromOutside && cell !== null && !pressed && !requested.has(cell);
       if (entering) {
@@ -689,7 +692,16 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
         data-hm-unstyled={unstyledAttribute(unstyled)}
         onKeyDown={handleKeyDown}
         onPointerDown={(event) => {
-          pressedAt.current = performance.now();
+          pressing.current = true;
+          // A press that focuses nothing ends with the pointer, wherever it
+          // lifts; after a tick, so the focus a lift causes still counts.
+          const release = (): void => {
+            setTimeout(() => {
+              pressing.current = false;
+            });
+          };
+          window.addEventListener("pointerup", release, { once: true });
+          window.addEventListener("pointercancel", release, { once: true });
           onPointerDown?.(event);
         }}
         onClick={handleClick}

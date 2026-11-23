@@ -778,6 +778,27 @@ describe("ReorderableList", () => {
       expect(selected(container)).toBe("Photo");
     });
 
+    it("keeps the cell a touch presses, however long it's held before focus comes", async () => {
+      // On touch, focus arrives when the finger lifts, which can be well over
+      // half a second after it pressed.
+      const onSelectedChange = vi.fn();
+      const container = render(<Layers calls={{ onSelectedChange }} />);
+      const before = page.getByRole("button", { name: "Before" }).element() as HTMLElement;
+      act(() => before.focus());
+      const shape = item(container, "Shape");
+      shape.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch" }));
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      act(() => shape.focus());
+      shape.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch" }));
+      expect(document.activeElement).toBe(shape);
+      expect(onSelectedChange.mock.calls).toEqual([["Shape"]]);
+      // Once the press is over, focus from outside enters at the Tab stop again.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      act(() => before.focus());
+      act(() => item(container, "Title").focus());
+      expect(document.activeElement).toBe(item(container, "Shape"));
+    });
+
     it("keeps the cell a pointer presses, coming from outside", async () => {
       const onSelectedChange = vi.fn();
       const container = render(<Layers calls={{ onSelectedChange }} />);
