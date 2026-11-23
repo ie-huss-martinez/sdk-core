@@ -58,8 +58,8 @@ describe("the timeline", () => {
     const { container } = await editor(found, recording("voice.wav"), recording("music.wav", 2));
     expect(named(container, '[role="listbox"]')).toEqual(["Clips on Track 1", "Clips on Track 2"]);
     expect(named(container, '[role="option"]')).toEqual([
-      "voice.wav, clip 1 of 1 on Track 1, 0:00.00 to 0:01.00",
-      "music.wav, clip 1 of 1 on Track 2, 0:00.00 to 0:02.00",
+      "voice.wav, clip 1 on Track 1, 0:00.00 to 0:01.00",
+      "music.wav, clip 1 on Track 2, 0:00.00 to 0:02.00",
     ]);
     // A clip shows its recording's name, which starts its accessible name.
     expect(container.querySelector('[role="option"]')?.textContent).toContain("voice.wav");
@@ -85,7 +85,7 @@ describe("the timeline", () => {
       );
     expect(labels()).toContain("Track 2, Music, muted");
     expect(named(container, '[role="option"]')[0]).toBe(
-      "take.wav, clip 1 of 1 on Track 1, 0:00.00 to 0:01.00, -3 dB",
+      "take.wav, clip 1 on Track 1, 0:00.00 to 0:01.00, -3 dB",
     );
     await step(() => {
       session.execute([

@@ -67,9 +67,9 @@ const STATES: Readonly<Record<string, State>> = {
   selection: {
     reach: async (page) => {
       await opened(page);
-      await page.getByRole("option", { name: /^Clip 1 of 2/ }).click();
-      await page.getByRole("option", { name: /^Clip 2 of 2/ }).click({ modifiers: ["Shift"] });
-      for (const name of [/^Clip 1 of 2/, /^Clip 2 of 2/]) {
+      await page.getByRole("option", { name: /^Clip 1,/ }).click();
+      await page.getByRole("option", { name: /^Clip 2,/ }).click({ modifiers: ["Shift"] });
+      for (const name of [/^Clip 1,/, /^Clip 2,/]) {
         await expect(page.getByRole("option", { name })).toHaveAttribute("aria-selected", "true");
       }
       await expect(
@@ -95,7 +95,7 @@ const STATES: Readonly<Record<string, State>> = {
     reach: async (page) => {
       await opened(page);
       // The last clip added is selected: a Mod-click clears it.
-      const clip = page.getByRole("option", { name: /^Clip 2 of 2/ });
+      const clip = page.getByRole("option", { name: /^Clip 2,/ });
       await clip.click({ modifiers: ["ControlOrMeta"] });
       await expect(clip).toHaveAttribute("aria-selected", "false");
       await expect(page.getByRole("group", { name: "The exported video" })).toBeVisible();

@@ -84,15 +84,15 @@ Start NVDA, then the browser. Don't switch modes yourself unless a step says to:
 
 | Do | Expect to hear | Pass if |
 |---|---|---|
-| Tab from the top of the page. | The region "Timeline", then "Playhead", slider, 3.33 seconds. | |
+| Tab from the top of the page. | The region "Timeline", then "Playhead", slider, 3.33 seconds. | **With NVDA, the first Tab goes past the page's first control,** to "Mute": press Shift+Tab to reach the playhead. NVDA does it to whatever comes first on the page (#203). |
 | Press → twice. | The playhead's time, larger each time. | |
 | Tab. | The group "Track 1, Voice", the toolbar "Track 1, Voice", then "Mute", toggle button, not pressed. | |
 | Press →. | "Voice gain", slider, 0 decibels. | Focus moves along the toolbar. **If NVDA stays in browse mode here, → reads the page instead.** Note it: it's the risk image-sdk#67 describes. |
-| Tab. | The list "Voice clips", then "Voice 1, clip 1 of 3", not selected. | NVDA is in focus mode in the clips. **Note whether the place is read twice,** as "clip 1 of 3" and then "1 of 3": screen readers count a listbox's options themselves, so the stories' clip names may not need their place. |
-| Press →. | "Voice 2, clip 2 of 3". | |
+| Tab. | The list "Voice clips", then "Voice 1", not selected, 1 of 3. | NVDA is in focus mode in the clips. The place is read once, by the screen reader: clip names leave it out (#205). |
+| Press →. | "Voice 2", 2 of 3. | |
 | Press ↓. | The group "Track 2, Music", then the Music clip nearest in time. | Focus moves to the lane below, and the new lane is named. |
 | Press ↓ again. | "Track 3, Effects, muted", then an Effects clip. | The lane's state is heard. |
-| Press Space. | That clip, selected. | |
+| Press Space. | "Effects 2, not selected". | The clip was selected when focus reached it, so Space takes it out of the selection, and the clips announce it (#204). |
 | Press Insert+Space, then ↓ and ↑ a few times (browse mode). | The lanes, their headers and their clips, read as a page. | The structure makes sense to read. Note anything read twice or out of order. Press Insert+Space again to go back to focus mode. |
 
 **Moving clips.** Without restarting NVDA.

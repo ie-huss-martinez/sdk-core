@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-11-17
-- **Amended:** 2026-11-17, with the reviewer's rulings on the four open decisions, and with what the key tests do and don't prove; and again with step 1, as built: see "As built". On 2026-11-18, a proposed amendment for several lanes, clips with a start, and moving a clip by dragging: see "Proposed amendment"
+- **Amended:** 2026-11-23: a clip's name leaves out its place, which screen readers say for a listbox's options ([#205](https://github.com/ie-huss-martinez/sdk-core/issues/205)); and adding or removing a clip is announced ([#204](https://github.com/ie-huss-martinez/sdk-core/issues/204)). 2026-11-17, with the reviewer's rulings on the four open decisions, and with what the key tests do and don't prove; and again with step 1, as built: see "As built". On 2026-11-18, a proposed amendment for several lanes, clips with a start, and moving a clip by dragging: see "Proposed amendment"
 
 ## Context
 
@@ -23,7 +23,7 @@ audio-sdk has no timeline yet: its ADR says it will build one to this design if 
 
 - **Everything is in whole units,** as sdk-core ADR 0042 defines: output frames in video, samples in audio. The timeline never sees seconds, and never formats time.
 - **`ui` calls `sequenceOffsets`, `locate` and `snap` itself,** from the `sdk-core` it already depends on, so the timeline, the SDKs' sessions and their tests agree at every boundary.
-- **Text is the SDK's.** Each clip's accessible name ("Clip 2 of 5, 0:04.00 to 0:09.20, muted"), the playhead's value text and the parts' labels come from the SDK's catalogue as props. The timeline has no messages of its own beyond what its `ui` parts already have.
+- **Text is the SDK's.** Each clip's accessible name ("Clip 2, 0:04.00 to 0:09.20, muted"), the playhead's value text and the parts' labels come from the SDK's catalogue as props. The timeline has no messages of its own beyond what its `ui` parts already have.
 
 ### The parts
 
@@ -68,6 +68,8 @@ As `VideoTimeline` has it, which both SDKs' records describe:
   - `"single"`, audio's: selection follows focus.
   - `"multiple"`, video's, with `aria-multiselectable`: selection follows focus; Shift extends from the last clip chosen; Ctrl or ⌘ moves focus without selecting; Space, or Ctrl or ⌘ with Space, adds or removes the focused clip; Shift+Space selects up to it; Ctrl or ⌘+A selects every clip. A click selects, a Shift-click extends, and a Ctrl- or ⌘-click toggles.
 - **Clips are data:** `{ key, length, label }`, plus `content` for what a clip shows and `data` attributes for an SDK's states, such as muted. The listbox's options aren't the SDK's to render, so they can't break its semantics.
+  - **Amended, 2026-11-23: a clip's name leaves out its place.** NVDA and VoiceOver say an option's place in its listbox themselves, "2 of 5", so a name that says "Clip 2 of 5" was heard with its place twice ([#205](https://github.com/ie-huss-martinez/sdk-core/issues/205), found by the real screen-reader workflow of [sdk-core ADR 0066](../../../../docs/adr/0066-real-screen-readers-on-a-schedule.md)). The name says what the clip shows and its range. video-sdk's and audio-sdk's messages drop "of {count}" in their English text and still receive `count`, so a host's own translation that uses it keeps working.
+  - **Amended, 2026-11-23: adding or removing a clip is announced.** Neither NVDA nor VoiceOver says that the focused option's selection changed, so Space, or a Ctrl- or ⌘-click, was silent ([#204](https://github.com/ie-huss-martinez/sdk-core/issues/204)). The clips announce it through `ui`'s announcer, with two new messages, `timelineClips.selected` and `timelineClips.notSelected`: "{label}, selected" and "{label}, not selected". A plain selection that follows focus isn't announced: the option's state is read as focus arrives.
 - **Every handled key has its default prevented,** and none is handled in a text field, as in `ReorderableList` ([ADR 0009](0009-reorderable-list.md)).
 
 ### Moving and trimming

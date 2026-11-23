@@ -77,10 +77,7 @@ describe("the timeline", () => {
     expect(listbox.getAttribute("aria-label")).toBe("Clips");
     expect(listbox.getAttribute("aria-orientation")).toBe("horizontal");
     expect(listbox.getAttribute("aria-multiselectable")).toBe("true");
-    expect(names(view)).toEqual([
-      "Clip 1 of 2, 0:00.00 to 0:02.00",
-      "Clip 2 of 2, 0:02.00 to 0:04.00",
-    ]);
+    expect(names(view)).toEqual(["Clip 1, 0:00.00 to 0:02.00", "Clip 2, 0:02.00 to 0:04.00"]);
     expect(clipsIn(view).map((clip) => clip.tabIndex)).toEqual([0, -1]);
     expect(document.activeElement?.getAttribute("role")).not.toBe("option");
     const slider = view.querySelector('input[type="range"]') as HTMLInputElement;
@@ -156,25 +153,25 @@ describe("the timeline", () => {
     await eventually(() => expect(trimEnd.disabled).toBe(false));
     clipsIn(view)[0]?.focus();
     await userEvent.keyboard("]");
-    await eventually(() => expect(names(view)[0]).toBe("Clip 1 of 2, 0:00.00 to 0:01.00"));
+    await eventually(() => expect(names(view)[0]).toBe("Clip 1, 0:00.00 to 0:01.00"));
     // Alt+Shift+] lengthens the end a frame; Alt+[ shortens the start one.
     clipsIn(view)[0]?.focus();
     await userEvent.keyboard("{Alt>}{Shift>}]{/Shift}{/Alt}");
-    await eventually(() => expect(names(view)[0]).toBe("Clip 1 of 2, 0:00.00 to 0:01.03"));
+    await eventually(() => expect(names(view)[0]).toBe("Clip 1, 0:00.00 to 0:01.03"));
     await userEvent.keyboard("{Alt>}[[{/Alt}");
-    await eventually(() => expect(names(view)[0]).toBe("Clip 1 of 2, 0:00.00 to 0:01.00"));
+    await eventually(() => expect(names(view)[0]).toBe("Clip 1, 0:00.00 to 0:01.00"));
     // The start can't go before the source's: the clip now starts a frame in, so one frame back works, then no more.
     await userEvent.keyboard("{Alt>}{Shift>}[[{/Shift}{/Alt}");
-    await eventually(() => expect(names(view)[0]).toBe("Clip 1 of 2, 0:00.00 to 0:01.03"));
+    await eventually(() => expect(names(view)[0]).toBe("Clip 1, 0:00.00 to 0:01.03"));
     await userEvent.keyboard("{Alt>}{Shift>}[[{/Shift}{/Alt}");
-    expect(names(view)[0]).toBe("Clip 1 of 2, 0:00.00 to 0:01.03");
+    expect(names(view)[0]).toBe("Clip 1, 0:00.00 to 0:01.03");
     // The buttons do the same, for a pointer: the playhead in clip 2, its start to it.
     act(() => handle.seek(61));
     await userEvent.click(clipsIn(view)[1] as HTMLElement, { position: { x: 30, y: 10 } });
     const trimStart = button(view, "Trim the clip's start to the playhead");
     await eventually(() => expect(trimStart.disabled).toBe(false));
     await userEvent.click(trimStart);
-    await eventually(() => expect(names(view)[1]).toBe("Clip 2 of 2, 0:01.03 to 0:02.03"));
+    await eventually(() => expect(names(view)[1]).toBe("Clip 2, 0:01.03 to 0:02.03"));
   });
 
   it("trims by dragging an edge, snapping to the playhead unless Alt is held", async () => {
@@ -197,10 +194,10 @@ describe("the timeline", () => {
     };
     // Two frames from the playhead snaps to it: 8 px is 2 frames at about 5 px a frame.
     act(() => drag(43, false));
-    await eventually(() => expect(names(view)[0]).toBe("Clip 1 of 2, 0:00.00 to 0:01.50"));
+    await eventually(() => expect(names(view)[0]).toBe("Clip 1, 0:00.00 to 0:01.50"));
     act(() => handle.undo());
     act(() => drag(43, true));
-    await eventually(() => expect(names(view)[0]).toBe("Clip 1 of 2, 0:00.00 to 0:01.43"));
+    await eventually(() => expect(names(view)[0]).toBe("Clip 1, 0:00.00 to 0:01.43"));
   });
 
   it("enables Zoom out in the same commit that widens the track", async () => {

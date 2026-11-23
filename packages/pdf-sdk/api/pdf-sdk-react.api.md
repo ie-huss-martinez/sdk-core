@@ -135,6 +135,8 @@ export const pdfEditorMessages: {
     readonly "reorderableList.control.pressed": "{label}, pressed";
     readonly "reorderableList.control.notPressed": "{label}, not pressed";
     readonly "spinner.label": "Loading";
+    readonly "timelineClips.selected": "{label}, selected";
+    readonly "timelineClips.notSelected": "{label}, not selected";
     readonly "errors.INVALID_THEME_TOKEN": "The theme setting {token} has a value that can't be used.";
     readonly "errors.INVALID_THEME_SELECTOR": "The theme can't be applied to the selector {selector}.";
     readonly "errors.INVALID_PDF": "This file isn't a PDF, or it's too damaged to open.";
