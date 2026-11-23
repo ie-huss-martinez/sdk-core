@@ -55,3 +55,16 @@ The other editors of the family open one file and export it. This one shows a li
 - People who know the category find their way at once, and nothing in the repository belongs to anyone else.
 - The SDK carries nine glyphs and four templates of its own to maintain.
 - A host that needs the library and the notebook in different places composes the building blocks itself.
+
+## Amendments
+
+- **2026-11-24: the editor redrawn to follow the category more closely,** at Huss's request.
+  - **The library:** a rail down one side (Documents, the bin, back up and restore), and beside it the search, the title of where you are with its actions, and the grid. On narrower screens the rail keeps only its icons, and on a phone it moves to the foot.
+  - **An open notebook:**
+    - a strip with the notebook's title on a tab, over a bar of tools in a fixed blue;
+    - undo and redo, the options of the tool in hand (three widths and the palette, with any colour and width behind "More options"), the page number and the zoom float over the pages;
+    - the page keeps a reading width on wide screens.
+  - **Covers** have colours of their own, which don't change with the theme, as a real notebook's don't. The page's paper is a warm white.
+  - **Design values** are `--hm-notes-*` tokens in `src/react/look.tokens.css`, mixed from ui's tokens wherever they follow the theme. They move to ui once they've settled.
+  - **Motion** stays within ui's rules: covers are dealt in and lift on hover, tools and pills spring in, and nothing loops except a recording's pulse. All of it stops under `prefers-reduced-motion`.
+  - Everything drawn is still our own. Nothing is copied.

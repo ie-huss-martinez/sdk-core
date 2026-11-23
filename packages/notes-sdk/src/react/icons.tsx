@@ -199,6 +199,75 @@ function ShapesIcon(props: IconProps): ReactElement {
   );
 }
 
+/** A closed notebook: a board with its spine and a label. */
+function NotebookIcon(props: IconProps): ReactElement {
+  return glyph(
+    "notebook",
+    [
+      ["rect", { x: "5", y: "3", width: "14", height: "18", rx: "2" }],
+      ["path", { d: "M9 3v18" }],
+      ["path", { d: "M12.5 8h3.5" }],
+    ],
+    props,
+  );
+}
+
+/** A chevron pointing down: more about what's beside it. */
+function ChevronDownIcon(props: IconProps): ReactElement {
+  return glyph("chevron-down", [["path", { d: "m6 9 6 6 6-6" }]], props);
+}
+
+/** A shield with a tick: kept safe, on this device. */
+function ShieldIcon(props: IconProps): ReactElement {
+  return glyph(
+    "shield",
+    [
+      ["path", { d: "M12 3 5 6v5c0 4.5 2.9 8.3 7 10 4.1-1.7 7-5.5 7-10V6z" }],
+      ["path", { d: "m9 12 2 2 4-4" }],
+    ],
+    props,
+  );
+}
+
+/** A sidebar: a window with a column down its left. */
+function SidebarIcon(props: IconProps): ReactElement {
+  return glyph(
+    "sidebar",
+    [
+      ["rect", { x: "3", y: "4", width: "18", height: "16", rx: "2.5" }],
+      ["path", { d: "M9 4v16" }],
+    ],
+    props,
+  );
+}
+
+/** A grid of four: back to all the notebooks. */
+function LibraryIcon(props: IconProps): ReactElement {
+  return glyph(
+    "library",
+    [
+      ["rect", { x: "4", y: "4", width: "6.5", height: "6.5", rx: "1.5" }],
+      ["rect", { x: "13.5", y: "4", width: "6.5", height: "6.5", rx: "1.5" }],
+      ["rect", { x: "4", y: "13.5", width: "6.5", height: "6.5", rx: "1.5" }],
+      ["rect", { x: "13.5", y: "13.5", width: "6.5", height: "6.5", rx: "1.5" }],
+    ],
+    props,
+  );
+}
+
+/** An arrow leaving a tray: send the notebook out as a file. */
+function ShareIcon(props: IconProps): ReactElement {
+  return glyph(
+    "share",
+    [
+      ["path", { d: "M12 15V3" }],
+      ["path", { d: "m7.5 7.5 4.5-4.5 4.5 4.5" }],
+      ["path", { d: "M5 12v6.5A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5V12" }],
+    ],
+    props,
+  );
+}
+
 /**
  * The components of the icons the editor names: ui's, and the notes SDK's
  * own glyphs for those ui has none for (sdk-core ADR 0030, docs/adr/0001). A
@@ -246,4 +315,10 @@ export const notesIcons: Readonly<Record<string, IconComponent>> = {
   bookmark: BookmarkIcon,
   touch: TouchIcon,
   shapes: ShapesIcon,
+  notebook: NotebookIcon,
+  "chevron-down": ChevronDownIcon,
+  shield: ShieldIcon,
+  sidebar: SidebarIcon,
+  library: LibraryIcon,
+  share: ShareIcon,
 };

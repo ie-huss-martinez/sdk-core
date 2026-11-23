@@ -29,6 +29,10 @@ export const MAX_ZOOM = 5;
 
 /** The space around and between pages, in CSS pixels. */
 const GAP = 16;
+/** The room above the first page and under the last, for the controls that float over the pages. */
+const HEAD = 72;
+/** The widest a page is drawn at a zoom of 1, in CSS pixels. */
+const FIT_MAX = 980;
 
 /** No page: the pages whose contents couldn't be read, when every read worked. */
 const NONE: ReadonlySet<string> = new Set();
@@ -92,9 +96,12 @@ interface Layout {
 /** Where every page goes: a centred column, top to bottom. */
 function layoutPages(pages: readonly NotesPageInfo[], viewWidth: number, zoom: number): Layout {
   const widest = Math.max(1, ...pages.map((page) => page.width / NOTES_UNITS_PER_POINT));
-  const pixelsPerPoint = (Math.max(1, viewWidth - 2 * GAP) / widest) * zoom;
+  // At a zoom of 1 the page fits the width, up to a comfortable reading width on a wide screen.
+  const fit = Math.min(Math.max(1, viewWidth - 2 * GAP), FIT_MAX);
+  const pixelsPerPoint = (fit / widest) * zoom;
   const width = Math.max(viewWidth, widest * pixelsPerPoint + 2 * GAP);
-  let top = GAP;
+  // The first page starts under what floats over the pages' top.
+  let top = HEAD;
   const boxes = pages.map((page) => {
     const pageWidth = (page.width / NOTES_UNITS_PER_POINT) * pixelsPerPoint;
     const pageHeight = (page.height / NOTES_UNITS_PER_POINT) * pixelsPerPoint;
@@ -102,7 +109,7 @@ function layoutPages(pages: readonly NotesPageInfo[], viewWidth: number, zoom: n
     top += pageHeight + GAP;
     return box;
   });
-  return { pixelsPerPoint, width, height: top, boxes };
+  return { pixelsPerPoint, width, height: top + HEAD - GAP, boxes };
 }
 
 /** What a page whose contents couldn't be read shows in their place: why, and a way to try again. */

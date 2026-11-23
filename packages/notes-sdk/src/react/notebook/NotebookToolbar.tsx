@@ -43,6 +43,7 @@ export function NotesToolbar(props: NotesToolbarProps): ReactNode {
         return (
           <ToolbarGroup
             key={group.map((tool) => tool.id).join(" ")}
+            data-hm-group={group[0]?.group ?? "other"}
             label={t(`toolbar.groups.${group[0]?.group ?? "other"}`)}
           >
             {tools.map((tool) => {
