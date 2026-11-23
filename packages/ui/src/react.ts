@@ -68,6 +68,7 @@ export type {
   ReorderableListProps,
 } from "./components/reorderable-list/ReorderableList.js";
 export {
+  focusReorderableListItem,
   ReorderableList,
   ReorderableListItem,
 } from "./components/reorderable-list/ReorderableList.js";

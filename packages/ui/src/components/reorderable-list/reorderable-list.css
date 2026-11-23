@@ -46,6 +46,13 @@
     flex: none;
   }
 
+  /* A control's cell has focus, not the control (docs/adr/0009). */
+  .hm-reorderable-list-control:focus-visible {
+    border-radius: var(--hm-radius-control);
+    outline: var(--hm-focus-ring);
+    outline-offset: calc(var(--hm-focus-ring-width) * -1);
+  }
+
   /* Visual styles, dropped with unstyled. */
   .hm-reorderable-list:not([data-hm-unstyled]) .hm-reorderable-list-row:not([data-hm-unstyled]) {
     border: var(--hm-border-width) solid transparent;

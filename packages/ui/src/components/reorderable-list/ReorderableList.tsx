@@ -10,6 +10,7 @@ import {
   useEffect,
   useRef,
 } from "react";
+import { useLatest } from "../../react/use-latest.js";
 import { useAnnounce } from "../announcer/Announcer.js";
 import { useUiMessages } from "../messages/UiMessagesProvider.js";
 import { cx, type StyleProps, unstyledAttribute } from "../shared/style-props.js";
@@ -121,23 +122,111 @@ function rowsOf(list: HTMLElement): HTMLElement[] {
   );
 }
 
-/** A row's focus targets: the item's cell, then each cell's control. */
+/** Cells that `focusReorderableListItem` asked to focus, which keep focus from outside. */
+const requested = new WeakSet<HTMLElement>();
+
+/**
+ * Focuses an item of a {@link ReorderableList} from outside it, and so
+ * selects it, as focus on an item does. Focus that comes from outside the
+ * list otherwise goes to its Tab stop, the selected item, whichever cell
+ * it was given: that's where a keyboard user enters it, and NVDA's browse
+ * mode can give focus to any cell (#201).
+ *
+ * @param list - The list's element, its `ref`.
+ * @param id - The item's `id`.
+ * @returns Whether the item now has focus.
+ *
+ * @public
+ */
+export function focusReorderableListItem(list: HTMLElement | null, id: string): boolean {
+  const row = list ? rowsOf(list).find((candidate) => idOf(candidate) === id) : undefined;
+  const cell = row ? cellsOf(row)[0] : undefined;
+  if (!cell) {
+    return false;
+  }
+  requested.add(cell);
+  cell.focus();
+  requested.delete(cell);
+  return document.activeElement === cell;
+}
+
+/** A control cell's control. */
+const controlOf = (cell: HTMLElement): HTMLElement | undefined => focusableItems(cell)[0];
+
+/**
+ * A row's focus targets: the item's cell, then each control's cell. Focus
+ * stays on cells, never on the controls inside them: NVDA, by default,
+ * leaves focus mode for its browse mode when focus lands on a button, even
+ * inside a grid, and then keeps the arrow keys and Alt with them for itself
+ * (#202). On a cell it stays in focus mode.
+ */
 function cellsOf(row: HTMLElement): HTMLElement[] {
   const targets: HTMLElement[] = [];
   for (const cell of row.children) {
     if (!(cell instanceof HTMLElement)) {
       continue;
     }
-    if (cell.dataset["hmCell"] === "item") {
+    if (cell.dataset["hmCell"] === "item" || controlOf(cell)) {
       targets.push(cell);
-    } else {
-      const control = focusableItems(cell)[0];
-      if (control) {
-        targets.push(control);
-      }
     }
   }
   return targets;
+}
+
+/** A control's name, as far as the cell needs it: its label, the elements that label it, or its text. */
+function nameOf(control: HTMLElement): string {
+  const labelledBy = control
+    .getAttribute("aria-labelledby")
+    ?.split(/\s+/)
+    .map((id) => control.ownerDocument.getElementById(id)?.textContent?.trim() ?? "")
+    .filter(Boolean)
+    .join(" ");
+  return (control.getAttribute("aria-label") || labelledBy || control.textContent || "").trim();
+}
+
+/** The words for a control's state, from its `aria-pressed` or `aria-checked`. */
+type ControlWords = (
+  state: "pressed" | "notPressed" | "checked" | "notChecked" | null,
+  label: string,
+) => string;
+
+/**
+ * Makes each control cell stand for its control: the control leaves the Tab
+ * order, and the cell's name is the control's name with its state, since
+ * the cell, not the control, has focus.
+ */
+function syncControlCells(list: HTMLElement, words: ControlWords): void {
+  for (const cell of list.querySelectorAll<HTMLElement>('[data-hm-cell="control"]')) {
+    const control = controlOf(cell);
+    if (!control) {
+      continue;
+    }
+    control.dataset["hmRoving"] = "";
+    control.tabIndex = -1;
+    const label = nameOf(control);
+    const pressed = control.getAttribute("aria-pressed");
+    // A native checkbox or radio states its checkedness itself.
+    const native =
+      control instanceof HTMLInputElement &&
+      (control.type === "checkbox" || control.type === "radio")
+        ? String(control.checked)
+        : null;
+    const checked = control.getAttribute("aria-checked") ?? native;
+    const state =
+      pressed === "true"
+        ? "pressed"
+        : pressed === "false"
+          ? "notPressed"
+          : checked === "true"
+            ? "checked"
+            : checked === "false"
+              ? "notChecked"
+              : null;
+    const name = words(state, label);
+    if (cell.getAttribute("aria-label") !== name) {
+      cell.setAttribute("aria-label", name);
+    }
+  }
 }
 
 const idOf = (row: HTMLElement | undefined): string => row?.dataset["hmId"] ?? "";
@@ -176,10 +265,20 @@ function syncTabStop(list: HTMLElement, active?: Element | null): void {
  *
  * - **↑ and ↓** move between rows and select; with Ctrl or ⌘, they move
  *   without selecting. The selection follows focus however it reaches an
- *   item: the keys, Tab, a click, or your own `focus()`. Focus on a control
- *   never changes it. **← and →**, Home and End move between a row's
- *   cells. Ctrl or ⌘ with Home or End goes to the first or last row.
- *   Space or Enter on an item selects it.
+ *   item: the keys, a click, or a `focus()` from inside the list. Focus on
+ *   a control's cell never changes it.
+ * - **Focus from outside enters at the Tab stop,** the selected item,
+ *   without selecting, whichever cell it was given; a pointer press keeps
+ *   the cell it pressed. To focus another item from outside, call
+ *   {@link focusReorderableListItem}, which selects it, or set `selectedId`
+ *   first. **← and →**, Home and End move between
+ *   a row's cells. Ctrl or ⌘ with Home or End goes to the first or last
+ *   row. Space or Enter on an item selects it, and on a control's cell
+ *   presses its control.
+ * - **Focus stays on cells.** A control is part of its cell: the cell takes
+ *   focus, is named after the control and its `aria-pressed` or
+ *   `aria-checked` state, and passes Space, Enter and clicks to it. Screen
+ *   readers then stay in the mode that sends keys to the list.
  * - **Alt+↑ and Alt+↓** (Option on macOS) move the focused item, through
  *   `onMove`. **Delete and Backspace** remove it, through `onRemove`.
  * - **You own the order.** The list calls `onMove` and `onRemove`, and you
@@ -235,6 +334,7 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
       classNames,
       unstyled,
       onKeyDown,
+      onPointerDown,
       onClick,
       onFocus,
       onBlur,
@@ -248,8 +348,49 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
     const lastSelected = useRef(selectedId);
     // Set while the list moves focus itself, when that focus mustn't select.
     const quiet = useRef(false);
+    // Set from a pointer press in the list until the focus it causes, which
+    // keeps the cell it pressed. On touch, focus comes when the finger lifts,
+    // however long it was held, so it's state, not a time.
+    const pressing = useRef(false);
+    // Removes the listeners that end the current press, if one is waiting.
+    const endPress = useRef<(() => void) | undefined>(undefined);
+    useEffect(() => () => endPress.current?.(), []);
     const announce = useAnnounce();
     const messages = useUiMessages();
+    // How a control cell names its control's state, in the current messages.
+    // Read only in effects, the observer's included, which run after it updates.
+    const words = useLatest<ControlWords>((state, controlLabel) =>
+      state === null
+        ? controlLabel
+        : messages.t(`reorderableList.control.${state}`, { label: controlLabel }),
+    );
+
+    // A control can change its own state without the list rendering, such as
+    // a toggle that keeps its state itself, so its cell follows the DOM.
+    useEffect(() => {
+      const element = list.current;
+      if (!element || typeof MutationObserver === "undefined") {
+        return;
+      }
+      const sync = (): void => syncControlCells(element, words.current);
+      const observer = new MutationObserver(sync);
+      observer.observe(element, {
+        subtree: true,
+        childList: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ["aria-pressed", "aria-checked", "aria-label", "aria-labelledby"],
+      });
+      // A native checkbox changes its checkedness, not an attribute.
+      element.addEventListener("change", sync);
+      element.addEventListener("input", sync);
+      return () => {
+        observer.disconnect();
+        element.removeEventListener("change", sync);
+        element.removeEventListener("input", sync);
+      };
+      // `words` is the same object on every render, so this runs once.
+    }, [words]);
 
     // After every render: one Tab stop, and the focus a move or a removal
     // asked for, once the host has rendered it.
@@ -277,11 +418,19 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
           syncTabStop(element, target);
           // A moved item keeps its selection as it was; after a removal, the
           // item that took its place is focused, and selected, as any is.
+          // The list's own focus, not an entry from outside, though the
+          // removed row took focus with it.
           quiet.current = change.kind === "move";
+          if (target) {
+            requested.add(target);
+          }
           try {
             target?.focus();
           } finally {
             quiet.current = false;
+            if (target) {
+              requested.delete(target);
+            }
           }
         }
         if (row && change.kind === "move" && announceMoves) {
@@ -294,6 +443,7 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
           );
         }
       }
+      syncControlCells(element, words.current);
       // With focus elsewhere, the Tab stop follows a selection made elsewhere,
       // such as on an editor's stage; with focus inside, it stays with focus.
       const inside = element.contains(document.activeElement);
@@ -337,6 +487,20 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
       onKeyDown?.(event);
       // Whatever was asked for before, the user has moved on.
       pending.current = undefined;
+      if (event.defaultPrevented || event.nativeEvent.isComposing) {
+        return;
+      }
+      if (event.key === "Escape" && editsText(event.target)) {
+        // Escape leaves a text field among a row's controls for its cell.
+        const fieldCell = (event.target as HTMLElement).closest<HTMLElement>(
+          '[data-hm-cell="control"]',
+        );
+        if (fieldCell && event.currentTarget.contains(fieldCell)) {
+          event.preventDefault();
+          focusQuietly(fieldCell);
+        }
+        return;
+      }
       if (
         event.defaultPrevented ||
         event.nativeEvent.isComposing ||
@@ -353,7 +517,11 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
         return;
       }
       const cells = cellsOf(row);
-      const cell = cells.indexOf(event.target as HTMLElement);
+      // A key from inside a cell, such as from a control that has focus, is
+      // its cell's.
+      const cell = cells.indexOf(
+        (event.target as HTMLElement).closest<HTMLElement>("[data-hm-cell]") as HTMLElement,
+      );
       if (cell === -1) {
         return;
       }
@@ -411,10 +579,21 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
         event.preventDefault();
         pending.current = { kind: "remove", id: idOf(row), index, cell, order: orderOf(rows) };
         onRemove(idOf(row));
-      } else if ((event.key === " " || event.key === "Enter") && cell === 0) {
-        // A control keeps Space and Enter for its own action.
+      } else if (event.key === " " || event.key === "Enter") {
         event.preventDefault();
-        select(idOf(row));
+        const target = cells[cell];
+        if (cell === 0) {
+          select(idOf(row));
+        } else if (target) {
+          // A control's cell presses its control, as the control would, or
+          // puts focus in it when it takes text.
+          const control = controlOf(target);
+          if (editsText(control ?? null)) {
+            control?.focus();
+          } else {
+            control?.click();
+          }
+        }
       }
     };
 
@@ -431,11 +610,58 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
     // The selection follows focus however it arrives on an item: Tab, a
     // click, or a host's own `focus()`. Not on a control, whose cell never
     // changes the selection, and only when it would change.
+    const focusQuietly = (cell: HTMLElement): void => {
+      if (list.current) {
+        syncTabStop(list.current, cell);
+      }
+      quiet.current = true;
+      try {
+        cell.focus();
+      } finally {
+        quiet.current = false;
+      }
+    };
+
     const handleFocus = (event: FocusEvent<HTMLDivElement>): void => {
       onFocus?.(event);
-      syncTabStop(event.currentTarget, event.target);
       const target = event.target as HTMLElement;
-      if (!quiet.current && target.dataset["hmCell"] === "item") {
+      const element = event.currentTarget;
+      // Focus from outside the list enters at its Tab stop, without
+      // selecting, whichever cell it was given: NVDA's browse mode can give
+      // focus to any cell, and a Tab must never change the selection (#201).
+      // A pointer press keeps the cell it pressed, and so does
+      // focusReorderableListItem.
+      const related = event.relatedTarget;
+      const fromOutside = !(related instanceof Node && element.contains(related));
+      const cell = target.closest<HTMLElement>("[data-hm-cell]");
+      const pressed = pressing.current;
+      pressing.current = false;
+      // Entering is never a selection, even onto the Tab stop itself.
+      const entering = fromOutside && cell !== null && !pressed && !requested.has(cell);
+      if (entering) {
+        const all = rowsOf(element).flatMap(cellsOf);
+        const stop =
+          all.find((candidate) => candidate.dataset["hmTabStop"] !== undefined) ??
+          cellsOf(selectedRow(rowsOf(element)) ?? element)[0];
+        if (stop && stop !== cell) {
+          focusQuietly(stop);
+          return;
+        }
+      }
+      // A control that took focus, from a press for instance, hands it to
+      // its cell, which stands for it. A text field keeps it, so it can be
+      // typed into; Escape returns to the cell.
+      const controlCell = target.closest<HTMLElement>('[data-hm-cell="control"]');
+      if (controlCell && controlCell !== target && element.contains(controlCell)) {
+        if (editsText(target)) {
+          syncTabStop(element, controlCell);
+          return;
+        }
+        focusQuietly(controlCell);
+        return;
+      }
+      syncTabStop(event.currentTarget, event.target);
+      if (!quiet.current && !entering && target.dataset["hmCell"] === "item") {
         const row = rowsOf(event.currentTarget).find((candidate) => candidate.contains(target));
         if (row) {
           select(idOf(row));
@@ -468,6 +694,28 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
         className={cx("hm-reorderable-list", classNames?.root, className)}
         data-hm-unstyled={unstyledAttribute(unstyled)}
         onKeyDown={handleKeyDown}
+        onPointerDown={(event) => {
+          pressing.current = true;
+          // A press that focuses nothing ends with the pointer, wherever it
+          // lifts; after a tick, so the focus a lift causes still counts.
+          // Both listeners go when either fires, or when a new press or the
+          // list's unmounting replaces them.
+          endPress.current?.();
+          const release = (): void => {
+            endPress.current?.();
+            setTimeout(() => {
+              pressing.current = false;
+            });
+          };
+          endPress.current = () => {
+            window.removeEventListener("pointerup", release);
+            window.removeEventListener("pointercancel", release);
+            endPress.current = undefined;
+          };
+          window.addEventListener("pointerup", release);
+          window.addEventListener("pointercancel", release);
+          onPointerDown?.(event);
+        }}
         onClick={handleClick}
         onFocus={handleFocus}
         onBlur={handleBlur}
