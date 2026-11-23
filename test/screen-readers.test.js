@@ -178,6 +178,21 @@ describe("outcome", () => {
     expect(outcome(step, [], "nvda-chrome")).toEqual({ outcome: "unexpected pass", issue });
   });
 
+  it("reports a step the runner keeps from being judged, without failing, on the pairings it names", () => {
+    const runner = "https://github.com/ie-huss-martinez/sdk-core/issues/2";
+    const reported = {
+      ...step,
+      knownFailures: undefined,
+      reportOnly: [{ on: ["nvda-firefox"], issue: runner }],
+    };
+    expect(outcome(reported, ["moved"], "nvda-firefox")).toEqual({
+      outcome: "reported",
+      issue: runner,
+    });
+    expect(outcome(reported, [], "nvda-firefox")).toEqual({ outcome: "pass" });
+    expect(outcome(reported, ["moved"], "nvda-chrome")).toEqual({ outcome: "fail" });
+  });
+
   it("judges a step normally on a pairing its marker doesn't name", () => {
     expect(outcome(step, ["moved"], "voiceover-safari")).toEqual({ outcome: "fail" });
     expect(outcome(step, [], "voiceover-safari")).toEqual({ outcome: "pass" });
@@ -225,7 +240,7 @@ describe("the scripts", () => {
           expect(step.only.length, `${script.name}: ${step.does}`).toBeGreaterThan(0);
           expect(step.only.every((pairing) => PAIRINGS.includes(pairing))).toBe(true);
         }
-        for (const failure of step.knownFailures ?? []) {
+        for (const failure of [...(step.knownFailures ?? []), ...(step.reportOnly ?? [])]) {
           expect(failure.on.length, `${script.name}: ${step.does}`).toBeGreaterThan(0);
           expect(failure.on.every((pairing) => PAIRINGS.includes(pairing))).toBe(true);
           expect(failure.issue).toMatch(

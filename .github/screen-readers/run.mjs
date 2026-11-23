@@ -378,6 +378,12 @@ try {
       const failing = transcript.steps.filter((step) => step.outcome === "fail");
       const fixed = transcript.steps.filter((step) => step.outcome === "unexpected pass");
       const expected = transcript.steps.filter((step) => step.outcome === "expected failure");
+      const reported = transcript.steps.filter((step) => step.outcome === "reported");
+      for (const step of reported) {
+        print(
+          `::notice title=${script.name}::Reported, not judged: "${step.does}" missed ${step.missing.join(", ")} (${step.issue})`,
+        );
+      }
       if (transcript.error) {
         failed = true;
         print(
