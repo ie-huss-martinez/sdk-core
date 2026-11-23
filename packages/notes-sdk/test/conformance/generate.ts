@@ -17,7 +17,14 @@ import {
   page,
   stateAndCommand,
 } from "../arbitraries/notes.js";
-import { applyToState, type NotesDocumentFormat, readAndWrite, toStateDocument } from "./run.js";
+import {
+  applyToState,
+  hasLoneSurrogate,
+  hasNegativeZero,
+  type NotesDocumentFormat,
+  readAndWrite,
+  toStateDocument,
+} from "./run.js";
 
 /**
  * Writes the conformance cases (sdk-core ADR 0045): hand-written cases for
@@ -103,16 +110,27 @@ type Outcome =
   | { readonly ok: true }
   | { readonly code: string; readonly reason?: string | undefined };
 
+/** What a hand-written case checks of its own result, beyond its outcome. It throws when it's wrong. */
+type Check = (expected: unknown, input: unknown) => void;
+
 /**
  * A case whose expected result is what the runner gives. For a hand-written
- * case, `outcome` is what the case is meant to show, and a runner that
- * disagrees fails here, before any file is written.
+ * case, `outcome` is what the case is meant to show, and `check` looks at the
+ * result itself. A runner that disagrees fails here, before any file is
+ * written, so `pnpm conformance:update` can't record a wrong result as the
+ * expected one.
+ *
+ * Two rules hold for every case. No text in it holds a lone surrogate: JSON
+ * libraries that decode text strictly, such as Rust's `serde_json`, refuse
+ * the whole file for one. And no result holds negative zero, which every
+ * reader reads as zero.
  */
 function make(
   name: string,
   input: unknown,
   run: (input: never) => unknown,
   outcome?: Outcome,
+  check?: Check,
 ): ConformanceCase {
   const json = asJson(input);
   let expected: unknown;
@@ -133,8 +151,24 @@ function make(
       );
     }
   }
+  if (hasLoneSurrogate(json) || hasLoneSurrogate(expected)) {
+    throw new Error(`Case "${name}" holds a lone surrogate, which not every JSON library loads.`);
+  }
+  if (hasNegativeZero(expected)) {
+    throw new Error(`Case "${name}" gave negative zero, which a reader reads as zero.`);
+  }
+  check?.(expected, json);
   return { name, input: json, expected };
 }
+
+/**
+ * The check of a case that reads negative zero: its input holds one, so the
+ * case tests what it says. That its result holds none is checked of every
+ * case.
+ */
+const readsNegativeZero: Check = (_expected, input) => {
+  if (!hasNegativeZero(input)) throw new Error("The case's input holds no negative zero.");
+};
 
 /**
  * The cases, once no two share a name. A file with a name twice can't be
@@ -157,9 +191,6 @@ const overLimit = (code: string): Outcome => ({ code });
 
 /** A character outside the BMP: one code point, two UTF-16 units. */
 const EMOJI = "\u{1F4D3}";
-/** Halves of a surrogate pair, which aren't text on their own. */
-const HIGH = "\uD83D";
-const LOW = "\uDCD3";
 
 const sha = (pair: string) => `sha256:${pair.repeat(32)}`;
 const pdfAsset = { asset: sha("0a"), mediaType: "application/pdf", size: 48_213 };
@@ -369,7 +400,7 @@ const NAMED_BACKUP = {
   ],
 };
 
-type DocumentCase = readonly [name: string, document: unknown, outcome: Outcome];
+type DocumentCase = readonly [name: string, document: unknown, outcome: Outcome, check?: Check];
 
 const SHORT: Readonly<Record<NotesDocumentFormat, string>> = {
   "hm-notes-notebook": "notebook",
@@ -471,13 +502,6 @@ const BAD_COLORS: readonly (readonly [string, unknown])[] = [
   ["a colour with transparency", "#ffd54f80"],
   ["a colour that ends with a line break", "#ffd54f\n"],
   ["a colour that's a number", 0],
-];
-
-const LONE_SURROGATES: readonly (readonly [string, string])[] = [
-  ["a high surrogate on its own", `a${HIGH}b`],
-  ["a low surrogate on its own", `a${LOW}b`],
-  ["a surrogate pair the wrong way round", `${LOW}${HIGH}`],
-  ["a high surrogate at the end", `ok${HIGH}`],
 ];
 
 function notebookCases(): DocumentCase[] {
@@ -656,6 +680,7 @@ function notebookCases(): DocumentCase[] {
         [["recordings", 0, "duration"], -0],
       ),
       applied,
+      readsNegativeZero,
     ],
     ["reads the last time a date holds", set(base, ["updatedAt"], 8_640_000_000_000_000), applied],
     [
@@ -704,18 +729,6 @@ function notebookCases(): DocumentCase[] {
       "refuses an outline title of 201 code points",
       set(base, ["outline", 0, "title"], EMOJI.repeat(201)),
       invalid("text-too-long"),
-    ],
-    ...LONE_SURROGATES.map(
-      ([what, value]): DocumentCase => [
-        `refuses a title with ${what}`,
-        set(base, ["title"], value),
-        invalid("malformed-document"),
-      ],
-    ),
-    [
-      "refuses an outline title with a lone surrogate",
-      set(base, ["outline", 0, "title"], HIGH),
-      invalid("malformed-document"),
     ],
     ...BAD_ASSET_NAMES.map(
       ([what, value]): DocumentCase => [
@@ -897,7 +910,12 @@ function pageCases(): DocumentCase[] {
       points([-1_440_000, -1_440_000, 0, 2_880_000, 2_880_000, 1_000]),
       applied,
     ],
-    ["reads negative zero in points as zero", points([-0, -0, -0, 100, 100, 500]), applied],
+    [
+      "reads negative zero in points as zero",
+      points([-0, -0, -0, 100, 100, 500]),
+      applied,
+      readsNegativeZero,
+    ],
     ["refuses a stroke with no points", points([]), invalid("invalid-points")],
     [
       "refuses points that aren't whole triples",
@@ -906,8 +924,13 @@ function pageCases(): DocumentCase[] {
     ],
     ["refuses a point with no pressure", points([0, 0]), invalid("invalid-points")],
     [
-      "refuses points as pairs of objects",
-      points([{ x: 0, y: 0, pressure: 500 }]),
+      // Three of them, so the list is whole triples and only what it holds is wrong.
+      "refuses points that are objects",
+      points([
+        { x: 0, y: 0, pressure: 500 },
+        { x: 100, y: 0, pressure: 500 },
+        { x: 200, y: 0, pressure: 500 },
+      ]),
       invalid("invalid-points"),
     ],
     ["refuses points that aren't a list", points("0,0,500"), invalid("invalid-points")],
@@ -1014,6 +1037,7 @@ function pageCases(): DocumentCase[] {
       "reads negative zero in a position as zero",
       change(base, [["items", 2, "x"], -0], [["items", 3, "y"], -0]),
       applied,
+      readsNegativeZero,
     ],
     [
       "refuses a position too far left of the page",
@@ -1051,7 +1075,12 @@ function pageCases(): DocumentCase[] {
       set(base, ["items", 4, "height"], 2_880_001),
       invalid("invalid-size"),
     ],
-    ["refuses a fractional width", set(base, ["items", 4, "width"], 0.5), invalid("invalid-size")],
+    [
+      // Within the range, so only the fraction is wrong.
+      "refuses a fractional width",
+      set(base, ["items", 4, "width"], 12_000.5),
+      invalid("invalid-size"),
+    ],
     [
       "reads the smallest and the largest text size",
       set(base, ["items"], [textBox("a", { size: 400 }), textBox("b", { size: 28_800 })]),
@@ -1088,13 +1117,6 @@ function pageCases(): DocumentCase[] {
       set(base, ["items", 2, "text"], ["Check"]),
       invalid("malformed-document"),
     ],
-    ...LONE_SURROGATES.map(
-      ([what, value]): DocumentCase => [
-        `refuses text with ${what}`,
-        set(base, ["items", 2, "text"], value),
-        invalid("malformed-document"),
-      ],
-    ),
     ...["image/jpeg", "image/webp", "image/gif"].map(
       (type): DocumentCase => [
         `reads a picture of type ${type}`,
@@ -1197,8 +1219,9 @@ function libraryCases(): DocumentCase[] {
       invalid("malformed-document"),
     ],
     [
+      // A folder more, so every folder a notebook or a folder names is still there.
       "refuses two folders with one id",
-      set(base, ["folders", 1, "id"], "f1"),
+      set(base, ["folders", 2], folder("f1", null, "Chemistry")),
       invalid("duplicate-id"),
     ],
     [
@@ -1262,16 +1285,17 @@ function libraryCases(): DocumentCase[] {
       set(base, ["notebooks", 0, "folder"], "f 2"),
       invalid("invalid-id"),
     ],
+    // The folder with the bad id is one more, which nothing names, so the id is all that's wrong.
     ...BAD_IDS.filter(([, value]) => value !== null).map(
       ([what, value]): DocumentCase => [
         `refuses ${what} for a folder`,
-        set(base, ["folders", 1, "id"], value),
+        set(base, ["folders", 2], { ...folder("f3", null, "Chemistry"), id: value }),
         invalid("invalid-id"),
       ],
     ),
     [
       "refuses an id that's null for a folder",
-      set(base, ["folders", 1, "id"], null),
+      set(base, ["folders", 2], { ...folder("f3", null, "Chemistry"), id: null }),
       invalid("invalid-id"),
     ],
     [
@@ -1303,6 +1327,7 @@ function libraryCases(): DocumentCase[] {
         [["notebooks", 0, "deletedAt"], -0],
       ),
       applied,
+      readsNegativeZero,
     ],
     [
       "refuses a negative time of the last backup",
@@ -1349,18 +1374,6 @@ function libraryCases(): DocumentCase[] {
       set(base, ["notebooks", 0, "title"], EMOJI.repeat(201)),
       invalid("text-too-long"),
     ],
-    ...LONE_SURROGATES.map(
-      ([what, value]): DocumentCase => [
-        `refuses a folder name with ${what}`,
-        set(base, ["folders", 0, "name"], value),
-        invalid("malformed-document"),
-      ],
-    ),
-    [
-      "refuses a notebook title with a lone surrogate",
-      set(base, ["notebooks", 0, "title"], LOW),
-      invalid("malformed-document"),
-    ],
   ];
 }
 
@@ -1392,6 +1405,11 @@ function backupCases(): DocumentCase[] {
       invalid("malformed-document"),
     ],
     [
+      "refuses a notebook's id that ends with a line break",
+      set(base, ["notebooks", 1, "id"], "nb2\n"),
+      invalid("invalid-id"),
+    ],
+    [
       "refuses a notebook that's its id alone",
       set(base, ["notebooks", 0], "nb1"),
       invalid("malformed-document"),
@@ -1402,8 +1420,9 @@ function backupCases(): DocumentCase[] {
       invalid("duplicate-id"),
     ],
     [
+      // A folder more, so every folder a notebook or a folder names is still there.
       "refuses two folders with one id",
-      set(base, ["folders", 1, "id"], "f1"),
+      set(base, ["folders", 2], folder("f1", null, "Chemistry")),
       invalid("duplicate-id"),
     ],
     [
@@ -1443,7 +1462,7 @@ function backupCases(): DocumentCase[] {
       set(base, ["notebooks", 0, "folder"], 2),
       invalid("invalid-id"),
     ],
-    ["reads negative zero as zero", set(base, ["createdAt"], -0), applied],
+    ["reads negative zero as zero", set(base, ["createdAt"], -0), applied, readsNegativeZero],
     ["refuses a negative time", set(base, ["createdAt"], -1), invalid("invalid-time")],
     ["refuses a fractional time", set(base, ["createdAt"], 0.5), invalid("invalid-time")],
     ["refuses a time that's null", set(base, ["createdAt"], null), invalid("invalid-time")],
@@ -1451,11 +1470,6 @@ function backupCases(): DocumentCase[] {
       "refuses a folder name of 201 code points outside the BMP",
       set(base, ["folders", 0, "name"], EMOJI.repeat(201)),
       invalid("text-too-long"),
-    ],
-    [
-      "refuses a folder name with a lone surrogate",
-      set(base, ["folders", 0, "name"], `${HIGH}x`),
-      invalid("malformed-document"),
     ],
   ];
 }
@@ -1484,8 +1498,8 @@ export function documentCases(): ConformanceFile {
       "notes-sdk's documents (docs/formats/conformance.md). input.as names the format to read input.document as: hm-notes-notebook, hm-notes-page, hm-notes-library or hm-notes-backup. expected is the document as a reader writes it back, or the rejection. Positions and sizes are whole units, 100 to a PDF point, and times are whole milliseconds. Generated cases come from the property tests' generators, with a fixed seed.",
     cases: distinct([
       ...handWritten.flatMap(([as, cases]) =>
-        cases.map(([name, document, outcome]) =>
-          make(`${SHORT[as]}: ${name}`, { as, document }, readAndWrite, outcome),
+        cases.map(([name, document, outcome, check]) =>
+          make(`${SHORT[as]}: ${name}`, { as, document }, readAndWrite, outcome, check),
         ),
       ),
       ...generated.flatMap(([as, documents]) =>
@@ -1509,6 +1523,15 @@ const STATE = {
   },
 };
 
+/** The base state with p1's text written during the recording r1, so it holds an anchor to it. */
+const ANCHORED = {
+  notebook: NOTEBOOK,
+  pages: {
+    ...STATE.pages,
+    p1: [stroke("s1"), textBox("t1", { audio: { recording: "r1", at: 30_000 } }), link("l1", "p2")],
+  },
+};
+
 /** The same notebook with every page loaded. */
 const LOADED = { notebook: NOTEBOOK, pages: { ...STATE.pages, p3: [] as unknown[] } };
 
@@ -1529,6 +1552,7 @@ type CommandCase = readonly [
   name: string,
   input: { state: unknown; command: unknown; limits?: object },
   outcome: Outcome,
+  check?: Check,
 ];
 
 /** `hm-notes-commands`: a command read and applied to a state. */
@@ -1736,15 +1760,16 @@ export function commandCases(): ConformanceFile {
       on(addItems([textBox("t2", { text: EMOJI.repeat(200) })])),
       applied,
     ],
-    [
-      "refuses text with a lone surrogate",
-      on(addItems([textBox("t2", { text: HIGH })])),
-      refused("malformed-command"),
-    ],
     // notes.removeItems
     ["removes an item", on(removeItems(["t1"])), applied],
     ["removes several items, in any order", on(removeItems(["l1", "s1"])), applied],
     ["removes every item of a page", on(removeItems(["s1", "t1", "l1"])), applied],
+    [
+      // The runner applies the inverse under the same limit, which must not stop it.
+      "removes an item from a page over its limit, which the inverse puts back",
+      on(removeItems(["t1"]), { maxPageItems: 2 }),
+      applied,
+    ],
     [
       "removes a link whose page is no longer in the notebook",
       onDangling(removeItems(["l1"])),
@@ -1768,6 +1793,7 @@ export function commandCases(): ConformanceFile {
       refused("page-not-loaded"),
     ],
     ["refuses an id that isn't valid", on(removeItems(["s1", ""])), refused("invalid-id")],
+    ["refuses an id that ends with a line break", on(removeItems(["s1\n"])), refused("invalid-id")],
     ["refuses ids that aren't a list", on(removeItems("s1")), refused("malformed-command")],
     // notes.restoreItems
     [
@@ -1828,9 +1854,10 @@ export function commandCases(): ConformanceFile {
       refused("duplicate-id"),
     ],
     [
-      "refuses restoring items over a page's limit",
+      // It only undoes a removal, so the host's limit doesn't hold it.
+      "restores an item over a page's limit",
       on(restoreItems([{ index: 0, item: stroke("s2") }]), { maxPageItems: 3 }),
-      overLimit("TOO_MANY_ITEMS"),
+      applied,
     ],
     [
       "refuses restoring to an unknown page",
@@ -1970,6 +1997,12 @@ export function commandCases(): ConformanceFile {
     ],
     ["removes several pages", on(removePages(["p2", "p1"])), applied],
     [
+      // The runner applies the inverse under the same limits, which must not stop it.
+      "removes a page from a notebook over its limits, which the inverse puts back",
+      on(removePages(["p1"]), { maxPages: 2, maxPageItems: 1 }),
+      applied,
+    ],
+    [
       "refuses removing every page",
       onLoaded(removePages(["p1", "p2", "p3"])),
       refused("last-page"),
@@ -2030,14 +2063,15 @@ export function commandCases(): ConformanceFile {
       refused("duplicate-id"),
     ],
     [
-      "refuses restoring pages over the notebook's limit",
+      // It only undoes a removal, so the host's limits don't hold it.
+      "restores a page over the notebook's limit",
       on(restorePages([restored(0, "p4")]), { maxPages: 3 }),
-      overLimit("TOO_MANY_PAGES"),
+      applied,
     ],
     [
-      "refuses restoring a page with more items than a page's limit",
+      "restores a page with more items than a page's limit",
       on(restorePages([restored(0, "p4", [stroke("a"), stroke("b")])]), { maxPageItems: 1 }),
-      overLimit("TOO_MANY_ITEMS"),
+      applied,
     ],
     [
       "refuses an outline that leads to a page that isn't there",
@@ -2208,11 +2242,6 @@ export function commandCases(): ConformanceFile {
       refused("text-too-long"),
     ],
     ["refuses a title of 201 letters", on(rename("a".repeat(201))), refused("text-too-long")],
-    [
-      "refuses a title with a lone surrogate",
-      on(rename(`Lab${LOW}`)),
-      refused("malformed-command"),
-    ],
     ["refuses a title that isn't text", on(rename(7)), refused("malformed-command")],
     // notes.setRecordings
     [
@@ -2227,8 +2256,15 @@ export function commandCases(): ConformanceFile {
     ],
     [
       "removes every recording, leaving the anchors that named them",
-      on(setRecordings([])),
+      { state: ANCHORED, command: setRecordings([]) },
       applied,
+      (expected) => {
+        const { state } = expected as { state: typeof ANCHORED };
+        const kept = JSON.stringify(state.pages.p1[1]) === JSON.stringify(ANCHORED.pages.p1[1]);
+        if (state.notebook.recordings.length > 0 || !kept) {
+          throw new Error("The recordings must go, and the text's anchor must stay.");
+        }
+      },
     ],
     [
       "refuses two recordings with one id",
@@ -2393,6 +2429,8 @@ export function commandCases(): ConformanceFile {
     { seed: SEED, numRuns: 1_500 },
   );
   for (const [state, command] of samples) {
+    // A mutation may put a lone surrogate in a command. The vectors hold none: see `make`.
+    if (hasLoneSurrogate(command)) continue;
     const made = make("", { state, command }, applyToState);
     const { error } = made.expected as { error?: { code: string; reason?: string } };
     const type = (command as { type?: unknown } | null)?.type;
@@ -2413,9 +2451,11 @@ export function commandCases(): ConformanceFile {
     version: 1,
     subject: "hm-notes-commands",
     description:
-      "notes-sdk's edit commands (docs/formats/conformance.md). input.state is a notebook's state: its hm-notes-notebook document, and the items of each loaded page by the page's id. input.command is an hm-notes-command, and input.limits, when present, holds maxPages and maxPageItems. expected is the resulting state with the command's inverse, or the rejection. Applying the inverse must restore the state. Generated cases come from the property tests' generators, with a fixed seed.",
+      "notes-sdk's edit commands (docs/formats/conformance.md). input.state is a notebook's state: its hm-notes-notebook document, and the items of each loaded page by the page's id. input.command is an hm-notes-command, and input.limits, when present, holds maxPages and maxPageItems. expected is the resulting state, or the rejection. The command's inverse isn't in the vectors: applying it to the resulting state, under the same limits, must restore the state exactly. Generated cases come from the property tests' generators, with a fixed seed.",
     cases: distinct([
-      ...handWritten.map(([name, input, outcome]) => make(name, input, applyToState, outcome)),
+      ...handWritten.map(([name, input, outcome, check]) =>
+        make(name, input, applyToState, outcome, check),
+      ),
       ...generated,
     ]),
   };

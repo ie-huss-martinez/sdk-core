@@ -5,6 +5,10 @@ import type { NotesPdfDocument, NotesPdfEngine } from "../../core/ports/notes-pd
 export interface PdfDocuments {
   /** The open PDF, or `undefined` when there's no engine or the PDF can't be opened. */
   get(reference: NotesAssetReference): Promise<NotesPdfDocument | undefined>;
+  /**
+   * Closes the PDFs. They're opened again when next asked for: React's
+   * development mode runs a cleanup once on mount too.
+   */
   dispose(): void;
 }
 
@@ -13,16 +17,18 @@ export function createPdfDocuments(
   read: (reference: NotesAssetReference) => Promise<Blob>,
 ): PdfDocuments {
   const open = new Map<string, Promise<NotesPdfDocument | undefined>>();
-  let disposed = false;
+  /** Counts disposals: a PDF that opens from before the last one is closed again. */
+  let generation = 0;
   return {
     get(reference) {
-      if (!engine || disposed) return Promise.resolve(undefined);
+      if (!engine) return Promise.resolve(undefined);
       let document = open.get(reference.asset);
       if (!document) {
+        const started = generation;
         document = read(reference)
           .then(async (blob) => engine.open(new Uint8Array(await blob.arrayBuffer())))
           .then((opened) => {
-            if (disposed) {
+            if (started !== generation) {
               void opened.destroy();
               return undefined;
             }
@@ -35,7 +41,7 @@ export function createPdfDocuments(
       return document;
     },
     dispose() {
-      disposed = true;
+      generation += 1;
       for (const document of open.values()) {
         void document.then((opened) => opened?.destroy()).catch(() => undefined);
       }

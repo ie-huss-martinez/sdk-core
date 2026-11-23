@@ -68,6 +68,38 @@ describe("PdfContent", () => {
     expect(curves[2]?.numbers).toEqual([32, 34, 34, 34, 36, 30]);
   });
 
+  it("starts a quadratic curve at the subpath's start once the path is closed", () => {
+    // `h` takes the current point back to where the subpath started.
+    const closed = new PdfContent().moveTo(0, 0).lineTo(10, 0).closePath().quadraticTo(3, 6, 6, 0);
+    expect(closed.toString()).toBe("0 0 m\n10 0 l\nh\n2 4 4 4 6 0 c\n");
+    // The start is the last `m`, not the first.
+    const second = new PdfContent()
+      .moveTo(100, 100)
+      .lineTo(50, 50)
+      .moveTo(30, 30)
+      .curveTo(0, 0, 0, 0, 90, 90)
+      .closePath()
+      .quadraticTo(33, 36, 36, 30);
+    expect(operatorsOf(second.toString()).at(-1)?.numbers).toEqual([32, 34, 34, 34, 36, 30]);
+  });
+
+  it("starts a quadratic curve at a rectangle's corner, where `re` leaves the path", () => {
+    // A rectangle is a closed subpath that starts and ends at its `x, y`.
+    const content = new PdfContent()
+      .moveTo(10, 0)
+      .rect(30, 30, 100, 50)
+      .quadraticTo(33, 36, 36, 30);
+    expect(content.toString()).toBe("10 0 m\n30 30 100 50 re\n32 34 34 34 36 30 c\n");
+    // Closing after it goes back to the same corner, not to an earlier subpath's start.
+    const closed = new PdfContent()
+      .moveTo(10, 0)
+      .rect(0, 0, 100, 50)
+      .lineTo(40, 40)
+      .closePath()
+      .quadraticTo(3, 6, 6, 0);
+    expect(operatorsOf(closed.toString()).at(-1)?.numbers).toEqual([2, 4, 4, 4, 6, 0]);
+  });
+
   it("writes the same curve as the quadratic it was given, at every point", () => {
     const coordinate = fc.integer({ min: -100_000, max: 100_000 });
     fc.assert(

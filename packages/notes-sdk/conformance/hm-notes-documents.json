@@ -7800,371 +7800,6 @@
       }
     },
     {
-      "name": "notebook: refuses a title with a high surrogate on its own",
-      "input": {
-        "as": "hm-notes-notebook",
-        "document": {
-          "format": "hm-notes-notebook",
-          "version": 1,
-          "id": "nb1",
-          "title": "a\ud83db",
-          "cover": "blue",
-          "createdAt": 1700000000000,
-          "updatedAt": 1700000360000,
-          "pages": [
-            {
-              "id": "p1",
-              "width": 59500,
-              "height": 84200,
-              "template": "lined"
-            },
-            {
-              "id": "p2",
-              "width": 61200,
-              "height": 79200,
-              "template": "blank",
-              "background": {
-                "pdf": {
-                  "asset": "sha256:0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
-                  "mediaType": "application/pdf",
-                  "size": 48213
-                },
-                "pageIndex": 0
-              }
-            },
-            {
-              "id": "p3",
-              "width": 59500,
-              "height": 84200,
-              "template": "dotted"
-            }
-          ],
-          "outline": [
-            {
-              "id": "o1",
-              "title": "Week 1",
-              "page": "p1"
-            },
-            {
-              "id": "o2",
-              "title": "Handout",
-              "page": "p2"
-            }
-          ],
-          "recordings": [
-            {
-              "id": "r1",
-              "audio": {
-                "asset": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
-                "mediaType": "audio/webm",
-                "size": 120000
-              },
-              "startedAt": 1700000100000,
-              "duration": 95000
-            }
-          ]
-        }
-      },
-      "expected": {
-        "error": {
-          "code": "INVALID_DOCUMENT",
-          "reason": "malformed-document"
-        }
-      }
-    },
-    {
-      "name": "notebook: refuses a title with a low surrogate on its own",
-      "input": {
-        "as": "hm-notes-notebook",
-        "document": {
-          "format": "hm-notes-notebook",
-          "version": 1,
-          "id": "nb1",
-          "title": "a\udcd3b",
-          "cover": "blue",
-          "createdAt": 1700000000000,
-          "updatedAt": 1700000360000,
-          "pages": [
-            {
-              "id": "p1",
-              "width": 59500,
-              "height": 84200,
-              "template": "lined"
-            },
-            {
-              "id": "p2",
-              "width": 61200,
-              "height": 79200,
-              "template": "blank",
-              "background": {
-                "pdf": {
-                  "asset": "sha256:0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
-                  "mediaType": "application/pdf",
-                  "size": 48213
-                },
-                "pageIndex": 0
-              }
-            },
-            {
-              "id": "p3",
-              "width": 59500,
-              "height": 84200,
-              "template": "dotted"
-            }
-          ],
-          "outline": [
-            {
-              "id": "o1",
-              "title": "Week 1",
-              "page": "p1"
-            },
-            {
-              "id": "o2",
-              "title": "Handout",
-              "page": "p2"
-            }
-          ],
-          "recordings": [
-            {
-              "id": "r1",
-              "audio": {
-                "asset": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
-                "mediaType": "audio/webm",
-                "size": 120000
-              },
-              "startedAt": 1700000100000,
-              "duration": 95000
-            }
-          ]
-        }
-      },
-      "expected": {
-        "error": {
-          "code": "INVALID_DOCUMENT",
-          "reason": "malformed-document"
-        }
-      }
-    },
-    {
-      "name": "notebook: refuses a title with a surrogate pair the wrong way round",
-      "input": {
-        "as": "hm-notes-notebook",
-        "document": {
-          "format": "hm-notes-notebook",
-          "version": 1,
-          "id": "nb1",
-          "title": "\udcd3\ud83d",
-          "cover": "blue",
-          "createdAt": 1700000000000,
-          "updatedAt": 1700000360000,
-          "pages": [
-            {
-              "id": "p1",
-              "width": 59500,
-              "height": 84200,
-              "template": "lined"
-            },
-            {
-              "id": "p2",
-              "width": 61200,
-              "height": 79200,
-              "template": "blank",
-              "background": {
-                "pdf": {
-                  "asset": "sha256:0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
-                  "mediaType": "application/pdf",
-                  "size": 48213
-                },
-                "pageIndex": 0
-              }
-            },
-            {
-              "id": "p3",
-              "width": 59500,
-              "height": 84200,
-              "template": "dotted"
-            }
-          ],
-          "outline": [
-            {
-              "id": "o1",
-              "title": "Week 1",
-              "page": "p1"
-            },
-            {
-              "id": "o2",
-              "title": "Handout",
-              "page": "p2"
-            }
-          ],
-          "recordings": [
-            {
-              "id": "r1",
-              "audio": {
-                "asset": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
-                "mediaType": "audio/webm",
-                "size": 120000
-              },
-              "startedAt": 1700000100000,
-              "duration": 95000
-            }
-          ]
-        }
-      },
-      "expected": {
-        "error": {
-          "code": "INVALID_DOCUMENT",
-          "reason": "malformed-document"
-        }
-      }
-    },
-    {
-      "name": "notebook: refuses a title with a high surrogate at the end",
-      "input": {
-        "as": "hm-notes-notebook",
-        "document": {
-          "format": "hm-notes-notebook",
-          "version": 1,
-          "id": "nb1",
-          "title": "ok\ud83d",
-          "cover": "blue",
-          "createdAt": 1700000000000,
-          "updatedAt": 1700000360000,
-          "pages": [
-            {
-              "id": "p1",
-              "width": 59500,
-              "height": 84200,
-              "template": "lined"
-            },
-            {
-              "id": "p2",
-              "width": 61200,
-              "height": 79200,
-              "template": "blank",
-              "background": {
-                "pdf": {
-                  "asset": "sha256:0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
-                  "mediaType": "application/pdf",
-                  "size": 48213
-                },
-                "pageIndex": 0
-              }
-            },
-            {
-              "id": "p3",
-              "width": 59500,
-              "height": 84200,
-              "template": "dotted"
-            }
-          ],
-          "outline": [
-            {
-              "id": "o1",
-              "title": "Week 1",
-              "page": "p1"
-            },
-            {
-              "id": "o2",
-              "title": "Handout",
-              "page": "p2"
-            }
-          ],
-          "recordings": [
-            {
-              "id": "r1",
-              "audio": {
-                "asset": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
-                "mediaType": "audio/webm",
-                "size": 120000
-              },
-              "startedAt": 1700000100000,
-              "duration": 95000
-            }
-          ]
-        }
-      },
-      "expected": {
-        "error": {
-          "code": "INVALID_DOCUMENT",
-          "reason": "malformed-document"
-        }
-      }
-    },
-    {
-      "name": "notebook: refuses an outline title with a lone surrogate",
-      "input": {
-        "as": "hm-notes-notebook",
-        "document": {
-          "format": "hm-notes-notebook",
-          "version": 1,
-          "id": "nb1",
-          "title": "Field notes",
-          "cover": "blue",
-          "createdAt": 1700000000000,
-          "updatedAt": 1700000360000,
-          "pages": [
-            {
-              "id": "p1",
-              "width": 59500,
-              "height": 84200,
-              "template": "lined"
-            },
-            {
-              "id": "p2",
-              "width": 61200,
-              "height": 79200,
-              "template": "blank",
-              "background": {
-                "pdf": {
-                  "asset": "sha256:0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
-                  "mediaType": "application/pdf",
-                  "size": 48213
-                },
-                "pageIndex": 0
-              }
-            },
-            {
-              "id": "p3",
-              "width": 59500,
-              "height": 84200,
-              "template": "dotted"
-            }
-          ],
-          "outline": [
-            {
-              "id": "o1",
-              "title": "\ud83d",
-              "page": "p1"
-            },
-            {
-              "id": "o2",
-              "title": "Handout",
-              "page": "p2"
-            }
-          ],
-          "recordings": [
-            {
-              "id": "r1",
-              "audio": {
-                "asset": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
-                "mediaType": "audio/webm",
-                "size": 120000
-              },
-              "startedAt": 1700000100000,
-              "duration": 95000
-            }
-          ]
-        }
-      },
-      "expected": {
-        "error": {
-          "code": "INVALID_DOCUMENT",
-          "reason": "malformed-document"
-        }
-      }
-    },
-    {
       "name": "notebook: refuses an asset name in capitals for a PDF",
       "input": {
         "as": "hm-notes-notebook",
@@ -15596,7 +15231,7 @@
       }
     },
     {
-      "name": "page: refuses points as pairs of objects",
+      "name": "page: refuses points that are objects",
       "input": {
         "as": "hm-notes-page",
         "document": {
@@ -15613,6 +15248,16 @@
               "points": [
                 {
                   "x": 0,
+                  "y": 0,
+                  "pressure": 500
+                },
+                {
+                  "x": 100,
+                  "y": 0,
+                  "pressure": 500
+                },
+                {
+                  "x": 200,
                   "y": 0,
                   "pressure": 500
                 }
@@ -19076,7 +18721,7 @@
               "type": "link",
               "x": 40000,
               "y": 3000,
-              "width": 0.5,
+              "width": 12000.5,
               "height": 2400,
               "page": "p2"
             }
@@ -19678,310 +19323,6 @@
               "text": [
                 "Check"
               ],
-              "size": 1200,
-              "color": "#0b57d0",
-              "audio": {
-                "recording": "r1",
-                "at": 30000
-              }
-            },
-            {
-              "id": "i1",
-              "type": "image",
-              "x": 5000,
-              "y": 40000,
-              "width": 24000,
-              "height": 18000,
-              "image": {
-                "asset": "sha256:0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
-                "mediaType": "image/png",
-                "size": 20480
-              }
-            },
-            {
-              "id": "l1",
-              "type": "link",
-              "x": 40000,
-              "y": 3000,
-              "width": 12000,
-              "height": 2400,
-              "page": "p2"
-            }
-          ]
-        }
-      },
-      "expected": {
-        "error": {
-          "code": "INVALID_DOCUMENT",
-          "reason": "malformed-document"
-        }
-      }
-    },
-    {
-      "name": "page: refuses text with a high surrogate on its own",
-      "input": {
-        "as": "hm-notes-page",
-        "document": {
-          "format": "hm-notes-page",
-          "version": 1,
-          "id": "p1",
-          "items": [
-            {
-              "id": "s1",
-              "type": "stroke",
-              "tool": "pen",
-              "color": "#1a1a1a",
-              "size": 200,
-              "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
-            },
-            {
-              "id": "s2",
-              "type": "stroke",
-              "tool": "highlighter",
-              "color": "#ffd54f",
-              "size": 1600,
-              "points": [8000, 20600, 0, 38000, 20600, 0],
-              "uniform": true,
-              "audio": {
-                "recording": "r1",
-                "at": 12500
-              }
-            },
-            {
-              "id": "t1",
-              "type": "text",
-              "x": 8000,
-              "y": 20000,
-              "width": 30000,
-              "text": "a\ud83db",
-              "size": 1200,
-              "color": "#0b57d0",
-              "audio": {
-                "recording": "r1",
-                "at": 30000
-              }
-            },
-            {
-              "id": "i1",
-              "type": "image",
-              "x": 5000,
-              "y": 40000,
-              "width": 24000,
-              "height": 18000,
-              "image": {
-                "asset": "sha256:0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
-                "mediaType": "image/png",
-                "size": 20480
-              }
-            },
-            {
-              "id": "l1",
-              "type": "link",
-              "x": 40000,
-              "y": 3000,
-              "width": 12000,
-              "height": 2400,
-              "page": "p2"
-            }
-          ]
-        }
-      },
-      "expected": {
-        "error": {
-          "code": "INVALID_DOCUMENT",
-          "reason": "malformed-document"
-        }
-      }
-    },
-    {
-      "name": "page: refuses text with a low surrogate on its own",
-      "input": {
-        "as": "hm-notes-page",
-        "document": {
-          "format": "hm-notes-page",
-          "version": 1,
-          "id": "p1",
-          "items": [
-            {
-              "id": "s1",
-              "type": "stroke",
-              "tool": "pen",
-              "color": "#1a1a1a",
-              "size": 200,
-              "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
-            },
-            {
-              "id": "s2",
-              "type": "stroke",
-              "tool": "highlighter",
-              "color": "#ffd54f",
-              "size": 1600,
-              "points": [8000, 20600, 0, 38000, 20600, 0],
-              "uniform": true,
-              "audio": {
-                "recording": "r1",
-                "at": 12500
-              }
-            },
-            {
-              "id": "t1",
-              "type": "text",
-              "x": 8000,
-              "y": 20000,
-              "width": 30000,
-              "text": "a\udcd3b",
-              "size": 1200,
-              "color": "#0b57d0",
-              "audio": {
-                "recording": "r1",
-                "at": 30000
-              }
-            },
-            {
-              "id": "i1",
-              "type": "image",
-              "x": 5000,
-              "y": 40000,
-              "width": 24000,
-              "height": 18000,
-              "image": {
-                "asset": "sha256:0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
-                "mediaType": "image/png",
-                "size": 20480
-              }
-            },
-            {
-              "id": "l1",
-              "type": "link",
-              "x": 40000,
-              "y": 3000,
-              "width": 12000,
-              "height": 2400,
-              "page": "p2"
-            }
-          ]
-        }
-      },
-      "expected": {
-        "error": {
-          "code": "INVALID_DOCUMENT",
-          "reason": "malformed-document"
-        }
-      }
-    },
-    {
-      "name": "page: refuses text with a surrogate pair the wrong way round",
-      "input": {
-        "as": "hm-notes-page",
-        "document": {
-          "format": "hm-notes-page",
-          "version": 1,
-          "id": "p1",
-          "items": [
-            {
-              "id": "s1",
-              "type": "stroke",
-              "tool": "pen",
-              "color": "#1a1a1a",
-              "size": 200,
-              "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
-            },
-            {
-              "id": "s2",
-              "type": "stroke",
-              "tool": "highlighter",
-              "color": "#ffd54f",
-              "size": 1600,
-              "points": [8000, 20600, 0, 38000, 20600, 0],
-              "uniform": true,
-              "audio": {
-                "recording": "r1",
-                "at": 12500
-              }
-            },
-            {
-              "id": "t1",
-              "type": "text",
-              "x": 8000,
-              "y": 20000,
-              "width": 30000,
-              "text": "\udcd3\ud83d",
-              "size": 1200,
-              "color": "#0b57d0",
-              "audio": {
-                "recording": "r1",
-                "at": 30000
-              }
-            },
-            {
-              "id": "i1",
-              "type": "image",
-              "x": 5000,
-              "y": 40000,
-              "width": 24000,
-              "height": 18000,
-              "image": {
-                "asset": "sha256:0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
-                "mediaType": "image/png",
-                "size": 20480
-              }
-            },
-            {
-              "id": "l1",
-              "type": "link",
-              "x": 40000,
-              "y": 3000,
-              "width": 12000,
-              "height": 2400,
-              "page": "p2"
-            }
-          ]
-        }
-      },
-      "expected": {
-        "error": {
-          "code": "INVALID_DOCUMENT",
-          "reason": "malformed-document"
-        }
-      }
-    },
-    {
-      "name": "page: refuses text with a high surrogate at the end",
-      "input": {
-        "as": "hm-notes-page",
-        "document": {
-          "format": "hm-notes-page",
-          "version": 1,
-          "id": "p1",
-          "items": [
-            {
-              "id": "s1",
-              "type": "stroke",
-              "tool": "pen",
-              "color": "#1a1a1a",
-              "size": 200,
-              "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
-            },
-            {
-              "id": "s2",
-              "type": "stroke",
-              "tool": "highlighter",
-              "color": "#ffd54f",
-              "size": 1600,
-              "points": [8000, 20600, 0, 38000, 20600, 0],
-              "uniform": true,
-              "audio": {
-                "recording": "r1",
-                "at": 12500
-              }
-            },
-            {
-              "id": "t1",
-              "type": "text",
-              "x": 8000,
-              "y": 20000,
-              "width": 30000,
-              "text": "ok\ud83d",
               "size": 1200,
               "color": "#0b57d0",
               "audio": {
@@ -23399,9 +22740,15 @@
               "createdAt": 1700000000000
             },
             {
-              "id": "f1",
+              "id": "f2",
               "name": "Physics",
               "parent": "f1",
+              "createdAt": 1700000000000
+            },
+            {
+              "id": "f1",
+              "name": "Chemistry",
+              "parent": null,
               "createdAt": 1700000000000
             }
           ],
@@ -24201,9 +23548,15 @@
               "createdAt": 1700000000000
             },
             {
-              "id": "",
+              "id": "f2",
               "name": "Physics",
               "parent": "f1",
+              "createdAt": 1700000000000
+            },
+            {
+              "id": "",
+              "name": "Chemistry",
+              "parent": null,
               "createdAt": 1700000000000
             }
           ],
@@ -24257,9 +23610,15 @@
               "createdAt": 1700000000000
             },
             {
-              "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "id": "f2",
               "name": "Physics",
               "parent": "f1",
+              "createdAt": 1700000000000
+            },
+            {
+              "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "name": "Chemistry",
+              "parent": null,
               "createdAt": 1700000000000
             }
           ],
@@ -24313,9 +23672,15 @@
               "createdAt": 1700000000000
             },
             {
-              "id": "a b",
+              "id": "f2",
               "name": "Physics",
               "parent": "f1",
+              "createdAt": 1700000000000
+            },
+            {
+              "id": "a b",
+              "name": "Chemistry",
+              "parent": null,
               "createdAt": 1700000000000
             }
           ],
@@ -24369,9 +23734,15 @@
               "createdAt": 1700000000000
             },
             {
-              "id": "a.b",
+              "id": "f2",
               "name": "Physics",
               "parent": "f1",
+              "createdAt": 1700000000000
+            },
+            {
+              "id": "a.b",
+              "name": "Chemistry",
+              "parent": null,
               "createdAt": 1700000000000
             }
           ],
@@ -24425,9 +23796,15 @@
               "createdAt": 1700000000000
             },
             {
-              "id": "p1\n",
+              "id": "f2",
               "name": "Physics",
               "parent": "f1",
+              "createdAt": 1700000000000
+            },
+            {
+              "id": "p1\n",
+              "name": "Chemistry",
+              "parent": null,
               "createdAt": 1700000000000
             }
           ],
@@ -24481,9 +23858,15 @@
               "createdAt": 1700000000000
             },
             {
-              "id": "café",
+              "id": "f2",
               "name": "Physics",
               "parent": "f1",
+              "createdAt": 1700000000000
+            },
+            {
+              "id": "café",
+              "name": "Chemistry",
+              "parent": null,
               "createdAt": 1700000000000
             }
           ],
@@ -24537,9 +23920,15 @@
               "createdAt": 1700000000000
             },
             {
-              "id": 7,
+              "id": "f2",
               "name": "Physics",
               "parent": "f1",
+              "createdAt": 1700000000000
+            },
+            {
+              "id": 7,
+              "name": "Chemistry",
+              "parent": null,
               "createdAt": 1700000000000
             }
           ],
@@ -24593,9 +23982,15 @@
               "createdAt": 1700000000000
             },
             {
-              "id": null,
+              "id": "f2",
               "name": "Physics",
               "parent": "f1",
+              "createdAt": 1700000000000
+            },
+            {
+              "id": null,
+              "name": "Chemistry",
+              "parent": null,
               "createdAt": 1700000000000
             }
           ],
@@ -25529,286 +24924,6 @@
         "error": {
           "code": "INVALID_DOCUMENT",
           "reason": "text-too-long"
-        }
-      }
-    },
-    {
-      "name": "library: refuses a folder name with a high surrogate on its own",
-      "input": {
-        "as": "hm-notes-library",
-        "document": {
-          "format": "hm-notes-library",
-          "version": 1,
-          "folders": [
-            {
-              "id": "f1",
-              "name": "a\ud83db",
-              "parent": null,
-              "createdAt": 1700000000000
-            },
-            {
-              "id": "f2",
-              "name": "Physics",
-              "parent": "f1",
-              "createdAt": 1700000000000
-            }
-          ],
-          "notebooks": [
-            {
-              "id": "nb1",
-              "title": "Field notes",
-              "cover": "blue",
-              "template": "lined",
-              "folder": "f2",
-              "pageCount": 3,
-              "createdAt": 1700000000000,
-              "updatedAt": 1700000360000,
-              "deletedAt": null
-            },
-            {
-              "id": "nb2",
-              "title": "Sketches",
-              "cover": "amber",
-              "template": "blank",
-              "folder": null,
-              "pageCount": 1,
-              "createdAt": 1700000000000,
-              "updatedAt": 1700000360000,
-              "deletedAt": 1700000400000
-            }
-          ],
-          "lastBackupAt": 1700000200000,
-          "lastChangeAt": 1700000360000
-        }
-      },
-      "expected": {
-        "error": {
-          "code": "INVALID_DOCUMENT",
-          "reason": "malformed-document"
-        }
-      }
-    },
-    {
-      "name": "library: refuses a folder name with a low surrogate on its own",
-      "input": {
-        "as": "hm-notes-library",
-        "document": {
-          "format": "hm-notes-library",
-          "version": 1,
-          "folders": [
-            {
-              "id": "f1",
-              "name": "a\udcd3b",
-              "parent": null,
-              "createdAt": 1700000000000
-            },
-            {
-              "id": "f2",
-              "name": "Physics",
-              "parent": "f1",
-              "createdAt": 1700000000000
-            }
-          ],
-          "notebooks": [
-            {
-              "id": "nb1",
-              "title": "Field notes",
-              "cover": "blue",
-              "template": "lined",
-              "folder": "f2",
-              "pageCount": 3,
-              "createdAt": 1700000000000,
-              "updatedAt": 1700000360000,
-              "deletedAt": null
-            },
-            {
-              "id": "nb2",
-              "title": "Sketches",
-              "cover": "amber",
-              "template": "blank",
-              "folder": null,
-              "pageCount": 1,
-              "createdAt": 1700000000000,
-              "updatedAt": 1700000360000,
-              "deletedAt": 1700000400000
-            }
-          ],
-          "lastBackupAt": 1700000200000,
-          "lastChangeAt": 1700000360000
-        }
-      },
-      "expected": {
-        "error": {
-          "code": "INVALID_DOCUMENT",
-          "reason": "malformed-document"
-        }
-      }
-    },
-    {
-      "name": "library: refuses a folder name with a surrogate pair the wrong way round",
-      "input": {
-        "as": "hm-notes-library",
-        "document": {
-          "format": "hm-notes-library",
-          "version": 1,
-          "folders": [
-            {
-              "id": "f1",
-              "name": "\udcd3\ud83d",
-              "parent": null,
-              "createdAt": 1700000000000
-            },
-            {
-              "id": "f2",
-              "name": "Physics",
-              "parent": "f1",
-              "createdAt": 1700000000000
-            }
-          ],
-          "notebooks": [
-            {
-              "id": "nb1",
-              "title": "Field notes",
-              "cover": "blue",
-              "template": "lined",
-              "folder": "f2",
-              "pageCount": 3,
-              "createdAt": 1700000000000,
-              "updatedAt": 1700000360000,
-              "deletedAt": null
-            },
-            {
-              "id": "nb2",
-              "title": "Sketches",
-              "cover": "amber",
-              "template": "blank",
-              "folder": null,
-              "pageCount": 1,
-              "createdAt": 1700000000000,
-              "updatedAt": 1700000360000,
-              "deletedAt": 1700000400000
-            }
-          ],
-          "lastBackupAt": 1700000200000,
-          "lastChangeAt": 1700000360000
-        }
-      },
-      "expected": {
-        "error": {
-          "code": "INVALID_DOCUMENT",
-          "reason": "malformed-document"
-        }
-      }
-    },
-    {
-      "name": "library: refuses a folder name with a high surrogate at the end",
-      "input": {
-        "as": "hm-notes-library",
-        "document": {
-          "format": "hm-notes-library",
-          "version": 1,
-          "folders": [
-            {
-              "id": "f1",
-              "name": "ok\ud83d",
-              "parent": null,
-              "createdAt": 1700000000000
-            },
-            {
-              "id": "f2",
-              "name": "Physics",
-              "parent": "f1",
-              "createdAt": 1700000000000
-            }
-          ],
-          "notebooks": [
-            {
-              "id": "nb1",
-              "title": "Field notes",
-              "cover": "blue",
-              "template": "lined",
-              "folder": "f2",
-              "pageCount": 3,
-              "createdAt": 1700000000000,
-              "updatedAt": 1700000360000,
-              "deletedAt": null
-            },
-            {
-              "id": "nb2",
-              "title": "Sketches",
-              "cover": "amber",
-              "template": "blank",
-              "folder": null,
-              "pageCount": 1,
-              "createdAt": 1700000000000,
-              "updatedAt": 1700000360000,
-              "deletedAt": 1700000400000
-            }
-          ],
-          "lastBackupAt": 1700000200000,
-          "lastChangeAt": 1700000360000
-        }
-      },
-      "expected": {
-        "error": {
-          "code": "INVALID_DOCUMENT",
-          "reason": "malformed-document"
-        }
-      }
-    },
-    {
-      "name": "library: refuses a notebook title with a lone surrogate",
-      "input": {
-        "as": "hm-notes-library",
-        "document": {
-          "format": "hm-notes-library",
-          "version": 1,
-          "folders": [
-            {
-              "id": "f1",
-              "name": "Courses",
-              "parent": null,
-              "createdAt": 1700000000000
-            },
-            {
-              "id": "f2",
-              "name": "Physics",
-              "parent": "f1",
-              "createdAt": 1700000000000
-            }
-          ],
-          "notebooks": [
-            {
-              "id": "nb1",
-              "title": "\udcd3",
-              "cover": "blue",
-              "template": "lined",
-              "folder": "f2",
-              "pageCount": 3,
-              "createdAt": 1700000000000,
-              "updatedAt": 1700000360000,
-              "deletedAt": null
-            },
-            {
-              "id": "nb2",
-              "title": "Sketches",
-              "cover": "amber",
-              "template": "blank",
-              "folder": null,
-              "pageCount": 1,
-              "createdAt": 1700000000000,
-              "updatedAt": 1700000360000,
-              "deletedAt": 1700000400000
-            }
-          ],
-          "lastBackupAt": 1700000200000,
-          "lastChangeAt": 1700000360000
-        }
-      },
-      "expected": {
-        "error": {
-          "code": "INVALID_DOCUMENT",
-          "reason": "malformed-document"
         }
       }
     },
@@ -27071,6 +26186,48 @@
       }
     },
     {
+      "name": "backup: refuses a notebook's id that ends with a line break",
+      "input": {
+        "as": "hm-notes-backup",
+        "document": {
+          "format": "hm-notes-backup",
+          "version": 1,
+          "createdAt": 1700000500000,
+          "scope": "library",
+          "folders": [
+            {
+              "id": "f1",
+              "name": "Courses",
+              "parent": null,
+              "createdAt": 1700000000000
+            },
+            {
+              "id": "f2",
+              "name": "Physics",
+              "parent": "f1",
+              "createdAt": 1700000000000
+            }
+          ],
+          "notebooks": [
+            {
+              "id": "nb1",
+              "folder": "f2"
+            },
+            {
+              "id": "nb2\n",
+              "folder": null
+            }
+          ]
+        }
+      },
+      "expected": {
+        "error": {
+          "code": "INVALID_DOCUMENT",
+          "reason": "invalid-id"
+        }
+      }
+    },
+    {
       "name": "backup: refuses a notebook that's its id alone",
       "input": {
         "as": "hm-notes-backup",
@@ -27168,9 +26325,15 @@
               "createdAt": 1700000000000
             },
             {
-              "id": "f1",
+              "id": "f2",
               "name": "Physics",
               "parent": "f1",
+              "createdAt": 1700000000000
+            },
+            {
+              "id": "f1",
+              "name": "Chemistry",
+              "parent": null,
               "createdAt": 1700000000000
             }
           ],
@@ -27802,48 +26965,6 @@
         "error": {
           "code": "INVALID_DOCUMENT",
           "reason": "text-too-long"
-        }
-      }
-    },
-    {
-      "name": "backup: refuses a folder name with a lone surrogate",
-      "input": {
-        "as": "hm-notes-backup",
-        "document": {
-          "format": "hm-notes-backup",
-          "version": 1,
-          "createdAt": 1700000500000,
-          "scope": "library",
-          "folders": [
-            {
-              "id": "f1",
-              "name": "\ud83dx",
-              "parent": null,
-              "createdAt": 1700000000000
-            },
-            {
-              "id": "f2",
-              "name": "Physics",
-              "parent": "f1",
-              "createdAt": 1700000000000
-            }
-          ],
-          "notebooks": [
-            {
-              "id": "nb1",
-              "folder": "f2"
-            },
-            {
-              "id": "nb2",
-              "folder": null
-            }
-          ]
-        }
-      },
-      "expected": {
-        "error": {
-          "code": "INVALID_DOCUMENT",
-          "reason": "malformed-document"
         }
       }
     },

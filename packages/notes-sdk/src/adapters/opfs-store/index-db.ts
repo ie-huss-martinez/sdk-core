@@ -21,9 +21,20 @@ export const BY_NOTEBOOK = "notebook";
 export interface NotesDatabase {
   /** The stored index document, or `undefined` if none was written. */
   readIndex(): Promise<unknown>;
-  /** Replaces the index document, and resolves once it's on the disk. */
-  writeIndex(document: unknown): Promise<void>;
-  writePageText(entry: NotesPageText): Promise<void>;
+  /**
+   * Gives `change` the stored index document, `undefined` if there is none,
+   * and stores what it returns. Resolves to that, once it's on the disk.
+   */
+  updateIndex(change: (stored: unknown) => unknown): Promise<unknown>;
+  /**
+   * Gives `change` a page's stored text, `undefined` if it has none, and
+   * stores what it returns.
+   */
+  updatePageText(
+    notebook: string,
+    page: string,
+    change: (stored: unknown) => NotesPageText,
+  ): Promise<void>;
   /** The texts of one notebook, or of all. */
   readPageTexts(notebook?: string): Promise<readonly unknown[]>;
   deletePageText(notebook: string, page: string): Promise<void>;
@@ -108,6 +119,10 @@ function openDatabase(name: string, onLost: () => void): Promise<IDBDatabase> {
  * `complete`, not on a request's `success`: only then is the change kept.
  * It rejects on `error` and on `abort`, with what the browser threw.
  *
+ * An update reads a record and writes it in one transaction. The browser
+ * runs the writing transactions of an object store one at a time, across
+ * tabs, so no other write comes between the read and the write.
+ *
  * @param name - The database's name.
  */
 export function createNotesDatabase(name: string): NotesDatabase {
@@ -149,6 +164,33 @@ export function createNotesDatabase(name: string): NotesDatabase {
   };
 
   /**
+   * Rejects with why a transaction failed, when it does. Returns how the
+   * caller fails it for a reason of its own: nothing of the transaction is
+   * then kept, and the rejection is exactly that reason.
+   */
+  const watch = (
+    transaction: IDBTransaction,
+    reject: (reason: unknown) => void,
+  ): ((reason: unknown) => void) => {
+    let failure: unknown;
+    transaction.onerror = (event) => {
+      // The request that failed says why. The transaction's own error is set only once it aborts.
+      const target = event.target;
+      failure = target instanceof IDBRequest ? target.error : transaction.error;
+      reject(failure);
+    };
+    transaction.onabort = () => reject(transaction.error ?? failure);
+    return (reason) => {
+      reject(reason);
+      try {
+        transaction.abort();
+      } catch {
+        // Already finished.
+      }
+    };
+  };
+
+  /**
    * Runs one transaction, and resolves to its request's result once the
    * transaction has completed.
    */
@@ -161,25 +203,51 @@ export function createNotesDatabase(name: string): NotesDatabase {
     const transaction = await begin(stores, mode, options);
     return new Promise<Result | undefined>((resolve, reject) => {
       let request: IDBRequest<Result> | undefined;
-      let failure: unknown;
       transaction.oncomplete = () => resolve(request?.result);
-      transaction.onerror = (event) => {
-        // The request that failed says why. The transaction's own error is set only once it aborts.
-        const target = event.target;
-        failure = target instanceof IDBRequest ? target.error : transaction.error;
-        reject(failure);
-      };
-      transaction.onabort = () => reject(transaction.error ?? failure);
+      const fail = watch(transaction, reject);
       try {
         request = work(transaction);
       } catch (error) {
-        reject(error);
-        // Nothing of a transaction that couldn't be set up is kept.
-        try {
-          transaction.abort();
-        } catch {
-          // Already finished.
-        }
+        fail(error);
+      }
+    });
+  };
+
+  /**
+   * Reads one record and stores what `change` makes of it, in one
+   * transaction. Resolves to what was stored, once the transaction has
+   * completed.
+   *
+   * `change` runs while the transaction is alive, so it can't wait for
+   * anything. If it throws, nothing is written and the call rejects with
+   * what it threw.
+   */
+  const update = async <Value>(
+    name: string,
+    key: IDBValidKey,
+    change: (stored: unknown) => Value,
+    options: IDBTransactionOptions = {},
+  ): Promise<Value> => {
+    const transaction = await begin(name, "readwrite", options);
+    return new Promise<Value>((resolve, reject) => {
+      let next: Value | undefined;
+      transaction.oncomplete = () => resolve(next as Value);
+      const fail = watch(transaction, reject);
+      try {
+        const store = transaction.objectStore(name);
+        const reading: IDBRequest<unknown> = store.get(key);
+        reading.onsuccess = () => {
+          try {
+            next = change(reading.result);
+            // A store with a key path finds the key in the record itself.
+            if (store.keyPath === null) store.put(next, key);
+            else store.put(next);
+          } catch (error) {
+            fail(error);
+          }
+        };
+      } catch (error) {
+        fail(error);
       }
     });
   };
@@ -189,20 +257,12 @@ export function createNotesDatabase(name: string): NotesDatabase {
       transact<unknown>(LIBRARY_STORE, "readonly", (transaction) =>
         transaction.objectStore(LIBRARY_STORE).get(INDEX_KEY),
       ),
-    async writeIndex(document) {
-      await transact(
-        LIBRARY_STORE,
-        "readwrite",
-        (transaction) => transaction.objectStore(LIBRARY_STORE).put(document, INDEX_KEY),
-        // The index is the library: `complete` must mean it's on the disk,
-        // which some browsers otherwise don't wait for.
-        { durability: "strict" },
-      );
-    },
-    async writePageText(entry) {
-      await transact(PAGE_TEXTS_STORE, "readwrite", (transaction) =>
-        transaction.objectStore(PAGE_TEXTS_STORE).put(entry),
-      );
+    updateIndex: (change) =>
+      // The index is the library: `complete` must mean it's on the disk,
+      // which some browsers otherwise don't wait for.
+      update(LIBRARY_STORE, INDEX_KEY, change, { durability: "strict" }),
+    async updatePageText(notebook, page, change) {
+      await update(PAGE_TEXTS_STORE, [notebook, page], change);
     },
     async readPageTexts(notebook) {
       const texts = await transact<unknown[]>(PAGE_TEXTS_STORE, "readonly", (transaction) => {

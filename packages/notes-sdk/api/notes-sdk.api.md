@@ -280,7 +280,7 @@ export type NotesItemType = NotesItem["type"];
 export interface NotesLibrary {
     backup(options?: NotesLibraryBackupOptions): Promise<Blob>;
     binNotebook(id: string): Promise<void>;
-    close(): void;
+    close(): Promise<void>;
     createFolder(name: string, parent?: string | null): Promise<string>;
     createNotebook(notebook: NotesNewNotebook): Promise<string>;
     deleteFolder(id: string): Promise<void>;
@@ -298,7 +298,6 @@ export interface NotesLibrary {
     readAsset(notebook: string, asset: NotesAssetReference | string): Promise<Blob>;
     // (undocumented)
     renameFolder(id: string, name: string): Promise<void>;
-    // (undocumented)
     renameNotebook(id: string, title: string): Promise<void>;
     requestPersistence(): Promise<boolean>;
     restore(file: Blob, options?: NotesProgressOptions): Promise<NotesRestoreReport>;
@@ -307,7 +306,6 @@ export interface NotesLibrary {
     search(query: string, options?: {
         readonly notebook?: string;
     }): Promise<NotesSearchHit[]>;
-    // (undocumented)
     setNotebookCover(id: string, cover: NotesCover): Promise<void>;
     // (undocumented)
     subscribe(listener: () => void): () => void;
@@ -666,6 +664,16 @@ export interface NotesPageText {
 }
 
 // @public
+export interface NotesPageTextChange {
+    // (undocumented)
+    readonly notebook: string;
+    // (undocumented)
+    readonly page: string;
+    readonly pdf?: string;
+    readonly typed?: string;
+}
+
+// @public
 export interface NotesPdfAssembly {
     // (undocumented)
     readonly pages: readonly NotesPdfAssemblyPage[];
@@ -911,7 +919,8 @@ export interface NotesSearchHit {
 // @public
 export interface NotesSession {
     addAsset(data: Blob, mediaType: string): Promise<NotesAssetReference>;
-    close(): Promise<void>;
+    // Warning: (ae-forgotten-export) The symbol "NotesSessionCloseOptions" needs to be exported by the entry point index.d.ts
+    close(options?: NotesSessionCloseOptions): Promise<void>;
     execute(commands: NotesCommand | readonly NotesCommand[]): void;
     flush(): Promise<void>;
     // (undocumented)
@@ -1034,14 +1043,13 @@ export interface NotesStore {
     readPageTexts(notebook?: string): Promise<readonly NotesPageText[]>;
     requestPersistence(): Promise<boolean>;
     subscribe(listener: () => void): () => void;
+    updateIndex(change: (index: NotesLibraryIndex | undefined) => NotesLibraryIndex): Promise<NotesLibraryIndex>;
     writeAsset(notebook: string, asset: string, data: Blob): Promise<void>;
-    // (undocumented)
-    writeIndex(index: NotesLibraryIndex): Promise<void>;
     // (undocumented)
     writeNotebook(notebook: NotesNotebook): Promise<void>;
     // (undocumented)
     writePage(notebook: string, page: NotesPage): Promise<void>;
-    writePageText(entry: NotesPageText): Promise<void>;
+    writePageText(change: NotesPageTextChange): Promise<void>;
 }
 
 // @public

@@ -3,7 +3,7 @@ import type { NotesItem } from "../../core/model/items.js";
 import type { NotesPageInfo } from "../../core/model/notebook.js";
 import { NOTES_UNITS_PER_POINT } from "../../core/model/portable.js";
 import type { ImageCache } from "../canvas/image-cache.js";
-import { beginPage, paintItems, paintPaper } from "../canvas/paint.js";
+import { paintPage } from "../canvas/paint.js";
 import type { PdfDocuments } from "./pdf-documents.js";
 
 /** A thumbnail's width, in CSS pixels. */
@@ -22,68 +22,77 @@ export interface PageThumbnailProps {
 
 /**
  * A small picture of a page: its PDF page if it has one, its paper and its
- * ink. It draws only once it's scrolled into view, so a long notebook
- * doesn't draw every page to show its sidebar.
+ * ink. It draws only while it's scrolled into view, so a long notebook
+ * doesn't draw every page to show its sidebar, and it lets its PDF page go
+ * when it leaves: the rows a reader has scrolled past hold nothing but
+ * their last picture.
  */
 export function PageThumbnail(props: PageThumbnailProps): ReactNode {
   const { info, items, images, imagesVersion, documents, onVisible } = props;
   const canvas = useRef<HTMLCanvasElement>(null);
-  const [visible, setVisible] = useState(false);
-  const [background, setBackground] = useState<HTMLCanvasElement | undefined>(undefined);
+  const [inView, setInView] = useState(false);
+  /**
+   * The PDF page, drawn. `undefined` until its drawing ends, and `null` when
+   * there's none to show: no engine, or a PDF that can't be drawn.
+   */
+  const [background, setBackground] = useState<HTMLCanvasElement | null | undefined>(undefined);
   const height = Math.round((WIDTH * info.height) / info.width);
 
   useEffect(() => {
     const element = canvas.current;
     if (!element) return;
     const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) setVisible(true);
+      const intersecting = entries.at(-1)?.isIntersecting ?? false;
+      setInView(intersecting);
+      // Out of view, the PDF page is let go. It's drawn again if the row comes back.
+      if (!intersecting) setBackground(undefined);
     });
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
-    if (visible && items === undefined) onVisible();
-  }, [visible, items, onVisible]);
+    if (inView && items === undefined) onVisible();
+  }, [inView, items, onVisible]);
 
   const pdf = info.background;
   useEffect(() => {
-    if (!visible || !pdf) return;
+    if (!inView || !pdf) return;
     const abort = new AbortController();
+    const settle = (drawn: HTMLCanvasElement | null) => {
+      if (!abort.signal.aborted) setBackground(drawn);
+    };
     void documents
       .get(pdf.pdf)
       .then(async (document) => {
-        if (!document || abort.signal.aborted || pdf.pageIndex >= document.pageCount) return;
+        if (!document || abort.signal.aborted || pdf.pageIndex >= document.pageCount) {
+          settle(null);
+          return;
+        }
         const scratch = window.document.createElement("canvas");
         await document.render(pdf.pageIndex, scratch, {
           scale: WIDTH / (info.width / NOTES_UNITS_PER_POINT),
           pixelRatio: 2,
           signal: abort.signal,
         });
-        if (!abort.signal.aborted) setBackground(scratch);
+        // A canvas with no pixels can't be painted from.
+        settle(scratch.width > 0 && scratch.height > 0 ? scratch : null);
       })
-      .catch(() => undefined);
+      .catch(() => settle(null));
     return () => abort.abort();
-  }, [visible, pdf, documents, info.width]);
+  }, [inView, pdf, documents, info.width]);
 
   useEffect(() => {
     const element = canvas.current;
     const context = element?.getContext("2d");
-    if (!element || !context || !visible) return;
+    // A row out of view keeps its last picture. A page on a PDF waits for the
+    // PDF page, so it's never shown as ink alone.
+    if (!element || !context || !inView || (pdf && background === undefined)) return;
     void imagesVersion;
     element.width = WIDTH * 2;
     element.height = height * 2;
-    if (background) {
-      context.setTransform(1, 0, 0, 1, 0, 0);
-      context.drawImage(background, 0, 0, element.width, element.height);
-      const scale = element.width / info.width;
-      context.setTransform(scale, 0, 0, scale, 0, 0);
-    } else {
-      beginPage(context, info);
-      paintPaper(context, info);
-    }
-    paintItems(context, items ?? [], { images });
-  }, [visible, items, images, imagesVersion, background, info, height]);
+    paintPage(context, info, items ?? [], { images, backdrop: background ?? undefined });
+  }, [inView, items, images, imagesVersion, background, pdf, info, height]);
 
   return (
     // biome-ignore lint/a11y/noAriaHiddenOnFocusable: the canvas is pixels only and never focusable; its row names the page

@@ -214,8 +214,8 @@ const MAX_TEXT_SCALING = 200;
  */
 const CONTENT_DECIMALS = 2;
 
-/** An image in the file, and the name pages paint it by. */
-interface EmbeddedImage {
+/** An image or a form in the file, and the name pages paint it by. */
+interface EmbeddedObject {
   readonly name: string;
   readonly ref: PdfRef;
 }
@@ -224,7 +224,8 @@ interface EmbeddedImage {
 interface PageResources {
   font: boolean;
   highlighter: boolean;
-  readonly images: Map<string, PdfRef>;
+  /** The images and forms the page paints, by name. */
+  readonly xObjects: Map<string, PdfRef>;
 }
 
 /** The red, green and blue of a `#rrggbb` colour, from 0 to 1. Anything else is black. */
@@ -297,7 +298,10 @@ function readJpegFrame(bytes: Uint8Array): JpegFrame | undefined {
   return undefined;
 }
 
-/** Writes one document. It holds what pages share: the font, the highlighter's state and the images. */
+/**
+ * Writes one document. It holds what pages share: the font, the
+ * highlighter's state, the images and the rows of dotted paper.
+ */
 class NotesPdfExport {
   readonly #writer = new PdfWriter();
   readonly #ports: NotesPdfExportPorts;
@@ -306,7 +310,9 @@ class NotesPdfExport {
   #highlighterState: PdfRef | undefined;
   #imageCount = 0;
   /** Images by their asset, so a picture placed many times is in the file once. */
-  readonly #assets = new Map<string, EmbeddedImage | undefined>();
+  readonly #assets = new Map<string, EmbeddedObject | undefined>();
+  /** Rows of dots by their content, so pages of one width share a row. */
+  readonly #dotRows = new Map<string, EmbeddedObject>();
 
   constructor(ports: NotesPdfExportPorts, signal: AbortSignal | undefined) {
     this.#ports = ports;
@@ -341,7 +347,7 @@ class NotesPdfExport {
   async #writePage(page: NotesPdfExportPage, parent: PdfRef): Promise<PdfRef> {
     const { width, height } = page.info;
     const content = new PdfContent({ decimals: CONTENT_DECIMALS });
-    const resources: PageResources = { font: false, highlighter: false, images: new Map() };
+    const resources: PageResources = { font: false, highlighter: false, xObjects: new Map() };
     // From here on everything is written in page units, from the top-left
     // corner with y growing downwards, as the model has it.
     content.transform(
@@ -352,7 +358,7 @@ class NotesPdfExport {
       0,
       height / NOTES_UNITS_PER_POINT,
     );
-    if (page.paper) drawPaper(content, page.info);
+    if (page.paper) await this.#drawPaper(content, resources, page.info);
 
     // Highlighter under everything else, as on screen, so it never dims
     // the ink it marks.
@@ -404,8 +410,64 @@ class NotesPdfExport {
       ...(resources.highlighter
         ? { ExtGState: { [HIGHLIGHTER_STATE_NAME]: this.#highlighterState } }
         : {}),
-      ...(resources.images.size > 0 ? { XObject: Object.fromEntries(resources.images) } : {}),
+      ...(resources.xObjects.size > 0 ? { XObject: Object.fromEntries(resources.xObjects) } : {}),
     };
+  }
+
+  /** The paper: its white ground, then its template's rules and dots. */
+  async #drawPaper(
+    content: PdfContent,
+    resources: PageResources,
+    info: NotesPageInfo,
+  ): Promise<void> {
+    content
+      .fillColor(...rgbOf(NOTES_PAPER_COLOR))
+      .rect(0, 0, info.width, info.height)
+      .fill();
+    const marks = templateMarks(info.template, info.width, info.height);
+    if (marks.lines.length > 0) {
+      content.strokeColor(...rgbOf(marks.color)).lineWidth(marks.lineWidth);
+      for (let index = 0; index + 3 < marks.lines.length; index += 4) {
+        content
+          .moveTo(marks.lines[index] ?? 0, marks.lines[index + 1] ?? 0)
+          .lineTo(marks.lines[index + 2] ?? 0, marks.lines[index + 3] ?? 0);
+      }
+      content.stroke();
+    }
+    if (marks.dots.length > 0) {
+      // The largest page has 921,600 dots, and a circle for each would be a
+      // file of 30 MB for an empty page. Every row is the same, so one row
+      // is written as a form and painted at each row's place.
+      const { columns, rows } = dotGrid(marks.dots);
+      const row = await this.#dotRow(columns, marks.dotSize / 2);
+      resources.xObjects.set(row.name, row.ref);
+      // A form is painted with the colour set when it's painted.
+      content.fillColor(...rgbOf(marks.color));
+      for (const y of rows) content.save().transform(1, 0, 0, 1, 0, y).paint(row.name).restore();
+    }
+  }
+
+  /** A row of dots as a form: a filled circle at each column, along y = 0. */
+  async #dotRow(columns: readonly number[], radius: number): Promise<EmbeddedObject> {
+    const content = new PdfContent({ decimals: CONTENT_DECIMALS });
+    for (const x of columns) content.circle(x, 0, radius);
+    content.fill();
+    const key = content.toString();
+    const known = this.#dotRows.get(key);
+    if (known) return known;
+    const ref = await this.#writer.addStream(
+      {
+        Type: pdfName("XObject"),
+        Subtype: pdfName("Form"),
+        BBox: [(columns[0] ?? 0) - radius, -radius, (columns.at(-1) ?? 0) + radius, radius],
+        Resources: {},
+      },
+      content.toBytes(),
+      { compress: true },
+    );
+    const row = { name: `Fm${this.#dotRows.size + 1}`, ref };
+    this.#dotRows.set(key, row);
+    return row;
   }
 
   async #drawText(content: PdfContent, resources: PageResources, item: NotesText): Promise<void> {
@@ -461,7 +523,7 @@ class NotesPdfExport {
   }
 
   /** Adds a picture to the file. Resolves to `undefined` for one that can't be embedded. */
-  async #embed(image: NotesExportImage): Promise<EmbeddedImage | undefined> {
+  async #embed(image: NotesExportImage): Promise<EmbeddedObject | undefined> {
     const ref =
       image.kind === "jpeg" ? await this.#embedJpeg(image.bytes) : await this.#embedRgba(image);
     if (ref === undefined) return undefined;
@@ -542,29 +604,23 @@ function isHighlight(item: NotesItem): item is NotesStroke {
   return item.type === "stroke" && item.tool === "highlighter";
 }
 
-/** The paper: its white ground, then its template's rules and dots. */
-function drawPaper(content: PdfContent, info: NotesPageInfo): void {
-  content
-    .fillColor(...rgbOf(NOTES_PAPER_COLOR))
-    .rect(0, 0, info.width, info.height)
-    .fill();
-  const marks = templateMarks(info.template, info.width, info.height);
-  if (marks.lines.length > 0) {
-    content.strokeColor(...rgbOf(marks.color)).lineWidth(marks.lineWidth);
-    for (let index = 0; index + 3 < marks.lines.length; index += 4) {
-      content
-        .moveTo(marks.lines[index] ?? 0, marks.lines[index + 1] ?? 0)
-        .lineTo(marks.lines[index + 2] ?? 0, marks.lines[index + 3] ?? 0);
-    }
-    content.stroke();
+/**
+ * The columns and rows of a template's dots, which are a grid listed row by
+ * row: the `x` of each dot of the first row, and the `y` of each row.
+ */
+function dotGrid(dots: readonly number[]): {
+  readonly columns: readonly number[];
+  readonly rows: readonly number[];
+} {
+  const columns: number[] = [];
+  for (let index = 0; index + 1 < dots.length && dots[index + 1] === dots[1]; index += 2) {
+    columns.push(dots[index] ?? 0);
   }
-  if (marks.dots.length > 0) {
-    content.fillColor(...rgbOf(marks.color));
-    for (let index = 0; index + 1 < marks.dots.length; index += 2) {
-      content.circle(marks.dots[index] ?? 0, marks.dots[index + 1] ?? 0, marks.dotSize / 2);
-    }
-    content.fill();
+  const rows: number[] = [];
+  for (let index = 1; index < dots.length; index += 2 * columns.length) {
+    rows.push(dots[index] ?? 0);
   }
+  return { columns, rows };
 }
 
 /** A stroke: its outline, filled with its colour. */
@@ -593,13 +649,13 @@ function drawStroke(content: PdfContent, stroke: NotesStroke): void {
 function paintImage(
   content: PdfContent,
   resources: PageResources,
-  image: EmbeddedImage,
+  image: EmbeddedObject,
   x: number,
   y: number,
   width: number,
   height: number,
 ): void {
-  resources.images.set(image.name, image.ref);
+  resources.xObjects.set(image.name, image.ref);
   content
     .save()
     .transform(width, 0, 0, -height, x, y + height)

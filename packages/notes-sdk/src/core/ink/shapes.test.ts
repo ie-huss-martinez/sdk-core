@@ -249,6 +249,42 @@ describe("recogniseShape", () => {
       });
     });
 
+    it("is found when the middle of its bounding box is on one of its sides", () => {
+      // A right-angled triangle with its two short sides along the page's:
+      // the long one passes through the middle of the box around it.
+      const corners: Position[] = [
+        [0, 0],
+        [1000, 1000],
+        [1000, 0],
+      ];
+      const mirrored = corners.map(([x, y]): Position => [1000 - x, y]);
+      expect(recogniseShape([0, 0, 500, 1000, 1000, 500, 1000, 0, 500, 0, 0, 500])).toEqual({
+        kind: "triangle",
+        points: [0, 0, 500, 1000, 1000, 500, 1000, 0, 500, 0, 0, 500],
+      });
+      expect(recogniseShape([1000, 0, 500, 0, 1000, 500, 0, 0, 500, 1000, 0, 500])).toEqual({
+        kind: "triangle",
+        points: [1000, 0, 500, 0, 1000, 500, 0, 0, 500, 1000, 0, 500],
+      });
+      // Drawn by hand, the long side wanders to either side of that middle.
+      for (const drawnCorners of [corners, mirrored, [...corners].reverse()]) {
+        for (const start of [0, 0.5, 1.3, 2.6]) {
+          const positions = around(drawnCorners, { start, wobble: 12 });
+          expect(recogniseShape(drawn(positions))?.kind, `from ${start}`).toBe("triangle");
+        }
+      }
+    });
+
+    it("isn't two triangles that meet at a point", () => {
+      const bow: Position[] = [
+        [0, 0],
+        [1000, 1000],
+        [1000, 0],
+        [0, 1000],
+      ];
+      expect(recogniseShape(drawn(around(bow)))).toBeUndefined();
+    });
+
     it("isn't a sliver", () => {
       const sliver: Position[] = [
         [0, 0],

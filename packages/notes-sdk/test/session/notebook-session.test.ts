@@ -254,7 +254,169 @@ describe("a notebook session", () => {
   });
 });
 
+describe("closing a notebook session", () => {
+  const failingPages = (store: NotesStore) => {
+    const writePage = store.writePage.bind(store);
+    const control = { failing: true };
+    store.writePage = async (book, page) => {
+      if (control.failing) throw new Error("The disk is full.");
+      await writePage(book, page);
+    };
+    return control;
+  };
+
+  it("stays open, holding the notebook, when the last save fails, and closes once it works", async () => {
+    const store = await seeded();
+    const session = await open(store);
+    await session.loadPage("p1");
+    const disk = failingPages(store);
+    session.execute({ type: "notes.addItems", page: "p1", items: [stroke("s1")] });
+    await expect(session.close()).rejects.toMatchObject({ code: "UNKNOWN" });
+    // Still this session's: nobody else may write it, and the ink is still here.
+    await expect(open(store)).rejects.toMatchObject({ code: "NOTEBOOK_IN_USE" });
+    expect(session.getSnapshot().pages.get("p1")?.items).toHaveLength(1);
+    session.execute({ type: "notes.addItems", page: "p1", items: [stroke("s2")] });
+
+    disk.failing = false;
+    await session.close();
+    const again = await open(store);
+    expect((await again.loadPage("p1")).items.map((item) => item.id)).toEqual(["s1", "s2"]);
+  });
+
+  it("closes without what couldn't be saved, when asked to discard it", async () => {
+    const store = await seeded();
+    const session = await open(store);
+    await session.loadPage("p1");
+    failingPages(store);
+    session.execute({ type: "notes.addItems", page: "p1", items: [stroke("s1")] });
+    await session.close({ discard: true });
+    expect(() => session.undo()).toThrow();
+    store.writePage = async () => undefined;
+    const again = await open(store);
+    expect((await again.loadPage("p1")).items).toEqual([]);
+  });
+
+  it("saves an edit made while it closes, and writes nothing once the notebook is given back", async () => {
+    const store = await seeded();
+    const session = await open(store);
+    await session.loadPage("p1");
+    const writePage = store.writePage.bind(store);
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let writes = 0;
+    store.writePage = async (book, page) => {
+      writes += 1;
+      if (writes === 1) await held;
+      await writePage(book, page);
+    };
+    session.execute({ type: "notes.addItems", page: "p1", items: [stroke("s1")] });
+    const closing = session.close();
+    // The first save is on its way to the disk when the next stroke lands.
+    await Promise.resolve();
+    session.execute({ type: "notes.addItems", page: "p1", items: [stroke("s2")] });
+    release();
+    await closing;
+    expect((await store.readPage("book", "p1"))?.items.map((item) => item.id)).toEqual([
+      "s1",
+      "s2",
+    ]);
+    const written = writes;
+    await session.flush();
+    expect(writes).toBe(written);
+  });
+
+  it("holds the notebook until a file being stored has landed", async () => {
+    const store = await seeded();
+    const session = await open(store);
+    const writeAsset = store.writeAsset.bind(store);
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    store.writeAsset = async (book, asset, data) => {
+      await held;
+      await writeAsset(book, asset, data);
+    };
+    const adding = session.addAsset(new Blob(["sound"]), "audio/webm");
+    const closing = session.close();
+    await expect(open(store)).rejects.toMatchObject({ code: "NOTEBOOK_IN_USE" });
+    release();
+    const reference = await adding;
+    await closing;
+    expect(await store.listAssets("book")).toEqual([reference.asset]);
+    await expect(session.addAsset(new Blob(["more"]), "audio/webm")).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+  });
+
+  it("is never failed by what a host's analytics throws", async () => {
+    const store = await seeded();
+    const session = await openNotesSession({
+      store,
+      notebook: "book",
+      saveDelay: 60_000,
+      onEvent: () => {
+        throw new Error("The analytics library broke.");
+      },
+    });
+    await session.loadPage("p1");
+    session.execute({ type: "notes.addItems", page: "p1", items: [stroke("s1")] });
+    await session.close();
+    // The notebook was given back, with its ink stored.
+    const again = await open(store);
+    expect((await again.loadPage("p1")).items).toHaveLength(1);
+  });
+});
+
+describe("a notebook session's search text", () => {
+  it("leaves alone the PDF text indexed while the notebook is open", async () => {
+    const store = await seeded();
+    const session = await open(store);
+    await session.loadPage("p1");
+    // As the library does once it has read the PDF, after the session opened.
+    await store.writePageText({ notebook: "book", page: "p1", pdf: "Printed words" });
+    session.execute({ type: "notes.addItems", page: "p1", items: [text("t1", "Typed words")] });
+    await session.flush();
+    expect(await store.readPageTexts("book")).toEqual([
+      { notebook: "book", page: "p1", typed: "Typed words", pdf: "Printed words" },
+    ]);
+  });
+
+  it("gives a PDF page its text back when an undo restores the page", async () => {
+    const store = await seeded();
+    await store.writePageText({ notebook: "book", page: "p1", pdf: "Printed words" });
+    const session = await open(store);
+    await session.loadPage("p1");
+    session.execute({ type: "notes.removePages", pages: ["p1"] });
+    await session.flush();
+    expect(await store.readPageTexts("book")).toEqual([]);
+    session.undo();
+    await session.flush();
+    expect(await store.readPageTexts("book")).toEqual([
+      { notebook: "book", page: "p1", typed: "", pdf: "Printed words" },
+    ]);
+  });
+});
+
 describe("a notebook session's snapshot", () => {
+  it("shows a save's error only until the next change waits for its own save", async () => {
+    const store = await seeded();
+    const session = await open(store);
+    await session.loadPage("p1");
+    store.writePage = async () => {
+      throw new Error("The disk is full.");
+    };
+    session.execute({ type: "notes.addItems", page: "p1", items: [stroke("s1")] });
+    await expect(session.flush()).rejects.toMatchObject({ code: "UNKNOWN" });
+    expect(session.getSnapshot()).toMatchObject({ saveState: "failed" });
+    expect(session.getSnapshot().error).toBeDefined();
+    session.execute({ type: "notes.addItems", page: "p1", items: [stroke("s2")] });
+    expect(session.getSnapshot().saveState).toBe("pending");
+    expect(session.getSnapshot().error).toBeUndefined();
+  });
+
   it("doesn't change when a flush has nothing to save", async () => {
     const session = await open(await seeded());
     let published = 0;

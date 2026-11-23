@@ -61,7 +61,8 @@
     "id": {
       "description": "An identifier: 1 to 64 characters from A-Z, a-z, 0-9, _ and -.",
       "type": "string",
-      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+      "pattern": "^[A-Za-z0-9_-]{1,64}$",
+      "not": { "pattern": "[^A-Za-z0-9_-]" }
     },
     "time": {
       "description": "A time, in whole milliseconds since the Unix epoch, up to the last one a date holds.",
@@ -97,7 +98,8 @@
     "assetName": {
       "description": "A file's name: sha256: and the SHA-256 of its bytes, as 64 lowercase hexadecimal digits.",
       "type": "string",
-      "pattern": "^sha256:[0-9a-f]{64}$"
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "maxLength": 71
     },
     "assetSize": {
       "description": "A file's size, in bytes.",

@@ -30,7 +30,8 @@
     "id": {
       "description": "An identifier: 1 to 64 characters from A-Z, a-z, 0-9, _ and -.",
       "type": "string",
-      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+      "pattern": "^[A-Za-z0-9_-]{1,64}$",
+      "not": { "pattern": "[^A-Za-z0-9_-]" }
     },
     "duration": {
       "description": "A length of time, in whole milliseconds.",
@@ -41,7 +42,8 @@
     "color": {
       "description": "A colour as #rrggbb, in lowercase.",
       "type": "string",
-      "pattern": "^#[0-9a-f]{6}$"
+      "pattern": "^#[0-9a-f]{6}$",
+      "maxLength": 7
     },
     "position": {
       "description": "A position, in whole units from the page's top-left corner, with y growing downwards. There are 100 units to a PDF point. An item may reach up to 1,440,000 units outside its page.",
@@ -58,7 +60,8 @@
     "assetName": {
       "description": "A file's name: sha256: and the SHA-256 of its bytes, as 64 lowercase hexadecimal digits.",
       "type": "string",
-      "pattern": "^sha256:[0-9a-f]{64}$"
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "maxLength": 71
     },
     "assetSize": {
       "description": "A file's size, in bytes.",

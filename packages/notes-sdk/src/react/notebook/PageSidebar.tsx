@@ -14,6 +14,7 @@ import type { NotesSession, NotesSessionSnapshot } from "../../core/session/note
 import type { NotesSearchHit } from "../../core/session/search.js";
 import type { ImageCache } from "../canvas/image-cache.js";
 import { useNotes } from "../context.js";
+import { clipToLength } from "../text.js";
 import { PageThumbnail } from "./PageThumbnail.js";
 import type { PdfDocuments } from "./pdf-documents.js";
 
@@ -196,8 +197,9 @@ function OutlineTab(props: PageSidebarProps): ReactNode {
                   <TextField
                     label={messages.t("outline.title")}
                     value={renamed}
-                    maxLength={NOTES_MAX_TITLE_LENGTH}
-                    onValueChange={setRenamed}
+                    onValueChange={(value) =>
+                      setRenamed(clipToLength(value, NOTES_MAX_TITLE_LENGTH))
+                    }
                     autoFocus
                   />
                   <Button size="small" type="submit">
@@ -253,8 +255,7 @@ function OutlineTab(props: PageSidebarProps): ReactNode {
               : undefined
           }
           value={title}
-          maxLength={NOTES_MAX_TITLE_LENGTH}
-          onValueChange={setTitle}
+          onValueChange={(value) => setTitle(clipToLength(value, NOTES_MAX_TITLE_LENGTH))}
         />
         <Button size="small" type="submit">
           {messages.t("outline.add")}
@@ -270,8 +271,10 @@ function SearchTab(props: PageSidebarProps): ReactNode {
   const [query, setQuery] = useState("");
   /** The last answer, with the query it answers: an answer to an earlier query isn't shown. */
   const [found, setFound] = useState<
-    { readonly query: string; readonly hits: readonly NotesSearchHit[] } | undefined
+    { readonly query: string; readonly hits: readonly NotesSearchHit[] | undefined } | undefined
   >(undefined);
+  /** Counts the times the user asked again, after a search that couldn't run. */
+  const [attempt, setAttempt] = useState(0);
   const field = useRef<HTMLInputElement>(null);
   const status = useId();
   const pageNumber = (page: string) =>
@@ -291,15 +294,19 @@ function SearchTab(props: PageSidebarProps): ReactNode {
           if (!stale) setFound({ query, hits });
         })
         .catch(() => {
-          if (!stale) setFound({ query, hits: [] });
+          // Not "no matches": the search didn't run, and can be asked for again.
+          if (!stale) setFound({ query, hits: undefined });
         });
     }, 200);
     return () => {
       stale = true;
       clearTimeout(timer);
     };
-  }, [query, onSearch]);
-  const hits = query.trim() !== "" && found?.query === query ? found.hits : undefined;
+    // `attempt` isn't read: a new one runs the same query again.
+  }, [query, onSearch, attempt]);
+  const answer = query.trim() !== "" && found?.query === query ? found : undefined;
+  const hits = answer?.hits;
+  const failed = answer !== undefined && answer.hits === undefined;
 
   const shown = hits?.filter((hit) => pageNumber(hit.page) > 0);
   return (
@@ -314,12 +321,25 @@ function SearchTab(props: PageSidebarProps): ReactNode {
         aria-describedby={status}
       />
       <p id={status} className="hm-notes-sidebar-empty" role="status">
-        {shown === undefined
-          ? messages.t("search.hint")
-          : shown.length === 0
-            ? messages.t("search.none")
-            : messages.t("search.count", { count: shown.length })}
+        {failed
+          ? messages.t("search.failed")
+          : shown === undefined
+            ? messages.t("search.hint")
+            : shown.length === 0
+              ? messages.t("search.none")
+              : messages.t("search.count", { count: shown.length })}
       </p>
+      {failed ? (
+        <Button
+          size="small"
+          onClick={() => {
+            setFound(undefined);
+            setAttempt((count) => count + 1);
+          }}
+        >
+          {messages.t("search.retry")}
+        </Button>
+      ) : null}
       {shown && shown.length > 0 ? (
         <ul className="hm-notes-search-results">
           {shown.map((hit) => (

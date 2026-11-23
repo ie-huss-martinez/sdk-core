@@ -427,19 +427,23 @@ function join(
   // Where the two segments' edges meet on this side: the point of a mitre.
   const mitre = half / (1 + dot);
   const inside = cross * side > 0;
+  // Whether both segments are long enough for their edges to meet there. If
+  // not, the mitre's point is further from the path than half the width.
+  const meets = dot > -1 && half * Math.sqrt((1 - dot) / (1 + dot)) <= reach;
 
-  if (dot > GENTLE_COSINE) {
+  if (dot > GENTLE_COSINE && (!inside || meets)) {
     // Part of a curve: one point, on the edges' crossing inside the bend and
     // at the stroke's width outside it, so the outline is never too wide.
     const scale = inside ? mitre : half / Math.sqrt(2 + 2 * dot);
     outline.push(x + sumX * scale, y + sumY * scale);
   } else if (!inside) {
     arc(outline, x, y, ax, ay, Math.atan2(cross, dot), half);
-  } else if (dot > -1 && half * Math.sqrt((1 - dot) / (1 + dot)) <= reach) {
+  } else if (meets) {
     corner(outline, x + sumX * mitre, y + sumY * mitre);
   } else {
-    // The segments are too short for their edges to meet: go through the
-    // path's own point, which keeps the outline inside the line.
+    // The segments are too short for their edges to meet, at a corner or at
+    // a gentle bend: go through the path's own point, which keeps the
+    // outline inside the line.
     corner(outline, x + ax * half, y + ay * half);
     corner(outline, x, y);
     corner(outline, x - vy * side * half, y + vx * side * half);

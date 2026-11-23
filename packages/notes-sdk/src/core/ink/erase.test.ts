@@ -76,28 +76,34 @@ function segmentDistance(a: readonly number[], b: readonly number[]): number {
   );
 }
 
-/** The distance between a stroke's centre line and the eraser's path. */
-function distanceBetween(item: NotesStroke, path: readonly number[]): number {
-  const segmentsOf = (flat: readonly number[], stride: number): number[][] => {
-    const segments: number[][] = [];
-    const count = flat.length / stride;
-    for (let index = 0; index < Math.max(1, count - 1); index += 1) {
-      const next = Math.min(index + 1, count - 1);
-      segments.push([
-        flat[index * stride] as number,
-        flat[index * stride + 1] as number,
-        flat[next * stride] as number,
-        flat[next * stride + 1] as number,
-      ]);
-    }
-    return segments;
-  };
+/** The segments of a path of points, `stride` numbers each. A path of one point is one segment of no length. */
+function segmentsOf(flat: readonly number[], stride: number): number[][] {
+  const segments: number[][] = [];
+  const count = flat.length / stride;
+  for (let index = 0; index < Math.max(1, count - 1); index += 1) {
+    const next = Math.min(index + 1, count - 1);
+    segments.push([
+      flat[index * stride] as number,
+      flat[index * stride + 1] as number,
+      flat[next * stride] as number,
+      flat[next * stride + 1] as number,
+    ]);
+  }
+  return segments;
+}
+
+/** The distance between a path of `x, y, pressure` triples and the eraser's path. */
+function distanceToEraser(points: readonly number[], path: readonly number[]): number {
   let nearest = Number.POSITIVE_INFINITY;
-  for (const a of segmentsOf(item.points, 3)) {
+  for (const a of segmentsOf(points, 3)) {
     for (const b of segmentsOf(path, 2)) nearest = Math.min(nearest, segmentDistance(a, b));
   }
   return nearest;
 }
+
+/** The distance between a stroke's centre line and the eraser's path. */
+const distanceBetween = (item: NotesStroke, path: readonly number[]): number =>
+  distanceToEraser(item.points, path);
 
 describe("eraseAlong", () => {
   it("returns undefined when the eraser reaches nothing", () => {
@@ -249,6 +255,39 @@ describe("eraseAlong", () => {
       expect(eraseAlong([line], [500, 150], 100, "stroke", counter())?.removed).toEqual(["line"]);
       expect(eraseAlong([line], [500, 150], 100, "precise", counter())).toBeUndefined();
     });
+
+    it("doesn't cut a stroke the eraser slides along the edge of", () => {
+      // Beside the line and exactly at its reach all the way: the two edges
+      // touch along a length, and the eraser never enters the ink.
+      for (const beside of [
+        [200, 150, 800, 150],
+        [-100, 150, 1100, 150],
+        [200, -150, 500, -150, 800, -150],
+      ]) {
+        expect(eraseAlong([line], beside, 100, "stroke", counter())?.removed).toEqual(["line"]);
+        expect(eraseAlong([line], beside, 100, "precise", counter())).toBeUndefined();
+      }
+      // One unit closer, it does.
+      const closer = eraseAlong([line], [200, 149, 800, 149], 100, "precise", counter());
+      expect(pointsOf(closer?.added ?? [])).toEqual([
+        [0, 0, 0, 183, 0, 183],
+        [817, 0, 817, 1000, 0, 1000],
+      ]);
+    });
+
+    it("doesn't cut a part of no length that lies on the edge of the eraser's reach", () => {
+      // The line pauses at 500: two points in one place, exactly at the reach.
+      const paused = stroke("paused", [0, 0, 500, 500, 0, 500, 500, 0, 500, 1000, 0, 500]);
+      expect(eraseAlong([paused], [500, 150], 100, "precise", counter())).toBeUndefined();
+    });
+
+    it("leaves a stroke of one point that is exactly at its reach", () => {
+      const dot = stroke("dot", [500, 0, 500]);
+      expect(eraseAlong([dot], [500, 100], 50, "stroke", counter())?.removed).toEqual(["dot"]);
+      expect(eraseAlong([dot], [500, 100], 50, "precise", counter())).toBeUndefined();
+      expect(eraseAlong([dot], [0, 100, 1000, 100], 50, "precise", counter())).toBeUndefined();
+      expect(eraseAlong([dot], [500, 99], 50, "precise", counter())?.removed).toEqual(["dot"]);
+    });
   });
 
   const position = fc.tuple(fc.integer({ min: 0, max: 3000 }), fc.integer({ min: 0, max: 3000 }));
@@ -327,14 +366,10 @@ describe("eraseAlong", () => {
               expect(Math.sqrt(squaredDistanceToPath(path, 2, x, y))).toBeGreaterThanOrEqual(
                 reach - 0.75,
               );
-              if (index === 0) continue;
-              // And so is the ink between two points of a piece.
-              const middleX = (x + (piece.points[index - 3] as number)) / 2;
-              const middleY = (y + (piece.points[index - 2] as number)) / 2;
-              expect(
-                Math.sqrt(squaredDistanceToPath(path, 2, middleX, middleY)),
-              ).toBeGreaterThanOrEqual(reach - 1.5);
             }
+            // And so is all the ink between two points of a piece, not only
+            // its ends: a piece is never a part the eraser passed over.
+            expect(distanceToEraser(piece.points, path)).toBeGreaterThanOrEqual(reach - 0.75);
           }
           // Every point of the stroke that is clear of the eraser is still there,
           // unless it was left on its own.
@@ -364,6 +399,25 @@ describe("eraseAlong", () => {
           }
         }
       }),
+      {
+        // A tap on the first quarter of a long segment: its two ends and its
+        // middle are all clear of the eraser, and the ink between them isn't.
+        examples: [
+          [
+            [
+              [
+                [
+                  [[0, 0], 0],
+                  [[1000, 0], 1000],
+                ],
+                100,
+              ],
+            ],
+            [250, 0],
+            50,
+          ],
+        ],
+      },
     );
   });
 });

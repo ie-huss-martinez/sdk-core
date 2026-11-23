@@ -11,6 +11,7 @@ import { NOTES_MAX_TITLE_LENGTH } from "../../core/model/portable.js";
 import { NOTES_TEMPLATES } from "../../core/model/templates.js";
 import type { NotesNewNotebook } from "../../core/session/library.js";
 import { useNotes } from "../context.js";
+import { clipToLength } from "../text.js";
 
 /** The covers a notebook can have, in the order they're offered. */
 export const NOTES_COVERS: readonly NotesCover[] = ["blue", "green", "amber", "red", "gray"];
@@ -64,8 +65,7 @@ export function NewNotebookDialog(props: NewNotebookDialogProps): ReactNode {
               ref={name}
               value={title}
               placeholder={messages.t("newNotebook.defaultName")}
-              maxLength={NOTES_MAX_TITLE_LENGTH}
-              onValueChange={setTitle}
+              onValueChange={(value) => setTitle(clipToLength(value, NOTES_MAX_TITLE_LENGTH))}
             />
           )}
         </Field>
@@ -118,6 +118,8 @@ export interface NameDialogProps extends DialogBase {
   readonly action: string;
   readonly initial?: string;
   readonly onSubmit: (name: string) => void;
+  /** Another action offered beside the dialog's own, such as removing what's named. */
+  readonly extra?: ReactNode;
 }
 
 /** Asks for one name: a new folder's, or a folder's new one. */
@@ -147,13 +149,13 @@ export function NameDialog(props: NameDialogProps): ReactNode {
               {...control}
               ref={field}
               value={name}
-              maxLength={NOTES_MAX_TITLE_LENGTH}
-              onValueChange={setName}
+              onValueChange={(value) => setName(clipToLength(value, NOTES_MAX_TITLE_LENGTH))}
               required
             />
           )}
         </Field>
         <div className="hm-notes-form-actions">
+          {props.extra ? <span className="hm-notes-form-extra">{props.extra}</span> : null}
           <Button variant="quiet" onClick={props.onClose}>
             {messages.t("dialogs.cancel")}
           </Button>
@@ -204,8 +206,7 @@ export function NotebookDialog(props: NotebookDialogProps): ReactNode {
               <TextField
                 {...control}
                 value={title}
-                maxLength={NOTES_MAX_TITLE_LENGTH}
-                onValueChange={setTitle}
+                onValueChange={(value) => setTitle(clipToLength(value, NOTES_MAX_TITLE_LENGTH))}
                 required
               />
             )}
@@ -247,39 +248,5 @@ export function NotebookDialog(props: NotebookDialogProps): ReactNode {
         </div>
       </div>
     </Dialog>
-  );
-}
-
-export interface ConfirmDialogProps extends DialogBase {
-  readonly title: string;
-  readonly body: string;
-  readonly action: string;
-  readonly onConfirm: () => void;
-}
-
-/** Asks before something that can't be undone, such as deleting a notebook for good. */
-export function ConfirmDialog(props: ConfirmDialogProps): ReactNode {
-  const { messages } = useNotes();
-  return (
-    <Dialog
-      open={props.open}
-      onOpenChange={(open) => {
-        if (!open) props.onClose();
-      }}
-      size="small"
-      title={props.title}
-      description={props.body}
-      closeLabel={messages.t("dialog.close")}
-      footer={
-        <>
-          <Button variant="quiet" onClick={props.onClose}>
-            {messages.t("dialogs.cancel")}
-          </Button>
-          <Button variant="danger" onClick={props.onConfirm}>
-            {props.action}
-          </Button>
-        </>
-      }
-    />
   );
 }

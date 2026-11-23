@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { indexOf, notebookOf, pageOf } from "../../../test/contracts/notes-store.contract.js";
 import type { NotesStore } from "../../core/ports/notes-store.js";
 import { createOpfsNotesStore } from "./opfs-store.js";
@@ -10,7 +10,7 @@ const ASSET = `sha256:${"0".repeat(64)}`;
 
 const STORAGE_CALLS: Readonly<Record<string, (store: NotesStore) => Promise<unknown>>> = {
   readIndex: (store) => store.readIndex(),
-  writeIndex: (store) => store.writeIndex(indexOf()),
+  updateIndex: (store) => store.updateIndex(() => indexOf()),
   listNotebooks: (store) => store.listNotebooks(),
   readNotebook: (store) => store.readNotebook("n1"),
   writeNotebook: (store) => store.writeNotebook(notebookOf("n1")),
@@ -94,5 +94,68 @@ describe("createOpfsNotesStore on a server", () => {
     await expect(store.lockNotebook("n1")).rejects.toMatchObject({ code: "STORAGE_FAILED" });
     await expect(store.persistence()).rejects.toMatchObject({ code: "STORAGE_FAILED" });
     await expect(store.requestPersistence()).rejects.toMatchObject({ code: "STORAGE_FAILED" });
+  });
+});
+
+// A notebook's lock needs no storage, so it's tested here too: on Node's own
+// Web Locks, and with them taken away.
+describe("createOpfsNotesStore's lock on a notebook", () => {
+  const stores: NotesStore[] = [];
+  const openStore = (name: string): NotesStore => {
+    const store = createOpfsNotesStore({ name });
+    stores.push(store);
+    return store;
+  };
+
+  afterEach(() => {
+    for (const store of stores.splice(0)) store.close();
+    vi.unstubAllGlobals();
+  });
+
+  it("is taken for a storage whose name starts with a hyphen", async () => {
+    // The Web Locks API refuses a lock's name that starts with one.
+    const store = openStore("-hyphen-first");
+    const release = await store.lockNotebook("n1");
+    expect(release).toBeTypeOf("function");
+    await expect(store.lockNotebook("n1")).resolves.toBeUndefined();
+    release?.();
+  });
+
+  it("keeps the page's other stores out where there is no Web Locks API", async () => {
+    vi.stubGlobal("navigator", {});
+    const first = openStore("no-web-locks");
+    const second = openStore("no-web-locks");
+    const elsewhere = openStore("no-web-locks-2");
+
+    const release = await first.lockNotebook("n1");
+    expect(release).toBeTypeOf("function");
+    await expect(first.lockNotebook("n1")).resolves.toBeUndefined();
+    await expect(second.lockNotebook("n1")).resolves.toBeUndefined();
+    // Another notebook, and the same one of another library, are free.
+    expect(await second.lockNotebook("n2")).toBeTypeOf("function");
+    expect(await elsewhere.lockNotebook("n1")).toBeTypeOf("function");
+
+    release?.();
+    const taken = await vi.waitFor(async () => {
+      const lock = await second.lockNotebook("n1");
+      if (!lock) throw new Error("The notebook is still held.");
+      return lock;
+    });
+    // Now the first store is the one kept out, and its old function gives nothing back.
+    release?.();
+    await expect(first.lockNotebook("n1")).resolves.toBeUndefined();
+    taken();
+  });
+
+  it("gives its notebooks back on closing where there is no Web Locks API", async () => {
+    vi.stubGlobal("navigator", {});
+    const first = openStore("no-web-locks-closing");
+    const second = openStore("no-web-locks-closing");
+    await first.lockNotebook("n1");
+    await expect(second.lockNotebook("n1")).resolves.toBeUndefined();
+    first.close();
+    await vi.waitFor(async () => {
+      if (!(await second.lockNotebook("n1"))) throw new Error("The notebook is still held.");
+    });
   });
 });

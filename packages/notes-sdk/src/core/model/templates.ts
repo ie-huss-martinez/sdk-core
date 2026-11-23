@@ -8,7 +8,10 @@ import type { NotesTemplate } from "./notebook.js";
 export interface TemplateMarks {
   /** Rules, as `x1, y1, x2, y2` quadruples. */
   readonly lines: readonly number[];
-  /** Dots, as `x, y` pairs. */
+  /**
+   * Dots, as `x, y` pairs. They're a grid, listed row by row from the top:
+   * every row has the same `x`s, in the same order.
+   */
   readonly dots: readonly number[];
   /** The rules' width and the dots' diameter. */
   readonly lineWidth: number;

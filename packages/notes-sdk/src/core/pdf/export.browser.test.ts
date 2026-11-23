@@ -86,8 +86,12 @@ describe("an exported PDF, in a real viewer", () => {
   });
 
   /** Opens the export and renders a page at one canvas pixel to a point. */
-  async function render(pageIndex: number) {
-    const bytes = await writeNotesPdf(pages, { loadImage: async () => pixels }, { title: "Notes" });
+  async function render(pageIndex: number, source: readonly NotesPdfExportPage[] = pages) {
+    const bytes = await writeNotesPdf(
+      source,
+      { loadImage: async () => pixels },
+      { title: "Notes" },
+    );
     const engine = createPdfJsEngine();
     engines.push(engine);
     const document = await engine.open(bytes);
@@ -161,6 +165,31 @@ describe("an exported PDF, in a real viewer", () => {
     expect(tinted).toBe(true);
     expect(pixel(550, 60)).toEqual(near(WHITE));
     expect(pixel(550, 84)).toEqual(near(WHITE));
+  });
+
+  it("draws the paper's dots, a row of them at each row's place", async () => {
+    const { pixel } = await render(0, [
+      {
+        info: { id: "dotted", width: 59_500, height: 84_200, template: "dotted" },
+        items: [],
+        paper: true,
+      },
+    ]);
+    // Dots are 1.5 points across and 15 apart, the first centred at
+    // (12.5, 8.5) and the last at (582.5, 833.5), so each covers one pixel.
+    const dotted = (x: number, y: number): boolean => (pixel(x, y)[0] ?? 255) < 225;
+    expect(dotted(12, 8)).toBe(true);
+    expect(dotted(27, 8)).toBe(true);
+    expect(dotted(12, 23)).toBe(true);
+    expect(dotted(582, 8)).toBe(true);
+    expect(dotted(12, 833)).toBe(true);
+    expect(dotted(582, 833)).toBe(true);
+    // Between two dots of a row, between two rows, and in the margins: bare paper.
+    expect(pixel(20, 8)).toEqual(near(WHITE));
+    expect(pixel(12, 16)).toEqual(near(WHITE));
+    expect(pixel(20, 16)).toEqual(near(WHITE));
+    expect(pixel(3, 3)).toEqual(near(WHITE));
+    expect(pixel(591, 838)).toEqual(near(WHITE));
   });
 
   it("draws an image the right way up", async () => {

@@ -91,9 +91,9 @@ describe("outlineOfPoints", () => {
       [500, 400 / 3],
       [0, 200 / 3],
     ] as const) {
-      for (const radius of radiusOf(outlineOfPoints([300, 400, pressure], pen, false))) {
-        expect(radius).toBeCloseTo(diameter / 2, 6);
-      }
+      const radii = radiusOf(outlineOfPoints([300, 400, pressure], pen, false));
+      expect(radii.length).toBeGreaterThanOrEqual(12);
+      for (const radius of radii) expect(radius).toBeCloseTo(diameter / 2, 6);
     }
   });
 
@@ -272,20 +272,102 @@ describe("outlineOfPoints, for a uniform stroke", () => {
           const points = path.flatMap(([x, y]) => [x, y, 500]);
           const outline = outlineOfPoints(points, { tool, size, uniform: true }, true);
           const centre = path.flat();
+          // A point given twice running is drawn once, so the point before a
+          // repeated end is that end, not a corner inside the line.
+          const corner = path.filter(
+            ([x, y], index) =>
+              index === 0 || x !== path[index - 1]?.[0] || y !== path[index - 1]?.[1],
+          );
           // On the path itself, away from a flat end, is always ink.
-          for (let index = 1; index + 1 < path.length; index += 1) {
-            const [x, y] = path[index] as [number, number];
+          for (let index = 1; index + 1 < corner.length; index += 1) {
+            const [x, y] = corner[index] as [number, number];
             expect(windingNumber(outline, x + 0.5, y + 0.5)).not.toBe(0);
+          }
+          // Never ink beyond the stroke's width: every point of the outline
+          // is within it, and so is nothing that is filled.
+          for (let index = 0; index < outline.length; index += 2) {
+            const x = outline[index] as number;
+            const y = outline[index + 1] as number;
+            expect(Math.sqrt(squaredDistanceToPath(centre, 2, x, y))).toBeLessThanOrEqual(
+              size / 2 + 1e-6,
+            );
           }
           for (const [x, y] of probes) {
             const distance = Math.sqrt(squaredDistanceToPath(centre, 2, x + 0.5, y + 0.5));
-            // Never ink beyond the stroke's width: 5% covers a gentle bend's inside point.
-            if (distance > (size / 2) * 1.05 + 1)
+            if (distance > size / 2 + 1e-6)
               expect(windingNumber(outline, x + 0.5, y + 0.5)).toBe(0);
           }
         },
       ),
+      {
+        examples: [
+          // An end given twice: the point before a flat end isn't inside the line.
+          [
+            [
+              [0, 0],
+              [1, 1],
+              [1, 1],
+            ],
+            false,
+            "highlighter",
+            40,
+            [],
+          ],
+          [
+            [
+              [1, 1],
+              [1, 1],
+              [0, 0],
+            ],
+            false,
+            "highlighter",
+            40,
+            [],
+          ],
+        ],
+      },
     );
+  });
+
+  it("ends a highlighter's line flat at an end given twice", () => {
+    const style: StrokeStyle = { tool: "highlighter", size: 100, uniform: true };
+    const once = outlineOfPoints(line, style, true);
+    expect(outlineOfPoints([0, 0, 500, 1000, 0, 500, 1000, 0, 500], style, true)).toEqual(once);
+    expect(outlineOfPoints([0, 0, 500, 0, 0, 500, 1000, 0, 500], style, true)).toEqual(once);
+    // Ink up to each end, and none past it.
+    expect(windingNumber(once, 999.5, 0.5)).not.toBe(0);
+    expect(windingNumber(once, 1000.5, 0.5)).toBe(0);
+    expect(windingNumber(once, 0.5, 0.5)).not.toBe(0);
+    expect(windingNumber(once, -0.5, 0.5)).toBe(0);
+  });
+
+  it("keeps the inside of a gentle bend within the stroke's width", () => {
+    // Two segments 4 units long under a line 700 wide: far too short for
+    // their edges to meet inside the bend.
+    const bend = [0, 1, 500, 4, 0, 500, 8, 1, 500];
+    for (const tool of ["pen", "highlighter"] as const) {
+      const outline = outlineOfPoints(bend, { tool, size: 700, uniform: true }, true);
+      expect(outline.length).toBeGreaterThan(0);
+      for (let index = 0; index < outline.length; index += 2) {
+        const x = outline[index] as number;
+        const y = outline[index + 1] as number;
+        expect(Math.sqrt(squaredDistanceToPath(bend, 3, x, y))).toBeLessThanOrEqual(350 + 1e-6);
+      }
+      // Beyond the reach hit tests and the eraser use: 352 units from the path.
+      expect(windingNumber(outline, 4, 353)).toBe(0);
+    }
+  });
+
+  it("smooths a gentle bend whose segments are long enough for their edges to meet", () => {
+    const bend = [0, 0, 500, 2000, 0, 500, 4000, 400, 500];
+    const outline = outlineOfPoints(bend, { tool: "highlighter", size: 200, uniform: true }, true);
+    // Two corners at each flat end, each given twice, and one point on each side of the bend.
+    expect(outline).toHaveLength(20);
+    for (let index = 0; index < outline.length; index += 2) {
+      const x = outline[index] as number;
+      const y = outline[index + 1] as number;
+      expect(Math.sqrt(squaredDistanceToPath(bend, 3, x, y))).toBeCloseTo(100, 6);
+    }
   });
 });
 

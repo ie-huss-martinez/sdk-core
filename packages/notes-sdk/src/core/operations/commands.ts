@@ -1,6 +1,12 @@
 import type { Applied } from "@hussmartinez/sdk-core";
 import { invalidCommand, isNotesError, NotesError } from "../errors/notes-error.js";
-import { readOutline, readPageInfo, readRecording } from "../format/documents.js";
+import {
+  NOTES_DOCUMENT_MAX_ITEMS,
+  NOTES_DOCUMENT_MAX_PAGES,
+  readOutline,
+  readPageInfo,
+  readRecording,
+} from "../format/documents.js";
 import { readItem } from "../format/items.js";
 import { fields, id, integer, list, oneOf, text } from "../format/read.js";
 import type { NotesItem } from "../model/items.js";
@@ -45,7 +51,9 @@ export interface NotesRemoveItemsCommand {
 
 /**
  * Puts removed items back where they were. It's the inverse of
- * {@link NotesRemoveItemsCommand}, written by the SDK.
+ * {@link NotesRemoveItemsCommand}, written by the SDK. Because it only undoes
+ * a removal, it's held to what a page's document may list and not to the
+ * host's lower limit: see {@link NotesCommandLimits}.
  *
  * @public
  */
@@ -93,7 +101,9 @@ export interface NotesRemovePagesCommand {
 
 /**
  * Puts removed pages back where they were, with the outline as it was. It's
- * the inverse of {@link NotesRemovePagesCommand}, written by the SDK.
+ * the inverse of {@link NotesRemovePagesCommand}, written by the SDK. Because
+ * it only undoes a removal, it's held to what the documents may list and not
+ * to the host's lower limits: see {@link NotesCommandLimits}.
  *
  * @public
  */
@@ -191,8 +201,17 @@ export interface NotesDocumentState {
 }
 
 /**
- * The limits a command is checked against: the most pages a notebook holds,
- * and the most items a page holds.
+ * The host's limits for new content: the most pages a notebook holds, and the
+ * most items a page holds. They apply to the commands that add
+ * (`notes.addItems`, `notes.addPages`).
+ *
+ * Two rules hold whatever these say. No command makes a notebook of more than
+ * 100,000 pages or a page of more than 1,000,000 items, because the readers
+ * refuse those documents. And the two commands that undo a removal (`notes.restoreItems`,
+ * `notes.restorePages`) are held to those document caps only, so a deletion
+ * can always be undone, even in a notebook that already holds more than the
+ * host now allows. A host that takes commands from an untrusted source and
+ * needs its own limits to hold should refuse those two types there.
  *
  * @public
  */
@@ -201,10 +220,23 @@ export interface NotesCommandLimits {
   readonly maxPageItems: number;
 }
 
-const NO_LIMITS: NotesCommandLimits = {
-  maxPages: Number.POSITIVE_INFINITY,
-  maxPageItems: Number.POSITIVE_INFINITY,
+/** The most the documents may list. A reader refuses more, so no command makes more. */
+const DOCUMENT_LIMITS: NotesCommandLimits = {
+  maxPages: NOTES_DOCUMENT_MAX_PAGES,
+  maxPageItems: NOTES_DOCUMENT_MAX_ITEMS,
 };
+
+/** The host's limit, or the document's cap when that is lower or the limit isn't a number. */
+const capped = (limit: number, cap: number): number =>
+  Number.isNaN(limit) ? cap : Math.min(limit, cap);
+
+/** The host's limits, each no higher than the document's cap. */
+function withinDocument(limits: NotesCommandLimits): NotesCommandLimits {
+  return {
+    maxPages: capped(limits.maxPages, DOCUMENT_LIMITS.maxPages),
+    maxPageItems: capped(limits.maxPageItems, DOCUMENT_LIMITS.maxPageItems),
+  };
+}
 
 function loaded(state: NotesDocumentState, page: string): NotesPage {
   if (!state.notebook.pages.some((info) => info.id === page)) {
@@ -474,10 +506,16 @@ function restorePages(
     previous = index;
   }
   if (order.length > limits.maxPages) throw tooMany("maxPages", limits.maxPages, order.length);
+  const entries = new Set<string>();
   for (const entry of command.outline) {
     if (!ids.has(entry.page)) {
       throw invalidCommand("unknown-page", "The outline leads to a page that isn't there.");
     }
+    // The notebook's own entries are compared below, but a new entry could repeat one's id.
+    if (entries.has(entry.id)) {
+      throw invalidCommand("duplicate-id", "Two outline entries share an id.");
+    }
+    entries.add(entry.id);
   }
   // The inverse removes these pages with their entries, so the other entries
   // must be the outline as it is. Anything else couldn't be undone.
@@ -589,6 +627,9 @@ function setRecordings(
  * doesn't apply throws `INVALID_COMMAND`, with `details.reason`, or a limit's
  * own code, and changes nothing.
  *
+ * `limits` are the host's, for new content. Without them, and above them, the
+ * documents' own caps apply: see {@link NotesCommandLimits}.
+ *
  * Commands from an untrusted source go through
  * {@link readNotesCommandDocument} first: this function trusts their shape.
  *
@@ -597,23 +638,24 @@ function setRecordings(
 export function applyNotesCommand(
   state: NotesDocumentState,
   command: NotesCommand,
-  limits: NotesCommandLimits = NO_LIMITS,
+  limits: NotesCommandLimits = DOCUMENT_LIMITS,
 ): Applied<NotesDocumentState, NotesCommand> {
   switch (command.type) {
     case "notes.addItems":
-      return addItems(state, command, limits);
+      return addItems(state, command, withinDocument(limits));
     case "notes.removeItems":
       return removeItems(state, command);
     case "notes.restoreItems":
-      return restoreItems(state, command, limits);
+      // Undoing a removal isn't held to the host's limits, only to the document's.
+      return restoreItems(state, command, DOCUMENT_LIMITS);
     case "notes.replaceItems":
       return replaceItems(state, command);
     case "notes.addPages":
-      return addPages(state, command, limits);
+      return addPages(state, command, withinDocument(limits));
     case "notes.removePages":
       return removePages(state, command);
     case "notes.restorePages":
-      return restorePages(state, command, limits);
+      return restorePages(state, command, DOCUMENT_LIMITS);
     case "notes.reorderPages":
       return reorderPages(state, command);
     case "notes.setTemplates":

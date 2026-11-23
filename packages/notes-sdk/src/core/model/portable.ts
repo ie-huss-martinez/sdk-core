@@ -47,6 +47,27 @@ export const NOTES_MIN_PAGE_SIDE = 7_200;
 export const NOTES_PAGE_MARGIN = NOTES_MAX_PAGE_SIDE;
 
 /**
+ * The lowest and highest position an item or a stroke's point may have, on
+ * either axis, in units: the largest page with {@link NOTES_PAGE_MARGIN}
+ * around it. The page reader refuses a position outside it, so nothing that
+ * moves or resizes items may leave one there.
+ */
+export const NOTES_POSITION_RANGE: readonly [minimum: number, maximum: number] = [
+  -NOTES_PAGE_MARGIN,
+  NOTES_MAX_PAGE_SIDE + NOTES_PAGE_MARGIN,
+];
+
+/**
+ * The shortest and longest width or height an item may have, in units: one
+ * unit, and the longest distance within {@link NOTES_POSITION_RANGE} that
+ * still starts on the page.
+ */
+export const NOTES_LENGTH_RANGE: readonly [minimum: number, maximum: number] = [
+  1,
+  NOTES_MAX_PAGE_SIDE + NOTES_PAGE_MARGIN,
+];
+
+/**
  * The most points one stroke holds. A longer stroke is split as it's drawn.
  *
  * @public

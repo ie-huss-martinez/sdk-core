@@ -3,8 +3,10 @@ import {
   checkedAssetName,
   checkedId,
   checkedPageText,
+  checkedPageTextChange,
   indexFromText,
   indexToText,
+  mergedPageText,
   notebookFromText,
   notebookToText,
   pageFromText,
@@ -34,7 +36,9 @@ interface StoredNotebook {
  * document that real storage couldn't give back fails here too, and a
  * caller never shares an object with the store. A file comes back without
  * its media type, as it does from a file system. Ids are checked as they
- * are before becoming file names.
+ * are before becoming file names. Only the index is read back before it's
+ * stored, as real storage does too: `updateIndex` refuses one that couldn't
+ * be read, which no later change could put right.
  *
  * There is no other tab, so `subscribe` never calls its listener, and a
  * notebook's lock is only held against this store. Nothing is persisted:
@@ -75,9 +79,14 @@ export function createMemoryNotesStore(): NotesStore {
       checkOpen();
       return index === undefined ? undefined : indexFromText(index);
     },
-    async writeIndex(next) {
+    async updateIndex(change) {
       checkOpen();
-      index = indexToText(next);
+      // All in one go, with nothing awaited: no other call comes between the read and the write.
+      const text = indexToText(change(index === undefined ? undefined : indexFromText(index)));
+      // Read back before it replaces the index: one that can't be read could never be changed again.
+      const stored = indexFromText(text);
+      index = text;
+      return stored;
     },
 
     async listNotebooks() {
@@ -146,10 +155,11 @@ export function createMemoryNotesStore(): NotesStore {
       entry?.assets.delete(name);
     },
 
-    async writePageText(entry) {
+    async writePageText(change) {
       checkOpen();
-      const text = checkedPageText(entry);
-      entryOf(text.notebook).texts.set(text.page, text);
+      const text = checkedPageTextChange(change);
+      const texts = entryOf(text.notebook).texts;
+      texts.set(text.page, mergedPageText(texts.get(text.page), text));
     },
     async readPageTexts(notebook) {
       checkOpen();

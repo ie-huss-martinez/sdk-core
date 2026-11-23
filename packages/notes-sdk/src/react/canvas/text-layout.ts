@@ -31,6 +31,38 @@ function context() {
 const layouts = new WeakMap<NotesText, NotesTextLayout>();
 
 /**
+ * How many of a word's characters, from `start`, fit a line: at least one,
+ * so a box narrower than a character still takes its text. `fits` tells
+ * whether a run of characters does.
+ *
+ * The count doubles until a run no longer fits, then is narrowed between the
+ * last two. A line of n characters takes about 2 log n measurements of runs
+ * no longer than 2n, however long the rest of the word is.
+ */
+function countThatFit(
+  characters: readonly string[],
+  start: number,
+  fits: (text: string) => boolean,
+): number {
+  const rest = characters.length - start;
+  const run = (count: number) => fits(characters.slice(start, start + count).join(""));
+  let known = 1;
+  let over = 2;
+  while (over <= rest && run(over)) {
+    known = over;
+    over *= 2;
+  }
+  // `known` fits, and `over` doesn't or is past the end.
+  let beyond = Math.min(over, rest + 1);
+  while (beyond - known > 1) {
+    const middle = Math.floor((known + beyond) / 2);
+    if (run(middle)) known = middle;
+    else beyond = middle;
+  }
+  return known;
+}
+
+/**
  * How a text box's text breaks into lines, measured with the font it's
  * drawn in: at spaces where it can, inside a word that's wider than the box,
  * and at every line break typed. Widths are in page units. Items never
@@ -42,30 +74,36 @@ export function layoutText(item: NotesText): NotesTextLayout {
   const measure = context();
   const toUnits = item.size / REFERENCE;
   const width = (text: string) => (measure ? measure.measureText(text).width * toUnits : 0);
+  const fits = (text: string) => width(text) <= item.width;
   const lines: NotesTextLine[] = [];
   for (const paragraph of item.text.split("\n")) {
     let line = "";
     for (const word of paragraph.split(/(?<= )/)) {
-      if (width((line + word).trimEnd()) <= item.width || line === "") {
-        line += word;
-      } else {
-        lines.push({ text: line.trimEnd(), width: width(line.trimEnd()) });
-        line = word;
-      }
-      // A word wider than the box breaks where it must.
-      while (width(line.trimEnd()) > item.width && [...line].length > 1) {
-        const characters = [...line];
-        let fits = 1;
-        while (
-          fits < characters.length &&
-          width(characters.slice(0, fits + 1).join("")) <= item.width
-        ) {
-          fits += 1;
+      if (line !== "") {
+        if (fits((line + word).trimEnd())) {
+          line += word;
+          continue;
         }
-        const head = characters.slice(0, fits).join("");
-        lines.push({ text: head, width: width(head) });
-        line = characters.slice(fits).join("");
+        lines.push({ text: line.trimEnd(), width: width(line.trimEnd()) });
       }
+      line = word;
+      const body = word.trimEnd();
+      if (fits(body)) continue;
+      // A word wider than the box breaks where it must. It's split into
+      // characters once, and each line is measured on its own: the text a
+      // box may hold is long enough that measuring what's left of the word
+      // for every line would take seconds.
+      const characters = [...body];
+      let start = 0;
+      for (;;) {
+        const count = countThatFit(characters, start, fits);
+        if (start + count >= characters.length) break;
+        const head = characters.slice(start, start + count).join("");
+        lines.push({ text: head, width: width(head) });
+        start += count;
+      }
+      // What's left starts the next line, with the space that followed the word.
+      line = characters.slice(start).join("") + word.slice(body.length);
     }
     lines.push({ text: line.trimEnd(), width: width(line.trimEnd()) });
   }

@@ -2,6 +2,7 @@ import {
   type ConformanceCase,
   readConformance,
 } from "@hussmartinez/sdk-config/testing/conformance";
+import { Ajv2020 } from "ajv/dist/2020.js";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
@@ -42,17 +43,13 @@ import {
   type CommandInput,
   DOCUMENT_READERS,
   type DocumentInput,
+  hasLoneSurrogate,
   type NotesDocumentFormat,
+  readState,
   rejection,
   type StateDocument,
 } from "./conformance/run.js";
-import {
-  commandErrors,
-  documentErrors,
-  FORMATS,
-  hasLoneSurrogate,
-  readSchema,
-} from "./conformance/schemas.js";
+import { commandErrors, documentErrors, FORMATS, readSchema } from "./conformance/schemas.js";
 
 /**
  * The format schemas (sdk-core ADR 0045, sections 6 and 8) agree with the
@@ -208,12 +205,12 @@ const refusal = ({ expected }: ConformanceCase) =>
 const BEYOND_SCHEMA_REASONS = new Set(["duplicate-id", "unknown-page", "unknown-folder"]);
 
 /**
- * The other cases a schema accepts and a reader refuses: text with a lone
- * surrogate, which `maxLength` only counts, and a stroke's points, which a
- * schema bounds one by one but can't group in threes.
+ * The other cases a schema accepts and a reader refuses: a stroke's points,
+ * which a schema bounds one by one but can't group in threes. Text with a
+ * lone surrogate is one more, which `maxLength` only counts. The vectors hold
+ * none (docs/formats/conformance.md), so it has its own test below.
  */
 const BEYOND_SCHEMA_CASES: readonly (string | RegExp)[] = [
-  / surrogate/,
   "page: refuses points that aren't whole triples",
   "page: refuses a pressure over 1,000",
   "page: refuses a negative pressure",
@@ -233,6 +230,13 @@ const beyondSchema = (testCase: ConformanceCase): boolean => {
 describe("the vectors agree with the schemas", () => {
   const documents = readConformance(DOCUMENTS).cases;
   const commands = readConformance(COMMANDS).cases;
+
+  /** The notebook the vectors start from, which reads unchanged. */
+  const notebookDocument = (): unknown => {
+    const found = documents.find(({ name }) => name === "notebook: reads a document unchanged");
+    if (!found) throw new Error("The vectors have no notebook that reads unchanged.");
+    return (found.input as DocumentInput).document;
+  };
 
   it("names only cases that exist as beyond a schema", () => {
     const names = [...documents, ...commands].map((testCase) => testCase.name);
@@ -286,17 +290,69 @@ describe("the vectors agree with the schemas", () => {
 
   it("accept every command the reader accepts, with its inverse, and refuse what it refuses", () => {
     for (const testCase of commands) {
-      const { command } = testCase.input as CommandInput;
+      const { command, state } = testCase.input as CommandInput;
       const valid = commandErrors(command).length === 0;
       // The schema describes what readNotesCommandDocument reads. What applying checks is beyond it.
       const read = accepts(() => readNotesCommandDocument(command));
       expect(valid, testCase.name).toBe(read || beyondSchema(testCase));
       if (refusal(testCase) === undefined) {
         expect(read, testCase.name).toBe(true);
-        const { inverse } = testCase.expected as { inverse: unknown };
-        expect(commandErrors(inverse), testCase.name).toStrictEqual([]);
+        // The vectors don't hold the inverse, so it's the one this SDK writes.
+        const { inverse } = applyNotesCommand(readState(state), readNotesCommandDocument(command));
+        expect(commandErrors(JSON.parse(JSON.stringify(inverse))), testCase.name).toStrictEqual([]);
       }
     }
+  });
+
+  it("hold no text with a lone surrogate, which a schema accepts and a reader refuses", () => {
+    // The vectors can't show it, so one document and one command do, against both.
+    const titled = { ...(notebookDocument() as object), title: "Lab\uD83D" };
+    expect(documentErrors["hm-notes-notebook"](titled)).toStrictEqual([]);
+    expect(rejection(() => DOCUMENT_READERS["hm-notes-notebook"](titled))).toStrictEqual({
+      code: "INVALID_DOCUMENT",
+      reason: "malformed-document",
+    });
+    const rename = { type: "notes.rename", title: "Lab\uDCD3" };
+    expect(commandErrors(rename)).toStrictEqual([]);
+    expect(rejection(() => readNotesCommandDocument(rename))).toStrictEqual({
+      code: "INVALID_COMMAND",
+      reason: "malformed-command",
+    });
+  });
+
+  it("refuse a value that ends with a line break, whatever a pattern's `$` means", () => {
+    // In Python and others, `$` also matches before a line break that ends the text. A
+    // validator written in one must refuse what Ajv refuses, so the schemas are compiled
+    // here with every `$` given that meaning.
+    const lenient = new Ajv2020({ allErrors: true, strict: true });
+    for (const format of FORMATS) {
+      lenient.addSchema(
+        JSON.parse(JSON.stringify(schemas[format]), (name, value: unknown) =>
+          name === "pattern" && typeof value === "string"
+            ? value.replace(/\$$/, "(?=\\n?$)")
+            : value,
+        ) as Schema,
+      );
+    }
+    const validate = (format: (typeof FORMATS)[number], value: unknown): boolean =>
+      lenient.getSchema(String(schemas[format]["$id"]))?.(value) === true;
+    // The rewritten schemas still accept what they did.
+    expect(validate("hm-notes-notebook", notebookDocument())).toBe(true);
+    let checked = 0;
+    for (const testCase of documents) {
+      if (!testCase.name.includes("ends with a line break")) continue;
+      const { as, document } = testCase.input as DocumentInput;
+      expect(validate(as, document), testCase.name).toBe(false);
+      checked += 1;
+    }
+    for (const testCase of commands) {
+      if (!testCase.name.includes("ends with a line break")) continue;
+      const { command } = testCase.input as CommandInput;
+      expect(validate("hm-notes-command", command), testCase.name).toBe(false);
+      checked += 1;
+    }
+    // An id, a colour and an asset name, in documents and in a command.
+    expect(checked).toBeGreaterThan(8);
   });
 });
 
@@ -328,9 +384,14 @@ describe("the format schemas agree with the readers", () => {
           expect(errors).toStrictEqual([]);
         } else if (errors.length === 0) {
           // The schema accepts it, so the reader refused it for what a schema can't say.
+          expect(refused.code).toBe("INVALID_DOCUMENT");
           if (refused.reason === "malformed-document")
             expect(hasLoneSurrogate(document)).toBe(true);
           else expect(BEYOND[format]).toContain(refused.reason);
+        } else {
+          // A refusal is one of the reader's two codes, with a reason, whatever the fault.
+          expect(["INVALID_DOCUMENT", "UNSUPPORTED_FORMAT"]).toContain(refused.code);
+          expect(typeof refused.reason).toBe("string");
         }
       }),
       { numRuns: 1_000 },
@@ -345,7 +406,11 @@ describe("the format schemas agree with the readers", () => {
         const errors = commandErrors(value);
         if (refused === undefined) {
           expect(errors).toStrictEqual([]);
-        } else if (errors.length === 0) {
+        } else {
+          // A command's reader has one code, with a reason, whatever the fault.
+          expect(refused.code).toBe("INVALID_COMMAND");
+          expect(typeof refused.reason).toBe("string");
+          if (errors.length > 0) return;
           if (refused.reason === "malformed-command") expect(hasLoneSurrogate(value)).toBe(true);
           else expect(["duplicate-id", "invalid-points"]).toContain(refused.reason);
         }

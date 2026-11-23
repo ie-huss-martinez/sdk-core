@@ -123,8 +123,26 @@ export interface NotesSession {
   readAsset(reference: NotesAssetReference | string): Promise<Blob>;
   /** Saves now, and resolves once every change so far is stored. */
   flush(): Promise<void>;
-  /** Saves, then lets other tabs open the notebook. The session can't be used afterwards. */
-  close(): Promise<void>;
+  /**
+   * Saves every change, then lets other tabs open the notebook. The session
+   * can't be used afterwards.
+   *
+   * If the save fails, the call rejects and the session stays open, with
+   * the notebook still held and the changes in memory, so it can be tried
+   * again. With `discard`, the session closes even then, and what couldn't
+   * be saved is lost.
+   */
+  close(options?: NotesSessionCloseOptions): Promise<void>;
+}
+
+/**
+ * Options for closing a notebook session.
+ *
+ * @public
+ */
+export interface NotesSessionCloseOptions {
+  /** Close even when the last save fails, losing what it couldn't store. */
+  readonly discard?: boolean;
 }
 
 /** How many steps can be undone. Older steps are dropped, oldest first. */
@@ -156,7 +174,15 @@ export function typedTextOf(page: NotesPage): string {
  * @public
  */
 export async function openNotesSession(options: NotesSessionOptions): Promise<NotesSession> {
-  const { store, notebook: notebookId, onEvent, onSaved } = options;
+  const { store, notebook: notebookId, onSaved } = options;
+  /** Tells the host. What its analytics throws never reaches the notebook. */
+  const emit = (event: NotesSessionEvent): void => {
+    try {
+      options.onEvent?.(event);
+    } catch {
+      // An analytics failure isn't the notebook's.
+    }
+  };
   const now = options.now ?? Date.now;
   const saveDelay = options.saveDelay ?? 400;
   const policy: NotesFilePolicy = notesLimits.resolve(options.filePolicy);
@@ -170,6 +196,7 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
     throw new NotesError("NOTEBOOK_IN_USE", "The notebook is open in another tab.");
   }
   let stored: NotesNotebook | undefined;
+  /** The typed text stored for each page, and the PDF text read when the notebook opened. */
   let texts: Map<string, NotesPageText>;
   try {
     stored = await store.readNotebook(notebookId);
@@ -181,7 +208,7 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
     texts = new Map((await store.readPageTexts(notebookId)).map((entry) => [entry.page, entry]));
   } catch (error) {
     release();
-    onEvent?.({ type: "failed", operation: "load", code: asNotesError(error).code });
+    emit({ type: "failed", operation: "load", code: asNotesError(error).code });
     throw asNotesError(error);
   }
 
@@ -206,7 +233,8 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
     canUndo: history.canUndo,
     canRedo: history.canRedo,
     saveState,
-    error: saveError,
+    // A change made since waits for its own save: the earlier failure isn't its result.
+    error: saveState === "failed" ? saveError : undefined,
     warnings: warningsOf(document),
   });
   const state = createStore<NotesSessionSnapshot>(snapshotOf());
@@ -217,9 +245,19 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
   const loading = new Map<string, Promise<NotesPage>>();
   let timer: ReturnType<typeof setTimeout> | undefined;
   let saving: Promise<void> | undefined;
+  let closing: Promise<void> | undefined;
+  /** The files being stored: the notebook is held until each has finished. */
+  const assetWrites = new Set<Promise<unknown>>();
+  /** The search text of pages removed and saved, in case an undo brings one back. */
+  const removedTexts = new Map<string, NotesPageText>();
 
   const assertOpen = () => {
     if (closed) throw new NotesError("NOT_FOUND", "The notebook session is closed.");
+  };
+
+  const cancelTimer = () => {
+    if (timer !== undefined) clearTimeout(timer);
+    timer = undefined;
   };
 
   const mark = (commands: readonly NotesCommand[]) => {
@@ -241,7 +279,9 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
   const schedule = () => {
     if (closed) return;
     if (saveState !== "saving") saveState = "pending";
-    if (timer !== undefined) clearTimeout(timer);
+    cancelTimer();
+    // While the session closes, close() saves what's due itself.
+    if (closing) return;
     timer = setTimeout(() => {
       timer = undefined;
       void save().catch(() => {
@@ -255,6 +295,8 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
   /** One save at a time: a save that finds another running waits for it, then runs. */
   const save = async (): Promise<void> => {
     while (saving) await saving.catch(() => undefined);
+    // The notebook is no longer this session's to write.
+    if (closed) return;
     if (!hasChanges()) {
       // Nothing to write, so nothing to tell: a snapshot is published only when it differs.
       if (saveState !== "failed" && saveState !== "saved") {
@@ -289,23 +331,40 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
         if (!page) continue;
         await store.writePage(notebookId, page);
         const typed = typedTextOf(page);
+        // A page that an undo brought back gets its PDF's text back too.
+        const revived = removedTexts.get(id);
         const known = texts.get(id);
-        if ((known?.typed ?? "") !== typed) {
-          const entry: NotesPageText = {
+        if (revived?.pdf !== undefined || (known?.typed ?? "") !== typed) {
+          // Only this session's fields: the PDF's text has its own writer.
+          const pdf = revived?.pdf;
+          await store.writePageText({
             notebook: notebookId,
             page: id,
             typed,
-            ...(known?.pdf === undefined ? {} : { pdf: known.pdf }),
-          };
-          await store.writePageText(entry);
-          texts.set(id, entry);
+            ...(pdf === undefined ? {} : { pdf }),
+          });
+          texts.set(id, {
+            notebook: notebookId,
+            page: id,
+            typed,
+            ...(pdf === undefined ? {} : { pdf }),
+          });
         }
+        removedTexts.delete(id);
       }
       // The notebook last: it never lists a page whose contents aren't stored yet.
       await store.writeNotebook(notebook);
-      for (const id of removed) {
-        await store.deletePage(notebookId, id);
-        texts.delete(id);
+      if (removed.length > 0) {
+        // Read first: the PDF's text may have been indexed since the notebook opened.
+        const kept = new Map(
+          (await store.readPageTexts(notebookId)).map((entry) => [entry.page, entry]),
+        );
+        for (const id of removed) {
+          await store.deletePage(notebookId, id);
+          const text = kept.get(id);
+          if (text) removedTexts.set(id, text);
+          texts.delete(id);
+        }
       }
       await onSaved?.(notebook);
     } catch (error) {
@@ -315,7 +374,7 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
       for (const id of removed) if (!dirty.pages.has(id)) dirty.removed.add(id);
       saveError = asNotesError(error);
       saveState = "failed";
-      onEvent?.({ type: "failed", operation: "save", code: saveError.code });
+      emit({ type: "failed", operation: "save", code: saveError.code });
       publish();
       throw saveError;
     }
@@ -363,7 +422,7 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
           publish();
           return read;
         } catch (error) {
-          onEvent?.({ type: "failed", operation: "load", code: asNotesError(error).code });
+          emit({ type: "failed", operation: "load", code: asNotesError(error).code });
           throw asNotesError(error);
         } finally {
           loading.delete(page);
@@ -387,7 +446,7 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
       }
       mark(list);
       publish();
-      onEvent?.({ type: "command", commands: list.map((command) => command.type) });
+      emit({ type: "command", commands: list.map((command) => command.type) });
     },
 
     group(fn) {
@@ -406,7 +465,7 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
       }
       mark(step.inverses);
       publish();
-      onEvent?.({ type: "undo" });
+      emit({ type: "undo" });
     },
 
     redo() {
@@ -421,18 +480,25 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
       }
       mark(step.commands);
       publish();
-      onEvent?.({ type: "redo" });
+      emit({ type: "redo" });
     },
 
-    async addAsset(data, mediaType) {
-      assertOpen();
-      const asset = await assetNameOf(await data.arrayBuffer());
-      try {
-        await store.writeAsset(notebookId, asset, data);
-      } catch (error) {
-        throw asNotesError(error);
-      }
-      return { asset, mediaType, size: data.size };
+    addAsset(data, mediaType) {
+      const write = (async (): Promise<NotesAssetReference> => {
+        assertOpen();
+        try {
+          const asset = await assetNameOf(await data.arrayBuffer());
+          await store.writeAsset(notebookId, asset, data);
+          return { asset, mediaType, size: data.size };
+        } catch (error) {
+          throw asNotesError(error);
+        }
+      })();
+      // close() waits for it, so a file never lands in a notebook given back.
+      assetWrites.add(write);
+      const done = () => assetWrites.delete(write);
+      write.then(done, done);
+      return write;
     },
 
     async readAsset(reference) {
@@ -447,25 +513,41 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
     },
 
     async flush() {
-      if (timer !== undefined) {
-        clearTimeout(timer);
-        timer = undefined;
-      }
+      cancelTimer();
       await save();
     },
 
-    async close() {
-      if (closed) return;
-      try {
-        await session.flush();
-      } finally {
+    close(input = {}) {
+      if (closed) return Promise.resolve();
+      const discard = input.discard === true;
+      // One close at a time: a second call joins the first, unless it alone discards.
+      if (closing && !discard) return closing;
+      const attempt = async (): Promise<void> => {
+        try {
+          // Edits and files accepted while a save runs are stored too, so
+          // nothing is written after the notebook is given back.
+          do {
+            cancelTimer();
+            await Promise.allSettled([...assetWrites]);
+            await save();
+          } while (!closed && (hasChanges() || assetWrites.size > 0));
+        } catch (error) {
+          if (!discard) throw error;
+        }
+        if (closed) return;
         closed = true;
+        cancelTimer();
         release();
-        onEvent?.({ type: "notebook_closed" });
-      }
+        emit({ type: "notebook_closed" });
+      };
+      const run = attempt().finally(() => {
+        if (closing === run) closing = undefined;
+      });
+      closing = run;
+      return run;
     },
   };
 
-  onEvent?.({ type: "notebook_opened", pageCount: stored.pages.length });
+  emit({ type: "notebook_opened", pageCount: stored.pages.length });
   return session;
 }

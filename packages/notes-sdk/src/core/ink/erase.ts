@@ -1,7 +1,7 @@
 import { type NotesRect, rectsIntersect } from "../model/geometry.js";
 import type { NotesItem, NotesStroke } from "../model/items.js";
 import { strokeBounds } from "./bounds.js";
-import { squaredDistanceToPath } from "./hit.js";
+import { squaredDistanceToPath, squaredDistanceToSegment } from "./hit.js";
 
 /**
  * How the eraser works: `stroke` removes every stroke it touches, whole;
@@ -24,7 +24,7 @@ export interface EraseResult {
   readonly pieces: ReadonlyMap<string, readonly NotesStroke[]>;
 }
 
-/** A part of a segment shorter than this share of it isn't cut out: the eraser only grazed it. */
+/** A part of a segment no longer than this share of it isn't cut out: the eraser only grazed it. */
 const GRAZE = 1e-9;
 
 /**
@@ -33,12 +33,17 @@ const GRAZE = 1e-9;
  * stroke's ink when it comes within `radius + size / 2` of the stroke's
  * centre line, in both modes. Only strokes are erased.
  *
- * In `stroke` mode, every stroke reached is removed whole. In `precise` mode
- * the reached parts of its centre line are cut out, and what remains becomes
- * new strokes, each with an id from `newId`, the stroke's tool, colour, size,
+ * In `stroke` mode, every stroke reached is removed whole, one the eraser
+ * only touches at the edge of its reach included. In `precise` mode the
+ * reached parts of its centre line are cut out, and what remains becomes new
+ * strokes, each with an id from `newId`, the stroke's tool, colour, size,
  * `uniform` and `audio`, and at least 2 points. Where a segment crosses the
  * eraser's edge, the piece ends at a new point there, with its position and
  * pressure taken from along the segment and rounded to whole numbers.
+ *
+ * Precise mode cuts only where the eraser enters the ink. A touch at the
+ * edge of its reach cuts nothing, however long: neither a tangent tap nor a
+ * sweep that slides along the ink's side.
  *
  * Returns `undefined` when the eraser reaches nothing.
  */
@@ -120,7 +125,9 @@ function remainingOf(
   if (count === 0) return undefined;
   if (count === 1) {
     const distance = squaredDistanceToPath(path, 2, points[0] as number, points[1] as number);
-    return distance <= reach * reach ? [] : undefined;
+    // To cut, the eraser must enter the dot: touching its edge isn't enough.
+    const reached = cut ? distance < reach * reach : distance <= reach * reach;
+    return reached ? [] : undefined;
   }
 
   let touched = false;
@@ -130,7 +137,7 @@ function remainingOf(
   let piece: number[] | undefined;
   const spans: number[] = [];
   for (let index = 0; index + 1 < count; index += 1) {
-    reachedSpans(spans, points, index, path, pathCount, reach, cut ? GRAZE : -1);
+    reachedSpans(spans, points, index, path, pathCount, reach, cut);
     if (spans.length === 0) {
       if (cut) {
         piece ??= [
@@ -208,7 +215,9 @@ function addPoint(piece: number[], points: readonly number[], index: number, alo
 /**
  * Fills `spans` with the parts of a stroke's segment within `reach` of the
  * eraser's path: `from, to` pairs along the segment, from 0 to 1, in order
- * and not overlapping. A part no longer than `shortest` is left out.
+ * and not overlapping. With `entered`, a part counts only where the eraser
+ * enters the reach: one of no length, or one that lies along the edge of the
+ * reach, is left out.
  */
 function reachedSpans(
   spans: number[],
@@ -217,7 +226,7 @@ function reachedSpans(
   path: ArrayLike<number>,
   pathCount: number,
   reach: number,
-  shortest: number,
+  entered: boolean,
 ): void {
   spans.length = 0;
   const ax = points[index * 3] as number;
@@ -241,7 +250,15 @@ function reachedSpans(
     if (Math.max(cx, ex) < left || Math.min(cx, ex) > right) continue;
     if (Math.max(cy, ey) < top || Math.min(cy, ey) > bottom) continue;
     if (!spanInCapsule(ax, ay, bx - ax, by - ay, cx, cy, ex, ey, reach)) continue;
-    if (spanTo - spanFrom <= shortest) continue;
+    if (entered) {
+      if (spanTo - spanFrom <= GRAZE) continue;
+      // A capsule is convex, so a part that crosses its inside has its middle
+      // inside. A part whose middle is on the edge lies along the edge.
+      const middle = (spanFrom + spanTo) / 2;
+      const middleX = ax + (bx - ax) * middle;
+      const middleY = ay + (by - ay) * middle;
+      if (squaredDistanceToSegment(middleX, middleY, cx, cy, ex, ey) >= reach * reach) continue;
+    }
     addSpan(spans, spanFrom, spanTo);
   }
 }

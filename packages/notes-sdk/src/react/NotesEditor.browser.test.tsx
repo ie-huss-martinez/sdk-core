@@ -349,6 +349,187 @@ describe.runIf(!deviceStorage)("NotesEditor where the browser gives no storage",
   });
 });
 
+describe("NotesEditor when the storage fails", () => {
+  /** A store whose page writes fail while `failing` is set. */
+  function unreliable() {
+    const store = createMemoryNotesStore();
+    const disk = { failing: true };
+    const writePage = store.writePage.bind(store);
+    store.writePage = async (notebook, written) => {
+      if (disk.failing) throw new Error("The disk is full.");
+      await writePage(notebook, written);
+    };
+    return { store, disk };
+  }
+
+  const saveText = (container: HTMLElement) =>
+    container.querySelector(".hm-notes-notebook-save")?.textContent;
+
+  it("keeps the notebook open when it can't be saved, and leaves once it can", async () => {
+    const { store, disk } = unreliable();
+    const mounted = await mountEditor({}, store);
+    await newNotebook(mounted);
+    await draw(PAGE, line([0.2, 0.3], [0.7, 0.3]));
+    await waitFor(() => expect(saveText(mounted.container)).toBe("Not saved"), { timeout: 5_000 });
+
+    await press(mounted.container, "Back to the library");
+    // Still in the notebook, with the stroke and the reason.
+    await waitFor(() => expect(button(mounted.container, "Close without saving")).toBeTruthy());
+    expect(mounted.container.querySelector(PAGE)).toBeTruthy();
+    expect(button(mounted.container, "New notebook")).toBeUndefined();
+
+    disk.failing = false;
+    await press(mounted.container, "Back to the library");
+    await waitFor(() => expect(button(mounted.container, "New notebook")).toBeTruthy());
+    expect(strokes(await storedItems(mounted))).toHaveLength(1);
+  });
+
+  it("closes without the changes only after asking", async () => {
+    const { store } = unreliable();
+    const mounted = await mountEditor({}, store);
+    await newNotebook(mounted);
+    await draw(PAGE, line([0.2, 0.3], [0.7, 0.3]));
+    await waitFor(() => expect(saveText(mounted.container)).toBe("Not saved"), { timeout: 5_000 });
+
+    await press(mounted.container, "Close without saving");
+    const dialog = await waitFor(() => {
+      const open = document.querySelector<HTMLElement>("dialog[open]");
+      if (!open) throw new Error("No dialog is open.");
+      return open;
+    });
+    expect(dialog.textContent).toContain("will be lost");
+    const confirm = [...dialog.querySelectorAll("button")].find(
+      (candidate) => candidate.textContent?.trim() === "Close without saving",
+    );
+    if (!confirm) throw new Error("The dialog has no confirming button.");
+    await userEvent.click(confirm);
+    await waitFor(() => expect(button(mounted.container, "New notebook")).toBeTruthy());
+    expect(await storedItems(mounted)).toEqual([]);
+    // Given back: it can be opened again.
+    const [summary] = mounted.handle.current?.library.getSnapshot().index.notebooks ?? [];
+    expect(await store.lockNotebook(summary?.id ?? "")).toBeTypeOf("function");
+  });
+
+  it("keeps a recording that couldn't be stored, and stores it when asked again", async () => {
+    const store = createMemoryNotesStore();
+    const writeAsset = store.writeAsset.bind(store);
+    let failing = true;
+    store.writeAsset = async (notebook, asset, data) => {
+      if (failing) throw new Error("The disk is full.");
+      await writeAsset(notebook, asset, data);
+    };
+    let stops = 0;
+    const mounted = await mountEditor(
+      {
+        recorder: {
+          supported: true,
+          start: async () => ({
+            startedAt: Date.now(),
+            elapsed: () => 0,
+            stop: async () => {
+              stops += 1;
+              return { audio: new Blob(["sound"], { type: "audio/webm" }), duration: 1_000 };
+            },
+            cancel: () => undefined,
+          }),
+        },
+      },
+      store,
+    );
+    await newNotebook(mounted);
+    await press(mounted.container, "Record sound");
+    await press(mounted.container, "Stop recording");
+    await waitFor(() =>
+      expect(mounted.container.textContent).toContain("The recording isn't saved yet."),
+    );
+
+    // Leaving would lose it, so the notebook stays.
+    await press(mounted.container, "Back to the library");
+    await waitFor(() => expect(mounted.container.querySelector(PAGE)).toBeTruthy());
+    expect(button(mounted.container, "New notebook")).toBeUndefined();
+
+    failing = false;
+    await press(mounted.container, "Save the recording");
+    await saved(mounted.container);
+    const [summary] = mounted.handle.current?.library.getSnapshot().index.notebooks ?? [];
+    const notebook = await store.readNotebook(summary?.id ?? "");
+    expect(notebook?.recordings).toHaveLength(1);
+    // The recorder was stopped once: the sound it gave was kept for the second try.
+    expect(stops).toBe(1);
+  });
+
+  it("keeps a stroke written before its page's contents were read", async () => {
+    const store = createMemoryNotesStore();
+    const readPage = store.readPage.bind(store);
+    let release: () => void = () => undefined;
+    const slow = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    store.readPage = async (notebook, page) => {
+      await slow;
+      return readPage(notebook, page);
+    };
+    const mounted = await mountEditor({}, store);
+    await newNotebook(mounted);
+    // The page is on the screen, and the storage hasn't answered yet.
+    await draw(PAGE, line([0.2, 0.3], [0.7, 0.3]));
+    await draw(PAGE, line([0.2, 0.5], [0.7, 0.5]));
+    // Nothing is refused: no error is shown.
+    expect(mounted.container.querySelector(".hm-notes-alert")).toBeNull();
+    release();
+    await waitFor(async () => expect(strokes(await storedItems(mounted))).toHaveLength(2), {
+      timeout: 5_000,
+    });
+    // In the order they were written.
+    const [first, second] = strokes(await storedItems(mounted));
+    expect(first?.points[1]).toBeLessThan(second?.points[1] ?? 0);
+  });
+
+  it("saves and gives back the open notebook when the editor goes away", async () => {
+    const mounted = await mountEditor();
+    await newNotebook(mounted);
+    await draw(PAGE, line([0.2, 0.3], [0.7, 0.3]));
+    const [summary] = mounted.handle.current?.library.getSnapshot().index.notebooks ?? [];
+    const id = summary?.id ?? "";
+    // Before the save's own timer: the unmount is what stores the stroke.
+    await cleanUp();
+    await waitFor(async () => expect(await mounted.store.lockNotebook(id)).toBeTypeOf("function"));
+    const notebook = await mounted.store.readNotebook(id);
+    const page = await mounted.store.readPage(id, notebook?.pages[0]?.id ?? "");
+    expect(strokes(page?.items ?? [])).toHaveLength(1);
+  });
+
+  it("removes a folder from its own button, and does nothing for an unchanged name", async () => {
+    const mounted = await mountEditor();
+    const { container } = mounted;
+    await press(container, "New folder");
+    await userEvent.keyboard("School");
+    await press(container, "Create");
+    await press(container, "Rename or remove the folder School");
+    // The name as it is changes nothing, and removes nothing.
+    await press(container, "Rename");
+    await waitFor(() => expect(document.querySelector("dialog[open]")).toBeNull());
+    expect(mounted.handle.current?.library.getSnapshot().index.folders).toHaveLength(1);
+
+    await press(container, "Rename or remove the folder School");
+    await press(container, "Remove the folder");
+    // It asks first.
+    const dialog = await waitFor(() => {
+      const open = document.querySelector<HTMLElement>("dialog[open]");
+      if (!open?.textContent?.includes("Remove this folder?")) throw new Error("Not asked yet.");
+      return open;
+    });
+    const confirm = [...dialog.querySelectorAll("button")].find(
+      (candidate) => candidate.textContent?.trim() === "Remove the folder",
+    );
+    if (!confirm) throw new Error("The dialog has no confirming button.");
+    await userEvent.click(confirm);
+    await waitFor(() =>
+      expect(mounted.handle.current?.library.getSnapshot().index.folders).toEqual([]),
+    );
+  });
+});
+
 describe.runIf(deviceStorage)("NotesEditor on the device's storage", () => {
   let names: string[] = [];
   const storeNamed = () => {

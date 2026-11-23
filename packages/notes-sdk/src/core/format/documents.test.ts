@@ -396,3 +396,93 @@ describe("the readers of a document's parts", () => {
     ).toStrictEqual(invalid("invalid-time", "$.duration"));
   });
 });
+
+describe("text with a lone surrogate", () => {
+  // Half of a surrogate pair isn't text, and can't be written as UTF-8. The conformance
+  // vectors hold none, so that every JSON library loads them (docs/formats/conformance.md):
+  // these cases are here instead, one for each text a document holds.
+  const HIGH = "\uD83D";
+  const LOW = "\uDCD3";
+  const LONE = [`a${HIGH}b`, `a${LOW}b`, `${LOW}${HIGH}`, `ok${HIGH}`, HIGH, LOW];
+  const summary = {
+    id: "nb",
+    title: "Field notes",
+    cover: "blue",
+    template: "lined",
+    folder: null,
+    pageCount: 1,
+    createdAt: 0,
+    updatedAt: 0,
+    deletedAt: null,
+  };
+  const textItem = {
+    id: "t1",
+    type: "text",
+    x: 0,
+    y: 0,
+    width: 30_000,
+    text: "Check the units",
+    size: 1_200,
+    color: "#0b57d0",
+  };
+  const BACKUP = {
+    format: "hm-notes-backup",
+    version: 1,
+    createdAt: 0,
+    scope: "library",
+    folders: [] as unknown[],
+    notebooks: [] as unknown[],
+  };
+
+  /** Each text a document holds: its reader, the document with that text set, and its path. */
+  const texts: readonly (readonly [string, (text: string) => unknown, string])[] = [
+    ["a notebook's title", (title) => readNotesNotebookDocument({ ...NOTEBOOK, title }), "$.title"],
+    [
+      "an outline entry's title",
+      (title) =>
+        readNotesNotebookDocument({ ...NOTEBOOK, outline: [{ id: "o1", title, page: "p1" }] }),
+      "$.outline[0].title",
+    ],
+    [
+      "a text box's text",
+      (text) =>
+        readNotesPageDocument({
+          format: "hm-notes-page",
+          version: 1,
+          id: "p1",
+          items: [{ ...textItem, text }],
+        }),
+      "$.items[0].text",
+    ],
+    [
+      "a folder's name, in a library",
+      (name) =>
+        readNotesLibraryDocument({ ...LIBRARY, folders: [{ ...folder("f1", null), name }] }),
+      "$.folders[0].name",
+    ],
+    [
+      "a notebook's title, in a library",
+      (title) => readNotesLibraryDocument({ ...LIBRARY, notebooks: [{ ...summary, title }] }),
+      "$.notebooks[0].title",
+    ],
+    [
+      "a folder's name, in a backup's manifest",
+      (name) => readNotesBackupManifest({ ...BACKUP, folders: [{ ...folder("f1", null), name }] }),
+      "$.folders[0].name",
+    ],
+  ];
+
+  it.each(texts)("is refused in %s", (_what, read, at) => {
+    for (const text of LONE) {
+      expect(
+        refusal(() => read(text)),
+        JSON.stringify(text),
+      ).toStrictEqual(invalid("malformed-document", at));
+    }
+  });
+
+  it.each(texts)("isn't mistaken for a whole pair in %s", (_what, read) => {
+    // The same documents read with the pair the right way round, so only the lone half is wrong.
+    expect(refusal(() => read(`a${HIGH}${LOW}b`))).toBeUndefined();
+  });
+});

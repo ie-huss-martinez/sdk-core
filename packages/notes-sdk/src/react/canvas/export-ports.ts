@@ -1,17 +1,15 @@
 import type { NotesImage, NotesText } from "../../core/model/items.js";
-import { NOTES_UNITS_PER_POINT } from "../../core/model/portable.js";
 import type {
   NotesExportImage,
   NotesPdfExportPorts,
   NotesTextLayout,
 } from "../../core/pdf/export.js";
+import { textRasterSize } from "./canvas-size.js";
 import type { ImageCache } from "./image-cache.js";
 import { layoutText, NOTES_TEXT_FONT } from "./text-layout.js";
 
 /** The longest side of a picture in an exported PDF, in pixels. Larger ones are scaled down. */
 const MAX_IMAGE_SIDE = 2400;
-/** How many pixels a rasterised text box has per PDF point: 300 dots per inch. */
-const TEXT_DENSITY = 300 / 72;
 
 function scratch(width: number, height: number) {
   const canvas = document.createElement("canvas");
@@ -21,13 +19,19 @@ function scratch(width: number, height: number) {
   return context ? { canvas, context } : undefined;
 }
 
-/** A text box as a picture, for text the PDF's own font can't write. */
+/**
+ * A text box as a picture, for text the PDF's own font can't write. The
+ * picture covers the box's rectangle whatever its size in pixels, so a box
+ * too large for 300 dots per inch is drawn with fewer (`textRasterSize`).
+ */
 function rasterizeText(item: NotesText, layout: NotesTextLayout): NotesExportImage | undefined {
-  const scale = TEXT_DENSITY / NOTES_UNITS_PER_POINT;
-  const surface = scratch(item.width * scale, layout.lines.length * layout.lineHeight * scale);
+  const height = layout.lines.length * layout.lineHeight;
+  const size = textRasterSize(item.width, height);
+  const surface = scratch(size.width, size.height);
   if (!surface) return undefined;
   const { canvas, context } = surface;
-  context.scale(scale, scale);
+  // Each axis by its own factor: the whole numbers of pixels differ a little from the box's shape.
+  context.scale(canvas.width / Math.max(1, item.width), canvas.height / Math.max(1, height));
   context.fillStyle = item.color;
   context.font = `${item.size}px ${NOTES_TEXT_FONT}`;
   context.textBaseline = "alphabetic";

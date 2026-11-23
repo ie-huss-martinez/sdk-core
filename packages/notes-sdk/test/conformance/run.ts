@@ -66,7 +66,10 @@ export interface StateDocument {
   readonly pages: Readonly<Record<string, readonly NotesItem[]>>;
 }
 
-/** An `hm-notes-commands` case's input. Without `limits`, nothing is limited. */
+/**
+ * An `hm-notes-commands` case's input. Without `limits`, only the most a
+ * document may hold is checked.
+ */
 export interface CommandInput {
   readonly state: unknown;
   readonly command: unknown;
@@ -114,20 +117,25 @@ const limitsOf = (limits: CommandInput["limits"]): NotesCommandLimits => ({
 });
 
 /**
- * `hm-notes-commands`: a command read and applied to a state, giving the
- * new state and the command's inverse. The inverse must restore the state
- * exactly.
+ * `hm-notes-commands`: a command read and applied to a state, giving the new
+ * state.
+ *
+ * The command's inverse isn't part of the result, because more than one
+ * inverse undoes a command: the ids a `notes.removeItems` lists may be in any
+ * order. It's checked by what it does instead. It must be a command of the
+ * format, and applying it to the new state, under the same limits, must
+ * restore the state exactly.
  */
-export function applyToState(input: CommandInput): {
-  readonly state: StateDocument;
-  readonly inverse: NotesCommand;
-} {
+export function applyToState(input: CommandInput): { readonly state: StateDocument } {
   const state = readState(input.state);
   const limits = limitsOf(input.limits);
   const applied = applyNotesCommand(state, readNotesCommandDocument(input.command), limits);
   let undone: NotesDocumentState;
   try {
-    undone = applyNotesCommand(applied.state, applied.inverse, limits).state;
+    const inverse: NotesCommand = readNotesCommandDocument(
+      JSON.parse(JSON.stringify(applied.inverse)),
+    );
+    undone = applyNotesCommand(applied.state, inverse, limits).state;
   } catch (error) {
     // Never the command's own rejection: an inverse always applies to the state it came with.
     throw new Error("The command's inverse was refused.", { cause: error });
@@ -135,7 +143,26 @@ export function applyToState(input: CommandInput): {
   if (!conforms(toStateDocument(undone), toStateDocument(state))) {
     throw new Error("The command's inverse didn't restore the state.");
   }
-  return { state: toStateDocument(applied.state), inverse: applied.inverse };
+  return { state: toStateDocument(applied.state) };
+}
+
+/** Half of a surrogate pair on its own, which isn't text and can't be written as UTF-8. */
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
+/** Whether any text inside a JSON value, a field's name included, holds a lone surrogate. */
+export function hasLoneSurrogate(value: unknown): boolean {
+  if (typeof value === "string") return LONE_SURROGATE.test(value);
+  if (typeof value !== "object" || value === null) return false;
+  return Object.entries(value).some(
+    ([name, inner]) => LONE_SURROGATE.test(name) || hasLoneSurrogate(inner),
+  );
+}
+
+/** Whether any number inside a JSON value is negative zero. */
+export function hasNegativeZero(value: unknown): boolean {
+  if (typeof value === "number") return Object.is(value, -0);
+  if (typeof value !== "object" || value === null) return false;
+  return Object.values(value).some(hasNegativeZero);
 }
 
 /** Whether a call returns, rather than throws. */

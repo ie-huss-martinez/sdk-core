@@ -10,7 +10,7 @@ import {
 import { isAssetName, isNotesId } from "../../core/model/ids.js";
 import type { NotesLibraryIndex } from "../../core/model/library.js";
 import type { NotesNotebook, NotesPage } from "../../core/model/notebook.js";
-import type { NotesPageText } from "../../core/ports/notes-store.js";
+import type { NotesPageText, NotesPageTextChange } from "../../core/ports/notes-store.js";
 
 /**
  * What the SDK's own stores share: how a document becomes the text they
@@ -98,9 +98,8 @@ export function pageFromText(text: string): NotesPage {
 }
 
 /**
- * A copy of one page's search text with only its own fields, after checking
- * them. It's used both ways: for what a caller passes in, and for what a
- * store reads back.
+ * A copy of one page's stored search text with only its own fields, after
+ * checking them: what a store reads back is as untrusted as a file.
  */
 export function checkedPageText(value: unknown): NotesPageText {
   if (typeof value !== "object" || value === null) throw invalidDocument("malformed-document", "$");
@@ -111,4 +110,54 @@ export function checkedPageText(value: unknown): NotesPageText {
   if (entry.pdf === undefined) return { notebook, page, typed: entry.typed };
   if (typeof entry.pdf !== "string") throw invalidDocument("malformed-document", "$.pdf");
   return { notebook, page, typed: entry.typed, pdf: entry.pdf };
+}
+
+/**
+ * A copy of a change to one page's search text with only its own fields,
+ * after checking them. A field may be left out, and otherwise is text.
+ */
+export function checkedPageTextChange(value: unknown): NotesPageTextChange {
+  if (typeof value !== "object" || value === null) throw invalidDocument("malformed-document", "$");
+  const entry = value as { readonly [Field in keyof NotesPageTextChange]?: unknown };
+  const notebook = checkedId(entry.notebook, "$.notebook");
+  const page = checkedId(entry.page, "$.page");
+  if (entry.typed !== undefined && typeof entry.typed !== "string") {
+    throw invalidDocument("malformed-document", "$.typed");
+  }
+  if (entry.pdf !== undefined && typeof entry.pdf !== "string") {
+    throw invalidDocument("malformed-document", "$.pdf");
+  }
+  return {
+    notebook,
+    page,
+    ...(entry.typed === undefined ? {} : { typed: entry.typed }),
+    ...(entry.pdf === undefined ? {} : { pdf: entry.pdf }),
+  };
+}
+
+/**
+ * One page's search text after a change: each field the change leaves out
+ * keeps what was stored for it. The typed text of a page with none stored
+ * is empty, and there is no PDF text until one is written.
+ *
+ * What was stored is untrusted, and is only search text, which is made from
+ * the pages: a stored field that isn't text counts as not stored, and
+ * doesn't keep the change from being made.
+ *
+ * @param stored - The page's stored row, or `undefined` if it has none.
+ * @param change - The change, already checked.
+ */
+export function mergedPageText(stored: unknown, change: NotesPageTextChange): NotesPageText {
+  const kept =
+    typeof stored === "object" && stored !== null
+      ? (stored as { readonly typed?: unknown; readonly pdf?: unknown })
+      : {};
+  const typed = change.typed ?? (typeof kept.typed === "string" ? kept.typed : "");
+  const pdf = change.pdf ?? (typeof kept.pdf === "string" ? kept.pdf : undefined);
+  return {
+    notebook: change.notebook,
+    page: change.page,
+    typed,
+    ...(pdf === undefined ? {} : { pdf }),
+  };
 }

@@ -1,5 +1,12 @@
-import { ColorField, IconButton } from "@hussmartinez/ui/react";
-import { type KeyboardEvent, type PointerEvent, type ReactNode, useRef, useState } from "react";
+import { ColorField, IconButton, useLatest } from "@hussmartinez/ui/react";
+import {
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { boundsOf } from "../../core/ink/bounds.js";
 import { scaleItems, translateItems } from "../../core/ink/transform.js";
 import type { NotesRect } from "../../core/model/geometry.js";
@@ -13,7 +20,8 @@ import { useNotes } from "../context.js";
 import type { InkPage } from "./ink-controller.js";
 import { PEN_COLORS } from "./ToolOptions.js";
 
-type Corner = "nw" | "ne" | "sw" | "se";
+/** A corner of the selection's box. */
+export type Corner = "nw" | "ne" | "sw" | "se";
 const CORNERS: readonly Corner[] = ["nw", "ne", "sw", "se"];
 
 export interface SelectionOverlayProps {
@@ -41,17 +49,26 @@ interface Drag {
   readonly from: NotesRect;
 }
 
-/** The selection's box after a corner moved, keeping its proportions. */
-function resized(from: NotesRect, corner: Corner, dx: number, dy: number): NotesRect {
+/** The smallest a drag of a corner makes the selection: a twentieth of its size. */
+const MIN_FACTOR = 0.05;
+/** How much of its size one press of plus or minus adds to the selection, or takes from it. */
+const KEY_STEP = 0.1;
+
+/**
+ * The selection's box after a corner moved by `dx` and `dy`, keeping its
+ * proportions and its opposite corner. The move along the box's diagonal
+ * decides the size: away from the opposite corner grows the box, towards it
+ * shrinks it, so a corner pulled straight along one edge resizes it too.
+ */
+export function resized(from: NotesRect, corner: Corner, dx: number, dy: number): NotesRect {
   const west = corner === "nw" || corner === "sw";
   const north = corner === "nw" || corner === "ne";
   const wide = Math.max(from.width, 1);
   const tall = Math.max(from.height, 1);
-  // The larger of the two pulls decides the size, so the box keeps its shape.
-  const factor = Math.max(
-    0.05,
-    Math.max((wide + (west ? -dx : dx)) / wide, (tall + (north ? -dy : dy)) / tall),
-  );
+  // The diagonal, from the opposite corner out to the one being moved.
+  const outX = west ? -wide : wide;
+  const outY = north ? -tall : tall;
+  const factor = Math.max(MIN_FACTOR, 1 + (dx * outX + dy * outY) / (wide * wide + tall * tall));
   const width = wide * factor;
   const height = tall * factor;
   return {
@@ -62,18 +79,55 @@ function resized(from: NotesRect, corner: Corner, dx: number, dy: number): Notes
   };
 }
 
+/** The selection's box at `factor` times its size, about its centre. */
+export function resizedAboutCentre(from: NotesRect, factor: number): NotesRect {
+  const width = from.width * factor;
+  const height = from.height * factor;
+  return {
+    x: from.x + (from.width - width) / 2,
+    y: from.y + (from.height - height) / 2,
+    width,
+    height,
+  };
+}
+
+/** Takes a moving selection off a page's wet canvas, and puts the canvas back in place. */
+function clearWet(page: InkPage | undefined): void {
+  if (!page) return;
+  page.wet.style.transform = "";
+  page.wet.style.transformOrigin = "";
+  const context = page.wet.getContext("2d", { desynchronized: true });
+  context?.setTransform(1, 0, 0, 1, 0, 0);
+  context?.clearRect(0, 0, page.wet.width, page.wet.height);
+}
+
 /**
  * The box around selected items: drag it to move them, drag a corner to
  * resize them, and use its bar to recolour, duplicate or delete them. From
- * the keyboard, the arrow keys move the items by a point, or ten with Shift.
- * While they move, they're drawn on the page's wet canvas, which the
- * browser shifts and scales without repainting.
+ * the keyboard, with focus on the box, the arrow keys move the items by a
+ * point, or ten with Shift, and plus and minus resize them by a tenth about
+ * their centre. While a pointer moves them, they're drawn on the page's wet
+ * canvas, which the browser shifts and scales without repainting.
  */
 export function SelectionOverlay(props: SelectionOverlayProps): ReactNode {
   const { info, items, pixelsPerPoint } = props;
   const { messages, icons } = useNotes();
   const drag = useRef<Drag | undefined>(undefined);
   const [live, setLive] = useState<NotesRect | undefined>(undefined);
+  const latest = useLatest(props);
+
+  // A selection cleared mid-drag, by Escape for instance, takes this box away
+  // before the pointer lifts: the drag is dropped, changing nothing.
+  useEffect(
+    () => () => {
+      if (!drag.current) return;
+      drag.current = undefined;
+      clearWet(latest.current.page());
+      latest.current.onDragEnd(undefined);
+    },
+    [latest],
+  );
+
   const bounds = boundsOf(items, textHeight);
   if (!bounds) return null;
   const scale = pixelsPerPoint / NOTES_UNITS_PER_POINT;
@@ -83,7 +137,13 @@ export function SelectionOverlay(props: SelectionOverlayProps): ReactNode {
     if (event.button !== 0 && event.pointerType === "mouse") return;
     event.stopPropagation();
     event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
+    // The pointer that began a drag keeps it: a second finger doesn't take it over.
+    if (drag.current) return;
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // A pointer that's already gone can't be captured; the drag still runs.
+    }
     drag.current = {
       pointerId: event.pointerId,
       corner,
@@ -124,14 +184,7 @@ export function SelectionOverlay(props: SelectionOverlayProps): ReactNode {
     const current = drag.current;
     if (!current || current.pointerId !== event.pointerId) return;
     drag.current = undefined;
-    const page = props.page();
-    if (page) {
-      page.wet.style.transform = "";
-      page.wet.style.transformOrigin = "";
-      const context = page.wet.getContext("2d", { desynchronized: true });
-      context?.setTransform(1, 0, 0, 1, 0, 0);
-      context?.clearRect(0, 0, page.wet.width, page.wet.height);
-    }
+    clearWet(props.page());
     const to = live;
     setLive(undefined);
     if (cancelled || !to) {
@@ -146,6 +199,8 @@ export function SelectionOverlay(props: SelectionOverlayProps): ReactNode {
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    // With a modifier, plus and minus are the browser's zoom, and the arrows its own.
+    if (event.altKey || event.ctrlKey || event.metaKey || drag.current) return;
     const step = (event.shiftKey ? 10 : 1) * NOTES_UNITS_PER_POINT;
     const by: Readonly<Record<string, readonly [number, number]>> = {
       ArrowLeft: [-step, 0],
@@ -153,11 +208,22 @@ export function SelectionOverlay(props: SelectionOverlayProps): ReactNode {
       ArrowUp: [0, -step],
       ArrowDown: [0, step],
     };
+    // Plus shares its key with the equals sign on many keyboards, where it needs Shift.
+    const factors: Readonly<Record<string, number>> = {
+      "+": 1 + KEY_STEP,
+      "=": 1 + KEY_STEP,
+      "-": 1 - KEY_STEP,
+    };
     const delta = by[event.key];
-    if (!delta || event.altKey || event.ctrlKey || event.metaKey) return;
+    const factor = factors[event.key];
+    if (!delta && factor === undefined) return;
     event.preventDefault();
     event.stopPropagation();
-    props.onDragEnd(translateItems(items, delta[0], delta[1]));
+    if (delta) props.onDragEnd(translateItems(items, delta[0], delta[1]));
+    // The same resize a corner makes, which keeps every value within the model's ranges.
+    else if (factor !== undefined) {
+      props.onDragEnd(scaleItems(items, bounds, resizedAboutCentre(bounds, factor)));
+    }
   };
 
   const DuplicateIcon = icons["duplicate"];

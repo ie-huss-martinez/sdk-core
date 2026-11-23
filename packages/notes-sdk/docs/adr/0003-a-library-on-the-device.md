@@ -47,6 +47,10 @@ A command is its own document, described by `hm-notes-command`. A breaking chang
 - **`openNotesSession`** holds one open notebook. It takes the notebook for its tab, so two tabs never write the same one: the second gets `NOTEBOOK_IN_USE`.
 - **It saves as you write.** 400 milliseconds after a change, the changed pages are written, then the notebook's own document, last, so it never lists a page that isn't stored. The React editor also saves when the tab is hidden and when the page goes away.
 - **A failed save loses nothing.** The changes stay in memory, the snapshot says `failed` with the error, and the next change or `flush()` tries again.
+- **Closing saves first, and gives the notebook back only once that worked.** If the last save fails, `close()` rejects and the session stays open, still holding the notebook, so nothing else can write it while its changes are only in memory. `close({ discard: true })` is the way out when the storage won't take them: the editor asks before using it.
+- **The index is changed where it's stored.** Every change goes through the store's `updateIndex`, which reads the stored index, applies the change and writes the result as one step, so two tabs' changes both hold. A tab never writes its own copy of the index back.
+- **A notebook's own writers are kept apart.** Renaming, recolouring and deleting a notebook take its lock, and are refused with `NOTEBOOK_IN_USE` while a session holds it. Typed text and a PDF's text are stored by different writers, so each writes only its own field of a page's search text.
+- **Deleting for good can be tried again.** The notebook stays in the bin until its storage is gone, and only then leaves the index. A failure part way leaves it listed in the bin, never among the others.
 - **Deleting is undoable.** A notebook goes to the bin, from where it's restored. Only deleting from the bin is for good, and that asks first.
 
 ### Storage
@@ -56,7 +60,8 @@ A command is its own document, described by `hm-notes-command`. A breaking chang
   - notebooks in the origin private file system, as `notebooks/<id>/notebook.json`, `pages/<pageId>.json` and `assets/<hash>`, written through `createWritable()`, which replaces a file only when it closes;
   - an uppercase letter in a file name is written as `~` and its lowercase, because some disks fold case;
   - the index and the search text in IndexedDB;
-  - the Web Locks API for a notebook's lock, and a `BroadcastChannel` so a second tab sees the library change.
+  - the Web Locks API for a notebook's lock, and a `BroadcastChannel` so a second tab sees the library change. Where there are no Web Locks, the lock holds within the page only, which the store's documentation says;
+  - a change to the index, or to a page's search text, as one IndexedDB transaction that reads, changes and writes.
 - **The index can be rebuilt.** If it's missing, the library lists the notebooks the store holds.
 - **`createMemoryNotesStore`** keeps everything in memory, for tests and for hosts that want no persistence. Both stores pass one contract suite.
 - **The store says whether the browser will keep the data,** and the library can ask it to (`navigator.storage.persist()`). The editor shows a notice until it's granted.
@@ -77,7 +82,7 @@ Each page's typed text, and the text of the PDF page under it, are kept in the s
 
 ## Consequences
 
-- A notebook costs one small write per changed page, and survives a crash at any point: it's either the old page or the new one.
+- A notebook costs one small write per changed page. Each page survives a crash at any point: it's either the old page or the new one. A save that changes several pages replaces them one at a time, so it isn't one step for the notebook. No edit moves ink from one page to another, so no ink depends on two pages being written together. One that did would need the pages staged and published together.
 - The browser can still clear a site's storage. The notice, `persist()`, installing the app and backups are the defences, in that order.
 - A host can pass its own `NotesStore`, such as one that syncs to a folder the user chooses.
 - Files a notebook no longer refers to stay in its folder until the notebook is deleted. Collecting them is a later step.

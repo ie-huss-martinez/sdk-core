@@ -327,10 +327,32 @@ describe("createZipWriter and readZip", () => {
     expect(await archive.read("entry")).toEqual(utf8("unchanged"));
   });
 
+  it("copies an entry's bytes when it's added, not when its turn to be written comes", async () => {
+    const zip = createZipWriter();
+    // One buffer reused for each entry, as a caller that fills a scratch buffer does.
+    const reused = utf8("first");
+    const first = zip.add("first", reused, { compress: false });
+    reused.set(utf8("other"));
+    const second = zip.add("second", reused);
+    reused.fill(0);
+    await Promise.all([first, second]);
+    // A Node Buffer's own `slice` is a view of the same memory, not a copy.
+    const buffer = Buffer.from("buffer");
+    await zip.add("third", buffer, { compress: false });
+    buffer.fill(0);
+    const archive = await readZip(zip.finish(), LIMITS);
+    expect(await archive.read("first")).toEqual(utf8("first"));
+    expect(await archive.read("second")).toEqual(utf8("other"));
+    expect(await archive.read("third")).toEqual(utf8("buffer"));
+  });
+
   it("refuses names that aren't safe relative paths, and names used twice", async () => {
     const unsafe = [
       "",
       "/absolute",
+      "C:/drive",
+      "c:relative-to-a-drive",
+      "D:",
       "../outside",
       "a/../b",
       "a/..",
@@ -350,8 +372,11 @@ describe("createZipWriter and readZip", () => {
     }
     await zip.add("once", new Uint8Array(0));
     await expect(zip.add("once", new Uint8Array(0))).rejects.toBeInstanceOf(TypeError);
+    // A colon anywhere but after a first letter isn't a drive.
+    const safe = ["notebooks/maths/notebook.json", "notes/c:d", "12:30"];
+    for (const name of safe) await zip.add(name, new Uint8Array(0));
     const archive = await readZip(zip.finish(), LIMITS);
-    expect([...archive.entries.keys()]).toEqual(["once"]);
+    expect([...archive.entries.keys()]).toEqual(["once", ...safe]);
   });
 
   it("can't be finished twice, added to once finished, or finished mid-entry", async () => {
@@ -714,6 +739,8 @@ describe("readZip, of a hostile file", () => {
       "notebooks/../../evil",
       "..",
       "/etc/passwd",
+      "C:/Windows/evil",
+      "c:evil",
       "notebooks\\evil",
       "nul\u0000byte",
       "new\nline",
@@ -899,6 +926,28 @@ describe("readZip, of a hostile file", () => {
     }
   });
 
+  it("counts an entry once when it's read twice at the same time", async () => {
+    // 3,000 bytes in an archive that may hold 4,096: two reads at once are still 3,000.
+    const data = utf8("abc".repeat(1000));
+    const archive = await readZip(await archiveOf({ entry: data }), { ...LIMITS, maxSize: 4096 });
+    const [bytes, blob] = await Promise.all([archive.read("entry"), archive.readBlob("entry")]);
+    expect(bytes).toEqual(data);
+    expect(await bytesOf(blob)).toEqual(data);
+  });
+
+  it("doesn't count what a failed read gave against the entries read after it", async () => {
+    const data = utf8("abc".repeat(1000));
+    const file = build([
+      { ...deflated("damaged", data), crc: crc32(data) ^ 1 },
+      deflated("sound", data),
+    ]);
+    const archive = await readZip(file, { ...LIMITS, maxSize: 6000 });
+    for (let times = 0; times < 3; times += 1) {
+      await expect(archive.read("damaged")).rejects.toMatchObject(MALFORMED);
+    }
+    expect(await archive.read("sound")).toEqual(data);
+  });
+
   describe("with ZIP64 records", () => {
     /** ZIP64 end records, for an archive small enough not to need them. */
     const zip64End =
@@ -1076,40 +1125,93 @@ describe("readZip, of a hostile file", () => {
       }
     }
 
-    /** Reads everything a damaged archive still gives, and says how much it gave. */
-    async function readAll(blob: Blob, exact: boolean): Promise<number> {
-      const archive = await unlessRefused(() => readZip(blob, LIMITS));
-      if (!archive) return 0;
-      let read = 0;
-      for (const name of archive.entries.keys()) {
-        const data = await unlessRefused(() => archive.read(name));
-        if (!data) continue;
-        read += 1;
-        if (exact && Object.hasOwn(original, name)) {
-          expect(data).toEqual(original[name as keyof typeof original]);
-        }
-      }
-      return read;
+    /** A returned entry, with the size the archive listed for it. */
+    interface Returned {
+      readonly name: string;
+      readonly size: number;
+      readonly data: Uint8Array;
     }
 
-    it("never returns changed data, and refuses only with a NotesError", async () => {
-      const file = await bytesOf(await archiveOf(original));
-      const change = fc.record({
+    /** Reads everything a damaged archive still gives. */
+    async function readAll(blob: Blob): Promise<Returned[]> {
+      const archive = await unlessRefused(() => readZip(blob, LIMITS));
+      if (!archive) return [];
+      const returned: Returned[] = [];
+      for (const [name, { size }] of archive.entries) {
+        const data = await unlessRefused(() => archive.read(name));
+        if (data) returned.push({ name, size, data });
+      }
+      return returned;
+    }
+
+    /** Fails unless an entry came back under its own name with its own bytes. */
+    function expectOriginal({ name, data }: Returned): void {
+      expect(Object.keys(original)).toContain(name);
+      expect(data).toEqual(original[name as keyof typeof original]);
+    }
+
+    const damage = (file: Uint8Array) =>
+      fc.record({
         at: fc.nat({ max: file.length - 1 }),
         xor: fc.integer({ min: 1, max: 255 }),
       });
+
+    function damaged(file: Bytes, changes: readonly { at: number; xor: number }[]): Blob {
+      const copy = file.slice();
+      for (const { at, xor } of changes) copy[at] = (copy[at] as number) ^ xor;
+      return new Blob([copy]);
+    }
+
+    it("with one byte changed, returns only original entries, and refuses with a NotesError", async () => {
+      const file = await bytesOf(await archiveOf(original));
       let read = 0;
       await fc.assert(
-        fc.asyncProperty(fc.array(change, { minLength: 1, maxLength: 3 }), async (changes) => {
-          const damaged = file.slice();
-          for (const { at, xor } of changes) damaged[at] = (damaged[at] as number) ^ xor;
-          // A 32-bit check can't be fooled by one changed byte.
-          read += await readAll(new Blob([damaged]), changes.length === 1);
+        fc.asyncProperty(damage(file), async (change) => {
+          // One byte can't change a name in both of its records, a size in
+          // both of its, or data without its 32-bit check noticing.
+          const returned = await readAll(damaged(file, [change]));
+          for (const entry of returned) expectOriginal(entry);
+          read += returned.length;
         }),
         { numRuns: 300 },
       );
       // Most damage leaves the other entries readable, so both outcomes were seen.
       expect(read).toBeGreaterThan(100);
+    });
+
+    it("with several bytes changed, returns only bytes the archive held, at the size it lists", async () => {
+      const file = await bytesOf(await archiveOf(original));
+      const contents = Object.values(original);
+      await fc.assert(
+        fc.asyncProperty(
+          fc.array(damage(file), { minLength: 2, maxLength: 3 }),
+          async (changes) => {
+            // Two changes can rename an entry, in its header and in the
+            // directory alike, so its name isn't promised here. Its bytes
+            // still are: the size and the CRC-32 the archive declares guard
+            // them, and a refusal is still a NotesError.
+            for (const { size, data } of await readAll(damaged(file, changes))) {
+              expect(data).toHaveLength(size);
+              expect(contents).toContainEqual(data);
+            }
+          },
+        ),
+        { numRuns: 300 },
+      );
+    });
+
+    it("returns an entry renamed in both of its records under the new name, unchanged", async () => {
+      const file = await bytesOf(await archiveOf(original));
+      const local = indexOfSignature(file, 0x04034b50) + 30;
+      const directory = indexOfSignature(file, 0x02014b50) + 46;
+      // "a.txt" becomes "b.txt" in its local header and in the central directory.
+      const blob = damaged(file, [
+        { at: local, xor: 0x61 ^ 0x62 },
+        { at: directory, xor: 0x61 ^ 0x62 },
+      ]);
+      const returned = await readAll(blob);
+      expect(returned.map((entry) => entry.name)).toEqual(["b.txt", "b.bin", "c"]);
+      expect(returned[0]?.data).toEqual(original["a.txt"]);
     });
 
     it("refuses a file cut anywhere, or with anything put after it", async () => {
@@ -1122,7 +1224,11 @@ describe("readZip, of a hostile file", () => {
             const blob = new Blob([file.subarray(0, cut), new Uint8Array(added)]);
             const archive = await unlessRefused(() => readZip(blob, LIMITS));
             // Only bytes that happen to complete the file again make it readable.
-            if (archive) expect(await readAll(blob, true)).toBe(3);
+            if (archive) {
+              const returned = await readAll(blob);
+              expect(returned).toHaveLength(3);
+              for (const entry of returned) expectOriginal(entry);
+            }
           },
         ),
         { numRuns: 200 },

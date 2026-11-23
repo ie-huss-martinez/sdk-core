@@ -21,11 +21,12 @@ import { asNotesError } from "../../core/errors/abort.js";
 import type { NotesError } from "../../core/errors/notes-error.js";
 import type { NotesFolder, NotesNotebookSummary } from "../../core/model/library.js";
 import type { NotesSearchHit } from "../../core/session/search.js";
+import { ConfirmDialog } from "../ConfirmDialog.js";
 import { createExportPorts } from "../canvas/export-ports.js";
 import { createImageCache } from "../canvas/image-cache.js";
 import { useNotes } from "../context.js";
 import { downloadName, toBlob } from "../files.js";
-import { ConfirmDialog, NameDialog, NewNotebookDialog, NotebookDialog } from "./dialogs.js";
+import { NameDialog, NewNotebookDialog, NotebookDialog } from "./dialogs.js";
 
 /**
  * Props for {@link NotesLibraryView}.
@@ -78,6 +79,8 @@ export function NotesLibraryView({ onOpen }: NotesLibraryViewProps): ReactNode {
   >(undefined);
   const [asking, setAsking] = useState<Asking | undefined>(undefined);
   const [working, setWorking] = useState<Working | undefined>(undefined);
+  /** Whether a long operation runs, known before the next render. */
+  const busy = useRef(false);
   const [notice, setNotice] = useState<{ text: string; undo?: () => void } | undefined>(undefined);
   const [error, setError] = useState<NotesError | undefined>(undefined);
   const pdfInput = useRef<HTMLInputElement>(null);
@@ -109,6 +112,9 @@ export function NotesLibraryView({ onOpen }: NotesLibraryViewProps): ReactNode {
         onProgress: (progress: { fraction: number }) => void;
       }) => Promise<Result>,
     ): Promise<Result | undefined> => {
+      // One at a time: the progress bar and its Cancel belong to one operation.
+      if (busy.current) return undefined;
+      busy.current = true;
       const abort = new AbortController();
       setError(undefined);
       setWorking({ label, fraction: undefined, abort });
@@ -122,6 +128,7 @@ export function NotesLibraryView({ onOpen }: NotesLibraryViewProps): ReactNode {
         fail(reason);
         return undefined;
       } finally {
+        busy.current = false;
         setWorking(undefined);
       }
     },
@@ -138,15 +145,19 @@ export function NotesLibraryView({ onOpen }: NotesLibraryViewProps): ReactNode {
         .then((hits) => {
           if (!stale) setFound({ query, hits });
         })
-        .catch(() => {
-          if (!stale) setFound({ query, hits: [] });
+        .catch((reason: unknown) => {
+          if (stale) return;
+          setFound({ query, hits: [] });
+          fail(reason);
         });
     }, 200);
     return () => {
       stale = true;
       clearTimeout(timer);
     };
-  }, [library, query]);
+    // `index` isn't read: a change to the library, such as a restored
+    // notebook, runs the same query again.
+  }, [library, query, index, fail]);
   const hits = query.trim() !== "" && found?.query === query ? found.hits : undefined;
   const searching = query.trim() !== "";
 
@@ -279,7 +290,12 @@ export function NotesLibraryView({ onOpen }: NotesLibraryViewProps): ReactNode {
           >
             {messages.t("library.new")}
           </Button>
-          <Button startIcon={icon("open")} onClick={() => pdfInput.current?.click()}>
+          <Button
+            startIcon={icon("open")}
+            disabled={working !== undefined}
+            focusableWhenDisabled
+            onClick={() => pdfInput.current?.click()}
+          >
             {messages.t("library.import")}
           </Button>
           <Button startIcon={icon("folder-add")} onClick={() => setAsking({ kind: "new-folder" })}>
@@ -287,13 +303,18 @@ export function NotesLibraryView({ onOpen }: NotesLibraryViewProps): ReactNode {
           </Button>
           <Button
             startIcon={icon("download")}
-            disabled={live.length === 0}
+            disabled={live.length === 0 || working !== undefined}
             focusableWhenDisabled
             onClick={() => backup()}
           >
             {messages.t("library.backup")}
           </Button>
-          <Button startIcon={icon("upload")} onClick={() => backupInput.current?.click()}>
+          <Button
+            startIcon={icon("upload")}
+            disabled={working !== undefined}
+            focusableWhenDisabled
+            onClick={() => backupInput.current?.click()}
+          >
             {messages.t("library.restore")}
           </Button>
           <ToggleButton startIcon={icon("delete")} pressed={bin} onPressedChange={setBin}>
@@ -676,9 +697,15 @@ function FolderDialog(props: FolderDialogProps): ReactNode {
       initial={props.folder.name}
       onClose={props.onClose}
       onSubmit={(name) => {
-        if (name === props.folder.name) setRemoving(true);
+        // The same name changes nothing.
+        if (name === props.folder.name) props.onClose();
         else props.onRename(name);
       }}
+      extra={
+        <Button variant="danger" onClick={() => setRemoving(true)}>
+          {messages.t("folders.delete")}
+        </Button>
+      }
     />
   );
 }

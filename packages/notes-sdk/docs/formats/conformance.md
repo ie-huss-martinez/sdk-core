@@ -5,7 +5,7 @@ notes-sdk's language-neutral tests ([sdk-core ADR 0045](https://github.com/ie-hu
 | File | Subject | A case's input | Its expected result |
 |---|---|---|---|
 | [`conformance/hm-notes-documents.json`](../../conformance/hm-notes-documents.json) | `hm-notes-documents` | `{ as, document }` | The document as a reader writes it back, or the rejection |
-| [`conformance/hm-notes-commands.json`](../../conformance/hm-notes-commands.json) | `hm-notes-commands` | `{ state, command, limits? }` | `{ state, inverse }`, or the rejection |
+| [`conformance/hm-notes-commands.json`](../../conformance/hm-notes-commands.json) | `hm-notes-commands` | `{ state, command, limits? }` | `{ state }`, or the rejection |
 
 Each file is an `hm-conformance` document: `{ "format": "hm-conformance", "version": 1, "subject", "description", "cases" }`, and a case is `{ "name", "input", "expected" }`. The files stay in the repository. They aren't published with the package.
 
@@ -53,10 +53,16 @@ What the cases cover, for each of the four formats:
 - **Strictness:** an unknown field at the top and in every object inside, a missing field, and a value of the wrong type.
 - **Names of `Object.prototype`'s properties:** `__proto__`, `constructor` and `toString` as valid ids, titles and text, which must read; as unknown fields, which must be refused; as values where one of a fixed set is expected, such as a cover; and as a page or a folder that isn't listed, which must not be found.
 - **Numbers:** each bound and one past it, a fraction where a whole number is required, a number as text, and negative zero.
-- **Text:** each length limit with characters outside the BMP, which are one code point and two UTF-16 units, and lone surrogates.
+- **Text:** each length limit with characters outside the BMP, which are one code point and two UTF-16 units. Lone surrogates are tested [outside the vectors](#lone-surrogates).
 - **Ids, colours and asset names** that end with a line break, which a pattern's `$` matches before in some languages.
 - **The whole document:** duplicate ids, an outline entry to an unknown page, a folder in an unknown folder, a folder inside itself, and rings of folders.
 - **Assets:** names that aren't a SHA-256, sizes that aren't a whole number of bytes, and media types the field doesn't allow, such as `image/svg+xml` for a picture.
+
+### Lone surrogates
+
+**No case holds a lone surrogate,** half of a surrogate pair on its own, such as `"\ud83d"`. It isn't text and can't be written as UTF-8, so a JSON library that decodes text strictly, such as Rust's `serde_json` reading into a `String`, refuses the whole file for one, and would run no case at all. The generator refuses to write a case that holds one, and the tests check the files hold none.
+
+The rule itself still stands: **text with a lone surrogate is refused,** as `malformed-document` in a document and `malformed-command` in a command, in every text a format holds. A port's JSON decoder may refuse it before its reader sees it, which is the same refusal. This SDK tests it in its unit tests, for each text of each document ([`src/core/format/documents.test.ts`](../../src/core/format/documents.test.ts), [`read.test.ts`](../../src/core/format/read.test.ts)) and for commands ([`src/core/operations/commands.test.ts`](../../src/core/operations/commands.test.ts)). A port tests it the same way, in its own language.
 
 ## `hm-notes-commands`
 
@@ -90,22 +96,25 @@ Page ids may be `__proto__`, `constructor` or `toString`, so a port must keep `p
 
 `input.limits`, when present, is `{ "maxPages"?, "maxPageItems"? }`: the most pages a notebook may have, and the most items a page may have. A limit that's absent isn't checked.
 
+The limits hold `notes.addItems` and `notes.addPages`. They don't hold `notes.restoreItems` and `notes.restorePages`, which undo a removal: the cases remove from a notebook that's over its limits, and restore past them. Whatever the limits, no command makes a notebook of more than 100,000 pages or a page of more than 1,000,000 items ([`hm-notes-command`](hm-notes-command.md#limits)). A case that large would be most of the file, so this SDK tests those two counts in its unit tests, and a port does the same.
+
 ### The result
 
-For a command that applies, `expected` is `{ "state", "inverse" }`: the state after it, and the command that undoes it. A port must also check that **applying the inverse to the new state gives the state it started from**, exactly, under the same limits. The TypeScript runner does.
+For a command that applies, `expected` is `{ "state" }`: the state after it.
+
+**The command's inverse isn't in the vectors,** because more than one inverse undoes a command: the ids a `notes.removeItems` lists may be in any order. A port checks its inverse by what it does. It must be a command of this format, and **applying it to the new state must give the state the case started from**, exactly, under the same limits. The TypeScript runner does both.
 
 ```json
 {
   "name": "renames the notebook",
   "input": { "state": { "notebook": { "title": "Field notes" }, "pages": {} }, "command": { "type": "notes.rename", "title": "Lab book" } },
   "expected": {
-    "state": { "notebook": { "title": "Lab book" }, "pages": {} },
-    "inverse": { "type": "notes.rename", "title": "Field notes" }
+    "state": { "notebook": { "title": "Lab book" }, "pages": {} }
   }
 }
 ```
 
-What the cases cover: every command applying, with its inverse; every reason `readNotesCommandDocument` and `applyNotesCommand` refuse a command for; both limits, at the limit and one past it; links whose page is gone; and pages and items named `__proto__`, `constructor` and `toString`, with pages and items only `Object.prototype` has, which must not be found.
+What the cases cover: every command applying, the two that restore among them; every reason `readNotesCommandDocument` and `applyNotesCommand` refuse a command for; both limits, at the limit and one past it, and a removal undone over them; links whose page is gone; and pages and items named `__proto__`, `constructor` and `toString`, with pages and items only `Object.prototype` has, which must not be found.
 
 ## Generated cases
 
@@ -115,7 +124,7 @@ After the hand-written cases, each file has cases generated from the property te
 
 The TypeScript runners are in [`test/conformance/run.ts`](../../test/conformance/run.ts), one for each subject: what a port implements too.
 
-The files are written by [`test/conformance/generate.ts`](../../test/conformance/generate.ts). Each hand-written case states the outcome it's meant to show, and the generator fails if the SDK gives another. `pnpm conformance:update` rewrites the files, and the tests fail when the checked-in files differ from what the generator writes. To change a case, change the generator, never the file.
+The files are written by [`test/conformance/generate.ts`](../../test/conformance/generate.ts). Each hand-written case states the outcome it's meant to show, and the generator fails if the SDK gives another. It also fails, before it writes anything, if a case holds a lone surrogate or if a result holds negative zero. `pnpm conformance:update` rewrites the files, and the tests fail when the checked-in files differ from what the generator writes. To change a case, change the generator, never the file.
 
 A list of numbers is on one line in the files, so a stroke's points read as a row.
 
@@ -124,5 +133,6 @@ A list of numbers is on one line in the files, so a stroke's points read as a ro
 [`test/formats.test.ts`](../../test/formats.test.ts) holds the vectors and the readers to the JSON Schemas in [`formats/`](../../formats):
 
 - every document a reader accepts passes its schema, and so does what the reader writes back;
-- every refusal a schema can express fails it. The others are listed in the test: a duplicate id, an unknown page or folder, a lone surrogate, and a stroke's points that aren't whole triples or whose pressure is out of range;
+- every refusal a schema can express fails it. The others are listed in the test: a duplicate id, an unknown page or folder, and a stroke's points that aren't whole triples or whose pressure is out of range. Text with a lone surrogate is one more, checked there on its own;
+- an id, a colour and an asset name that end with a line break fail it whatever `$` means to the validator's patterns, which the schemas don't rely on;
 - over thousands of documents and commands with one value changed, a reader never accepts what its schema refuses, and refuses what its schema accepts only for those reasons.

@@ -9,6 +9,8 @@ import {
 } from "../../../test/arbitraries/notes.js";
 import { isNotesError } from "../errors/notes-error.js";
 import {
+  NOTES_DOCUMENT_MAX_ITEMS,
+  NOTES_DOCUMENT_MAX_PAGES,
   readNotesNotebookDocument,
   readNotesPageDocument,
   toNotesNotebookDocument,
@@ -106,6 +108,9 @@ const STATE: NotesDocumentState = {
   ]),
 };
 
+/** The codes a command is refused with. */
+const REFUSALS = ["INVALID_COMMAND", "TOO_MANY_PAGES", "TOO_MANY_ITEMS"];
+
 const apply = (state: NotesDocumentState, ...commands: NotesCommand[]): NotesDocumentState =>
   commands.reduce((current, command) => applyNotesCommand(current, command).state, state);
 
@@ -189,14 +194,19 @@ describe("applyNotesCommand", () => {
         fc.oneof(fc.constant(command as unknown), mutated(fc.constant(command))),
       ),
     );
+    let accepted = 0;
     fc.assert(
       fc.property(cases, ([state, value]) => {
-        let next: NotesDocumentState;
-        try {
+        // Only a refusal skips the case: any other error fails it, as `refusal` rethrows it.
+        let next: NotesDocumentState | undefined;
+        const outcome = refusal(() => {
           next = applyNotesCommand(state, readNotesCommandDocument(asJson(value))).state;
-        } catch {
+        });
+        if (next === undefined) {
+          expect(REFUSALS).toContain(outcome?.code);
           return;
         }
+        accepted += 1;
         expect(
           readNotesNotebookDocument(asJson(toNotesNotebookDocument(next.notebook))),
         ).toStrictEqual(next.notebook);
@@ -209,9 +219,27 @@ describe("applyNotesCommand", () => {
       }),
       { numRuns: 600 },
     );
+    // Half the cases are commands made for their state, which must all be accepted and checked.
+    expect(accepted).toBeGreaterThan(200);
   });
 
-  it("checks the limits it's given, and none without them", () => {
+  it("accepts every command made for its state, and keeps the documents readable", () => {
+    // No refusal is expected here, so nothing is caught: an error of any kind fails the test.
+    fc.assert(
+      fc.property(stateAndCommand, ([state, command]) => {
+        const next = applyNotesCommand(state, readNotesCommandDocument(asJson(command))).state;
+        expect(
+          readNotesNotebookDocument(asJson(toNotesNotebookDocument(next.notebook))),
+        ).toStrictEqual(next.notebook);
+        for (const page of next.pages.values()) {
+          expect(readNotesPageDocument(asJson(toNotesPageDocument(page)))).toStrictEqual(page);
+        }
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it("checks the limits it's given, and only the document's own without them", () => {
     const three = [stroke("x"), stroke("y"), stroke("z")];
     const add: NotesCommand = { type: "notes.addItems", page: "c", items: three };
     expect(applyNotesCommand(STATE, add).state.pages.get("c")?.items).toHaveLength(3);
@@ -243,6 +271,156 @@ describe("applyNotesCommand", () => {
         unit: "count",
       });
     }
+  });
+
+  describe("the most a document may hold", () => {
+    // The readers refuse a notebook of more pages and a page of more items, so no command may
+    // make one, whatever the host allows.
+    const hostLimits = [
+      undefined,
+      { maxPages: Number.POSITIVE_INFINITY, maxPageItems: Number.POSITIVE_INFINITY },
+      { maxPages: NOTES_DOCUMENT_MAX_PAGES + 5, maxPageItems: NOTES_DOCUMENT_MAX_ITEMS + 5 },
+      { maxPages: Number.NaN, maxPageItems: Number.NaN },
+    ];
+    const notebookOf = (count: number): NotesDocumentState => ({
+      notebook: {
+        ...NOTEBOOK,
+        outline: [],
+        pages: Array.from({ length: count }, (_, index) => info(`p${index}`)),
+      },
+      pages: new Map(),
+    });
+    const pageOf = (count: number): NotesDocumentState => ({
+      notebook: { ...NOTEBOOK, outline: [], pages: [info("a")] },
+      pages: new Map([
+        ["a", { id: "a", items: Array.from({ length: count }, (_, index) => stroke(`i${index}`)) }],
+      ]),
+    });
+    const newPage = { info: info("new"), items: [] };
+
+    it("holds a notebook to the pages its document may list", () => {
+      const full = notebookOf(NOTES_DOCUMENT_MAX_PAGES);
+      const add: NotesCommand = { type: "notes.addPages", at: 0, pages: [newPage] };
+      const restore: NotesCommand = {
+        type: "notes.restorePages",
+        entries: [{ index: 0, ...newPage }],
+        outline: [],
+      };
+      for (const limits of hostLimits) {
+        for (const command of [add, restore]) {
+          try {
+            applyNotesCommand(full, command, limits);
+            expect.unreachable();
+          } catch (error) {
+            expect(isNotesError(error, "TOO_MANY_PAGES") && error.details).toStrictEqual({
+              limit: "maxPages",
+              maximum: NOTES_DOCUMENT_MAX_PAGES,
+              actual: NOTES_DOCUMENT_MAX_PAGES + 1,
+              unit: "count",
+            });
+          }
+        }
+      }
+      // A notebook exactly as long as its document may be is fine, and still reads.
+      const almost = notebookOf(NOTES_DOCUMENT_MAX_PAGES - 1);
+      for (const command of [add, restore]) {
+        const { notebook } = applyNotesCommand(almost, command).state;
+        expect(notebook.pages).toHaveLength(NOTES_DOCUMENT_MAX_PAGES);
+        expect(readNotesNotebookDocument(toNotesNotebookDocument(notebook)).pages).toHaveLength(
+          NOTES_DOCUMENT_MAX_PAGES,
+        );
+      }
+    });
+
+    it("holds a page to the items its document may list", () => {
+      const full = pageOf(NOTES_DOCUMENT_MAX_ITEMS);
+      const add: NotesCommand = { type: "notes.addItems", page: "a", items: [stroke("new")] };
+      const restore: NotesCommand = {
+        type: "notes.restoreItems",
+        page: "a",
+        entries: [{ index: 0, item: stroke("new") }],
+      };
+      for (const limits of hostLimits) {
+        for (const command of [add, restore]) {
+          try {
+            applyNotesCommand(full, command, limits);
+            expect.unreachable();
+          } catch (error) {
+            expect(isNotesError(error, "TOO_MANY_ITEMS") && error.details).toStrictEqual({
+              limit: "maxPageItems",
+              maximum: NOTES_DOCUMENT_MAX_ITEMS,
+              actual: NOTES_DOCUMENT_MAX_ITEMS + 1,
+              unit: "count",
+            });
+          }
+        }
+      }
+      const almost = pageOf(NOTES_DOCUMENT_MAX_ITEMS - 1);
+      for (const command of [add, restore]) {
+        const page = applyNotesCommand(almost, command).state.pages.get("a");
+        expect(page?.items).toHaveLength(NOTES_DOCUMENT_MAX_ITEMS);
+      }
+    });
+
+    it("holds a page that comes with its items to the same count", () => {
+      const items = pageOf(NOTES_DOCUMENT_MAX_ITEMS + 1).pages.get("a")?.items ?? [];
+      const commands: NotesCommand[] = [
+        { type: "notes.addPages", at: 0, pages: [{ info: info("new"), items }] },
+        {
+          type: "notes.restorePages",
+          entries: [{ index: 0, info: info("new"), items }],
+          outline: [],
+        },
+      ];
+      for (const limits of hostLimits) {
+        for (const command of commands) {
+          expect(refusal(() => applyNotesCommand(notebookOf(1), command, limits))?.code).toBe(
+            "TOO_MANY_ITEMS",
+          );
+        }
+      }
+    });
+  });
+
+  describe("undoing a removal under limits lower than what the notebook holds", () => {
+    // A host may lower its limits after a notebook was made. The notebook still opens, and
+    // deleting from it must stay undoable: the inverse only puts back what was there.
+    const limits = { maxPages: 2, maxPageItems: 1 };
+
+    it("puts a removed page back, with all its items", () => {
+      for (const page of ["a", "c"]) {
+        const removed = applyNotesCommand(
+          STATE,
+          { type: "notes.removePages", pages: [page] },
+          limits,
+        );
+        expect(removed.inverse.type).toBe("notes.restorePages");
+        expect(applyNotesCommand(removed.state, removed.inverse, limits).state).toStrictEqual(
+          STATE,
+        );
+      }
+    });
+
+    it("puts a removed item back", () => {
+      const removed = applyNotesCommand(
+        STATE,
+        { type: "notes.removeItems", page: "a", ids: ["s1"] },
+        limits,
+      );
+      expect(removed.inverse.type).toBe("notes.restoreItems");
+      expect(applyNotesCommand(removed.state, removed.inverse, limits).state).toStrictEqual(STATE);
+    });
+
+    it("still holds a new page and a new item to the limits", () => {
+      const page: NotesCommand = {
+        type: "notes.addPages",
+        at: 0,
+        pages: [{ info: info("d"), items: [] }],
+      };
+      expect(refusal(() => applyNotesCommand(STATE, page, limits))?.code).toBe("TOO_MANY_PAGES");
+      const item: NotesCommand = { type: "notes.addItems", page: "b", items: [stroke("s2")] };
+      expect(refusal(() => applyNotesCommand(STATE, item, limits))?.code).toBe("TOO_MANY_ITEMS");
+    });
   });
 
   it("refuses a command type it doesn't know", () => {
@@ -315,13 +493,26 @@ describe("applyNotesCommand", () => {
       });
     });
 
-    it("refuses a page with more items than the limit, as notes.addPages does", () => {
-      const command = restore({
-        entries: [{ index: 0, info: info("d"), items: [stroke("x"), stroke("y")] }],
-      });
-      expect(
-        refusal(() => applyNotesCommand(STATE, command, { maxPages: 10, maxPageItems: 1 }))?.code,
-      ).toBe("TOO_MANY_ITEMS");
+    it("refuses two outline entries with one id, which the notebook's document couldn't hold", () => {
+      const [first, second] = NOTEBOOK.outline;
+      if (!first || !second) throw new Error("The fixture has two outline entries.");
+      // Without the new entry this is the notebook's own outline, and its page is restored.
+      const outlines = [
+        [first, second, { id: first.id, title: "Again", page: "d" }],
+        [{ id: second.id, title: "Again", page: "d" }, first, second],
+        [
+          first,
+          second,
+          { id: "o3", title: "Once", page: "d" },
+          { id: "o3", title: "Twice", page: "d" },
+        ],
+      ];
+      for (const outline of outlines) {
+        expect(
+          refusal(() => applyNotesCommand(STATE, restore({ outline }))),
+          JSON.stringify(outline),
+        ).toStrictEqual({ code: "INVALID_COMMAND", reason: "duplicate-id" });
+      }
     });
 
     it("refuses an outline its inverse couldn't undo", () => {
@@ -394,6 +585,30 @@ describe("readNotesCommandDocument", () => {
       }),
       { numRuns: 600 },
     );
+  });
+
+  it("refuses text with a lone surrogate, which the conformance vectors can't hold", () => {
+    // The vectors load in any JSON library, so they hold none (docs/formats/conformance.md).
+    const HIGH = "\uD83D";
+    const LOW = "\uDCD3";
+    const textBox = { id: "t2", type: "text", x: 0, y: 0, width: 1_000, size: 1_200 };
+    const commands = (text: string): unknown[] => [
+      { type: "notes.rename", title: text },
+      { type: "notes.setOutline", outline: [{ id: "o1", title: text, page: "a" }] },
+      { type: "notes.addItems", page: "a", items: [{ ...textBox, text, color: "#0b57d0" }] },
+    ];
+    for (const text of [`Lab${LOW}`, HIGH, `a${HIGH}b`, `${LOW}${HIGH}`]) {
+      for (const command of commands(text)) {
+        expect(
+          refusal(() => readNotesCommandDocument(command)),
+          JSON.stringify(command),
+        ).toStrictEqual({ code: "INVALID_COMMAND", reason: "malformed-command" });
+      }
+    }
+    // The pair the right way round is text, and the same commands read.
+    for (const command of commands(`Lab${HIGH}${LOW}`)) {
+      expect(refusal(() => readNotesCommandDocument(command))).toBeUndefined();
+    }
   });
 
   it("never reads through a prototype", () => {

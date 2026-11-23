@@ -1,29 +1,20 @@
 import { VisuallyHidden } from "@hussmartinez/ui/react";
-import { memo, type ReactNode, useEffect, useLayoutEffect, useRef } from "react";
+import { memo, type ReactNode, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import type { NotesItem } from "../../core/model/items.js";
 import type { NotesPageInfo } from "../../core/model/notebook.js";
 import { NOTES_UNITS_PER_POINT } from "../../core/model/portable.js";
+import { pageCanvasSize } from "../canvas/canvas-size.js";
 import type { ImageCache } from "../canvas/image-cache.js";
-import { beginPage, paintItems, paintPaper } from "../canvas/paint.js";
+import { paintPage } from "../canvas/paint.js";
 import type { InkPage } from "./ink-controller.js";
 import type { PdfDocuments } from "./pdf-documents.js";
-
-/** The most pixels one page's canvas holds. Beyond it, the canvas is drawn at a lower density. */
-const MAX_CANVAS_PIXELS = 12_000_000;
-
-/** A canvas's pixel density for a page of a given size in CSS pixels. */
-export function canvasDensity(width: number, height: number): number {
-  const device = typeof devicePixelRatio === "number" ? devicePixelRatio : 1;
-  return Math.max(
-    0.5,
-    Math.min(device, Math.sqrt(MAX_CANVAS_PIXELS / Math.max(1, width * height))),
-  );
-}
 
 export interface PageViewProps {
   readonly info: NotesPageInfo;
   /** The page's items, or `undefined` while they load. */
   readonly items: readonly NotesItem[] | undefined;
+  /** Whether the items couldn't be read: the page isn't busy loading them any more. */
+  readonly failed?: boolean | undefined;
   /** The page's accessible name, such as "Page 3 of 12". */
   readonly label: string;
   /** CSS pixels per PDF point. */
@@ -45,25 +36,44 @@ export interface PageViewProps {
 /**
  * One page on screen: the PDF page under it, if any, the finished ink, and
  * the wet canvas the ink engine draws on while the pen is down
- * (docs/adr/0002). The canvases are hidden from assistive technology; the
- * page's typed text is repeated as real text.
+ * (docs/adr/0002). Once the PDF page is drawn, the ink canvas paints it as
+ * its paper too, so a highlight is multiplied over the PDF's text as it is
+ * in the exported PDF. The canvases are hidden from assistive technology;
+ * the page's typed text is repeated as real text.
  */
 export const PageView = /* @__PURE__ */ memo(function PageView(props: PageViewProps): ReactNode {
   const { info, items, label, pixelsPerPoint, images, imagesVersion, documents, dim, skip } = props;
-  const { register } = props;
+  const { register, failed } = props;
   const element = useRef<HTMLDivElement>(null);
   const ink = useRef<HTMLCanvasElement>(null);
   const wet = useRef<HTMLCanvasElement>(null);
   const background = useRef<HTMLCanvasElement>(null);
   /** What the ink engine asked to show in place of the session's items. */
   const override = useRef<readonly NotesItem[] | undefined>(undefined);
+  /** Whether the PDF page has been drawn, and so can be the ink's paper. */
+  const drawn = useRef(false);
   const latest = useRef({ items, images, dim, skip, info });
 
   const width = (info.width / NOTES_UNITS_PER_POINT) * pixelsPerPoint;
   const height = (info.height / NOTES_UNITS_PER_POINT) * pixelsPerPoint;
-  const density = canvasDensity(width, height);
-  const pixelWidth = Math.max(1, Math.round(width * density));
-  const pixelHeight = Math.max(1, Math.round(height * density));
+  const { width: pixelWidth, height: pixelHeight } = pageCanvasSize(
+    width,
+    height,
+    typeof devicePixelRatio === "number" ? devicePixelRatio : 1,
+  );
+
+  /** Paints the finished ink over its paper, from what was last rendered. */
+  const repaint = useCallback(() => {
+    const context = ink.current?.getContext("2d");
+    if (!context) return;
+    const current = latest.current;
+    paintPage(context, current.info, override.current ?? current.items ?? [], {
+      images: current.images,
+      dim: current.dim,
+      skip: current.skip,
+      backdrop: (drawn.current && background.current) || undefined,
+    });
+  }, []);
 
   // Sized and painted before the browser paints, so a zoom never shows a blank page.
   useLayoutEffect(() => {
@@ -79,14 +89,10 @@ export const PageView = /* @__PURE__ */ memo(function PageView(props: PageViewPr
       overlay.width = pixelWidth;
       overlay.height = pixelHeight;
     }
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    beginPage(context, info);
-    paintPaper(context, info);
-    paintItems(context, override.current ?? items ?? [], { images, dim, skip });
+    repaint();
     // imagesVersion isn't read, but a picture that finished loading must repaint the page.
     void imagesVersion;
-  }, [items, images, imagesVersion, dim, skip, info, pixelWidth, pixelHeight]);
+  }, [items, images, imagesVersion, dim, skip, info, pixelWidth, pixelHeight, repaint]);
 
   useEffect(() => {
     const page = element.current;
@@ -98,20 +104,11 @@ export const PageView = /* @__PURE__ */ memo(function PageView(props: PageViewPr
       wet: overlay,
       paint(next) {
         override.current = next;
-        const context = ink.current?.getContext("2d");
-        if (!context) return;
-        const current = latest.current;
-        beginPage(context, current.info);
-        paintPaper(context, current.info);
-        paintItems(context, next ?? current.items ?? [], {
-          images: current.images,
-          dim: current.dim,
-          skip: current.skip,
-        });
+        repaint();
       },
     });
     return () => register(info.id, undefined);
-  }, [info, register]);
+  }, [info, register, repaint]);
 
   // The PDF page under the ink, drawn again when the zoom settles.
   const pdf = info.background;
@@ -128,7 +125,8 @@ export const PageView = /* @__PURE__ */ memo(function PageView(props: PageViewPr
           const scratch = window.document.createElement("canvas");
           await document.render(pdf.pageIndex, scratch, {
             scale: pixelsPerPoint,
-            pixelRatio: density,
+            // The ink canvas's own density, which the pixel budget may have lowered.
+            pixelRatio: pixelWidth / width,
             signal: abort.signal,
           });
           if (abort.signal.aborted) return;
@@ -136,6 +134,10 @@ export const PageView = /* @__PURE__ */ memo(function PageView(props: PageViewPr
           canvas.height = scratch.height;
           canvas.getContext("2d")?.drawImage(scratch, 0, 0);
           canvas.removeAttribute("data-hm-pending");
+          // The ink is painted again, over the PDF page: highlights blend with it from now on.
+          // A canvas with no pixels can't be painted from.
+          drawn.current = canvas.width > 0 && canvas.height > 0;
+          repaint();
         })
         // A page that can't be drawn keeps its ink on a plain ground.
         .catch(() => undefined);
@@ -144,7 +146,7 @@ export const PageView = /* @__PURE__ */ memo(function PageView(props: PageViewPr
       clearTimeout(timer);
       abort.abort();
     };
-  }, [pdf, documents, pixelsPerPoint, density]);
+  }, [pdf, documents, pixelsPerPoint, pixelWidth, width, repaint]);
 
   return (
     <section
@@ -152,7 +154,7 @@ export const PageView = /* @__PURE__ */ memo(function PageView(props: PageViewPr
       className="hm-notes-page"
       data-hm-notes-page={info.id}
       aria-label={label}
-      aria-busy={items === undefined}
+      aria-busy={items === undefined && !failed}
       style={{ width, height }}
     >
       {pdf ? (

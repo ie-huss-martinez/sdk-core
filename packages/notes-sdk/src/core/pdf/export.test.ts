@@ -12,6 +12,7 @@ import type {
   NotesText,
 } from "../model/items.js";
 import type { NotesPageInfo, NotesTemplate } from "../model/notebook.js";
+import { NOTES_MAX_PAGE_SIDE } from "../model/portable.js";
 import { templateMarks } from "../model/templates.js";
 import {
   type NotesExportImage,
@@ -336,27 +337,58 @@ describe("writeNotesPdf: paper", () => {
     },
   );
 
-  it("dots dotted paper with a filled circle for each of its template's dots", async () => {
+  it("dots dotted paper with one row of filled circles, painted once for each row", async () => {
     const info = pageInfo("dotted", 12_000, 9_000);
     const marks = templateMarks("dotted", info.width, info.height);
-    const { operators } = await exported([page([], true, info)]);
-    const all = operators[0] ?? [];
-    expect(marks.dots.length).toBeGreaterThan(0);
-    expect(lines(all)[4]).toBe("0.7647 0.7961 0.8392 rg");
-    const starts = named(all, "m");
-    expect(starts).toHaveLength(marks.dots.length / 2);
-    expect(named(all, "c")).toHaveLength((marks.dots.length / 2) * 4);
-    expect(named(all, "h")).toHaveLength(marks.dots.length / 2);
-    // Each circle starts at its dot's right side, half the dot's size away.
-    for (const [index, start] of starts.entries()) {
-      expect(start.numbers).toEqual([
-        (marks.dots[index * 2] ?? 0) + marks.dotSize / 2,
-        marks.dots[index * 2 + 1],
-      ]);
-    }
-    // The ground's fill, and one for all the dots.
-    expect(named(all, "f")).toHaveLength(2);
-    expect(named(all, "S")).toHaveLength(0);
+    const { pdf, pages, operators } = await exported([page([], true, info)]);
+    const all = lines(operators[0] ?? []);
+    const columns = [750, 2_250, 3_750, 5_250, 6_750, 8_250, 9_750, 11_250];
+    const rows = [750, 2_250, 3_750, 5_250, 6_750, 8_250];
+    // Every dot of the template, once: each row's place times each column's.
+    expect(rows.flatMap((y) => columns.flatMap((x) => [x, y]))).toEqual(marks.dots);
+    // After the ground: the dots' colour, then the row moved to each of its places.
+    expect(all[4]).toBe("0.7647 0.7961 0.8392 rg");
+    expect(all.slice(5)).toEqual(rows.flatMap((y) => ["q", `1 0 0 1 0 ${y} cm`, "/Fm1 Do", "Q"]));
+    const row = referenced(pdf, pages[0]?.text ?? "", "Fm1");
+    expect(row.text).toBe(
+      `<< /Type /XObject /Subtype /Form /BBox [675 -75 11325 75] /Resources <<>> /Filter /FlateDecode /Length ${row.raw?.length} >>`,
+    );
+    const drawn = operatorsOf(Buffer.from(row.data ?? []).toString("latin1"));
+    // A circle for each column, on the row's own line, starting at its right
+    // side, half the dot's size away. One fill for them all.
+    expect(named(drawn, "m").map((start) => start.numbers)).toEqual(
+      columns.map((x) => [x + marks.dotSize / 2, 0]),
+    );
+    expect(named(drawn, "c")).toHaveLength(columns.length * 4);
+    expect(named(drawn, "h")).toHaveLength(columns.length);
+    expect(lines(drawn).at(-1)).toBe("f");
+    expect(named(drawn, "f")).toHaveLength(1);
+  });
+
+  it("writes the row of dots once for pages of one width, and again for another", async () => {
+    const { pdf, pages } = await exported([
+      page([], true, pageInfo("dotted", 12_000, 9_000)),
+      page([], true, pageInfo("dotted", 12_000, 30_000)),
+      page([], true, pageInfo("dotted", 13_000, 9_000)),
+      page([], true, pageInfo("lined", 12_000, 9_000)),
+    ]);
+    const rowOf = (index: number): number => referenced(pdf, pages[index]?.text ?? "", "Fm\\d+").id;
+    expect(rowOf(1)).toBe(rowOf(0));
+    expect(rowOf(2)).not.toBe(rowOf(0));
+    expect(pages[0]?.text).toContain("/XObject << /Fm1 ");
+    expect(pages[2]?.text).toContain("/XObject << /Fm2 ");
+    expect(pages[3]?.text).not.toContain("/XObject");
+    const forms = [...pdf.objects.values()].filter((each) => each.text.includes("/Subtype /Form"));
+    expect(forms).toHaveLength(2);
+  });
+
+  it("keeps the largest dotted page a document may hold small", async () => {
+    // 960 rows of 960 dots: 921,600 dots, written as one row and its 960 places.
+    const info = pageInfo("dotted", NOTES_MAX_PAGE_SIDE, NOTES_MAX_PAGE_SIDE);
+    const { bytes, operators } = await exported([page([], true, info)]);
+    expect(named(operators[0] ?? [], "Do")).toHaveLength(960);
+    expect(operators[0]?.length).toBeLessThan(4_000);
+    expect(bytes.length).toBeLessThan(200_000);
   });
 
   it("draws no marks on blank paper", async () => {

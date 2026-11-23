@@ -1,4 +1,4 @@
-import { useLatest } from "@hussmartinez/ui/react";
+import { Button, useLatest } from "@hussmartinez/ui/react";
 import {
   forwardRef,
   type ReactNode,
@@ -18,6 +18,7 @@ import type { NotesSession, NotesSessionSnapshot } from "../../core/session/note
 import type { NotesInkSettings } from "../../features/tool-types.js";
 import type { ImageCache } from "../canvas/image-cache.js";
 import { textHeight } from "../canvas/text-layout.js";
+import { useNotes } from "../context.js";
 import { attachInk, type InkPage, type NotesSelection } from "./ink-controller.js";
 import { PageView } from "./PageView.js";
 import type { PdfDocuments } from "./pdf-documents.js";
@@ -29,8 +30,16 @@ export const MAX_ZOOM = 5;
 /** The space around and between pages, in CSS pixels. */
 const GAP = 16;
 
+/** No page: the pages whose contents couldn't be read, when every read worked. */
+const NONE: ReadonlySet<string> = new Set();
+
 /** What the notebook view asks of the viewport. */
 export interface PagesViewportHandle {
+  /**
+   * Brings a page to the top of the view, and makes it the current page
+   * until the user scrolls away: a page shorter than a third of the view
+   * isn't the one the reader's line falls on.
+   */
   scrollToPage(id: string): void;
   /** Changes the zoom about the middle of the view. */
   zoomBy(factor: number): void;
@@ -96,6 +105,19 @@ function layoutPages(pages: readonly NotesPageInfo[], viewWidth: number, zoom: n
   return { pixelsPerPoint, width, height: top, boxes };
 }
 
+/** What a page whose contents couldn't be read shows in their place: why, and a way to try again. */
+function PageFailure({ onRetry }: { readonly onRetry: () => void }): ReactNode {
+  const { messages } = useNotes();
+  return (
+    <div className="hm-notes-page-failure" data-hm-notes-control="">
+      <p className="hm-notes-page-failure-text">{messages.t("notebook.pageFailed")}</p>
+      <Button size="small" onClick={onRetry}>
+        {messages.t("notebook.retryPage")}
+      </Button>
+    </div>
+  );
+}
+
 /**
  * The pages of an open notebook, in a scrolling column: only the pages near
  * the view are mounted, the ink engine listens here, and zoom keeps the
@@ -110,6 +132,15 @@ export const PagesViewport = /* @__PURE__ */ forwardRef<PagesViewportHandle, Pag
     const mounted = useRef(new Map<string, InkPage>());
     const [view, setView] = useState({ width: 0, height: 0 });
     const [range, setRange] = useState({ first: 0, last: 0 });
+    /** The pages near the view whose contents couldn't be read. They aren't read again unasked. */
+    const [failed, setFailed] = useState(NONE);
+    /** The pages being read, so one failure is reported once. */
+    const reading = useRef(new Set<string>());
+    /**
+     * The page a jump asked for. It stays the current page while it shows,
+     * until the user scrolls: `released` once the user has touched the view.
+     */
+    const pin = useRef<{ readonly page: string; released: boolean } | undefined>(undefined);
     /** The point to keep still when the zoom changes: a place on a page, and where it was on screen. */
     const anchor = useRef<
       { page: string; fx: number; fy: number; clientX: number; clientY: number } | undefined
@@ -146,11 +177,31 @@ export const PagesViewport = /* @__PURE__ */ forwardRef<PagesViewportHandle, Pag
       setRange((current) =>
         current.first === first && current.last === last ? current : { first, last },
       );
+      const pages = latest.current.snapshot.notebook.pages;
+      // A page that failed and has left the view is read again when it comes back.
+      setFailed((current) => {
+        if (current.size === 0) return current;
+        const near = new Set(pages.slice(first, last + 1).map((page) => page.id));
+        const kept = [...current].filter((id) => near.has(id));
+        return kept.length === current.size ? current : new Set(kept);
+      });
       // The reader is on the page a third of the way down the view.
       const line = element.scrollTop + element.clientHeight / 3;
-      const index = boxes.findIndex((box) => box.top + box.height + GAP / 2 >= line);
-      const pages = latest.current.snapshot.notebook.pages;
-      const current = pages[index === -1 ? pages.length - 1 : index];
+      let index = boxes.findIndex((box) => box.top + box.height + GAP / 2 >= line);
+      if (index === -1) index = pages.length - 1;
+      // Unless a jump asked for a page that still shows: it may be too short to reach that line.
+      const held = pin.current;
+      if (held) {
+        const at = pages.findIndex((page) => page.id === held.page);
+        const box = boxes[at];
+        const shows =
+          box !== undefined &&
+          box.top < element.scrollTop + element.clientHeight &&
+          box.top + box.height > element.scrollTop;
+        if (shows) index = at;
+        else pin.current = undefined;
+      }
+      const current = pages[index];
       if (current) latest.current.onCurrentPageChange(current.id);
     }, [latest, latestLayout]);
 
@@ -165,10 +216,15 @@ export const PagesViewport = /* @__PURE__ */ forwardRef<PagesViewportHandle, Pag
             : { width: element.clientWidth, height: element.clientHeight },
         );
       update();
-      const observer = new ResizeObserver(update);
+      const observer = new ResizeObserver(() => {
+        update();
+        // A view that only grew taller has the same layout and didn't scroll,
+        // yet shows pages it didn't: they're found here.
+        measure();
+      });
       observer.observe(element);
       return () => observer.disconnect();
-    }, []);
+    }, [measure]);
 
     // After a zoom, the anchored point goes back under the fingers.
     useLayoutEffect(() => {
@@ -194,6 +250,8 @@ export const PagesViewport = /* @__PURE__ */ forwardRef<PagesViewportHandle, Pag
       if (!element) return;
       let frame = 0;
       const onScroll = () => {
+        // A scroll after the user touched the view is theirs: the page a jump pinned is let go.
+        if (pin.current?.released) pin.current = undefined;
         if (frame === 0) {
           frame = requestAnimationFrame(() => {
             frame = 0;
@@ -201,9 +259,20 @@ export const PagesViewport = /* @__PURE__ */ forwardRef<PagesViewportHandle, Pag
           });
         }
       };
+      // What a user scrolls with: the wheel, a finger or a pen, the scrollbar under a
+      // pointer, and the keys. A jump's own scroll follows none of them.
+      const release = () => {
+        if (pin.current) pin.current.released = true;
+      };
       element.addEventListener("scroll", onScroll, { passive: true });
+      element.addEventListener("wheel", release, { passive: true });
+      element.addEventListener("pointerdown", release);
+      element.addEventListener("keydown", release);
       return () => {
         element.removeEventListener("scroll", onScroll);
+        element.removeEventListener("wheel", release);
+        element.removeEventListener("pointerdown", release);
+        element.removeEventListener("keydown", release);
         if (frame !== 0) cancelAnimationFrame(frame);
       };
     }, [measure]);
@@ -284,7 +353,9 @@ export const PagesViewport = /* @__PURE__ */ forwardRef<PagesViewportHandle, Pag
           const element = viewport.current;
           const index = latest.current.snapshot.notebook.pages.findIndex((page) => page.id === id);
           const box = latestLayout.current.boxes[index];
-          if (element && box) element.scrollTop = box.top - GAP;
+          if (!element || !box) return;
+          pin.current = { page: id, released: false };
+          element.scrollTop = box.top - GAP;
         },
         zoomBy(factor) {
           const element = viewport.current;
@@ -302,13 +373,35 @@ export const PagesViewport = /* @__PURE__ */ forwardRef<PagesViewportHandle, Pag
     const first = Math.min(range.first, Math.max(0, notebook.pages.length - 1));
     const last = Math.min(range.last, notebook.pages.length - 1);
     const visible = notebook.pages.slice(first, last + 1);
+    const near = useLatest(visible);
     useEffect(() => {
-      for (const page of visible) {
-        if (!snapshot.pages.has(page.id)) {
-          session.loadPage(page.id).catch((error: unknown) => latest.current.onError(error));
-        }
+      for (const { id } of visible) {
+        // A page that failed waits to be asked for again, by leaving the view
+        // and coming back or by its "Try again": reading it on every render
+        // would never stop, since each failure renders the notebook again.
+        if (snapshot.pages.has(id) || failed.has(id) || reading.current.has(id)) continue;
+        reading.current.add(id);
+        session.loadPage(id).then(
+          () => {
+            reading.current.delete(id);
+          },
+          (error: unknown) => {
+            reading.current.delete(id);
+            // Out of view by now, it's simply read again when it comes back.
+            if (near.current.some((page) => page.id === id)) {
+              setFailed((current) => new Set(current).add(id));
+            }
+            latest.current.onError(error);
+          },
+        );
       }
     });
+
+    const retry = (id: string) => {
+      setFailed((current) => new Set([...current].filter((other) => other !== id)));
+      // The control goes away with the failure: focus stays in the notebook, on the pages.
+      viewport.current?.focus();
+    };
 
     return (
       <section
@@ -328,6 +421,8 @@ export const PagesViewport = /* @__PURE__ */ forwardRef<PagesViewportHandle, Pag
             const index = first + offset;
             const box = layout.boxes[index];
             if (!box) return null;
+            // Read since by something else, such as the sidebar, it's no failure any more.
+            const unread = failed.has(info.id) && !snapshot.pages.has(info.id);
             return (
               <div
                 key={info.id}
@@ -337,6 +432,7 @@ export const PagesViewport = /* @__PURE__ */ forwardRef<PagesViewportHandle, Pag
                 <PageView
                   info={info}
                   items={snapshot.pages.get(info.id)?.items}
+                  failed={unread}
                   label={props.pageLabel(index + 1, notebook.pages.length)}
                   pixelsPerPoint={layout.pixelsPerPoint}
                   images={images}
@@ -346,6 +442,7 @@ export const PagesViewport = /* @__PURE__ */ forwardRef<PagesViewportHandle, Pag
                   skip={skip?.page === info.id ? skip.ids : undefined}
                   register={register}
                 >
+                  {unread ? <PageFailure onRetry={() => retry(info.id)} /> : null}
                   {props.renderOverlay(info, layout.pixelsPerPoint)}
                 </PageView>
               </div>

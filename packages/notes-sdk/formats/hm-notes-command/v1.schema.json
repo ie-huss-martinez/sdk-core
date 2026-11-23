@@ -262,7 +262,8 @@
     "id": {
       "description": "An identifier: 1 to 64 characters from A-Z, a-z, 0-9, _ and -.",
       "type": "string",
-      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+      "pattern": "^[A-Za-z0-9_-]{1,64}$",
+      "not": { "pattern": "[^A-Za-z0-9_-]" }
     },
     "index": {
       "description": "A zero-based position in a list.",

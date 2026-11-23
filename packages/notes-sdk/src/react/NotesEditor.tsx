@@ -91,9 +91,15 @@ export interface NotesEditorProps extends Omit<NotesProviderProps, "children"> {
 export interface NotesEditorHandle {
   /** The editor's library, for anything beyond the handle's own methods. */
   readonly library: NotesLibrary;
-  /** Opens a notebook, saving and closing the one that's open. */
+  /**
+   * Opens a notebook, saving and closing the one that's open. If that one
+   * can't be saved, it stays open and the call rejects.
+   */
   open(notebook: string): Promise<void>;
-  /** Saves the open notebook and goes back to the library. */
+  /**
+   * Saves the open notebook and goes back to the library. If it can't be
+   * saved, it stays open and the call rejects.
+   */
   close(): Promise<void>;
 }
 
@@ -116,6 +122,10 @@ const NotesEditorShell = /* @__PURE__ */ forwardRef<NotesEditorHandle, Shell>(
     }));
     const current = useRef<NotesSession | undefined>(undefined);
     const viewChanged = useRef(onViewChange);
+    /** Whether the editor is on the page: a notebook that opens after it left is closed again. */
+    const mounted = useRef(false);
+    /** The last change of notebook asked for: each waits for the one before. */
+    const transitions = useRef<Promise<unknown>>(Promise.resolve());
 
     useEffect(() => {
       viewChanged.current = onViewChange;
@@ -127,13 +137,23 @@ const NotesEditorShell = /* @__PURE__ */ forwardRef<NotesEditorHandle, Shell>(
       });
     }, [library]);
 
-    // A notebook left open when the editor goes away is saved and released.
-    useEffect(
-      () => () => {
-        void current.current?.close().catch(() => undefined);
-      },
-      [],
-    );
+    // A notebook left open when the editor goes away is saved and released,
+    // even if the save fails: nothing is left on the page to try it again.
+    useEffect(() => {
+      mounted.current = true;
+      return () => {
+        mounted.current = false;
+        void current.current?.close({ discard: true }).catch(() => undefined);
+        current.current = undefined;
+      };
+    }, []);
+
+    /** Runs one change of notebook after the ones asked for before it, so two never overlap. */
+    const inTurn = useCallback(<Result,>(work: () => Promise<Result>): Promise<Result> => {
+      const run = transitions.current.then(work);
+      transitions.current = run.catch(() => undefined);
+      return run;
+    }, []);
 
     const show = useCallback((session: NotesSession | undefined, page?: string) => {
       const before = current.current;
@@ -148,29 +168,41 @@ const NotesEditorShell = /* @__PURE__ */ forwardRef<NotesEditorHandle, Shell>(
     }, []);
 
     const openNotebook = useCallback(
-      async (notebook: string, page?: string) => {
-        setError(undefined);
-        setOpening(true);
-        try {
-          if (current.current) {
-            await current.current.close();
-            show(undefined);
+      (notebook: string, page?: string) =>
+        inTurn(async () => {
+          setError(undefined);
+          setOpening(true);
+          try {
+            if (current.current) {
+              // If its save fails it stays open, and this call rejects.
+              await current.current.close();
+              show(undefined);
+            }
+            const session = await library.open(notebook);
+            if (!mounted.current) {
+              // The editor went away meanwhile: nobody is left to close it.
+              await session.close({ discard: true }).catch(() => undefined);
+              return;
+            }
+            show(session, page);
+          } catch (reason) {
+            setError(asNotesError(reason));
+            throw reason;
+          } finally {
+            setOpening(false);
           }
-          show(await library.open(notebook), page);
-        } catch (reason) {
-          setError(asNotesError(reason));
-          throw reason;
-        } finally {
-          setOpening(false);
-        }
-      },
-      [library, show],
+        }),
+      [inTurn, library, show],
     );
 
-    const closeNotebook = useCallback(async () => {
-      await current.current?.close();
-      show(undefined);
-    }, [show]);
+    const closeNotebook = useCallback(
+      () =>
+        inTurn(async () => {
+          await current.current?.close();
+          show(undefined);
+        }),
+      [inTurn, show],
+    );
 
     useImperativeHandle(
       handle,

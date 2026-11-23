@@ -34,6 +34,7 @@ import type {
   NotesToolState,
 } from "../../features/tool-types.js";
 import { DEFAULT_TOOLBAR, notesTools } from "../../features/tools.js";
+import { ConfirmDialog } from "../ConfirmDialog.js";
 import { createExportPorts } from "../canvas/export-ports.js";
 import { createImageCache } from "../canvas/image-cache.js";
 import { useNotes } from "../context.js";
@@ -67,6 +68,14 @@ export interface NotesNotebookProps {
   readonly tools?: readonly string[] | undefined;
   /** The toolbar's groups of tool ids. The default arrangement, when omitted. */
   readonly toolbar?: readonly (readonly string[])[] | undefined;
+}
+
+/** A recording that has stopped, until it's stored with the notebook. */
+interface StoppedRecording {
+  readonly id: string;
+  readonly startedAt: number;
+  readonly audio: Blob;
+  readonly duration: number;
 }
 
 /** A text box being typed: an existing one, or a new one that isn't on the page yet. */
@@ -116,7 +125,14 @@ export function NotesNotebook(props: NotesNotebookProps): ReactNode {
   const [recording, setRecording] = useState<
     { id: string; session: NotesRecorderSession } | undefined
   >(undefined);
+  // What was recorded and couldn't be stored: kept, so storing it can be tried again.
+  const [unsaved, setUnsaved] = useState<StoppedRecording | undefined>(undefined);
+  const stopping = useRef<Promise<boolean> | undefined>(undefined);
+  const [confirmingClose, setConfirmingClose] = useState(false);
   const [playback, setPlayback] = useState<NotesPlayback | undefined>(undefined);
+  const playbackUrl = useRef<string | undefined>(undefined);
+  /** Counts the choices of what to play: a recording read for an earlier choice is dropped. */
+  const playbackRequest = useRef(0);
   const [imagesVersion, setImagesVersion] = useState(0);
   const selectedItems = useMemo(() => {
     if (!selection) return [];
@@ -125,7 +141,14 @@ export function NotesNotebook(props: NotesNotebookProps): ReactNode {
   }, [selection, snapshot.pages]);
   // A selection whose items are gone, after an undo for instance, is no selection.
   const active = selection && selectedItems.length > 0 ? selection : undefined;
-  const latestRef = useLatest({ settings, snapshot, currentPage, selection: active, recording });
+  const latestRef = useLatest({
+    settings,
+    snapshot,
+    currentPage,
+    selection: active,
+    recording,
+    unsaved,
+  });
 
   const images = useMemo(
     () =>
@@ -139,13 +162,9 @@ export function NotesNotebook(props: NotesNotebookProps): ReactNode {
     () => createPdfDocuments(pdf, (reference) => session.readAsset(reference)),
     [pdf, session],
   );
-  useEffect(
-    () => () => {
-      images.dispose();
-      documents.dispose();
-    },
-    [images, documents],
-  );
+  // Each on its own: a new PDF engine mustn't close the pictures still in use.
+  useEffect(() => () => images.dispose(), [images]);
+  useEffect(() => () => documents.dispose(), [documents]);
 
   const fail = useCallback((reason: unknown) => {
     const failure = asNotesError(reason);
@@ -320,33 +339,76 @@ export function NotesNotebook(props: NotesNotebookProps): ReactNode {
       .finally(() => setExporting(undefined));
   }, [announce, fail, images, latestRef, library, messages, saveFile, session]);
 
-  const stopRecording = useCallback(async () => {
-    const current = latestRef.current.recording;
-    if (!current) return;
-    setRecording(undefined);
-    try {
-      const result = await current.session.stop();
-      const reference = await session.addAsset(result.audio, result.audio.type);
-      session.execute({
-        type: "notes.setRecordings",
-        recordings: [
-          ...session.getSnapshot().notebook.recordings,
-          {
+  /** Stores a stopped recording with the notebook. Resolves to whether it's stored. */
+  const storeRecording = useCallback(
+    async (stopped: StoppedRecording): Promise<boolean> => {
+      try {
+        const reference = await session.addAsset(stopped.audio, stopped.audio.type);
+        session.execute({
+          type: "notes.setRecordings",
+          recordings: [
+            ...session.getSnapshot().notebook.recordings,
+            {
+              id: stopped.id,
+              audio: reference,
+              startedAt: stopped.startedAt,
+              duration: stopped.duration,
+            },
+          ],
+        });
+        setUnsaved(undefined);
+        announce(messages.t("recordings.stopped"));
+        return true;
+      } catch (reason) {
+        // The sound is all there is of it: it stays here until it can be stored.
+        setUnsaved(stopped);
+        fail(reason);
+        return false;
+      }
+    },
+    [announce, fail, messages, session],
+  );
+
+  /**
+   * Stops the recording and stores it, or stores one that couldn't be
+   * stored before. Resolves to whether nothing recorded is left unstored.
+   * A second call while one runs waits for the same result.
+   */
+  const stopRecording = useCallback((): Promise<boolean> => {
+    if (stopping.current) return stopping.current;
+    const { recording: current, unsaved: kept } = latestRef.current;
+    if (!current && !kept) return Promise.resolve(true);
+    const run = (async () => {
+      let stopped = kept;
+      if (current) {
+        setRecording(undefined);
+        try {
+          const result = await current.session.stop();
+          stopped = {
             id: current.id,
-            audio: reference,
             startedAt: current.session.startedAt,
+            audio: result.audio,
             duration: result.duration,
-          },
-        ],
-      });
-      announce(messages.t("recordings.stopped"));
-    } catch (reason) {
-      fail(reason);
-    }
-  }, [announce, fail, latestRef, messages, session]);
+          };
+        } catch (reason) {
+          // Nothing was captured, so there's nothing to keep.
+          fail(reason);
+          return true;
+        }
+      }
+      return stopped ? storeRecording(stopped) : true;
+    })();
+    stopping.current = run;
+    void run.finally(() => {
+      stopping.current = undefined;
+    });
+    return run;
+  }, [fail, latestRef, storeRecording]);
 
   const toggleRecording = useCallback(() => {
-    if (latestRef.current.recording) {
+    const { recording: current, unsaved: kept } = latestRef.current;
+    // One recording at a time: the one waiting to be stored goes first.
+    if (current || kept || stopping.current) {
       void stopRecording();
       return;
     }
@@ -359,18 +421,22 @@ export function NotesNotebook(props: NotesNotebookProps): ReactNode {
       .catch(fail);
   }, [announce, fail, latestRef, messages, newId, recorder, stopRecording]);
 
-  const close = useCallback(() => {
-    void (async () => {
-      await stopRecording();
+  const closeNow = useCallback(
+    async (discard: boolean) => {
+      // The recording first, whether it's still running or already being stored.
+      const stored = await stopRecording();
+      // The notebook stays open, with what couldn't be stored, until it can be.
+      if (!stored && !discard) return;
       try {
-        await session.close();
+        await session.close(discard ? { discard: true } : {});
         onClose();
       } catch (reason) {
-        // The notebook stays open, with its changes, until they can be saved.
         fail(reason);
       }
-    })();
-  }, [fail, onClose, session, stopRecording]);
+    },
+    [fail, onClose, session, stopRecording],
+  );
+  const close = useCallback(() => void closeNow(false), [closeNow]);
 
   /** Searches this notebook, after saving it, so text typed a moment ago is found. */
   const notebookId = notebook.id;
@@ -512,7 +578,8 @@ export function NotesNotebook(props: NotesNotebookProps): ReactNode {
   const finishText = (text: string) => {
     const current = editing;
     if (!current) return;
-    setEditing(undefined);
+    // A box that commits as it unmounts mustn't close the one opened after it.
+    setEditing((now) => (now === current ? undefined : now));
     const cut = [...text].slice(0, NOTES_MAX_TEXT_LENGTH).join("");
     const empty = cut.trim() === "";
     execute(() => {
@@ -557,6 +624,13 @@ export function NotesNotebook(props: NotesNotebookProps): ReactNode {
 
   // --- Playback ---
 
+  const releasePlayback = useCallback(() => {
+    // Any recording still being read is no longer wanted.
+    playbackRequest.current += 1;
+    if (playbackUrl.current !== undefined) URL.revokeObjectURL(playbackUrl.current);
+    playbackUrl.current = undefined;
+  }, []);
+
   const togglePlayback = (id: string) => {
     const element = audio.current;
     const entry = notebook.recordings.find((item) => item.id === id);
@@ -566,11 +640,17 @@ export function NotesNotebook(props: NotesNotebookProps): ReactNode {
       else element.pause();
       return;
     }
+    playbackRequest.current += 1;
+    const request = playbackRequest.current;
     void session
       .readAsset(entry.audio)
       .then((blob) => {
-        if (element.src) URL.revokeObjectURL(element.src);
-        element.src = URL.createObjectURL(blob);
+        // A later choice, or the recording's deletion, makes this one stale.
+        const kept = session.getSnapshot().notebook.recordings.some((item) => item.id === id);
+        if (request !== playbackRequest.current || !kept) return undefined;
+        releasePlayback();
+        playbackUrl.current = URL.createObjectURL(blob);
+        element.src = playbackUrl.current;
         setPlayback({ recording: id, playing: false, time: 0 });
         return element.play();
       })
@@ -579,17 +659,19 @@ export function NotesNotebook(props: NotesNotebookProps): ReactNode {
 
   const stopPlayback = useCallback(() => {
     const element = audio.current;
-    if (element?.src) {
+    if (element) {
       element.pause();
-      URL.revokeObjectURL(element.src);
       element.removeAttribute("src");
     }
+    releasePlayback();
     setPlayback(undefined);
-  }, []);
-  useEffect(() => stopPlayback, [stopPlayback]);
+  }, [releasePlayback]);
+  // The address is released on unmount too, when the audio element is already gone.
+  useEffect(() => releasePlayback, [releasePlayback]);
 
   const deleteRecording = (id: string) => {
-    if (playback?.recording === id) stopPlayback();
+    // Also when it's still being read, so it never starts playing after it's gone.
+    stopPlayback();
     execute(() =>
       session.execute({
         type: "notes.setRecordings",
@@ -702,6 +784,22 @@ export function NotesNotebook(props: NotesNotebookProps): ReactNode {
           {recording ? (
             <Button size="small" variant="danger" onClick={() => void stopRecording()}>
               {messages.t("recordings.stop")}
+            </Button>
+          ) : null}
+          {unsaved && !recording ? (
+            <>
+              <span className="hm-notes-notebook-unsaved" role="status">
+                {messages.t("recordings.unsaved")}
+              </span>
+              <Button size="small" onClick={() => void stopRecording()}>
+                {messages.t("recordings.saveAgain")}
+              </Button>
+            </>
+          ) : null}
+          {/* The way out when the storage won't take the changes at all. */}
+          {snapshot.saveState === "failed" || (unsaved && !recording) ? (
+            <Button size="small" variant="quiet" onClick={() => setConfirmingClose(true)}>
+              {messages.t("notebook.closeUnsaved")}
             </Button>
           ) : null}
         </div>
@@ -820,6 +918,19 @@ export function NotesNotebook(props: NotesNotebookProps): ReactNode {
         aria-hidden="true"
         onChange={onImageChosen}
       />
+      {confirmingClose ? (
+        <ConfirmDialog
+          open
+          title={messages.t("notebook.closeUnsavedTitle")}
+          body={messages.t("notebook.closeUnsavedBody")}
+          action={messages.t("notebook.closeUnsaved")}
+          onClose={() => setConfirmingClose(false)}
+          onConfirm={() => {
+            setConfirmingClose(false);
+            void closeNow(true);
+          }}
+        />
+      ) : null}
       {linking ? (
         <LinkDialog
           open

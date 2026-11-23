@@ -8,6 +8,10 @@ const entry = (page: string, typed: string, pdf?: string) => ({
   ...(pdf === undefined ? {} : { pdf }),
 });
 
+/** Whether a string has no half of a surrogate pair on its own. */
+const wellFormed = (value: string) =>
+  !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(value);
+
 describe("searchPageTexts", () => {
   it("finds a query in typed text and in a PDF's text, each as its own hit", () => {
     const hits = searchPageTexts(
@@ -38,6 +42,24 @@ describe("searchPageTexts", () => {
     expect(hit?.snippet).toContain("the needle is here");
     expect(hit?.snippet.startsWith(" ")).toBe(false);
     expect(hit?.snippet.slice(hit.matchStart, hit.matchStart + hit.matchLength)).toBe("needle");
+  });
+
+  it("folds case the same way on both sides, as for a final sigma and a sharp s", () => {
+    // Lowercase writes the last sigma of a word differently from a lone one.
+    expect(searchPageTexts([entry("p1", "\u039F\u03A3")], "\u03A3")).toHaveLength(1);
+    expect(searchPageTexts([entry("p1", "\u03BF\u03C2")], "\u03C3")).toHaveLength(1);
+    expect(searchPageTexts([entry("p1", "Stra\u00DFe")], "STRASSE")).toHaveLength(1);
+  });
+
+  it("never cuts a snippet through the middle of a character", () => {
+    const [before] = searchPageTexts([entry("p1", `\u{1F600}${"x".repeat(39)}needle`)], "needle");
+    expect(wellFormed(before?.snippet ?? "")).toBe(true);
+    expect(before?.snippet.slice(before.matchStart, before.matchStart + 6)).toBe("needle");
+    const [after] = searchPageTexts(
+      [entry("p1", `needle${"x".repeat(39)}\u{1F600}tail`)],
+      "needle",
+    );
+    expect(wellFormed(after?.snippet ?? "")).toBe(true);
   });
 
   it("finds nothing for an empty query", () => {

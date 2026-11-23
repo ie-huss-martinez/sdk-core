@@ -165,13 +165,23 @@ export interface NotesLibrary {
   importPdf(file: Blob, options: NotesImportOptions): Promise<string>;
   /** Copies a notebook, with its pages and files, and resolves to the copy's id. */
   duplicateNotebook(id: string, title: string): Promise<string>;
+  /**
+   * Renames a notebook that isn't open. Rejects with `NOTEBOOK_IN_USE` while
+   * it is: an open notebook is renamed with the `notes.rename` command.
+   */
   renameNotebook(id: string, title: string): Promise<void>;
+  /** Changes a notebook's cover. Rejects with `NOTEBOOK_IN_USE` while it's open. */
   setNotebookCover(id: string, cover: NotesCover): Promise<void>;
   moveNotebook(id: string, folder: string | null): Promise<void>;
   /** Moves a notebook to the bin, from where it can be restored. */
   binNotebook(id: string): Promise<void>;
   restoreNotebook(id: string): Promise<void>;
-  /** Deletes a notebook for good. This can't be undone. */
+  /**
+   * Deletes a notebook for good. This can't be undone. Rejects with
+   * `NOTEBOOK_IN_USE` while it's open, here or in another tab. If the
+   * storage fails part way, the notebook stays in the bin, and the call can
+   * be made again.
+   */
   deleteNotebook(id: string): Promise<void>;
 
   /** Creates a folder, and resolves to its id. */
@@ -208,15 +218,40 @@ export interface NotesLibrary {
 
   /** Asks the browser to keep the storage, and resolves to whether it will. */
   requestPersistence(): Promise<boolean>;
-  /** Stops listening to the store. Open sessions are closed by their owners. */
-  close(): void;
+  /**
+   * Stops listening to the store, after closing the notebooks still open:
+   * each is saved, and given back even if its save fails. Resolves once the
+   * store is no longer written to.
+   */
+  close(): Promise<void>;
 }
 
 /** How long notebooks may go without a backup before the library says so: two weeks. */
 const BACKUP_REMINDER = 14 * 24 * 60 * 60 * 1000;
 
+/** The longest a timer can wait, in milliseconds. */
+const MAX_TIMER_DELAY = 0x7fffffff;
+
 const notFound = (kind: "notebook" | "folder") =>
   new NotesError("NOT_FOUND", `The library has no such ${kind}.`, { details: { kind } });
+
+const inUse = () => new NotesError("NOTEBOOK_IN_USE", "The notebook is open.");
+
+/** `folder` if the index still has it, and the top if it's gone. */
+const folderIn = (index: NotesLibraryIndex, folder: string | null): string | null =>
+  folder !== null && index.folders.some((entry) => entry.id === folder) ? folder : null;
+
+/** The index with a notebook listed once, in the folder asked for if it's still there. */
+const withNotebook = (
+  index: NotesLibraryIndex,
+  summary: NotesNotebookSummary,
+): NotesLibraryIndex => ({
+  ...index,
+  notebooks: [
+    ...index.notebooks.filter((notebook) => notebook.id !== summary.id),
+    { ...summary, folder: folderIn(index, summary.folder) },
+  ],
+});
 
 /** A title or a name within the model's length, or a refusal. */
 function titled(value: string): string {
@@ -257,7 +292,8 @@ const clampSide = (units: number) =>
   Math.min(NOTES_MAX_PAGE_SIDE, Math.max(NOTES_MIN_PAGE_SIDE, units));
 
 /**
- * Creates a library over a store. Nothing is read until `load()`.
+ * Creates a library over a store. Nothing is read or listened to until
+ * `load()`.
  *
  * @example
  * ```ts
@@ -270,7 +306,15 @@ const clampSide = (units: number) =>
  * @public
  */
 export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
-  const { store, pdf, onEvent } = options;
+  const { store, pdf } = options;
+  /** Tells the host. What its analytics throws never fails what was done. */
+  const emit = (event: NotesLibraryEvent): void => {
+    try {
+      options.onEvent?.(event);
+    } catch {
+      // An analytics failure isn't the library's.
+    }
+  };
   const now = options.now ?? Date.now;
   const newId = options.newId ?? createNotesId;
   const policy: NotesFilePolicy = notesLimits.resolve(options.filePolicy);
@@ -283,29 +327,58 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
     backupDue: false,
   });
 
-  /** Whether notebooks have gone without a backup for longer than the reminder waits. */
-  const backupDue = (current: NotesLibraryIndex): boolean => {
+  /**
+   * When notebooks changed since the last backup will have gone without one
+   * for as long as the reminder waits. `undefined` when nothing waits for a
+   * backup.
+   */
+  const backupDueAt = (current: NotesLibraryIndex): number | undefined => {
     const live = current.notebooks.filter((notebook) => notebook.deletedAt === null);
-    if (live.length === 0 || current.lastChangeAt === null) return false;
+    if (live.length === 0 || current.lastChangeAt === null) return undefined;
     if (current.lastBackupAt === null) {
-      const oldest = Math.min(...live.map((notebook) => notebook.createdAt));
-      return now() - oldest > BACKUP_REMINDER;
+      return Math.min(...live.map((notebook) => notebook.createdAt)) + BACKUP_REMINDER;
     }
-    return (
-      current.lastChangeAt > current.lastBackupAt && now() - current.lastBackupAt > BACKUP_REMINDER
-    );
+    return current.lastChangeAt > current.lastBackupAt
+      ? current.lastBackupAt + BACKUP_REMINDER
+      : undefined;
   };
-  const sessions = new Set<NotesSession>();
+  const backupDue = (current: NotesLibraryIndex): boolean => {
+    const at = backupDueAt(current);
+    return at !== undefined && now() > at;
+  };
+
+  /** The open notebooks, by notebook id. */
+  const sessions = new Map<string, NotesSession>();
   let writes: Promise<void> = Promise.resolve();
+  let restores: Promise<unknown> = Promise.resolve();
   let loaded: Promise<void> | undefined;
+  let reminder: ReturnType<typeof setTimeout> | undefined;
+  let closed = false;
 
   const index = () => state.getSnapshot().index;
 
-  /** Changes the index and stores it. Changes are written in the order they're made. */
+  /** Shows an index, and wakes up when its backup reminder falls due. */
+  const show = (next: NotesLibraryIndex, more: Partial<NotesLibrarySnapshot> = {}): void => {
+    state.set((current) => ({ ...current, ...more, index: next, backupDue: backupDue(next) }));
+    if (reminder !== undefined) clearTimeout(reminder);
+    reminder = undefined;
+    const at = backupDueAt(next);
+    if (closed || at === undefined || now() > at) return;
+    // An editor left open across the threshold says so without an edit.
+    reminder = setTimeout(() => show(index()), Math.min(at - now() + 1, MAX_TIMER_DELAY));
+    // In Node, the wait never keeps a process alive.
+    (reminder as { unref?: () => void }).unref?.();
+  };
+
+  /**
+   * Changes the index where it's stored: from what's stored now, not from
+   * this tab's copy, so two tabs' changes both hold. Changes are made in the
+   * order they're asked for.
+   */
   const update = (change: (index: NotesLibraryIndex) => NotesLibraryIndex): Promise<void> => {
-    const next = change(index());
-    state.set((current) => ({ ...current, index: next, backupDue: backupDue(next) }));
-    const write = writes.then(() => store.writeIndex(next));
+    const write = writes.then(async () => {
+      show(await store.updateIndex((stored) => change(stored ?? index())));
+    });
     writes = write.catch(() => undefined);
     return write.catch((error: unknown) => {
       throw asNotesError(error);
@@ -333,6 +406,36 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
       }),
     );
 
+  /** Removes what a failed creation stored, so nothing unlisted is found later. */
+  const discard = (id: string) => store.deleteNotebook(id).catch(() => undefined);
+
+  /** Runs `work` holding the notebook, and refuses while a session has it open. */
+  const holding = async <Result>(id: string, work: () => Promise<Result>): Promise<Result> => {
+    const release = await store.lockNotebook(id);
+    if (!release) throw inUse();
+    try {
+      return await work();
+    } finally {
+      release();
+    }
+  };
+
+  /** Replaces fields of a closed notebook's document, and of its summary. */
+  const rewrite = async (id: string, patch: { title: string } | { cover: NotesCover }) => {
+    summary(id);
+    try {
+      await holding(id, async () => {
+        const notebook = await store.readNotebook(id);
+        if (!notebook) throw notFound("notebook");
+        const updatedAt = Math.max(now(), notebook.updatedAt);
+        await store.writeNotebook({ ...notebook, ...patch, updatedAt });
+        await patchNotebook(id, { ...patch, updatedAt });
+      });
+    } catch (error) {
+      throw fail("library", error);
+    }
+  };
+
   const folderOrTop = (folder: string | null | undefined): string | null => {
     if (folder === null || folder === undefined) return null;
     if (!index().folders.some((entry) => entry.id === folder)) throw notFound("folder");
@@ -344,7 +447,7 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
     error: unknown,
   ) => {
     const failure = asNotesError(error);
-    if (failure.code !== "ABORTED") onEvent?.({ type: "failed", operation, code: failure.code });
+    if (failure.code !== "ABORTED") emit({ type: "failed", operation, code: failure.code });
     return failure;
   };
 
@@ -361,9 +464,10 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
     return pdf;
   };
 
-  /** The index as the store's notebooks say it should be: none missing, each up to date. */
-  const reconcile = async (read: NotesLibraryIndex | undefined): Promise<NotesLibraryIndex> => {
-    const known = new Map((read?.notebooks ?? []).map((notebook) => [notebook.id, notebook]));
+  /** The index as the store's notebooks say it should be: none missing. */
+  const reconcile = async (): Promise<NotesLibraryIndex> => {
+    const read = await store.readIndex();
+    const known = new Set((read?.notebooks ?? []).map((notebook) => notebook.id));
     const missing = (await store.listNotebooks()).filter((id) => !known.has(id));
     if (read && missing.length === 0) return read;
     const found: NotesNotebookSummary[] = [];
@@ -376,38 +480,44 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
         // deleting it here could destroy what a later version can read.
       }
     }
-    const base = read ?? EMPTY_LIBRARY;
-    const next = { ...base, notebooks: [...base.notebooks, ...found] };
-    if (found.length > 0 || !read) await store.writeIndex(next);
-    return next;
+    return store.updateIndex((stored) => {
+      const base = stored ?? EMPTY_LIBRARY;
+      const listed = new Set(base.notebooks.map((notebook) => notebook.id));
+      const added = found.filter((notebook) => !listed.has(notebook.id));
+      // A rebuilt index says when its notebooks last changed, so the backup
+      // reminder still counts from there.
+      const lastChangeAt =
+        base.lastChangeAt ??
+        (added.length > 0 ? Math.max(...added.map((notebook) => notebook.updatedAt)) : null);
+      return { ...base, notebooks: [...base.notebooks, ...added], lastChangeAt };
+    });
   };
 
-  const unsubscribe = store.subscribe(() => {
-    // Another tab changed the library: show what it stored.
-    void store
-      .readIndex()
+  let unsubscribe: (() => void) | undefined;
+  /** Another tab changed the library: show what it stored, after this tab's own changes. */
+  const follow = () => {
+    writes = writes
+      .then(() => store.readIndex())
       .then((read) => {
-        if (read) state.set((current) => ({ ...current, index: read, backupDue: backupDue(read) }));
+        if (read && !closed) show(read);
       })
       .catch(() => undefined);
-  });
+  };
 
   const library: NotesLibrary = {
     getSnapshot: state.getSnapshot,
     subscribe: state.subscribe,
 
     load() {
+      if (closed) return Promise.reject(new NotesError("NOT_FOUND", "The library is closed."));
+      // Listening starts here, not at creation: a library made and never
+      // loaded, as React's development mode makes one, holds nothing.
+      unsubscribe ??= store.subscribe(follow);
       loaded ??= (async () => {
         try {
-          const next = await reconcile(await store.readIndex());
+          const next = await reconcile();
           const persistence = await store.persistence().catch(() => undefined);
-          state.set({
-            status: "ready",
-            index: next,
-            persistence,
-            error: undefined,
-            backupDue: backupDue(next),
-          });
+          show(next, { status: "ready", persistence, error: undefined });
         } catch (error) {
           loaded = undefined;
           const failure = fail("library", error);
@@ -438,16 +548,15 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
       };
       try {
         await store.writeNotebook(notebook);
+        await update((current) =>
+          touched(withNotebook(current, summaryOf(notebook, folder, null))),
+        );
       } catch (error) {
+        // The caller is told it failed, so nothing of it may turn up later.
+        await discard(notebook.id);
         throw fail("library", error);
       }
-      await update((current) =>
-        touched({
-          ...current,
-          notebooks: [...current.notebooks, summaryOf(notebook, folder, null)],
-        }),
-      );
-      onEvent?.({ type: "notebook_created", template });
+      emit({ type: "notebook_created", template });
       return notebook.id;
     },
 
@@ -455,6 +564,7 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
       const engine = requirePdf();
       const folder = folderOrTop(input.folder);
       const { signal, onProgress } = input;
+      let staged: string | undefined;
       try {
         throwIfAborted(signal);
         checkFile(policy, file);
@@ -468,6 +578,7 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
             size: bytes.byteLength,
           };
           const id = newId();
+          staged = id;
           const pages: NotesPageInfo[] = [];
           const texts: string[] = [];
           for (let pageIndex = 0; pageIndex < document.pageCount; pageIndex += 1) {
@@ -506,25 +617,28 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
           }
           await store.writeNotebook(notebook);
           await update((current) =>
-            touched({
-              ...current,
-              notebooks: [...current.notebooks, summaryOf(notebook, folder, null)],
-            }),
+            touched(withNotebook(current, summaryOf(notebook, folder, null))),
           );
+          staged = undefined;
           onProgress?.({ fraction: 1 });
-          onEvent?.({ type: "pdf_imported", pageCount: pages.length });
+          emit({ type: "pdf_imported", pageCount: pages.length });
           return id;
         } finally {
           await document.destroy().catch(() => undefined);
         }
       } catch (error) {
+        // The PDF and the search text stored so far go with the import.
+        if (staged !== undefined) await discard(staged);
         throw fail("import", error);
       }
     },
 
     async duplicateNotebook(id, title) {
       const original = summary(id);
+      let staged: string | undefined;
       try {
+        // What's open is saved first, so the copy holds the latest ink.
+        await sessions.get(id)?.flush();
         const notebook = await store.readNotebook(id);
         if (!notebook) throw notFound("notebook");
         const time = now();
@@ -535,6 +649,7 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
           createdAt: time,
           updatedAt: time,
         };
+        staged = copy.id;
         for (const asset of await store.listAssets(id)) {
           const data = await store.readAsset(id, asset);
           if (data) await store.writeAsset(copy.id, asset, data);
@@ -548,77 +663,70 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
         }
         await store.writeNotebook(copy);
         await update((current) =>
-          touched({
-            ...current,
-            notebooks: [...current.notebooks, summaryOf(copy, original.folder, null)],
-          }),
+          touched(withNotebook(current, summaryOf(copy, original.folder, null))),
         );
-        onEvent?.({ type: "notebook_created", template: copy.pages[0]?.template ?? "blank" });
+        staged = undefined;
+        emit({ type: "notebook_created", template: copy.pages[0]?.template ?? "blank" });
         return copy.id;
       } catch (error) {
+        if (staged !== undefined) await discard(staged);
         throw fail("library", error);
       }
     },
 
-    async renameNotebook(id, title) {
-      summary(id);
-      const next = titled(title);
-      try {
-        const notebook = await store.readNotebook(id);
-        if (!notebook) throw notFound("notebook");
-        const updatedAt = Math.max(now(), notebook.updatedAt);
-        await store.writeNotebook({ ...notebook, title: next, updatedAt });
-        await patchNotebook(id, { title: next, updatedAt });
-      } catch (error) {
-        throw fail("library", error);
-      }
+    renameNotebook(id, title) {
+      return rewrite(id, { title: titled(title) });
     },
 
-    async setNotebookCover(id, cover) {
-      summary(id);
-      try {
-        const notebook = await store.readNotebook(id);
-        if (!notebook) throw notFound("notebook");
-        const updatedAt = Math.max(now(), notebook.updatedAt);
-        await store.writeNotebook({ ...notebook, cover, updatedAt });
-        await patchNotebook(id, { cover, updatedAt });
-      } catch (error) {
-        throw fail("library", error);
-      }
+    setNotebookCover(id, cover) {
+      return rewrite(id, { cover });
     },
 
     async moveNotebook(id, folder) {
       summary(id);
-      await patchNotebook(id, { folder: folderOrTop(folder) });
+      const target = folderOrTop(folder);
+      await update((current) =>
+        touched({
+          ...current,
+          notebooks: current.notebooks.map((notebook) =>
+            notebook.id === id ? { ...notebook, folder: folderIn(current, target) } : notebook,
+          ),
+        }),
+      );
     },
 
     async binNotebook(id) {
       summary(id);
       await patchNotebook(id, { deletedAt: now() });
-      onEvent?.({ type: "notebook_binned" });
+      emit({ type: "notebook_binned" });
     },
 
     async restoreNotebook(id) {
       summary(id);
       await patchNotebook(id, { deletedAt: null });
-      onEvent?.({ type: "notebook_restored" });
+      emit({ type: "notebook_restored" });
     },
 
     async deleteNotebook(id) {
-      summary(id);
-      // Out of the index first: a notebook half deleted is never listed.
-      await update((current) =>
-        touched({
-          ...current,
-          notebooks: current.notebooks.filter((notebook) => notebook.id !== id),
-        }),
-      );
+      const listed = summary(id);
       try {
-        await store.deleteNotebook(id);
+        // Held throughout, so no save of an open notebook writes it back.
+        await holding(id, async () => {
+          // In the bin until its storage is gone: a notebook half deleted is
+          // never listed among the others, and the deletion can be made again.
+          if (listed.deletedAt === null) await patchNotebook(id, { deletedAt: now() });
+          await store.deleteNotebook(id);
+          await update((current) =>
+            touched({
+              ...current,
+              notebooks: current.notebooks.filter((notebook) => notebook.id !== id),
+            }),
+          );
+        });
       } catch (error) {
         throw fail("library", error);
       }
-      onEvent?.({ type: "notebook_deleted" });
+      emit({ type: "notebook_deleted" });
     },
 
     async createFolder(name, parent) {
@@ -628,8 +736,11 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
         parent: folderOrTop(parent),
         createdAt: now(),
       };
-      await update((current) => ({ ...current, folders: [...current.folders, folder] }));
-      onEvent?.({ type: "folder_created" });
+      await update((current) => ({
+        ...current,
+        folders: [...current.folders, { ...folder, parent: folderIn(current, folder.parent) }],
+      }));
+      emit({ type: "folder_created" });
       return folder.id;
     },
 
@@ -645,17 +756,20 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
     },
 
     async deleteFolder(id) {
-      const folder = index().folders.find((entry) => entry.id === id);
-      if (!folder) throw notFound("folder");
-      await update((current) => ({
-        ...current,
-        folders: current.folders
-          .filter((entry) => entry.id !== id)
-          .map((entry) => (entry.parent === id ? { ...entry, parent: folder.parent } : entry)),
-        notebooks: current.notebooks.map((notebook) =>
-          notebook.folder === id ? { ...notebook, folder: folder.parent } : notebook,
-        ),
-      }));
+      if (!index().folders.some((entry) => entry.id === id)) throw notFound("folder");
+      await update((current) => {
+        const folder = current.folders.find((entry) => entry.id === id);
+        if (!folder) return current;
+        return {
+          ...current,
+          folders: current.folders
+            .filter((entry) => entry.id !== id)
+            .map((entry) => (entry.parent === id ? { ...entry, parent: folder.parent } : entry)),
+          notebooks: current.notebooks.map((notebook) =>
+            notebook.folder === id ? { ...notebook, folder: folder.parent } : notebook,
+          ),
+        };
+      });
     },
 
     async open(id) {
@@ -666,7 +780,7 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
         now,
         ...(options.filePolicy ? { filePolicy: options.filePolicy } : {}),
         ...(options.saveDelay === undefined ? {} : { saveDelay: options.saveDelay }),
-        ...(onEvent ? { onEvent } : {}),
+        onEvent: emit,
         onSaved: (notebook) =>
           update((current) =>
             touched({
@@ -677,17 +791,20 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
             }),
           ),
       });
-      sessions.add(session);
+      if (closed) {
+        // The library went away while the notebook opened: nobody is left to close it.
+        await session.close({ discard: true });
+        throw new NotesError("NOT_FOUND", "The library is closed.");
+      }
+      sessions.set(id, session);
       const close = session.close.bind(session);
-      // The library forgets a session once it's closed.
+      // The library forgets a session once it's closed, and not before:
+      // one whose last save failed is still open.
       const tracked: NotesSession = {
         ...session,
-        async close() {
-          try {
-            await close();
-          } finally {
-            sessions.delete(session);
-          }
+        async close(input) {
+          await close(input);
+          if (sessions.get(id) === session) sessions.delete(id);
         },
       };
       return tracked;
@@ -707,9 +824,18 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
     async backup(input = {}) {
       try {
         // What's open is saved first, so the backup holds the latest ink.
-        for (const session of sessions) await session.flush();
+        // Only what the backup takes: a notebook left out can't fail it.
+        const wanted = input.notebooks ? new Set(input.notebooks) : undefined;
+        for (const [id, session] of sessions) {
+          if (!wanted || wanted.has(id)) await session.flush();
+        }
+        // From before the first read: an edit saved while the archive is
+        // written isn't in it, and still counts as not backed up.
+        const capturedAt = now();
         const blob = await createNotesBackup(store, index(), {
           now,
+          // The limits restore will hold it to: a backup that couldn't be read back is refused now.
+          policy,
           ...(input.notebooks ? { notebooks: input.notebooks } : {}),
           ...(input.signal ? { signal: input.signal } : {}),
           ...(input.onProgress ? { onProgress: input.onProgress } : {}),
@@ -717,58 +843,77 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
         const count =
           input.notebooks?.length ??
           index().notebooks.filter((notebook) => notebook.deletedAt === null).length;
-        if (!input.notebooks) await update((current) => ({ ...current, lastBackupAt: now() }));
-        onEvent?.({ type: "backup_created", notebooks: count });
+        if (!input.notebooks) {
+          await update((current) => ({ ...current, lastBackupAt: capturedAt }));
+        }
+        emit({ type: "backup_created", notebooks: count });
         return blob;
       } catch (error) {
         throw fail("backup", error);
       }
     },
 
-    async restore(file, input = {}) {
-      try {
-        const report = await restoreNotesBackup(store, index(), file, {
-          policy,
-          now,
-          newId,
-          ...(input.signal ? { signal: input.signal } : {}),
-          ...(input.onProgress ? { onProgress: input.onProgress } : {}),
-        });
-        // Asking for a notebook back takes it out of the bin, even when nothing in it changed.
-        const unchanged = new Set(report.unchanged);
-        const binned = index().notebooks.some(
-          (notebook) => unchanged.has(notebook.id) && notebook.deletedAt !== null,
-        );
-        if (report.restored.length > 0 || report.folders.length > 0 || binned) {
-          await update((current) =>
-            touched({
-              ...current,
-              folders: [...current.folders, ...report.folders],
-              notebooks: [
-                ...current.notebooks.map((notebook) =>
-                  unchanged.has(notebook.id) ? { ...notebook, deletedAt: null } : notebook,
-                ),
-                ...report.restored,
-              ],
-            }),
+    restore(file, input = {}) {
+      // One restore at a time: two that planned together could pick the same ids.
+      const run = restores.then(async () => {
+        try {
+          const report = await restoreNotesBackup(store, index(), file, {
+            policy,
+            now,
+            newId,
+            ...(input.signal ? { signal: input.signal } : {}),
+            ...(input.onProgress ? { onProgress: input.onProgress } : {}),
+          });
+          // Asking for a notebook back takes it out of the bin, even when nothing in it changed.
+          const unchanged = new Set(report.unchanged);
+          const binned = index().notebooks.some(
+            (notebook) => unchanged.has(notebook.id) && notebook.deletedAt !== null,
           );
+          if (report.restored.length > 0 || report.folders.length > 0 || binned) {
+            const restored = new Set(report.restored.map((notebook) => notebook.id));
+            await update((current) => {
+              const has = new Set(current.folders.map((folder) => folder.id));
+              return touched({
+                ...current,
+                folders: [
+                  ...current.folders,
+                  ...report.folders.filter((folder) => !has.has(folder.id)),
+                ],
+                notebooks: [
+                  ...current.notebooks
+                    .filter((notebook) => !restored.has(notebook.id))
+                    .map((notebook) =>
+                      unchanged.has(notebook.id) ? { ...notebook, deletedAt: null } : notebook,
+                    ),
+                  ...report.restored,
+                ],
+              });
+            });
+          }
+          emit({ type: "backup_restored", notebooks: report.restored.length });
+          return report;
+        } catch (error) {
+          throw fail("restore", error);
         }
-        onEvent?.({ type: "backup_restored", notebooks: report.restored.length });
-        return report;
-      } catch (error) {
-        throw fail("restore", error);
-      }
+      });
+      restores = run.catch(() => undefined);
+      return run;
     },
 
     async search(query, input = {}) {
-      const binned = new Set(
+      // Only notebooks the library lists: text left by an import that failed
+      // would lead to a notebook that can't be opened. A search of the whole
+      // library leaves the bin out.
+      const listed = new Set(
         index()
-          .notebooks.filter((notebook) => notebook.deletedAt !== null)
+          .notebooks.filter(
+            (notebook) => input.notebook !== undefined || notebook.deletedAt === null,
+          )
           .map((notebook) => notebook.id),
       );
       const texts = await store.readPageTexts(input.notebook);
       return searchPageTexts(
-        texts.filter((entry) => !binned.has(entry.notebook)),
+        texts.filter((entry) => listed.has(entry.notebook)),
         query,
       );
     },
@@ -798,12 +943,8 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
             background.pageIndex < document.pageCount
               ? await document.pageText(background.pageIndex, input)
               : "";
-          await store.writePageText({
-            notebook: id,
-            page: page.id,
-            typed: texts.get(page.id)?.typed ?? "",
-            pdf: text,
-          });
+          // Only the PDF's text: what's typed on the page is the session's to write.
+          await store.writePageText({ notebook: id, page: page.id, pdf: text });
         }
       } finally {
         for (const document of open.values()) await document.destroy().catch(() => undefined);
@@ -813,7 +954,8 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
     async exportPdf(id, ports = {}, input = {}) {
       const { signal, onProgress } = input;
       try {
-        for (const session of sessions) await session.flush();
+        // Only this notebook's session: another's failed save can't fail the export.
+        await sessions.get(id)?.flush();
         const notebook = await store.readNotebook(id);
         if (!notebook) throw notFound("notebook");
         const pages: NotesPage[] = [];
@@ -883,7 +1025,7 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
             },
           );
         }
-        onEvent?.({ type: "pdf_exported", pageCount: notebook.pages.length });
+        emit({ type: "pdf_exported", pageCount: notebook.pages.length });
         return result;
       } catch (error) {
         throw fail("export", error);
@@ -897,8 +1039,18 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
       return granted;
     },
 
-    close() {
-      unsubscribe();
+    async close() {
+      if (closed) return;
+      closed = true;
+      unsubscribe?.();
+      if (reminder !== undefined) clearTimeout(reminder);
+      reminder = undefined;
+      // Each is saved if it can be, and given back either way.
+      await Promise.allSettled(
+        [...sessions.values()].map((session) => session.close({ discard: true })),
+      );
+      sessions.clear();
+      await writes;
     },
   };
 

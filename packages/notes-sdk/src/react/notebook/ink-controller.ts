@@ -25,7 +25,8 @@ import { paintLiveStroke } from "../canvas/paint.js";
  * command.
  *
  * - **A pen or a mouse writes** with the tool in hand. A pen's barrel button
- *   or its eraser end erases while held.
+ *   or its eraser end erases while held: pressed or let go mid-stroke, it
+ *   ends what the pen was doing and starts the other from there.
  * - **Fingers pan and pinch to zoom,** unless the user lets a finger write.
  * - **A palm doesn't draw or pan:** touches that begin while the pen is down
  *   or near, and touches already down when the pen lands, are ignored until
@@ -103,6 +104,8 @@ interface Gesture {
   readonly pointerId: number;
   readonly pointerType: string;
   readonly tool: NotesPointerTool;
+  /** Whether the pen's barrel button or eraser end was held when it began. */
+  readonly barrel: boolean;
   readonly page: InkPage | undefined;
   /** The page's box when the gesture began. */
   readonly box: DOMRect | undefined;
@@ -114,9 +117,9 @@ interface Gesture {
   predicted: number[];
   /** The eraser's or lasso's path so far, as `x, y` pairs in units. */
   path: number[];
-  /** The page's items as the eraser has left them. */
+  /** The page's items when the eraser first erased one, and as it has left them since. */
+  base: readonly NotesItem[] | undefined;
   working: readonly NotesItem[] | undefined;
-  erased: boolean;
   moved: boolean;
   /** When the pointer last moved more than a rest allows, and where. */
   restAt: number;
@@ -160,6 +163,10 @@ export function attachInk(host: InkHost): () => void {
     event.pointerType === "pen" && event.pressure > 0
       ? Math.round(event.pressure * NOTES_PRESSURE_MAX)
       : NOTES_PRESSURE_MAX / 2;
+
+  /** Whether a pen's barrel button (2) or its eraser end (32) is held: it erases while it is. */
+  const penErases = (event: PointerEvent): boolean =>
+    event.pointerType === "pen" && (event.buttons & 34) !== 0;
 
   const styleOf = (tool: NotesPointerTool, settings: NotesInkSettings): StrokeStyle =>
     tool === "highlighter"
@@ -244,11 +251,25 @@ export function attachInk(host: InkHost): () => void {
     session.getSnapshot().pages.get(page.info.id)?.items ?? [];
 
   const execute = (commands: NotesCommand | readonly NotesCommand[]) => {
-    try {
-      session.execute(commands);
-    } catch (error) {
-      host.onError(error);
+    const list: readonly NotesCommand[] = Array.isArray(commands) ? commands : [commands];
+    const loaded = session.getSnapshot().pages;
+    const waiting = list.flatMap((command) =>
+      "page" in command && !loaded.has(command.page) ? [command.page] : [],
+    );
+    if (waiting.length === 0) {
+      try {
+        session.execute(commands);
+      } catch (error) {
+        host.onError(error);
+      }
+      return;
     }
+    // Written before the page's contents were read, as just after a notebook
+    // opens: the ink is kept, and goes on the page once it's here. Edits that
+    // wait on one page are applied in the order they were made.
+    void Promise.all(waiting.map((page) => session.loadPage(page)))
+      .then(() => session.execute(commands))
+      .catch(host.onError);
   };
 
   /** Ends the stroke being drawn and starts another where it stopped: a stroke holds only so many points. */
@@ -284,49 +305,76 @@ export function attachInk(host: InkHost): () => void {
   const eraseStep = (current: Gesture, from: number) => {
     if (!current.page) return;
     const settings = host.settings();
-    const working = current.working ?? itemsOf(current.page);
+    const before = current.working ?? itemsOf(current.page);
     const segment = current.path.slice(Math.max(0, from - 2));
     const result = eraseAlong(
-      working,
+      before,
       segment,
       settings.eraserSize / 2,
       settings.eraserMode,
       host.newId,
     );
     if (!result) return;
-    current.working = replaceErased(working, result);
-    current.erased = true;
+    // From its first erasure on, the gesture works on the page as it was then:
+    // an undo or a redo meanwhile changes the page, not what the eraser holds.
+    current.base ??= before;
+    current.working = replaceErased(before, result);
     current.page.paint(current.working);
   };
 
-  /** Turns what the eraser did into one undoable step, keeping each piece where its stroke was. */
+  /**
+   * What took the place of each item the eraser erased, by the item's id:
+   * its pieces, or nothing. Told by comparing the page as it was at the first
+   * erasure with what the eraser left of it, which holds each item's pieces
+   * where the item was.
+   */
+  const erasedOf = (
+    base: readonly NotesItem[],
+    working: readonly NotesItem[],
+  ): Map<string, NotesItem[]> => {
+    const known = new Set(base.map((item) => item.id));
+    const kept = new Set(working.map((item) => item.id));
+    const erased = new Map<string, NotesItem[]>();
+    let at = 0;
+    for (const item of base) {
+      if (kept.has(item.id)) {
+        at += 1;
+        continue;
+      }
+      const pieces: NotesItem[] = [];
+      for (let piece = working[at]; piece && !known.has(piece.id); piece = working[at]) {
+        pieces.push(piece);
+        at += 1;
+      }
+      erased.set(item.id, pieces);
+    }
+    return erased;
+  };
+
+  /**
+   * Turns what the eraser did into one undoable step, keeping each piece
+   * where its stroke was. Only the items its own path erased go: the page is
+   * read again here, and an item an undo or a redo put on it while the eraser
+   * was down stays. An erased item that's gone by now takes its pieces with it.
+   */
   const commitErase = (current: Gesture) => {
-    if (!current.page || !current.erased || !current.working) return;
+    if (!current.page || !current.base || !current.working) return;
     const page = current.page.info.id;
-    const before = itemsOf(current.page);
-    const kept = new Set(current.working.map((item) => item.id));
-    const original = new Set(before.map((item) => item.id));
-    const removed = before.filter((item) => !kept.has(item.id)).map((item) => item.id);
+    const erased = erasedOf(current.base, current.working);
+    const now = itemsOf(current.page);
+    const removed = now.filter((item) => erased.has(item.id)).map((item) => item.id);
     const commands: NotesCommand[] = [];
     if (removed.length > 0) commands.push({ type: "notes.removeItems", page, ids: removed });
-    let run: NotesItem[] = [];
-    current.working.forEach((item, index) => {
-      if (!original.has(item.id)) {
-        run.push(item);
-        return;
+    // Where each run of pieces goes, counted on the page once the erased items are off it.
+    let index = 0;
+    for (const item of now) {
+      const pieces = erased.get(item.id);
+      if (!pieces) {
+        index += 1;
+      } else if (pieces.length > 0) {
+        commands.push({ type: "notes.addItems", page, index, items: pieces });
+        index += pieces.length;
       }
-      if (run.length > 0) {
-        commands.push({ type: "notes.addItems", page, index: index - run.length, items: run });
-        run = [];
-      }
-    });
-    if (run.length > 0) {
-      commands.push({
-        type: "notes.addItems",
-        page,
-        index: current.working.length - run.length,
-        items: run,
-      });
     }
     if (commands.length > 0) execute(commands);
     current.page.paint(undefined);
@@ -334,13 +382,13 @@ export function attachInk(host: InkHost): () => void {
 
   const begin = (event: PointerEvent, page: InkPage | undefined) => {
     const settings = host.settings();
-    // A pen's barrel button (2) or eraser end (32) erases while it's held.
-    const erasing = event.pointerType === "pen" && (event.buttons & 34) !== 0;
-    const tool: NotesPointerTool = erasing ? "eraser" : settings.tool;
+    const barrel = penErases(event);
+    const tool: NotesPointerTool = barrel ? "eraser" : settings.tool;
     const current: Gesture = {
       pointerId: event.pointerId,
       pointerType: event.pointerType,
       tool,
+      barrel,
       page,
       box: page?.element.getBoundingClientRect(),
       startX: event.clientX,
@@ -348,8 +396,8 @@ export function attachInk(host: InkHost): () => void {
       points: [],
       predicted: [],
       path: [],
+      base: undefined,
       working: undefined,
-      erased: false,
       moved: false,
       restAt: event.timeStamp,
       restX: event.clientX,
@@ -377,6 +425,12 @@ export function attachInk(host: InkHost): () => void {
       current.restY = event.clientY;
     }
     if (current.tool === "hand") {
+      // Where the pointer is on the page, for the link a tap follows.
+      const point = toPage(current, event.clientX, event.clientY);
+      if (point) {
+        current.lastX = point.x;
+        current.lastY = point.y;
+      }
       viewport.scrollLeft -= event.movementX;
       viewport.scrollTop -= event.movementY;
       return;
@@ -466,6 +520,30 @@ export function attachInk(host: InkHost): () => void {
     const links = itemsOf(page).filter((item) => item.type === "link");
     const hit = hitTest(links, x, y, tolerance, host.textHeight);
     if (hit?.type === "link") host.followLink(hit.page);
+  };
+
+  /**
+   * The pen's barrel button was pressed or let go while the pen was down:
+   * what it was doing ends at this sample, and the other begins from it. Ink
+   * drawn so far is kept, and so is what the eraser erased.
+   */
+  const swap = (current: Gesture, event: PointerEvent) => {
+    gesture = undefined;
+    if (current.tool === "pen" || current.tool === "highlighter") {
+      commitStroke(current, true, false);
+    } else if (current.tool === "eraser") {
+      commitErase(current);
+    }
+    clearWet(current.page);
+    const next: NotesPointerTool = penErases(event) ? "eraser" : host.settings().tool;
+    if (next === "pen" || next === "highlighter" || next === "eraser") {
+      begin(event, current.page);
+      return;
+    }
+    // A selection, a text box, a link or a pan begins where the pen lands, never mid-stroke.
+    if (viewport.hasPointerCapture(current.pointerId)) {
+      viewport.releasePointerCapture(current.pointerId);
+    }
   };
 
   /** Drops the gesture in progress without keeping any of it. */
@@ -609,8 +687,12 @@ export function attachInk(host: InkHost): () => void {
   // --- Listeners ---
 
   const onPointerDown = (event: PointerEvent) => {
+    // The view's own controls, such as a selection's handles and the text
+    // editor, take their pointers: a finger on one neither pans nor writes.
+    const onControl =
+      event.target instanceof Element && event.target.closest("[data-hm-notes-control]") !== null;
     if (event.pointerType === "touch") {
-      onTouchDown(event);
+      if (!onControl) onTouchDown(event);
       return;
     }
     if (event.pointerType === "pen") {
@@ -619,14 +701,18 @@ export function attachInk(host: InkHost): () => void {
       // The palm was down first: stop what its touches were doing.
       for (const touch of touches.values()) touch.rejected = true;
       if (gesture?.pointerType === "touch") abandon();
-      if (pinch) pinch = undefined;
+      if (pinch) {
+        // A pinch it was previewing is dropped, not made the zoom: the view
+        // goes back to its real scale before the pen's place on the page is read.
+        const { x, y } = pinch;
+        pinch = undefined;
+        host.commitZoom(1, x, y);
+      }
       stopCoasting();
     } else if (event.button !== 0) {
       return;
     }
-    if (gesture) return;
-    // The view's own controls, such as a selection's handles, take their pointers.
-    if (event.target instanceof Element && event.target.closest("[data-hm-notes-control]")) return;
+    if (gesture || onControl) return;
     const page = pageOf(event.target);
     if (!page && host.settings().tool !== "hand") return;
     event.preventDefault();
@@ -641,6 +727,11 @@ export function attachInk(host: InkHost): () => void {
     if (event.pointerType === "pen") penNearUntil = event.timeStamp + PEN_NEAR_TIME;
     const current = gesture;
     if (!current || current.pointerId !== event.pointerId) return;
+    // A button that changes while the pen is down arrives as a move.
+    if (current.pointerType === "pen" && penErases(event) !== current.barrel) {
+      swap(current, event);
+      return;
+    }
     const samples = event.getCoalescedEvents?.() ?? [];
     add(current, event, samples.length > 0 ? samples : [event]);
   };

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { NotesError } from "../../src/core/errors/notes-error.js";
 import { assetNameOf } from "../../src/core/model/ids.js";
 import type { NotesItem } from "../../src/core/model/items.js";
 import type { NotesLibraryIndex } from "../../src/core/model/library.js";
@@ -127,6 +128,20 @@ export function indexOf(...notebooks: readonly NotesNotebook[]): NotesLibraryInd
   };
 }
 
+/** A change to the index that adds a folder to whatever the index holds. */
+const addingFolder =
+  (id: string) =>
+  (index: NotesLibraryIndex | undefined): NotesLibraryIndex => {
+    const stored = index ?? indexOf();
+    return {
+      ...stored,
+      folders: [...stored.folders, { id, name: `Folder ${id}`, parent: null, createdAt: 5 }],
+    };
+  };
+
+const folderIds = (index: NotesLibraryIndex | undefined): string[] =>
+  sorted(index?.folders.map((folder) => folder.id) ?? []);
+
 /** A file and the name its bytes give it. */
 async function assetOf(bytes: Uint8Array<ArrayBuffer>): Promise<{ name: string; data: Blob }> {
   return { name: await assetNameOf(bytes), data: new Blob([bytes], { type: "application/pdf" }) };
@@ -217,7 +232,7 @@ const CALLS_WITH_AN_ASSET: Readonly<Record<string, StoreCall>> = {
 /** Every call that returns a promise, which a closed store must reject. */
 const ASYNC_CALLS: Readonly<Record<string, (store: NotesStore) => Promise<unknown>>> = {
   readIndex: (store) => store.readIndex(),
-  writeIndex: (store) => store.writeIndex(indexOf()),
+  updateIndex: (store) => store.updateIndex(() => indexOf()),
   listNotebooks: (store) => store.listNotebooks(),
   readNotebook: (store) => store.readNotebook("n1"),
   writeNotebook: (store) => store.writeNotebook(notebookOf("n1")),
@@ -305,29 +320,86 @@ export function describeNotesStoreContract(
       it("reads back what was written", async () => {
         const store = await open();
         const index = indexOf(notebookOf("n1"), notebookOf("n2"));
-        await store.writeIndex(index);
+        await expect(store.updateIndex(() => index)).resolves.toEqual(index);
         await expect(store.readIndex()).resolves.toEqual(index);
+      });
+
+      it("gives a change the stored index, and none before the first", async () => {
+        const store = await open();
+        const first = indexOf(notebookOf("n1"));
+        const second = indexOf(notebookOf("n1"), notebookOf("n2"));
+        const given: unknown[] = [];
+        await store.updateIndex((index) => {
+          given.push(index);
+          return first;
+        });
+        const stored = await store.updateIndex((index) => {
+          given.push(index);
+          return second;
+        });
+        expect(given).toEqual([undefined, first]);
+        expect(stored).toEqual(second);
+        await expect(store.readIndex()).resolves.toEqual(second);
       });
 
       it("replaces the earlier index as a whole", async () => {
         const store = await open();
-        await store.writeIndex(indexOf(notebookOf("n1"), notebookOf("n2")));
+        await store.updateIndex(() => indexOf(notebookOf("n1"), notebookOf("n2")));
         const emptied: NotesLibraryIndex = {
           folders: [],
           notebooks: [],
           lastBackupAt: 5,
           lastChangeAt: null,
         };
-        await store.writeIndex(emptied);
+        await store.updateIndex(() => emptied);
         await expect(store.readIndex()).resolves.toEqual(emptied);
       });
 
-      it("keeps the last of two writes made together", async () => {
+      it("makes both of two changes made together", async () => {
         const store = await open();
-        const first = indexOf(notebookOf("n1"));
-        const second = indexOf(notebookOf("n2"));
-        await Promise.all([store.writeIndex(first), store.writeIndex(second)]);
-        await expect(store.readIndex()).resolves.toEqual(second);
+        await store.updateIndex(() => indexOf(notebookOf("n1")));
+        // Each is given what the other stored: neither starts from an older copy.
+        const [first, second] = await Promise.all([
+          store.updateIndex(addingFolder("a")),
+          store.updateIndex(addingFolder("b")),
+        ]);
+        expect(folderIds(first)).toEqual(["a", "f1", "f2"]);
+        expect(folderIds(second)).toEqual(["a", "b", "f1", "f2"]);
+        const read = await store.readIndex();
+        expect(folderIds(read)).toEqual(["a", "b", "f1", "f2"]);
+        expect(read?.notebooks).toEqual(indexOf(notebookOf("n1")).notebooks);
+      });
+
+      it.each<[string, unknown]>([
+        ["an error", new Error("The change gave up.")],
+        ["a NotesError", new NotesError("NOT_FOUND", "The notebook isn't in the index.")],
+        ["something that isn't an error", "gave up"],
+      ])("writes nothing when a change throws %s, and rejects with it", async (_, thrown) => {
+        const store = await open();
+        const index = indexOf(notebookOf("n1"));
+        await store.updateIndex(() => index);
+        const rejection = store.updateIndex(() => {
+          throw thrown;
+        });
+        // The very thing that was thrown, not a storage failure made of it.
+        await expect(rejection).rejects.toBe(thrown);
+        await expect(store.readIndex()).resolves.toEqual(index);
+        // And the store still takes a change afterwards.
+        await store.updateIndex(addingFolder("a"));
+        expect(folderIds(await store.readIndex())).toEqual(["a", "f1", "f2"]);
+      });
+
+      it("refuses an index that couldn't be read back, and keeps the earlier one", async () => {
+        const store = await open();
+        const index = indexOf(notebookOf("n1"));
+        await store.updateIndex(() => index);
+        // Once stored, no later change could put it right: a change starts from a readable index.
+        const unreadable = { ...index, lastBackupAt: "yesterday" as unknown as number };
+        await expect(store.updateIndex(() => unreadable)).rejects.toMatchObject({
+          name: "NotesError",
+          code: "INVALID_DOCUMENT",
+        });
+        await expect(store.readIndex()).resolves.toEqual(index);
       });
     });
 
@@ -527,14 +599,95 @@ export function describeNotesStoreContract(
         await expect(store.readPageTexts("n3")).resolves.toEqual([]);
       });
 
-      it("replaces a page's text as a whole", async () => {
+      it("replaces each field that is written", async () => {
+        const store = await open();
+        await store.writePageText({
+          notebook: "n1",
+          page: "p1",
+          typed: "typed",
+          pdf: "of the PDF",
+        });
+        await store.writePageText({ notebook: "n1", page: "p1", typed: "typed anew", pdf: "" });
+        await expect(store.readPageTexts("n1")).resolves.toEqual([
+          { notebook: "n1", page: "p1", typed: "typed anew", pdf: "" },
+        ]);
+      });
+
+      it("keeps the PDF's text when only the typed text is written", async () => {
         const store = await open();
         await store.writePageText(second);
-        const replaced: NotesPageText = { notebook: "n1", page: "p2", typed: "now typed" };
-        await store.writePageText(replaced);
-        const read = await store.readPageTexts("n1");
-        expect(read).toEqual([replaced]);
-        expect(read[0]).not.toHaveProperty("pdf");
+        await store.writePageText({ notebook: "n1", page: "p2", typed: "now typed" });
+        await expect(store.readPageTexts("n1")).resolves.toEqual([
+          { notebook: "n1", page: "p2", typed: "now typed", pdf: "words of the PDF" },
+        ]);
+      });
+
+      it("keeps the typed text when only the PDF's text is written", async () => {
+        const store = await open();
+        await store.writePageText(first);
+        await store.writePageText({ notebook: "n1", page: "p1", pdf: "words of the PDF" });
+        await expect(store.readPageTexts("n1")).resolves.toEqual([
+          { notebook: "n1", page: "p1", typed: "typed words", pdf: "words of the PDF" },
+        ]);
+        // A change with neither leaves both.
+        await store.writePageText({ notebook: "n1", page: "p1" });
+        await expect(store.readPageTexts("n1")).resolves.toEqual([
+          { notebook: "n1", page: "p1", typed: "typed words", pdf: "words of the PDF" },
+        ]);
+      });
+
+      it("has an empty typed text, and no PDF text, until each is written", async () => {
+        const store = await open();
+        await store.writePageText({ notebook: "n1", page: "p1", pdf: "words of the PDF" });
+        await store.writePageText({ notebook: "n1", page: "p2", typed: "typed words" });
+        const read = sortedTexts(await store.readPageTexts("n1"));
+        expect(read).toEqual([
+          { notebook: "n1", page: "p1", typed: "", pdf: "words of the PDF" },
+          { notebook: "n1", page: "p2", typed: "typed words" },
+        ]);
+        expect(read[1]).not.toHaveProperty("pdf");
+      });
+
+      it("keeps both fields of two partial writes made together", async () => {
+        const store = await open();
+        await Promise.all([
+          store.writePageText({ notebook: "n1", page: "p1", typed: "typed words" }),
+          store.writePageText({ notebook: "n1", page: "p1", pdf: "words of the PDF" }),
+        ]);
+        await expect(store.readPageTexts("n1")).resolves.toEqual([
+          { notebook: "n1", page: "p1", typed: "typed words", pdf: "words of the PDF" },
+        ]);
+      });
+
+      it.each<[string, Record<string, unknown>]>([
+        ["a typed text", { typed: 5 }],
+        ["a PDF text", { typed: "typed words", pdf: ["words"] }],
+      ])("refuses %s that isn't text, and stores nothing of it", async (_, fields) => {
+        const store = await open();
+        const change = { notebook: "n1", page: "p1", ...fields } as unknown as NotesPageText;
+        await expect(store.writePageText(change)).rejects.toMatchObject({
+          name: "NotesError",
+          code: "INVALID_DOCUMENT",
+          details: { reason: "malformed-document" },
+        });
+        await expect(store.readPageTexts()).resolves.toEqual([]);
+      });
+
+      it("keeps a text written after its page was deleted, with the calls made together", async () => {
+        const store = await open();
+        await store.writePage("n1", pageOf("p1"));
+        await store.writePageText({ notebook: "n1", page: "p1", typed: "of the old page" });
+        // Not awaited one by one: the text belongs to the page written after the deletion.
+        const calls = [
+          store.deletePage("n1", "p1"),
+          store.writePage("n1", pageOf("p1", [])),
+          store.writePageText(first),
+        ];
+        const reading = store.readPageTexts("n1");
+        await Promise.all(calls);
+        await expect(reading).resolves.toEqual([first]);
+        await expect(store.readPageTexts("n1")).resolves.toEqual([first]);
+        await expect(store.readPage("n1", "p1")).resolves.toEqual(pageOf("p1", []));
       });
 
       it("drops a page's text with the page", async () => {
@@ -599,10 +752,17 @@ export function describeNotesStoreContract(
       it("isn't what the store keeps of an index", async () => {
         const store = await open();
         const index = indexOf(notebookOf("n1"));
-        const writing = store.writeIndex(index);
-        // Changed before the write has even finished.
+        const stored = await store.updateIndex(() => index);
+        // Neither what the change returned nor what the call resolved to.
         (index.notebooks as unknown[]).length = 0;
-        await writing;
+        (stored.folders as unknown[]).length = 0;
+        await expect(store.readIndex()).resolves.toEqual(indexOf(notebookOf("n1")));
+        // Nor what a change is given, when it returns another index.
+        await store.updateIndex((given) => {
+          const kept = { ...indexOf(notebookOf("n1")), folders: [...(given?.folders ?? [])] };
+          (given?.folders as unknown[]).length = 0;
+          return kept;
+        });
         const read = await store.readIndex();
         expect(read).toEqual(indexOf(notebookOf("n1")));
         (read?.folders as unknown[]).length = 0;
@@ -705,7 +865,7 @@ export function describeNotesStoreContract(
         const store = await open();
         const listener = vi.fn();
         const stop = store.subscribe(listener);
-        await store.writeIndex(indexOf());
+        await store.updateIndex(() => indexOf());
         await store.writeNotebook(notebookOf("n1"));
         expect(listener).not.toHaveBeenCalled();
         stop();
@@ -721,11 +881,11 @@ export function describeNotesStoreContract(
           const heardBySecond = listenTo(second);
 
           const secondHears = heardBySecond.next();
-          await first.writeIndex(indexOf(notebookOf("n1")));
+          await first.updateIndex(() => indexOf(notebookOf("n1")));
           await secondHears;
 
           const firstHears = heardByFirst.next();
-          await second.writeIndex(indexOf(notebookOf("n1"), notebookOf("n2")));
+          await second.updateIndex(() => indexOf(notebookOf("n1"), notebookOf("n2")));
           await firstHears;
 
           // Its own write was announced before the other's, so it would have been heard by now.
@@ -744,7 +904,7 @@ export function describeNotesStoreContract(
         stopped.stop();
 
         const heard = kept.next();
-        await second.writeIndex(indexOf());
+        await second.updateIndex(() => indexOf());
         await heard;
 
         expect(stopped.calls()).toBe(0);
@@ -757,7 +917,7 @@ export function describeNotesStoreContract(
         const first = await open();
         const second = await open();
         const asset = await assetOf(textBytes("a file"));
-        await first.writeIndex(indexOf(notebookOf("n1")));
+        await first.updateIndex(() => indexOf(notebookOf("n1")));
         await first.writeNotebook(notebookOf("n1"));
         await first.writePage("n1", pageOf("p1"));
         await first.writeAsset("n1", asset.name, asset.data);
@@ -772,6 +932,35 @@ export function describeNotesStoreContract(
         ]);
         await expect(second.readPageTexts()).resolves.toEqual([
           { notebook: "n1", page: "p1", typed: "words" },
+        ]);
+      });
+
+      it("makes both of two changes to the index made together, one by each", async () => {
+        const first = await open();
+        const second = await open();
+        await first.updateIndex(() => indexOf(notebookOf("n1")));
+        await Promise.all([
+          first.updateIndex(addingFolder("a")),
+          second.updateIndex(addingFolder("b")),
+          first.updateIndex(addingFolder("c")),
+          second.updateIndex(addingFolder("d")),
+        ]);
+        for (const store of [first, second]) {
+          const read = await store.readIndex();
+          expect(folderIds(read)).toEqual(["a", "b", "c", "d", "f1", "f2"]);
+          expect(read?.notebooks).toEqual(indexOf(notebookOf("n1")).notebooks);
+        }
+      });
+
+      it("keeps both fields of a page's text written together, one by each", async () => {
+        const first = await open();
+        const second = await open();
+        await Promise.all([
+          first.writePageText({ notebook: "n1", page: "p1", typed: "typed words" }),
+          second.writePageText({ notebook: "n1", page: "p1", pdf: "words of the PDF" }),
+        ]);
+        await expect(first.readPageTexts("n1")).resolves.toEqual([
+          { notebook: "n1", page: "p1", typed: "typed words", pdf: "words of the PDF" },
         ]);
       });
 
@@ -840,6 +1029,14 @@ export function describeNotesStoreContract(
           name: "NotesError",
           code: "STORAGE_FAILED",
         });
+      });
+
+      it("never calls a change to the index made afterwards", async () => {
+        const store = await open();
+        const change = vi.fn(() => indexOf());
+        store.close();
+        await expect(store.updateIndex(change)).rejects.toMatchObject({ code: "STORAGE_FAILED" });
+        expect(change).not.toHaveBeenCalled();
       });
 
       it("can be called twice, and leaves subscribe and a lock's function harmless", async () => {

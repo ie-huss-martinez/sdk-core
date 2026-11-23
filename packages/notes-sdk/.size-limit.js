@@ -34,7 +34,7 @@ const built = (budget) => ({ ...budget, brotli: true, disablePlugins: ["@size-li
 
 export default [
   // The server-safe core (.).
-  entryBudget({ name: "Core (.), as built", entry: core, limit: "37 kB" }),
+  entryBudget({ name: "Core (.), as built", entry: core, limit: "38.5 kB" }),
   importBudget({
     // The floor: the error class, which a host uses to show the library's errors.
     name: "Core: the floor, NotesError",
@@ -76,7 +76,7 @@ export default [
     name: "Core: createOpfsNotesStore",
     entry: core,
     imports: "{ createOpfsNotesStore }",
-    limit: "6 kB",
+    limit: "6.5 kB",
   }),
   importBudget({
     name: "Core: writeNotesPdf",
@@ -89,18 +89,18 @@ export default [
     name: "Core: createNotesLibrary",
     entry: core,
     imports: "{ createNotesLibrary }",
-    limit: "22.5 kB",
+    limit: "24 kB",
   }),
   importBudget({
     // What a headless application uses together: a library on the device, with PDFs.
     name: "Core: a headless app's set",
     entry: core,
     imports: "{ createNotesLibrary, createOpfsNotesStore, createNotesPdfEngine }",
-    limit: "26 kB",
+    limit: "28 kB",
   }),
 
   // The React entry (./react).
-  entryBudget({ name: "React (./react), as built", entry: react, limit: "70 kB" }),
+  entryBudget({ name: "React (./react), as built", entry: react, limit: "74.5 kB" }),
   importBudget({
     // The floor: the components' catalogue, which every component reads.
     name: "React: the floor, notesEditorMessages",
@@ -112,32 +112,32 @@ export default [
     name: "React: NotesLibraryView",
     entry: react,
     imports: "{ NotesLibraryView }",
-    limit: "5.5 kB",
+    limit: "6 kB",
   }),
   importBudget({
     // The open notebook: the ink engine, the canvas painting, the tools and the sidebar.
     name: "React: NotesNotebook",
     entry: react,
     imports: "{ NotesNotebook }",
-    limit: "23.5 kB",
+    limit: "25.5 kB",
   }),
   importBudget({
     // The provider brings the library and the stores.
     name: "React: NotesProvider",
     entry: react,
     imports: "{ NotesProvider }",
-    limit: "31 kB",
+    limit: "33 kB",
   }),
   importBudget({
     // What a typical application imports: the whole editor.
     name: "React: NotesEditor",
     entry: react,
     imports: "{ NotesEditor }",
-    limit: "53 kB",
+    limit: "57.5 kB",
   }),
 
   // The element entry (./element) mounts the whole editor, so it has only a ceiling.
-  entryBudget({ name: "Element (./element), as built", entry: "dist/element.js", limit: "71 kB" }),
+  entryBudget({ name: "Element (./element), as built", entry: "dist/element.js", limit: "75 kB" }),
 
   built({ name: "Stylesheet (./styles.css)", path: "dist/styles.css", limit: "4 kB" }),
 ];

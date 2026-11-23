@@ -63,7 +63,7 @@ describe.runIf(missing !== undefined)(`createOpfsNotesStore without ${missing}`,
     const store = createOpfsNotesStore({ name: "hm-notes-unsupported" });
     const unsupported = { code: "UNSUPPORTED_ENVIRONMENT", details: { feature: missing } };
     await expect(store.readIndex()).rejects.toMatchObject(unsupported);
-    await expect(store.writeIndex(indexOf())).rejects.toMatchObject(unsupported);
+    await expect(store.updateIndex(() => indexOf())).rejects.toMatchObject(unsupported);
     await expect(store.listNotebooks()).rejects.toMatchObject(unsupported);
     await expect(store.readNotebook("n1")).rejects.toMatchObject(unsupported);
     await expect(store.writeNotebook(notebookOf("n1"))).rejects.toMatchObject(unsupported);
@@ -90,7 +90,7 @@ describe.runIf(missing === undefined && !usable)(
     it.runIf(!databaseOpens)("rejects what needs the database as unavailable storage", async () => {
       const store = createOpfsNotesStore({ name: "hm-notes-unavailable" });
       await expect(store.readIndex()).rejects.toMatchObject(unavailable);
-      await expect(store.writeIndex(indexOf())).rejects.toMatchObject(unavailable);
+      await expect(store.updateIndex(() => indexOf())).rejects.toMatchObject(unavailable);
       await expect(store.readPageTexts()).rejects.toMatchObject(unavailable);
       store.close();
     });
@@ -170,13 +170,31 @@ describe.runIf(usable)("createOpfsNotesStore on the browser's storage", () => {
   /** Puts a record into the store's database, which the store must have opened once. */
   async function putRecord(objectStore: string, value: unknown, key?: IDBValidKey): Promise<void> {
     const database = await settled(indexedDB.open(name));
-    await new Promise<void>((resolve, reject) => {
-      const transaction = database.transaction(objectStore, "readwrite");
-      transaction.objectStore(objectStore).put(value, key);
-      transaction.oncomplete = () => resolve();
-      transaction.onabort = () => reject(transaction.error);
-    });
-    database.close();
+    // Closed whatever happens: an open connection keeps the teardown from deleting the database.
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const transaction = database.transaction(objectStore, "readwrite");
+        transaction.objectStore(objectStore).put(value, key);
+        transaction.oncomplete = () => resolve();
+        transaction.onabort = () => reject(transaction.error);
+      });
+    } finally {
+      database.close();
+    }
+  }
+
+  /** A record of the store's database, as it is there. */
+  async function getRecord(objectStore: string, key: IDBValidKey): Promise<unknown> {
+    const database = await settled(indexedDB.open(name));
+    try {
+      return await new Promise<unknown>((resolve, reject) => {
+        const request = database.transaction(objectStore).objectStore(objectStore).get(key);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    } finally {
+      database.close();
+    }
   }
 
   /** Makes every file write fail at the given step, after some of the data went out. */
@@ -207,6 +225,46 @@ describe.runIf(usable)("createOpfsNotesStore on the browser's storage", () => {
       return writable;
     });
     return { aborted: () => aborted };
+  }
+
+  /**
+   * Keeps every file write from starting until the function returned is
+   * called, so a test can act while the store's writes are still queued.
+   */
+  function holdWrites(): () => void {
+    let letGo: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      letGo = resolve;
+    });
+    const createWritable = FileSystemFileHandle.prototype.createWritable;
+    vi.spyOn(FileSystemFileHandle.prototype, "createWritable").mockImplementation(async function (
+      this: FileSystemFileHandle,
+      options,
+    ) {
+      await held;
+      return createWritable.call(this, options);
+    });
+    return letGo;
+  }
+
+  /** Runs a test's steps as in a browser without the Web Locks API, and puts it back. */
+  async function withoutWebLocks(steps: () => Promise<void>): Promise<void> {
+    Object.defineProperty(navigator, "locks", { value: undefined, configurable: true });
+    try {
+      await steps();
+    } finally {
+      Reflect.deleteProperty(navigator, "locks");
+    }
+    expect(navigator.locks).toBeDefined();
+  }
+
+  /** Takes a notebook as soon as its holder has let it go, which a store sees a moment later. */
+  function taken(store: NotesStore, notebook: string): Promise<() => void> {
+    return vi.waitFor(async () => {
+      const lock = await store.lockNotebook(notebook);
+      if (!lock) throw new Error("The notebook is still held.");
+      return lock;
+    });
   }
 
   /**
@@ -261,7 +319,7 @@ describe.runIf(usable)("createOpfsNotesStore on the browser's storage", () => {
       const bytes = new TextEncoder().encode("%PDF-1.7 and the rest");
       const asset = await assetNameOf(bytes);
       const first = openStore();
-      await first.writeIndex(indexOf(notebookOf("n1")));
+      await first.updateIndex(() => indexOf(notebookOf("n1")));
       await first.writeNotebook(notebookOf("n1"));
       await first.writePage("n1", pageOf("p1"));
       await first.writeAsset("n1", asset, new Blob([bytes]));
@@ -284,7 +342,7 @@ describe.runIf(usable)("createOpfsNotesStore on the browser's storage", () => {
     it("is kept apart from a library of another name", async () => {
       const store = openStore();
       const other = openStore(newName());
-      await store.writeIndex(indexOf(notebookOf("n1")));
+      await store.updateIndex(() => indexOf(notebookOf("n1")));
       await store.writeNotebook(notebookOf("n1"));
       await store.writePageText({ notebook: "n1", page: "p1", typed: "words" });
       await expect(other.readIndex()).resolves.toBeUndefined();
@@ -478,29 +536,23 @@ describe.runIf(usable)("createOpfsNotesStore on the browser's storage", () => {
       await expect(store.listAssets("n1")).resolves.toEqual([SOME_ASSET]);
     });
 
-    it("refuses an index of a later version, and a damaged one", async () => {
+    it.each<[string, unknown, object]>([
+      ["of a later version", { format: "hm-notes-library", version: 2, shelves: [] }, laterVersion],
+      ["that isn't a document", "not a document", malformed],
+      ["of another shape", { format: "hm-notes-library", version: 1, folders: [] }, malformed],
+    ])("refuses an index %s, and never replaces it", async (_, record, refusal) => {
       const store = openStore();
-      await store.writeIndex(indexOf());
-      await putRecord(
-        LIBRARY_STORE,
-        { format: "hm-notes-library", version: 2, shelves: [] },
-        INDEX_KEY,
-      );
-      await expect(store.readIndex()).rejects.toMatchObject({
+      await store.updateIndex(() => indexOf());
+      await putRecord(LIBRARY_STORE, record, INDEX_KEY);
+      await expect(store.readIndex()).rejects.toMatchObject({ name: "NotesError", ...refusal });
+      // A change starts from the stored index: one that can't be read is left for a version that can.
+      const change = vi.fn(() => indexOf(notebookOf("n1")));
+      await expect(store.updateIndex(change)).rejects.toMatchObject({
         name: "NotesError",
-        ...laterVersion,
+        ...refusal,
       });
-      await putRecord(LIBRARY_STORE, "not a document", INDEX_KEY);
-      await expect(store.readIndex()).rejects.toMatchObject(malformed);
-      await putRecord(
-        LIBRARY_STORE,
-        { format: "hm-notes-library", version: 1, folders: [] },
-        INDEX_KEY,
-      );
-      await expect(store.readIndex()).rejects.toMatchObject(malformed);
-      // Writing a good one puts it right.
-      await store.writeIndex(indexOf(notebookOf("n1")));
-      await expect(store.readIndex()).resolves.toEqual(indexOf(notebookOf("n1")));
+      expect(change).not.toHaveBeenCalled();
+      await expect(getRecord(LIBRARY_STORE, INDEX_KEY)).resolves.toEqual(record);
     });
 
     it("refuses a page text that isn't one", async () => {
@@ -508,6 +560,13 @@ describe.runIf(usable)("createOpfsNotesStore on the browser's storage", () => {
       await store.writePageText({ notebook: "n1", page: "p1", typed: "words" });
       await putRecord(PAGE_TEXTS_STORE, { notebook: "n1", page: "p2", typed: 5 });
       await expect(store.readPageTexts("n1")).rejects.toMatchObject(malformed);
+      // It's only search text: a field that isn't text counts as not stored, and writing puts it right.
+      await store.writePageText({ notebook: "n1", page: "p2", pdf: "of the PDF" });
+      await expect(store.readPageTexts("n1")).resolves.toEqual([
+        { notebook: "n1", page: "p1", typed: "words" },
+        { notebook: "n1", page: "p2", typed: "", pdf: "of the PDF" },
+      ]);
+      await putRecord(PAGE_TEXTS_STORE, { notebook: "n1", page: "p2", typed: "typed", pdf: 5 });
       await store.deletePage("n1", "p2");
       await expect(store.readPageTexts("n1")).resolves.toEqual([
         { notebook: "n1", page: "p1", typed: "words" },
@@ -568,8 +627,98 @@ describe.runIf(usable)("createOpfsNotesStore on the browser's storage", () => {
         await expect(store.readPage("n1", "p1")).resolves.toBeUndefined();
         await expect(store.listNotebooks()).resolves.toEqual([]);
         await expect(store.listAssets("n1")).resolves.toEqual([]);
+        // Not even the empty files the writes made, which would read as missing too.
+        expect(await namesIn(await folder("n1"))).toEqual([ASSETS_DIRECTORY, PAGES_DIRECTORY]);
+        expect(await namesIn(await folder("n1", PAGES_DIRECTORY))).toEqual([]);
+        expect(await namesIn(await folder("n1", ASSETS_DIRECTORY))).toEqual([]);
       },
     );
+
+    it("as a document's first, leaves what another writer stored there meanwhile", async () => {
+      const store = openStore();
+      const theirs = JSON.stringify({ format: "hm-notes-page", version: 1, id: "p1", items: [] });
+      const createWritable = FileSystemFileHandle.prototype.createWritable;
+      vi.spyOn(FileSystemFileHandle.prototype, "createWritable").mockImplementationOnce(
+        async function (this: FileSystemFileHandle, options) {
+          const writable = await createWritable.call(this, options);
+          const abort = writable.abort.bind(writable);
+          writable.write = async () => {
+            throw failed;
+          };
+          // A writer the store can't keep out, as a tab is in a browser without
+          // Web Locks, stores the page between the failure and the tidying up.
+          writable.abort = async (reason) => {
+            await abort(reason);
+            await putFile(await folder("n1", PAGES_DIRECTORY), "p1.json", theirs);
+          };
+          return writable;
+        },
+      );
+      await expect(store.writePage("n1", pageOf("p1"))).rejects.toMatchObject({
+        code: "STORAGE_FAILED",
+        cause: failed,
+      });
+      expect(await fileText(await folder("n1", PAGES_DIRECTORY), "p1.json")).toBe(theirs);
+      await expect(store.readPage("n1", "p1")).resolves.toEqual(pageOf("p1", []));
+    });
+
+    it("of two stores' first writes of one page, made together, leaves the other's", async () => {
+      const first = openStore();
+      const second = openStore();
+      let stored: () => void = () => {};
+      const otherStored = new Promise<void>((resolve) => {
+        stored = resolve;
+      });
+      let fail: () => void = () => {};
+      const untilFailing = new Promise<void>((resolve) => {
+        fail = resolve;
+      });
+      let failing = false;
+      let opened = 0;
+      let together = false;
+      const createWritable = FileSystemFileHandle.prototype.createWritable;
+      vi.spyOn(FileSystemFileHandle.prototype, "createWritable").mockImplementation(async function (
+        this: FileSystemFileHandle,
+        options,
+      ) {
+        const writable = await createWritable.call(this, options);
+        if (this.name !== "p1.json") return writable;
+        opened += 1;
+        if (opened === 1) {
+          // Whichever store gets to the page first fails, once the test says so.
+          writable.write = async () => {
+            await untilFailing;
+            throw failed;
+          };
+        } else {
+          together = !failing;
+          const close = writable.close.bind(writable);
+          writable.close = async () => {
+            await close();
+            stored();
+          };
+        }
+        return writable;
+      });
+
+      const writes = [first.writePage("n1", pageOf("p1")), second.writePage("n1", pageOf("p1"))];
+      // Time for the other store to store the page, were the two writing it
+      // at once: the first then fails and tidies up after a page that is
+      // stored. Kept apart, the other is still waiting when these are done.
+      await Promise.race([
+        otherStored,
+        Promise.all([first.writePage("n2", pageOf("p2")), second.writePage("n2", pageOf("p2"))]),
+      ]);
+      failing = true;
+      fail();
+      const outcomes = (await Promise.allSettled(writes)).map((outcome) => outcome.status);
+
+      expect(outcomes.sort()).toEqual(["fulfilled", "rejected"]);
+      // One writer of a file at a time: the other began only when the first had failed.
+      expect(together).toBe(false);
+      await expect(first.readPage("n1", "p1")).resolves.toEqual(pageOf("p1"));
+      expect(await namesIn(await folder("n1", PAGES_DIRECTORY))).toEqual(["p1.json"]);
+    });
 
     it("for want of room says the disk is full", async () => {
       const store = openStore();
@@ -608,14 +757,14 @@ describe.runIf(usable)("createOpfsNotesStore on the browser's storage", () => {
       const other = openStore();
       const heard = vi.fn();
       other.subscribe(heard);
-      await store.writeIndex(indexOf(notebookOf("n1")));
+      await store.updateIndex(() => indexOf(notebookOf("n1")));
       vi.spyOn(IDBObjectStore.prototype, "put").mockImplementationOnce(put);
-      await expect(store.writeIndex(indexOf())).rejects.toMatchObject({
+      await expect(store.updateIndex(() => indexOf())).rejects.toMatchObject({
         name: "NotesError",
         code: "STORAGE_FAILED",
       });
       await expect(store.readIndex()).resolves.toEqual(indexOf(notebookOf("n1")));
-      await store.writeIndex(indexOf(notebookOf("n2")));
+      await store.updateIndex(() => indexOf(notebookOf("n2")));
       // Only the two writes that happened were announced to the other store.
       await delivered();
       expect(heard).toHaveBeenCalledTimes(2);
@@ -627,38 +776,41 @@ describe.runIf(usable)("createOpfsNotesStore on the browser's storage", () => {
       const store = openStore();
       await store.readIndex();
       const database = await settled(indexedDB.open(name));
-      expect(database.version).toBe(DATABASE_VERSION);
-      expect([...database.objectStoreNames].sort()).toEqual(
-        [LIBRARY_STORE, PAGE_TEXTS_STORE].sort(),
-      );
-      const texts = database.transaction(PAGE_TEXTS_STORE).objectStore(PAGE_TEXTS_STORE);
-      expect(texts.keyPath).toEqual(["notebook", "page"]);
-      expect([...texts.indexNames]).toEqual([BY_NOTEBOOK]);
-      database.close();
+      try {
+        expect(database.version).toBe(DATABASE_VERSION);
+        expect([...database.objectStoreNames].sort()).toEqual(
+          [LIBRARY_STORE, PAGE_TEXTS_STORE].sort(),
+        );
+        const texts = database.transaction(PAGE_TEXTS_STORE).objectStore(PAGE_TEXTS_STORE);
+        expect(texts.keyPath).toEqual(["notebook", "page"]);
+        expect([...texts.indexNames]).toEqual([BY_NOTEBOOK]);
+      } finally {
+        database.close();
+      }
     });
 
     it("lets go when another tab deletes it, and starts again", async () => {
       const store = openStore();
-      await store.writeIndex(indexOf(notebookOf("n1")));
+      await store.updateIndex(() => indexOf(notebookOf("n1")));
       await store.writePageText({ notebook: "n1", page: "p1", typed: "words" });
       // Resolves only once every connection has closed, the store's included.
       await deleteDatabase(name);
       await expect(store.readIndex()).resolves.toBeUndefined();
       await expect(store.readPageTexts()).resolves.toEqual([]);
-      await store.writeIndex(indexOf());
+      await store.updateIndex(() => indexOf());
       await expect(store.readIndex()).resolves.toEqual(indexOf());
     });
 
     it("lets a later release upgrade it, and then says it can't read it", async () => {
       const store = openStore();
-      await store.writeIndex(indexOf());
+      await store.updateIndex(() => indexOf());
       // What another tab running a later release does. It waits for the store's connection to close.
       (await settled(indexedDB.open(name, DATABASE_VERSION + 1))).close();
       await expect(store.readIndex()).rejects.toMatchObject({
         name: "NotesError",
         ...laterVersion,
       });
-      await expect(store.writeIndex(indexOf())).rejects.toMatchObject(laterVersion);
+      await expect(store.updateIndex(() => indexOf())).rejects.toMatchObject(laterVersion);
     });
   });
 
@@ -688,7 +840,7 @@ describe.runIf(usable)("createOpfsNotesStore on the browser's storage", () => {
         const refusal = unsupported("FileSystemFileHandle.createWritable");
         await expect(store.writeNotebook(notebookOf("n1"))).rejects.toMatchObject(refusal);
         await expect(store.readNotebook("n1")).rejects.toMatchObject(refusal);
-        await expect(store.writeIndex(indexOf())).rejects.toMatchObject(refusal);
+        await expect(store.updateIndex(() => indexOf())).rejects.toMatchObject(refusal);
       });
       await expect(store.listNotebooks()).resolves.toEqual([]);
       await expect(store.readIndex()).resolves.toBeUndefined();
@@ -735,20 +887,37 @@ describe.runIf(usable)("createOpfsNotesStore on the browser's storage", () => {
       await expect(store.readIndex()).resolves.toBeUndefined();
     });
 
-    it("grants every lock where there is no Web Locks API", async () => {
-      const store = openStore();
-      Object.defineProperty(navigator, "locks", { value: undefined, configurable: true });
-      try {
-        const first = await store.lockNotebook("n1");
-        const second = await store.lockNotebook("n1");
-        expect(first).toBeTypeOf("function");
-        expect(second).toBeTypeOf("function");
-        first?.();
-        second?.();
-      } finally {
-        Reflect.deleteProperty(navigator, "locks");
-      }
-      expect(navigator.locks).toBeDefined();
+    it("keeps the page's other stores out of a notebook where there is no Web Locks API", async () => {
+      const first = openStore();
+      const second = openStore();
+      const elsewhere = openStore(newName());
+      await withoutWebLocks(async () => {
+        const release = await first.lockNotebook("n1");
+        expect(release).toBeTypeOf("function");
+        await expect(first.lockNotebook("n1")).resolves.toBeUndefined();
+        await expect(second.lockNotebook("n1")).resolves.toBeUndefined();
+        expect(await second.lockNotebook("n2")).toBeTypeOf("function");
+        expect(await elsewhere.lockNotebook("n1")).toBeTypeOf("function");
+        release?.();
+        const lock = await taken(second, "n1");
+        await expect(first.lockNotebook("n1")).resolves.toBeUndefined();
+        lock();
+      });
+    });
+
+    it("still writes, from two stores at once, where there is no Web Locks API", async () => {
+      const first = openStore();
+      const second = openStore();
+      await withoutWebLocks(async () => {
+        await Promise.all([
+          first.writePage("n1", pageOf("p1")),
+          second.writePage("n1", pageOf("p1", [])),
+          first.writeNotebook(notebookOf("n1")),
+        ]);
+        await expect(first.readNotebook("n1")).resolves.toEqual(notebookOf("n1"));
+        const read = await second.readPage("n1", "p1");
+        expect([pageOf("p1"), pageOf("p1", [])]).toContainEqual(read);
+      });
     });
 
     it("never calls a listener where there is no BroadcastChannel", async () => {
@@ -757,7 +926,7 @@ describe.runIf(usable)("createOpfsNotesStore on the browser's storage", () => {
       const other = openStore();
       const heard = vi.fn();
       const stop = other.subscribe(heard);
-      await store.writeIndex(indexOf());
+      await store.updateIndex(() => indexOf());
       await expect(other.readIndex()).resolves.toEqual(indexOf());
       expect(heard).not.toHaveBeenCalled();
       stop();
@@ -765,6 +934,8 @@ describe.runIf(usable)("createOpfsNotesStore on the browser's storage", () => {
   });
 
   describe("across stores", () => {
+    const failedChange = new Error("The change gave up.");
+
     it("hears only its own library, and only an index change", async () => {
       const listening = openStore();
       const sameLibrary = openStore();
@@ -772,15 +943,44 @@ describe.runIf(usable)("createOpfsNotesStore on the browser's storage", () => {
       const heard = vi.fn();
       listening.subscribe(heard);
 
-      await otherLibrary.writeIndex(indexOf());
+      await otherLibrary.updateIndex(() => indexOf());
       const stranger = new BroadcastChannel(name);
       stranger.postMessage({ type: "something-else" });
-      await sameLibrary.writeIndex(indexOf());
+      await sameLibrary.updateIndex(() => indexOf());
       await delivered();
       stranger.close();
 
       // Not the other library's change, and not the message that wasn't a store's.
       expect(heard).toHaveBeenCalledTimes(1);
+    });
+
+    it("isn't told of a change to the index that threw", async () => {
+      const store = openStore();
+      const other = openStore();
+      const heard = vi.fn();
+      other.subscribe(heard);
+      await store.updateIndex(() => indexOf());
+      await expect(
+        store.updateIndex(() => {
+          throw failedChange;
+        }),
+      ).rejects.toBe(failedChange);
+      await delivered();
+      expect(heard).toHaveBeenCalledTimes(1);
+    });
+
+    it("locks a notebook of a storage whose name starts with a hyphen", async () => {
+      // The Web Locks API refuses a lock's name that starts with one.
+      const hyphened = `-${newName()}`;
+      names.push(hyphened);
+      const first = openStore(hyphened);
+      const second = openStore(hyphened);
+      const release = await first.lockNotebook("n1");
+      expect(release).toBeTypeOf("function");
+      await expect(second.lockNotebook("n1")).resolves.toBeUndefined();
+      await first.writePage("n1", pageOf("p1"));
+      await expect(second.readPage("n1", "p1")).resolves.toEqual(pageOf("p1"));
+      release?.();
     });
 
     it("gives a notebook to another store once its holder lets it go", async () => {
@@ -797,6 +997,73 @@ describe.runIf(usable)("createOpfsNotesStore on the browser's storage", () => {
       // Now the first store is the one that has to wait.
       await expect(first.lockNotebook("n1")).resolves.toBeUndefined();
       taken();
+    });
+  });
+
+  describe("closing", () => {
+    it("finishes the calls already made, and refuses the ones made after", async () => {
+      const first = openStore();
+      const second = openStore();
+      await first.writePage("n1", pageOf("p1"));
+      await first.writePageText({ notebook: "n1", page: "p1", typed: "words" });
+      const letWritesGo = holdWrites();
+      const calls = [
+        first.writePage("n1", pageOf("p2", [])),
+        first.writeNotebook(notebookOf("n1")),
+        // Queued behind the writes, and needs the database when its turn comes.
+        first.deletePage("n1", "p1"),
+        first.writePageText({ notebook: "n1", page: "p2", typed: "more words" }),
+      ];
+      const heard = vi.fn();
+      second.subscribe(heard);
+      const changing = first.updateIndex(() => indexOf(notebookOf("n1")));
+
+      first.close();
+      await expect(first.readPage("n1", "p2")).rejects.toMatchObject({ code: "STORAGE_FAILED" });
+      await expect(first.writePage("n1", pageOf("p3"))).rejects.toMatchObject({
+        code: "STORAGE_FAILED",
+      });
+      letWritesGo();
+      await expect(Promise.all(calls)).resolves.toHaveLength(4);
+      await expect(changing).resolves.toEqual(indexOf(notebookOf("n1")));
+
+      await expect(second.readNotebook("n1")).resolves.toEqual(notebookOf("n1"));
+      await expect(second.readPage("n1", "p2")).resolves.toEqual(pageOf("p2", []));
+      await expect(second.readPage("n1", "p1")).resolves.toBeUndefined();
+      await expect(second.readPage("n1", "p3")).resolves.toBeUndefined();
+      await expect(second.readPageTexts("n1")).resolves.toEqual([
+        { notebook: "n1", page: "p2", typed: "more words" },
+      ]);
+      // The change to the index that was under way was still announced.
+      await delivered();
+      expect(heard).toHaveBeenCalledTimes(1);
+    });
+
+    describe.each([
+      ["with Web Locks", (steps: () => Promise<void>) => steps()],
+      ["without Web Locks", withoutWebLocks],
+    ])("%s", (_, inBrowser) => {
+      it.each<[string, (store: NotesStore, release: () => void) => void]>([
+        ["the store closes", (store) => store.close()],
+        ["its function is called", (_store, release) => release()],
+      ])("keeps a notebook, when %s, until the writes made on it have settled", (_how, giveBack) =>
+        inBrowser(async () => {
+          const first = openStore();
+          const second = openStore();
+          const release = await first.lockNotebook("n1");
+          const letWritesGo = holdWrites();
+          const writing = first.writePage("n1", pageOf("p1"));
+
+          giveBack(first, () => release?.());
+          // Still the first store's: its write would otherwise land on what the next holder wrote.
+          await expect(second.lockNotebook("n1")).resolves.toBeUndefined();
+          letWritesGo();
+          await writing;
+          const lock = await taken(second, "n1");
+          await expect(second.readPage("n1", "p1")).resolves.toEqual(pageOf("p1"));
+          lock();
+        }),
+      );
     });
   });
 

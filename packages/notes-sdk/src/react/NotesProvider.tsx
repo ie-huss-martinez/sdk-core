@@ -85,8 +85,10 @@ interface Owned {
 }
 
 /**
- * Creates what the provider owns. Nothing touches the browser until the
- * library loads, so this is safe during server rendering (sdk-core ADR 0007).
+ * Creates what the provider owns. Nothing touches the browser, and nothing
+ * is held, until the library loads: so this is safe during server rendering
+ * (sdk-core ADR 0007), and an instance React makes and drops, as its
+ * development mode does, leaves nothing behind.
  */
 function own(props: NotesProviderProps): Owned {
   const store = props.store ?? createOpfsNotesStore();
@@ -104,10 +106,13 @@ function own(props: NotesProviderProps): Owned {
     pdf,
     recorder: props.recorder ?? createMediaNotesRecorder(),
     dispose() {
-      library.close();
-      // A store or an engine the host passed is the host's to close.
-      if (!props.store) store.close();
-      if (!props.pdfEngine) void pdf.destroy().catch(() => undefined);
+      // The notebooks still open are saved first: the store closes only once
+      // nothing is left to write to it.
+      void library.close().finally(() => {
+        // A store or an engine the host passed is the host's to close.
+        if (!props.store) store.close();
+        if (!props.pdfEngine) void pdf.destroy().catch(() => undefined);
+      });
     },
   };
 }

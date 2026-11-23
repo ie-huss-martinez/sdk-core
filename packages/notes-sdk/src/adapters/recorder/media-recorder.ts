@@ -22,6 +22,11 @@ const failed = (reason: "denied" | "unavailable", cause?: unknown) =>
  * user for the microphone on the first recording. Nothing leaves the device:
  * the sound is handed to the notebook, which stores it beside the ink.
  *
+ * A recording that ends by itself, because the microphone was unplugged or
+ * the recorder failed, keeps what it had: `stop()` still resolves to it. The
+ * microphone is let go when the recording ends, however it ends, and when it
+ * can't start.
+ *
  * @public
  */
 export function createMediaNotesRecorder(): NotesRecorder {
@@ -58,42 +63,65 @@ export function createMediaNotesRecorder(): NotesRecorder {
         throw failed("unavailable", error);
       }
       const chunks: Blob[] = [];
-      recorder.addEventListener("dataavailable", (event) => {
-        if (event.data.size > 0) chunks.push(event.data);
-      });
       const startedAt = Date.now();
       const clock = performance.now();
-      // A chunk a second, so a crash loses at most that much of what's in memory.
-      recorder.start(1000);
+      /** When the recording ended, on the clock it started on. */
+      let endedAt: number | undefined;
+      /** What the recorder said went wrong, if anything did. */
+      let failure: Event | undefined;
+      let stopping = false;
+      let discarded = false;
+      const elapsed = () => Math.round((endedAt ?? performance.now()) - clock);
+
+      // Listening from the start, not from `stop()`: the browser ends a
+      // recording by itself when the microphone does, as when it's unplugged,
+      // and what was recorded until then is kept for whoever asks.
+      const recorded = new Promise<{ audio: Blob; duration: number }>((resolve, reject) => {
+        recorder.addEventListener("dataavailable", (event) => {
+          if (event.data.size > 0) chunks.push(event.data);
+        });
+        recorder.addEventListener("error", (event) => {
+          failure = event;
+          // A browser that fails hands over what it gathered and stops. One that doesn't is stopped here.
+          if (recorder.state !== "inactive") recorder.stop();
+        });
+        recorder.addEventListener("stop", () => {
+          endedAt ??= performance.now();
+          release();
+          const type = storedType(recorder.mimeType) ?? storedType(chunks[0]?.type ?? "");
+          if (discarded || !type || chunks.length === 0) {
+            reject(failed("unavailable", failure));
+            return;
+          }
+          resolve({ audio: new Blob(chunks, { type }), duration: elapsed() });
+        });
+      });
+      // Nobody may ever ask for a recording that was cancelled or that failed.
+      recorded.catch(() => undefined);
+
+      try {
+        // A chunk a second, so a crash loses at most that much of what's in memory.
+        recorder.start(1000);
+      } catch (error) {
+        // No session reaches the caller, so nothing else could let the microphone go.
+        release();
+        throw failed("unavailable", error);
+      }
 
       return {
         startedAt,
-        elapsed: () => Math.round(performance.now() - clock),
+        elapsed,
         stop() {
-          return new Promise((resolve, reject) => {
-            const duration = Math.round(performance.now() - clock);
-            recorder.addEventListener("stop", () => {
-              release();
-              const type = storedType(recorder.mimeType) ?? storedType(chunks[0]?.type ?? "");
-              if (!type || chunks.length === 0) {
-                reject(failed("unavailable"));
-                return;
-              }
-              resolve({ audio: new Blob(chunks, { type }), duration });
-            });
-            recorder.addEventListener("error", (event) => {
-              release();
-              reject(failed("unavailable", event));
-            });
-            if (recorder.state === "inactive") {
-              release();
-              reject(failed("unavailable"));
-            } else {
-              recorder.stop();
-            }
-          });
+          if (discarded) return Promise.reject(failed("unavailable"));
+          stopping = true;
+          // The length is up to now, not up to when the browser has handed over the last chunk.
+          endedAt ??= performance.now();
+          if (recorder.state !== "inactive") recorder.stop();
+          return recorded;
         },
         cancel() {
+          // A recording that `stop()` already asked for is still that caller's.
+          if (!stopping) discarded = true;
           if (recorder.state !== "inactive") recorder.stop();
           release();
         },

@@ -142,6 +142,20 @@ describe("templateMarks", () => {
     );
   });
 
+  it("lists dots row by row, every row with the same columns", () => {
+    fc.assert(
+      fc.property(side, side, (width, height) => {
+        const dots = rows(templateMarks("dotted", width, height).dots, 2);
+        const columns = dots.filter(([, y]) => y === dots[0]?.[1]).map(([x]) => x);
+        const lines = [...new Set(dots.map(([, y]) => y))];
+        expect(columns.length * lines.length).toBeGreaterThan(0);
+        expect(dots).toStrictEqual(lines.flatMap((y) => columns.map((x) => [x, y])));
+        expect(lines).toStrictEqual([...lines].sort((a, b) => (a ?? 0) - (b ?? 0)));
+      }),
+      { numRuns: 30 },
+    );
+  });
+
   it("stays small on the largest page a document may hold", () => {
     const lined = templateMarks("lined", NOTES_MAX_PAGE_SIDE, NOTES_MAX_PAGE_SIDE);
     expect(lined.lines.length / 4).toBe(597);

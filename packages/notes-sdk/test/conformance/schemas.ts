@@ -48,13 +48,3 @@ export function commandErrors(value: unknown): string[] {
     (error) => `${error.instancePath || "/"} ${error.message ?? "is invalid"}`,
   );
 }
-
-/** Half of a surrogate pair on its own: what a schema's `maxLength` counts, but can't refuse. */
-const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
-
-/** Whether any text inside a JSON value holds a lone surrogate. */
-export function hasLoneSurrogate(value: unknown): boolean {
-  if (typeof value === "string") return LONE_SURROGATE.test(value);
-  if (typeof value !== "object" || value === null) return false;
-  return Object.values(value).some(hasLoneSurrogate);
-}

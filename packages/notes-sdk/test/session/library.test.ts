@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createMemoryNotesStore } from "../../src/adapters/memory-store/memory-store.js";
 import type { NotesStore } from "../../src/core/ports/notes-store.js";
 import { createNotesLibrary, type NotesLibraryEvent } from "../../src/core/session/library.js";
 import { createFakePdfEngine, fakePdf } from "../fixtures/fake-pdf.js";
-import { countingIds, stroke, text, tickingClock } from "../fixtures/notes.js";
+import { countingIds, notebook, stroke, text, tickingClock } from "../fixtures/notes.js";
 
 function setup(store: NotesStore = createMemoryNotesStore()) {
   const events: NotesLibraryEvent[] = [];
@@ -318,18 +318,242 @@ describe("createNotesLibrary", () => {
   });
 
   it("reads the text of PDF pages that weren't indexed, such as a restored notebook's", async () => {
+    const source = setup();
+    await source.library.load();
+    await source.library.importPdf(new Blob([fakePdf(["Alpha", "Beta"])]), { title: "Imported" });
+    const target = setup();
+    await target.library.load();
+    const { restored } = await target.library.restore(await source.library.backup());
+    const id = restored[0]?.id ?? "";
+    // A backup holds the PDF, not its text: that's read again where it's restored.
+    expect(await target.library.search("beta")).toEqual([]);
+    await target.library.indexPdfText(id);
+    expect(await target.library.search("beta")).toHaveLength(1);
+  });
+
+  it("keeps what's typed on a page when it reads the PDF's text", async () => {
     const { library, store } = setup();
     await library.load();
-    const id = await library.importPdf(new Blob([fakePdf(["Alpha", "Beta"])]), {
-      title: "Imported",
-    });
-    const notebook = await store.readNotebook(id);
-    // As after a restore: typed text only, with the PDF's own text still to read.
-    for (const page of notebook?.pages ?? []) {
-      await store.writePageText({ notebook: id, page: page.id, typed: "" });
-    }
-    expect(await library.search("beta")).toEqual([]);
+    const id = await library.importPdf(new Blob([fakePdf(["Alpha"])]), { title: "Imported" });
+    const page = (await store.readNotebook(id))?.pages[0]?.id ?? "";
+    await store.deletePage(id, page);
+    await store.writePageText({ notebook: id, page, typed: "Margin note" });
     await library.indexPdfText(id);
-    expect(await library.search("beta")).toHaveLength(1);
+    expect(await store.readPageTexts(id)).toEqual([
+      { notebook: id, page, typed: "Margin note", pdf: "Alpha" },
+    ]);
+  });
+});
+
+describe("a library in two tabs", () => {
+  /** Two libraries over one store, each with its own copy of the index, as two tabs have. */
+  async function tabs() {
+    const store = createMemoryNotesStore();
+    const first = setup(store).library;
+    const second = createNotesLibrary({ store, newId: countingIds("other"), saveDelay: 60_000 });
+    await first.load();
+    await second.load();
+    return { store, first, second };
+  }
+
+  it("keeps both tabs' changes, each made from what's stored and not from the tab's own copy", async () => {
+    const { store, first, second } = await tabs();
+    await first.createFolder("School");
+    await second.createFolder("Work");
+    await first.createNotebook({ title: "Physics" });
+    await second.createNotebook({ title: "Minutes" });
+    const stored = await store.readIndex();
+    expect(stored?.folders.map((folder) => folder.name)).toEqual(["School", "Work"]);
+    expect(stored?.notebooks.map((notebook) => notebook.title)).toEqual(["Physics", "Minutes"]);
+    // Each tab shows what's stored after its own change.
+    expect(second.getSnapshot().index).toEqual(stored);
+  });
+
+  it("puts a notebook at the top when its folder was removed in the other tab meanwhile", async () => {
+    const { store, first, second } = await tabs();
+    const folder = await first.createFolder("School");
+    await second.createFolder("Work");
+    await first.deleteFolder(folder);
+    // The second tab still shows the folder: its copy is from before.
+    const id = await second.createNotebook({ title: "Physics", folder });
+    const stored = await store.readIndex();
+    expect(stored?.notebooks).toEqual([expect.objectContaining({ id, folder: null })]);
+  });
+
+  it("refuses to delete, rename or recolour a notebook that's open, and changes nothing", async () => {
+    const { store, first, second } = await tabs();
+    const id = await first.createNotebook({ title: "Physics" });
+    await second.load();
+    const session = await first.open(id);
+    const inUse = { code: "NOTEBOOK_IN_USE" };
+    await expect(first.deleteNotebook(id)).rejects.toMatchObject(inUse);
+    await expect(first.renameNotebook(id, "Chemistry")).rejects.toMatchObject(inUse);
+    await expect(first.setNotebookCover(id, "red")).rejects.toMatchObject(inUse);
+    expect(await store.readNotebook(id)).toMatchObject({ title: "Physics", cover: "blue" });
+    expect(first.getSnapshot().index.notebooks[0]).toMatchObject({ deletedAt: null });
+    await session.close();
+    await first.deleteNotebook(id);
+    expect(await store.readNotebook(id)).toBeUndefined();
+  });
+});
+
+describe("a library when something fails", () => {
+  it("leaves a notebook in the bin when deleting its storage fails, so it can be deleted again", async () => {
+    const { library, store } = setup();
+    await library.load();
+    const id = await library.createNotebook({ title: "Physics" });
+    const deleteNotebook = store.deleteNotebook.bind(store);
+    let failing = true;
+    store.deleteNotebook = async (notebook) => {
+      if (failing) throw new Error("The disk won't answer.");
+      await deleteNotebook(notebook);
+    };
+    await expect(library.deleteNotebook(id)).rejects.toMatchObject({ code: "UNKNOWN" });
+    // Never among the others while half deleted, and still there to try again.
+    expect(library.getSnapshot().index.notebooks).toEqual([
+      expect.objectContaining({ id, deletedAt: expect.any(Number) }),
+    ]);
+    failing = false;
+    await library.deleteNotebook(id);
+    expect(library.getSnapshot().index.notebooks).toEqual([]);
+    expect(await store.listNotebooks()).toEqual([]);
+  });
+
+  it("stores nothing of an import that fails part way", async () => {
+    const { library, store } = setup();
+    await library.load();
+    store.writeNotebook = async () => {
+      throw new Error("The disk is full.");
+    };
+    await expect(
+      library.importPdf(new Blob([fakePdf(["Needle one", "Needle two"])]), { title: "Imported" }),
+    ).rejects.toMatchObject({ code: "UNKNOWN" });
+    expect(await store.readPageTexts()).toEqual([]);
+    expect(await library.search("needle")).toEqual([]);
+    expect(library.getSnapshot().index.notebooks).toEqual([]);
+  });
+
+  it("finds no text that belongs to no listed notebook", async () => {
+    const { library, store } = setup();
+    await library.load();
+    await store.writePageText({ notebook: "ghost", page: "p1", typed: "needle" });
+    expect(await library.search("needle")).toEqual([]);
+  });
+
+  it("is never failed by what a host's analytics throws", async () => {
+    const store = createMemoryNotesStore();
+    const library = createNotesLibrary({
+      store,
+      onEvent: () => {
+        throw new Error("The analytics library broke.");
+      },
+    });
+    await library.load();
+    const id = await library.createNotebook({ title: "Physics" });
+    const session = await library.open(id);
+    await session.close();
+    expect(await store.listNotebooks()).toEqual([id]);
+  });
+
+  it("backs up or exports one notebook without saving another that can't be saved", async () => {
+    const { library, store } = setup();
+    await library.load();
+    const wanted = await library.createNotebook({ title: "Physics" });
+    const broken = await library.createNotebook({ title: "Chemistry" });
+    const session = await library.open(broken);
+    const [page] = session.getSnapshot().notebook.pages;
+    if (!page) throw new Error("A new notebook has a page.");
+    await session.loadPage(page.id);
+    const writePage = store.writePage.bind(store);
+    store.writePage = async (notebook, written) => {
+      if (notebook === broken) throw new Error("The disk is full.");
+      await writePage(notebook, written);
+    };
+    session.execute({ type: "notes.addItems", page: page.id, items: [stroke("s1")] });
+    await expect(library.backup({ notebooks: [wanted] })).resolves.toBeInstanceOf(Blob);
+    await expect(library.exportPdf(wanted)).resolves.toBeInstanceOf(Uint8Array);
+    // The whole library does include it, and says why it can't.
+    await expect(library.backup()).rejects.toMatchObject({ code: "UNKNOWN" });
+    await session.close({ discard: true });
+  });
+});
+
+describe("a library's backup reminder", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it("counts from when the backup began, so an edit saved while it's written still needs one", async () => {
+    const store = createMemoryNotesStore();
+    let time = 1_800_000_000_000;
+    const library = createNotesLibrary({ store, now: () => time });
+    await library.load();
+    await library.createNotebook({ title: "Physics" });
+    const began = time;
+    const readNotebook = store.readNotebook.bind(store);
+    store.readNotebook = async (id) => {
+      // The archive takes a while to write.
+      time += 60_000;
+      return readNotebook(id);
+    };
+    await library.backup();
+    expect(library.getSnapshot().index.lastBackupAt).toBe(began);
+  });
+
+  it("rebuilds when the notebooks last changed along with a lost index", async () => {
+    const store = createMemoryNotesStore();
+    const written = 1_800_000_000_000;
+    await store.writeNotebook({
+      ...notebook("book", ["p1"]),
+      createdAt: written,
+      updatedAt: written,
+    });
+    const library = createNotesLibrary({ store, now: () => written + 21 * DAY });
+    await library.load();
+    expect(library.getSnapshot().index.lastChangeAt).toBe(written);
+    expect(library.getSnapshot().backupDue).toBe(true);
+  });
+
+  it("falls due while the library is open, without a change to say so", async () => {
+    vi.useFakeTimers();
+    try {
+      const library = createNotesLibrary({ store: createMemoryNotesStore() });
+      await library.load();
+      await library.createNotebook({ title: "Physics" });
+      expect(library.getSnapshot().backupDue).toBe(false);
+      await vi.advanceTimersByTimeAsync(14 * DAY + 1_000);
+      expect(library.getSnapshot().backupDue).toBe(true);
+      await library.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("closing a library", () => {
+  it("saves and gives back the notebooks still open, and opens no more", async () => {
+    const { library, store } = setup();
+    await library.load();
+    const id = await library.createNotebook({ title: "Physics" });
+    const session = await library.open(id);
+    const [page] = session.getSnapshot().notebook.pages;
+    if (!page) throw new Error("A new notebook has a page.");
+    await session.loadPage(page.id);
+    session.execute({ type: "notes.addItems", page: page.id, items: [stroke("s1")] });
+    await library.close();
+    expect((await store.readPage(id, page.id))?.items).toHaveLength(1);
+    expect(await store.lockNotebook(id)).toBeTypeOf("function");
+    await expect(library.load()).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("restores one backup at a time, so two never restore the same notebook twice", async () => {
+    const source = setup();
+    await source.library.load();
+    await source.library.createNotebook({ title: "Physics" });
+    const backup = await source.library.backup();
+    const { library } = setup();
+    await library.load();
+    const [first, second] = await Promise.all([library.restore(backup), library.restore(backup)]);
+    expect(first.restored).toHaveLength(1);
+    expect(second).toMatchObject({ restored: [], unchanged: [first.restored[0]?.id] });
+    expect(library.getSnapshot().index.notebooks).toHaveLength(1);
   });
 });

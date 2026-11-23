@@ -1,5 +1,5 @@
 /**
- * Options every asynchronous call takes.
+ * Options of a call that can be cancelled.
  *
  * @public
  */

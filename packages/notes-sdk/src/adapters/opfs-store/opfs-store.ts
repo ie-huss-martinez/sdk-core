@@ -2,12 +2,15 @@ import { createStore } from "@hussmartinez/sdk-core";
 import { invalidDocument } from "../../core/errors/notes-error.js";
 import { readNotesLibraryDocument } from "../../core/format/documents.js";
 import { isNotesId } from "../../core/model/ids.js";
+import type { NotesLibraryIndex } from "../../core/model/library.js";
 import type { NotesPersistence, NotesStore } from "../../core/ports/notes-store.js";
 import {
   checkedAssetName,
   checkedId,
   checkedPageText,
+  checkedPageTextChange,
   indexToText,
+  mergedPageText,
   notebookFromText,
   notebookToText,
   pageFromText,
@@ -15,6 +18,7 @@ import {
   storeClosed,
 } from "../memory-store/stored-documents.js";
 import { createNotesDatabase } from "./index-db.js";
+import { lockName, queueOn, tryLock, whileLocked } from "./locks.js";
 import {
   findDirectory,
   listDirectories,
@@ -65,39 +69,6 @@ function storageManager(): Partial<StorageManager> | undefined {
 }
 
 /**
- * Asks for a lock without waiting for it. Resolves to `undefined` when it's
- * held, here or in another tab, and otherwise to a function that gives it
- * back and resolves once the browser has let it go.
- *
- * Where the Web Locks API is missing there is no telling what another tab
- * holds, so the lock is always granted.
- */
-function requestLock(name: string): Promise<(() => Promise<void>) | undefined> {
-  const locks = (globalThis as { readonly navigator?: { readonly locks?: LockManager } }).navigator
-    ?.locks;
-  if (!locks) return Promise.resolve(() => Promise.resolve());
-  return new Promise((resolve, reject) => {
-    let letGo: () => void = () => {};
-    const untilLetGo = new Promise<void>((done) => {
-      letGo = done;
-    });
-    // The lock is held for as long as the promise the callback returns is pending.
-    const finished: Promise<void> = locks.request(name, { ifAvailable: true }, (lock) => {
-      if (lock === null) {
-        resolve(undefined);
-        return undefined;
-      }
-      resolve(() => {
-        letGo();
-        return finished;
-      });
-      return untilLetGo;
-    });
-    finished.catch(reject);
-  });
-}
-
-/**
  * A {@link NotesStore} on the device: notebooks in the origin private file
  * system, and the library's index and search text in IndexedDB. Nothing
  * leaves the device.
@@ -115,7 +86,12 @@ function requestLock(name: string): Promise<(() => Promise<void>) | undefined> {
  * - **A write is all or nothing:** it goes to a temporary file that replaces
  *   the real one only when it's complete. A failed write leaves the earlier
  *   document as it was. Calls on one notebook run one at a time, in the
- *   order they were made.
+ *   order they were made, and a file has one writer at a time, across tabs.
+ * - **The index changes in one step:** `updateIndex` reads it and writes it
+ *   in one IndexedDB transaction, so a change another tab made is never
+ *   replaced by one made from an older copy. An index that couldn't be read
+ *   back is refused before it's stored, and a stored one that can't be read
+ *   is never replaced. A page's search text is merged the same way.
  * - **What it reads is untrusted:** every document goes through its strict
  *   reader. A damaged one rejects with `INVALID_DOCUMENT`, and one of a
  *   later version with `UNSUPPORTED_FORMAT`. Neither is ever deleted.
@@ -123,7 +99,13 @@ function requestLock(name: string): Promise<(() => Promise<void>) | undefined> {
  *   `"quota"` when the disk is full, and `"unavailable"` when the browser
  *   gives the page no storage, as some private modes do.
  * - **Across tabs:** `lockNotebook` uses the Web Locks API, and `subscribe`
- *   a `BroadcastChannel`, on which each store announces its `writeIndex`.
+ *   a `BroadcastChannel`, on which each store announces its `updateIndex`.
+ *   In a browser without Web Locks a lock still keeps out the other stores
+ *   of the page, but another tab can't be seen.
+ * - **Closing:** `close()` refuses new calls at once. The calls already made
+ *   still finish. A notebook's lock is given back, by its function or by
+ *   `close()`, only once the calls made on that notebook have settled, so
+ *   its next holder never meets a write that was still queued.
  *
  * @example
  * ```ts
@@ -148,6 +130,8 @@ export function createOpfsNotesStore(options: OpfsNotesStoreOptions = {}): Notes
   let channel: BroadcastChannel | undefined;
   /** The last call queued on each notebook. */
   const queues = new Map<string, Promise<void>>();
+  /** The storage calls that haven't settled yet. */
+  const working = new Set<Promise<unknown>>();
   /** The locks this store holds, by lock name, each with how to give it back. */
   const held = new Map<string, () => void>();
   /** The locks this store gave back that the browser hasn't let go of yet. */
@@ -163,13 +147,22 @@ export function createOpfsNotesStore(options: OpfsNotesStoreOptions = {}): Notes
    * Runs a call's storage work, once its arguments were checked: refuses a
    * browser without the features, and makes any failure a `NotesError`.
    */
-  const run = async <Result>(work: () => Promise<Result>): Promise<Result> => {
-    checkStorageFeatures();
-    try {
-      return await work();
-    } catch (error) {
-      throw storageFailure(error);
-    }
+  const run = <Result>(work: () => Promise<Result>): Promise<Result> => {
+    const result = (async () => {
+      checkStorageFeatures();
+      try {
+        return await work();
+      } catch (error) {
+        throw storageFailure(error);
+      }
+    })();
+    // Kept until it settles: `close()` waits for it.
+    working.add(result);
+    const done = (): void => {
+      working.delete(result);
+    };
+    result.then(done, done);
+    return result;
   };
 
   /**
@@ -178,18 +171,29 @@ export function createOpfsNotesStore(options: OpfsNotesStoreOptions = {}): Notes
    * writes made before it, and no file is opened twice at once, which some
    * browsers refuse.
    */
-  const inNotebook = <Result>(id: string, work: () => Promise<Result>): Promise<Result> => {
-    const result = (queues.get(id) ?? Promise.resolve()).then(work);
-    const settled = result.then(
-      () => undefined,
-      () => undefined,
+  const inNotebook = <Result>(id: string, work: () => Promise<Result>): Promise<Result> =>
+    queueOn(queues, id, work);
+
+  /**
+   * Writes a file of a notebook while no other store writes it, in this tab
+   * or another. A first write makes the file, fills it, and removes it again
+   * if that fails: were two stores to do that at once, the one that failed
+   * could remove what the other had just stored.
+   *
+   * @param directory - The file's folder.
+   * @param path - The folder's path below the notebooks, for the lock's name.
+   * @param file - The file's name.
+   * @param data - The file's whole contents.
+   */
+  const writeAlone = (
+    directory: FileSystemDirectoryHandle,
+    path: readonly string[],
+    file: string,
+    data: string | Blob,
+  ): Promise<void> =>
+    whileLocked(lockName(name, "file", [...path, file].join("/")), () =>
+      writeFile(directory, file, data),
     );
-    queues.set(id, settled);
-    void settled.then(() => {
-      if (queues.get(id) === settled) queues.delete(id);
-    });
-    return result;
-  };
 
   const originRoot = (): Promise<FileSystemDirectoryHandle> => {
     if (origin) return origin;
@@ -212,12 +216,13 @@ export function createOpfsNotesStore(options: OpfsNotesStoreOptions = {}): Notes
     makeDirectory(await originRoot(), [...notebooksPath, ...path]);
 
   const openChannel = (): BroadcastChannel | undefined => {
-    if (closed || typeof BroadcastChannel === "undefined") return undefined;
+    if (typeof BroadcastChannel === "undefined") return undefined;
     if (!channel) {
       channel = new BroadcastChannel(name);
       // A channel never hears its own messages, so these are other stores'.
       channel.onmessage = (event) => {
-        if (event.data === INDEX_CHANGED) changes.set((count) => count + 1);
+        // A closed store tells nobody, though its channel stays for its last calls.
+        if (!closed && event.data === INDEX_CHANGED) changes.set((count) => count + 1);
       };
       // Node keeps a process alive for an open channel. Browsers have no `unref`.
       (channel as { unref?: () => void }).unref?.();
@@ -230,7 +235,7 @@ export function createOpfsNotesStore(options: OpfsNotesStoreOptions = {}): Notes
     try {
       openChannel()?.postMessage(INDEX_CHANGED);
     } catch {
-      // The channel closed with the store while the write was ending.
+      // The browser wouldn't make or use the channel.
     }
   };
 
@@ -242,15 +247,35 @@ export function createOpfsNotesStore(options: OpfsNotesStoreOptions = {}): Notes
         return document === undefined ? undefined : readNotesLibraryDocument(document);
       });
     },
-    async writeIndex(index) {
+    async updateIndex(change) {
       checkOpen();
-      // Through JSON text, as a file holds a document: the record is exactly
-      // what a reader of the format expects, and shares nothing with the caller.
-      const document: unknown = JSON.parse(indexToText(index));
-      return run(async () => {
-        await database.writeIndex(document);
-        announce();
-      });
+      let thrown: { readonly error: unknown } | undefined;
+      try {
+        return await run(async () => {
+          const stored = await database.updateIndex((record) => {
+            const index = record === undefined ? undefined : readNotesLibraryDocument(record);
+            let next: NotesLibraryIndex;
+            try {
+              next = change(index);
+            } catch (error) {
+              thrown = { error };
+              throw error;
+            }
+            // Through JSON text, as a file holds a document: the record is
+            // exactly what a reader of the format expects, and shares nothing
+            // with the caller.
+            const document: unknown = JSON.parse(indexToText(next));
+            // Read back before it's stored: an index that can't be read could never be changed again.
+            readNotesLibraryDocument(document);
+            return document;
+          });
+          announce();
+          return readNotesLibraryDocument(stored);
+        });
+      } catch (error) {
+        // What `change` threw is the caller's own, and not a failure of the storage.
+        throw thrown ? thrown.error : error;
+      }
     },
 
     async listNotebooks() {
@@ -289,7 +314,10 @@ export function createOpfsNotesStore(options: OpfsNotesStoreOptions = {}): Notes
       // Made into text now, not when its turn comes: what the caller changes meanwhile isn't stored.
       const text = notebookToText(notebook);
       return run(() =>
-        inNotebook(id, async () => writeFile(await makeBelow(toFileName(id)), NOTEBOOK_FILE, text)),
+        inNotebook(id, async () => {
+          const path = [toFileName(id)];
+          await writeAlone(await makeBelow(...path), path, NOTEBOOK_FILE, text);
+        }),
       );
     },
     async deleteNotebook(id) {
@@ -326,8 +354,9 @@ export function createOpfsNotesStore(options: OpfsNotesStoreOptions = {}): Notes
       const text = pageToText(page);
       return run(() =>
         inNotebook(notebookId, async () => {
-          const directory = await makeBelow(toFileName(notebookId), PAGES_DIRECTORY);
-          await writeFile(directory, `${toFileName(pageId)}${PAGE_SUFFIX}`, text);
+          const path = [toFileName(notebookId), PAGES_DIRECTORY];
+          const file = `${toFileName(pageId)}${PAGE_SUFFIX}`;
+          await writeAlone(await makeBelow(...path), path, file, text);
         }),
       );
     },
@@ -371,12 +400,13 @@ export function createOpfsNotesStore(options: OpfsNotesStoreOptions = {}): Notes
       const file = toAssetFileName(checkedAssetName(asset));
       return run(() =>
         inNotebook(notebookId, async () => {
-          const directory = await makeBelow(toFileName(notebookId), ASSETS_DIRECTORY);
+          const path = [toFileName(notebookId), ASSETS_DIRECTORY];
+          const directory = await makeBelow(...path);
           // A file is named by the hash of its bytes, so one of the same name
           // and size is the same file. A write that was cut short differs in size.
           const stored = await readFile(directory, file);
           if (stored?.size === data.size) return;
-          await writeFile(directory, file, data);
+          await writeAlone(directory, path, file, data);
         }),
       );
     },
@@ -391,30 +421,46 @@ export function createOpfsNotesStore(options: OpfsNotesStoreOptions = {}): Notes
       );
     },
 
-    async writePageText(entry) {
+    async writePageText(change) {
       checkOpen();
-      const text = checkedPageText(entry);
-      return run(() => database.writePageText(text));
+      const text = checkedPageTextChange(change);
+      // In the notebook's turn: a page deleted before this was called takes
+      // its text with it, and mustn't take this one.
+      return run(() =>
+        inNotebook(text.notebook, () =>
+          database.updatePageText(text.notebook, text.page, (stored) =>
+            mergedPageText(stored, text),
+          ),
+        ),
+      );
     },
     async readPageTexts(notebook) {
       checkOpen();
       const notebookId = notebook === undefined ? undefined : checkedId(notebook, "notebook");
-      return run(async () => (await database.readPageTexts(notebookId)).map(checkedPageText));
+      const read = async () => (await database.readPageTexts(notebookId)).map(checkedPageText);
+      // One notebook's texts are read in its turn, after the writes made before.
+      return run(() => (notebookId === undefined ? read() : inNotebook(notebookId, read)));
     },
 
     async lockNotebook(id) {
       checkOpen();
-      const lock = `${name}:notebook:${checkedId(id, "id")}`;
+      const notebook = checkedId(id, "id");
+      const lock = lockName(name, "notebook", notebook);
       try {
         // A lock this store just gave back is free only once the browser has let it go.
         await letting.get(lock);
-        const letGo = await requestLock(lock);
+        const letGo = await tryLock(lock);
         if (!letGo) return undefined;
         const giveBack = (): void => {
           // Only once: a later holder's lock isn't this function's to give back.
           if (held.get(lock) !== giveBack) return;
           held.delete(lock);
-          const gone = letGo().catch(() => undefined);
+          // The calls already made on the notebook still write it. The lock
+          // goes when they have settled, so its next holder never has a
+          // write of this store's land on top of its own.
+          const gone = (queues.get(notebook) ?? Promise.resolve())
+            .then(letGo)
+            .catch(() => undefined);
           letting.set(lock, gone);
           void gone.then(() => {
             if (letting.get(lock) === gone) letting.delete(lock);
@@ -471,11 +517,20 @@ export function createOpfsNotesStore(options: OpfsNotesStoreOptions = {}): Notes
     },
     close() {
       if (closed) return;
+      // New calls are refused from here on. The calls already made still
+      // finish: dropping a queued write would lose what the caller was told
+      // is being stored.
       closed = true;
+      // Each lock goes once its notebook's calls have settled.
       for (const giveBack of [...held.values()]) giveBack();
-      channel?.close();
-      channel = undefined;
-      database.close();
+      // The channel and the database go once every call has: a queued call
+      // may still need the database, and a late change to the index is
+      // still announced.
+      void Promise.allSettled([...working]).then(() => {
+        channel?.close();
+        channel = undefined;
+        database.close();
+      });
     },
   };
 }

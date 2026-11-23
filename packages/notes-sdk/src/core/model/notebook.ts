@@ -116,20 +116,36 @@ export const NOTES_PAGE_SIZES = {
  */
 export type NotesPageSizeName = keyof typeof NOTES_PAGE_SIZES;
 
-/** Every asset a notebook and its loaded pages refer to, once each, by its hash. */
+/**
+ * Every reference to an asset in a notebook and its loaded pages, one for
+ * each place that refers to it: an asset used twice is given twice.
+ */
+export function* notebookAssetReferences(
+  notebook: NotesNotebook,
+  pages: Iterable<NotesPage>,
+): Generator<NotesAssetReference> {
+  for (const page of notebook.pages) {
+    if (page.background) yield page.background.pdf;
+  }
+  for (const recording of notebook.recordings) yield recording.audio;
+  for (const page of pages) {
+    for (const item of page.items) {
+      if (item.type === "image") yield item.image;
+    }
+  }
+}
+
+/**
+ * Every asset a notebook and its loaded pages refer to, once each, by its
+ * hash. Of several references to one asset, the last is kept.
+ */
 export function notebookAssets(
   notebook: NotesNotebook,
   pages: Iterable<NotesPage>,
 ): Map<string, NotesAssetReference> {
   const assets = new Map<string, NotesAssetReference>();
-  for (const page of notebook.pages) {
-    if (page.background) assets.set(page.background.pdf.asset, page.background.pdf);
-  }
-  for (const recording of notebook.recordings) assets.set(recording.audio.asset, recording.audio);
-  for (const page of pages) {
-    for (const item of page.items) {
-      if (item.type === "image") assets.set(item.image.asset, item.image);
-    }
+  for (const reference of notebookAssetReferences(notebook, pages)) {
+    assets.set(reference.asset, reference);
   }
   return assets;
 }

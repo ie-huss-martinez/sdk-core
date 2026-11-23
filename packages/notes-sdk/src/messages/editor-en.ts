@@ -117,10 +117,16 @@ export const notesEditorText = /* @__PURE__ */ defineMessages({
   "notebook.saving": "Saving…",
   "notebook.saveFailed": "Not saved",
   "notebook.retrySave": "Save again",
+  "notebook.closeUnsaved": "Close without saving",
+  "notebook.closeUnsavedTitle": "Close without saving?",
+  "notebook.closeUnsavedBody":
+    "The changes that couldn't be saved will be lost. This can't be undone.",
   "notebook.undone": "Undone.",
   "notebook.redone": "Redone.",
   "notebook.pageAdded": "Added page {page}.",
   "notebook.pageDeleted": "Deleted page {page}.",
+  "notebook.pageFailed": "This page couldn't be opened.",
+  "notebook.retryPage": "Try again",
   "notebook.selected": /* @__PURE__ */ plural("count", {
     one: "Selected {count} item.",
     other: "Selected {count} items.",
@@ -192,7 +198,7 @@ export const notesEditorText = /* @__PURE__ */ defineMessages({
     one: "Selection: {count} item",
     other: "Selection: {count} items",
   }),
-  "selection.move": "Move the selection with the arrow keys",
+  "selection.move": "Move the selection with the arrow keys. Resize it with plus and minus.",
   "selection.color": "Colour",
   "selection.duplicate": "Duplicate",
   "selection.delete": "Delete",
@@ -235,6 +241,8 @@ export const notesEditorText = /* @__PURE__ */ defineMessages({
   "search.field": "Search typed text and PDF text",
   "search.hint": "Finds typed text and the text of imported PDFs. Handwriting isn't searched.",
   "search.none": "No matches.",
+  "search.failed": "The search couldn't run.",
+  "search.retry": "Try again",
   "search.count": /* @__PURE__ */ plural("count", {
     one: "{count} page matches.",
     other: "{count} pages match.",
@@ -250,4 +258,6 @@ export const notesEditorText = /* @__PURE__ */ defineMessages({
   "recordings.started": "Recording.",
   "recordings.stopped": "The recording was saved with the notebook.",
   "recordings.stop": "Stop recording",
+  "recordings.unsaved": "The recording isn't saved yet.",
+  "recordings.saveAgain": "Save the recording",
 });

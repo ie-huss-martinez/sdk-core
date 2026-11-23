@@ -5,6 +5,7 @@ import {
   NOTES_PAGE_SIZES,
   type NotesNotebook,
   type NotesPage,
+  notebookAssetReferences,
   notebookAssets,
 } from "./notebook.js";
 import { NOTES_MAX_PAGE_SIDE, NOTES_MIN_PAGE_SIDE } from "./portable.js";
@@ -156,5 +157,25 @@ describe("boxOf", () => {
       width: 3,
       height: 4,
     });
+  });
+});
+
+describe("notebookAssetReferences", () => {
+  it("gives every reference, in the notebook's order, with the ones that repeat", () => {
+    const smaller = { ...PICTURE, size: PICTURE.size - 1 };
+    const pages: NotesPage[] = [
+      { id: "p1", items: [stroke, image("i1", smaller), image("i2", PICTURE)] },
+    ];
+    const references = [...notebookAssetReferences(NOTEBOOK, pages)];
+    // Each page's PDF, then each recording, then each picture: none is left out for repeating.
+    expect(references).toStrictEqual([
+      ...NOTEBOOK.pages.flatMap((page) => (page.background ? [page.background.pdf] : [])),
+      ...NOTEBOOK.recordings.map((recording) => recording.audio),
+      smaller,
+      PICTURE,
+    ]);
+    expect(references.length).toBeGreaterThan(notebookAssets(NOTEBOOK, pages).size);
+    // Of the two, the one kept is the last.
+    expect(notebookAssets(NOTEBOOK, pages).get(PICTURE.asset)).toStrictEqual(PICTURE);
   });
 });

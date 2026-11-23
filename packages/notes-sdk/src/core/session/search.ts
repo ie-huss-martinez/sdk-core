@@ -24,12 +24,31 @@ export const NOTES_MAX_SEARCH_HITS = 200;
 const CONTEXT = 40;
 
 /**
- * Text as search compares it: compatibility forms folded, lowercase, and
+ * Text as search compares it: compatibility forms folded, case folded, and
  * every run of white space one space, so a match can span a line break.
+ *
+ * Lowercase alone isn't case folding: it writes a final sigma differently
+ * from one inside a word, and keeps a sharp s apart from "SS". Uppercase,
+ * then lowercase, then one sigma, makes both sides of a comparison alike.
  */
 function fold(value: string): string {
-  return value.normalize("NFKC").toLowerCase().replace(/\s+/g, " ");
+  return value
+    .normalize("NFKC")
+    .toUpperCase()
+    .toLowerCase()
+    .replace(/\u03C2/g, "\u03C3")
+    .replace(/\s+/g, " ");
 }
+
+const isHighSurrogate = (unit: number) => unit >= 0xd800 && unit <= 0xdbff;
+const isLowSurrogate = (unit: number) => unit >= 0xdc00 && unit <= 0xdfff;
+
+/** Whether cutting `text` at `index` would split a character in two. */
+const splitsCharacter = (text: string, index: number) =>
+  index > 0 &&
+  index < text.length &&
+  isHighSurrogate(text.charCodeAt(index - 1)) &&
+  isLowSurrogate(text.charCodeAt(index));
 
 /** A snippet around a match, cut at word boundaries where it can. */
 function snippetAt(text: string, start: number, length: number) {
@@ -43,6 +62,9 @@ function snippetAt(text: string, start: number, length: number) {
     const space = text.lastIndexOf(" ", to);
     if (space > start + length) to = space;
   }
+  // Never half a character: the cut moves outwards, away from the match.
+  if (splitsCharacter(text, from)) from -= 1;
+  if (splitsCharacter(text, to)) to += 1;
   return { snippet: text.slice(from, to), matchStart: start - from, matchLength: length };
 }
 

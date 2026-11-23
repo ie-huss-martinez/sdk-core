@@ -41,6 +41,11 @@ const MINIMUM_ASPECT = 0.15;
  * A closed shape goes around its centre once: between 0.8 and 1.2 turns.
  * A figure of eight, or a path that goes out and comes back the same way,
  * makes no turn in total, and a spiral makes several.
+ *
+ * The centre is a point inside the shape the path is tried as. For an
+ * ellipse and a rectangle that is the middle of the bounding box. For a
+ * triangle it's the middle of its three corners: the middle of the box
+ * around a triangle can lie on one of its sides, or outside it.
  */
 const MINIMUM_TURN = 1.6 * Math.PI;
 const MAXIMUM_TURN = 2.4 * Math.PI;
@@ -135,17 +140,23 @@ export function recogniseShape(points: ArrayLike<number>): RecognisedShape | und
   const samples = resample(path, length);
   const centreX = (left + right) / 2;
   const centreY = (top + bottom) / 2;
-  const turn = Math.abs(turnAround(samples, centreX, centreY));
-  if (turn < MINIMUM_TURN || turn > MAXIMUM_TURN) return undefined;
+  const aroundBox = goesAroundOnce(samples, centreX, centreY);
+  const triangle = cornersOfTriangle(path, samples);
+  const aroundTriangle =
+    triangle !== undefined &&
+    goesAroundOnce(
+      samples,
+      (triangle[0] + triangle[2] + triangle[4]) / 3,
+      (triangle[1] + triangle[3] + triangle[5]) / 3,
+    );
 
   // The nearest of the three shapes, if the path is near enough to it.
   const radiusX = width / 2;
   const radiusY = height / 2;
-  const triangle = cornersOfTriangle(path, samples);
   let best: RecognisedShape | undefined;
   let bestMean = Number.POSITIVE_INFINITY;
   for (const kind of CLOSED_SHAPES) {
-    if (kind === "triangle" && triangle === undefined) continue;
+    if (!(kind === "triangle" ? aroundTriangle : aroundBox)) continue;
     let sum = 0;
     let worst = 0;
     for (let index = 0; index < samples.length; index += 2) {
@@ -241,6 +252,12 @@ function resample(path: readonly number[], length: number): number[] {
   }
   samples.push(path[count * 2 - 2] as number, path[count * 2 - 1] as number);
   return samples;
+}
+
+/** Whether a path goes around a centre once, one way or the other. */
+function goesAroundOnce(samples: readonly number[], centreX: number, centreY: number): boolean {
+  const turn = Math.abs(turnAround(samples, centreX, centreY));
+  return turn >= MINIMUM_TURN && turn <= MAXIMUM_TURN;
 }
 
 /** The angle a path turns through around a centre, in radians, signed. */

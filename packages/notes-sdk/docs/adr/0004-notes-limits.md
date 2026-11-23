@@ -33,7 +33,7 @@ A picture is checked in this order, and refused at the first failure:
 1. **Its size in bytes,** against `maxFileSize`.
 2. **Its header,** read by `probeImage`: the kind, told by the first bytes and never by the name or the browser's guess, and the width and height. PNG, JPEG, WebP and GIF only. SVG is never accepted: it can carry scripts.
 3. **Its pixels,** width times height, against `maxImagePixels`.
-4. **Only then the browser's decoder,** `createImageBitmap`, which is the platform's and decodes off the main thread. What it decoded is checked against the limit again.
+4. **Only then the browser's decoder,** `createImageBitmap`, which is the platform's and decodes asynchronously. Where it decodes is the browser's choice, so the size check before it is the SDK's guarantee. What it decoded is checked against the limit again.
 
 **The header probe runs on the page, not in a worker.** It reads fixed fields at offsets it checks against the bytes it has: at most 32 bytes for PNG, WebP and GIF, and segment headers up to the first megabyte for a JPEG. It decodes nothing and allocates nothing from a length in the file. A worker for it would add a second way to ship and start code, for a function that reads a few integers. It has property tests over arbitrary bytes.
 

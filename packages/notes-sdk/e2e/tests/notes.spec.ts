@@ -154,6 +154,8 @@ test.describe("the notes editor", () => {
       { timeout: 30_000 },
     );
 
+    // The PDF itself has nothing where the stroke will go.
+    expect(isInk(await inkAt(page, 0.45, 0.5, "background"))).toBe(false);
     await pen(page, PAGE, line([0.2, 0.5], [0.7, 0.5]));
     await expect.poll(async () => isInk(await inkAt(page, 0.45, 0.5))).toBe(true);
     await saved(page);
@@ -171,6 +173,22 @@ test.describe("the notes editor", () => {
     expect(exported.subarray(0, 5).toString("latin1")).toBe("%PDF-");
     // The original's pages with the ink drawn over them: more than the original alone.
     expect(exported.byteLength).toBeGreaterThan(source.byteLength);
+
+    // Read back as a PDF, the stroke is part of the first page, where it was drawn.
+    await page.getByRole("button", { name: "Back to the library" }).click();
+    await page.locator('input[data-hm-input="pdf"]').setInputFiles({
+      name: "Exported.pdf",
+      mimeType: "application/pdf",
+      buffer: exported,
+    });
+    await expect(page.getByRole("heading", { name: "Exported" })).toBeVisible();
+    await expect(page.locator(".hm-notes-page-background").first()).not.toHaveAttribute(
+      "data-hm-pending",
+      "",
+      { timeout: 30_000 },
+    );
+    await expect.poll(async () => isInk(await inkAt(page, 0.45, 0.5, "background"))).toBe(true);
+    expect(isInk(await inkAt(page, 0.45, 0.7, "background"))).toBe(false);
     await expectClean(page, problems);
   });
 

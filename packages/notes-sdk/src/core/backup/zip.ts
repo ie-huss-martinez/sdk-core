@@ -81,13 +81,16 @@ export function crc32(data: Uint8Array, previous = 0): number {
   return ~crc >>> 0;
 }
 
+/** A drive or device letter and its colon, as in `C:/notes.txt` or `C:notes.txt`. */
+const DRIVE_PREFIX = /^[A-Za-z]:/;
+
 /**
  * Whether a name is a relative path that stays inside the folder an archive
- * is opened in: not absolute, with no `..` segment, backslash or control
- * character.
+ * is opened in: not absolute, with no drive letter, `..` segment, backslash
+ * or control character.
  */
 function isSafeName(name: string): boolean {
-  if (name === "" || name.startsWith("/")) return false;
+  if (name === "" || name.startsWith("/") || DRIVE_PREFIX.test(name)) return false;
   for (let index = 0; index < name.length; index += 1) {
     const code = name.charCodeAt(index);
     // C0 and C1 controls, DEL and the backslash.
@@ -372,20 +375,21 @@ interface EncodedEntry {
   readonly body: readonly (Blob | Bytes)[];
 }
 
-/** An entry's data as the archive holds it, with its CRC-32 and sizes. */
-async function encodeEntry(data: Blob | Uint8Array, compress: boolean): Promise<EncodedEntry> {
+/**
+ * An entry's data as the archive holds it, with its CRC-32 and sizes. Bytes
+ * are kept as they are, so they must be the archive's own copy.
+ */
+async function encodeEntry(data: Blob | Bytes, compress: boolean): Promise<EncodedEntry> {
   let crc = 0;
   let size: number;
   let raw: readonly (Blob | Bytes)[];
   let source: () => Blob;
   // Not `instanceof Blob`, which a blob from another window fails.
   if (ArrayBuffer.isView(data)) {
-    // A copy, so a caller that reuses its buffer can't change what's written.
-    const copy = data.slice();
-    crc = crc32(copy);
-    size = copy.length;
-    raw = [copy];
-    source = () => new Blob([copy]);
+    crc = crc32(data);
+    size = data.length;
+    raw = [data];
+    source = () => new Blob([data]);
   } else {
     // A small file is kept as bytes, so many small entries join into few parts.
     const kept: Bytes[] = [];
@@ -468,9 +472,13 @@ export function createZipWriter(): ZipWriter {
       const encoded = encodeName(name);
       if (names.has(name)) throw new TypeError("The archive already has an entry of that name.");
       names.add(name);
+      // Copied now, not when the entry's turn comes, so a caller that reuses
+      // its buffer can't change what's written. Not `slice`, which for a
+      // Node `Buffer` is a view of the same memory. A `Blob` never changes.
+      const own = ArrayBuffer.isView(data) ? new Uint8Array(data) : data;
       pending += 1;
       const turn = queue.then(async () => {
-        append(encoded, await encodeEntry(data, options.compress ?? true));
+        append(encoded, await encodeEntry(own, options.compress ?? true));
       });
       queue = turn.catch(() => undefined);
       try {
@@ -828,10 +836,6 @@ export async function readZip(file: Blob, limits: ZipLimits): Promise<ZipArchive
     entries.set(name, { name, size, compressedSize });
   }
 
-  // Bytes read so far, each entry counted once however often it's read.
-  let total = 0;
-  const counted = new Set<string>();
-
   /** Checks an entry's local header against the directory, and returns its data as stored. */
   const dataOf = async (entry: LocatedEntry): Promise<Blob> => {
     const where = `entry[${entry.index}]`;
@@ -881,18 +885,15 @@ export async function readZip(file: Blob, limits: ZipLimits): Promise<ZipArchive
     const stream =
       entry.method === DEFLATED ? data.stream().pipeThrough(decompressor()) : data.stream();
     const chunks: Bytes[] = [];
-    const fresh = !counted.has(entry.name);
     let size = 0;
     let crc = 0;
     try {
       await forEachChunk(stream, (chunk) => {
         size += chunk.length;
-        // Stops at the first byte too many, before a bomb has grown.
+        // Stops at the first byte too many, before a bomb has grown. The
+        // declared sizes were summed against `maxSize` when the directory
+        // was read, so this also keeps everything read within that limit.
         if (size > entry.size) throw malformed(`${where}.size`);
-        if (fresh) {
-          total += chunk.length;
-          if (total > limits.maxSize) throw tooLarge(limits.maxSize, total);
-        }
         crc = crc32(chunk, crc);
         if (keep) chunks.push(chunk);
       });
@@ -903,7 +904,6 @@ export async function readZip(file: Blob, limits: ZipLimits): Promise<ZipArchive
     }
     if (size !== entry.size) throw malformed(`${where}.size`);
     if (crc !== entry.crc) throw malformed(`${where}.crc`);
-    counted.add(entry.name);
     return { data, chunks };
   };
 

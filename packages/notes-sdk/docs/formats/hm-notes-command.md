@@ -71,7 +71,7 @@ An item is as in an [`hm-notes-page`](hm-notes-page.md) document. A page's `info
 | `notes.rename` | `title` | Renames the notebook | `notes.rename` |
 | `notes.setRecordings` | `recordings` | Replaces the notebook's list of recordings | `notes.setRecordings` |
 
-Unlike some formats of the family, the inverses are part of this one: `notes.restoreItems` and `notes.restorePages` are commands like the others, and the vectors give each case's inverse. Applying a command and then its inverse restores the state exactly.
+Unlike some formats of the family, the inverses are part of this one: `notes.restoreItems` and `notes.restorePages` are commands like the others, and the vectors apply them. Applying a command and then its inverse restores the state exactly. The vectors check that, and not the inverse itself, because more than one inverse undoes a command: the ids of a `notes.removeItems` may be in any order.
 
 ### What a command changes
 
@@ -104,9 +104,18 @@ Its `outline` is the notebook's outline once the pages are back: the notebook's 
 - a new item's id isn't on the page, a new page's id isn't in the notebook, and a new page's items have distinct ids;
 - its indexes fit the list;
 - a replacement is of the same kind as the item it replaces;
-- an outline leads to pages the notebook has, and recordings have distinct ids;
+- an outline leads to pages the notebook has, and its entries and the recordings have distinct ids;
 - a notebook keeps at least one page;
-- the result is within the limits it's given, `maxPages` and `maxPageItems` ([ADR 0004](../adr/0004-notes-limits.md)).
+- the result is within the limits, as below.
+
+### Limits
+
+`notes.addItems` and `notes.addPages` are checked against the limits `applyNotesCommand` is given, `maxPages` and `maxPageItems` ([ADR 0004](../adr/0004-notes-limits.md)).
+
+Two rules hold whatever those limits are, and without them:
+
+- **No command makes a document a reader would refuse.** A notebook holds at most 100,000 pages and a page at most 1,000,000 items. A limit above those counts is read as those counts.
+- **`notes.restoreItems` and `notes.restorePages` are checked against those counts only,** not against the limits given. They undo a removal, so they only put back what the notebook held. A notebook may hold more than the host now allows, because the host lowered a limit after it was made, and deleting from it must stay undoable. A host that applies commands from an untrusted source and needs its own limits to hold refuses these two types from that source.
 
 A refused command changes nothing. `applyNotesCommand` never changes the state it's given.
 

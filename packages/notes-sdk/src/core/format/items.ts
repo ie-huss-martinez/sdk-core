@@ -8,9 +8,10 @@ import type {
   NotesText,
 } from "../model/items.js";
 import {
+  NOTES_LENGTH_RANGE,
   NOTES_MAX_STROKE_POINTS,
   NOTES_MAX_TEXT_LENGTH,
-  NOTES_PAGE_MARGIN,
+  NOTES_POSITION_RANGE,
   NOTES_PRESSURE_MAX,
   NOTES_STROKE_SIZE_RANGE,
   NOTES_TEXT_SIZE_RANGE,
@@ -29,14 +30,11 @@ export const NOTES_PDF_TYPE = "application/pdf";
  */
 export const NOTES_AUDIO_TYPES = ["audio/webm", "audio/mp4", "audio/ogg", "audio/wav"] as const;
 
-const POSITION_MIN = -NOTES_PAGE_MARGIN;
-const POSITION_MAX = 2 * NOTES_PAGE_MARGIN;
-
 const position = (value: unknown, at: string): number =>
-  integer(value, at, POSITION_MIN, POSITION_MAX, "invalid-position");
+  integer(value, at, ...NOTES_POSITION_RANGE, "invalid-position");
 
 const length = (value: unknown, at: string): number =>
-  integer(value, at, 1, POSITION_MAX, "invalid-size");
+  integer(value, at, ...NOTES_LENGTH_RANGE, "invalid-size");
 
 function audioAnchor(value: unknown, at: string): NotesAudioAnchor {
   const entry = fields(value, at, ["recording", "at"]);
@@ -66,7 +64,7 @@ function stroke(value: unknown, at: string): NotesStroke {
     points[index] =
       index % 3 === 2
         ? integer(raw[index], where, 0, NOTES_PRESSURE_MAX, "invalid-points")
-        : integer(raw[index], where, POSITION_MIN, POSITION_MAX, "invalid-points");
+        : integer(raw[index], where, ...NOTES_POSITION_RANGE, "invalid-points");
   }
   if (Object.hasOwn(entry, "uniform") && entry["uniform"] !== true) {
     throw invalidDocument("malformed-document", `${at}.uniform`);

@@ -2,7 +2,7 @@ import type { NotesAssetReference } from "../../core/model/items.js";
 
 /**
  * The pictures of an open notebook, decoded once each by the browser's own
- * decoder, off the main thread (sdk-core ADR 0031: a platform decoder, on
+ * decoder, asynchronously (sdk-core ADR 0031: a platform decoder, on
  * files the SDK already checked when they were added).
  */
 export interface ImageCache {
@@ -10,6 +10,10 @@ export interface ImageCache {
   get(reference: NotesAssetReference): ImageBitmap | undefined;
   /** Resolves to the picture, or `undefined` if it can't be read or decoded. */
   load(reference: NotesAssetReference): Promise<ImageBitmap | undefined>;
+  /**
+   * Closes the pictures. The cache can be used again afterwards, and loads
+   * them again: React's development mode runs a cleanup once on mount too.
+   */
   dispose(): void;
 }
 
@@ -19,17 +23,19 @@ export function createImageCache(
 ): ImageCache {
   const ready = new Map<string, ImageBitmap>();
   const pending = new Map<string, Promise<ImageBitmap | undefined>>();
-  let disposed = false;
+  /** Counts disposals: a picture that arrives from before the last one is closed. */
+  let generation = 0;
 
   const load = (reference: NotesAssetReference) => {
     const found = ready.get(reference.asset);
     if (found) return Promise.resolve(found);
     let loading = pending.get(reference.asset);
     if (!loading) {
+      const started = generation;
       loading = read(reference)
         .then((blob) => createImageBitmap(blob))
         .then((bitmap) => {
-          if (disposed) {
+          if (started !== generation) {
             bitmap.close();
             return undefined;
           }
@@ -47,14 +53,15 @@ export function createImageCache(
   return {
     get(reference) {
       const found = ready.get(reference.asset);
-      if (!found && !disposed) void load(reference);
+      if (!found) void load(reference);
       return found;
     },
     load,
     dispose() {
-      disposed = true;
+      generation += 1;
       for (const bitmap of ready.values()) bitmap.close();
       ready.clear();
+      pending.clear();
     },
   };
 }

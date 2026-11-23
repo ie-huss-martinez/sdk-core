@@ -14,7 +14,7 @@ import {
 import { assetNameOf, isNotesId } from "../model/ids.js";
 import type { NotesAssetReference } from "../model/items.js";
 import type { NotesFolder, NotesLibraryIndex, NotesNotebookSummary } from "../model/library.js";
-import { type NotesNotebook, type NotesPage, notebookAssets } from "../model/notebook.js";
+import { type NotesNotebook, type NotesPage, notebookAssetReferences } from "../model/notebook.js";
 import type { NotesStore } from "../ports/notes-store.js";
 import type { NotesProgress, NotesProgressOptions } from "../ports/options.js";
 import { createZipWriter, readZip, type ZipArchive } from "./zip.js";
@@ -50,6 +50,13 @@ export interface NotesBackupOptions extends NotesProgressOptions {
   readonly notebooks?: readonly string[];
   /** The clock, in milliseconds since the Unix epoch. */
   readonly now: () => number;
+  /**
+   * The file policy restore will read the backup under. With it, a backup
+   * over `maxBackupEntries` or `maxBackupSize` is refused here, with the
+   * error restore would give, and never handed over as if it were good.
+   * Without it, no limit is checked.
+   */
+  readonly policy?: NotesFilePolicy;
 }
 
 /**
@@ -75,13 +82,21 @@ export interface NotesRestoreReport {
    * None has an id the library already lists.
    */
   readonly restored: readonly NotesNotebookSummary[];
-  /** Ids of notebooks left alone because the library already holds the same notebook, unchanged. */
+  /**
+   * Ids of notebooks left alone because the library already holds the same
+   * notebook, unchanged: under its own id, or under the id of a copy an
+   * earlier restore made.
+   */
   readonly unchanged: readonly string[];
   /** Folders the library must gain so the restored notebooks keep their place. */
   readonly folders: readonly NotesFolder[];
 }
 
-/** Reports progress as steps out of a total, never going backwards. */
+/**
+ * Reports progress as steps out of a total, never going backwards. Only
+ * `finish` reports 1: the total may still grow after the steps known so far
+ * are all done, and a listener must not see the end before it.
+ */
 function createProgress(
   onProgress: ((progress: NotesProgress) => void) | undefined,
   total: number,
@@ -91,7 +106,7 @@ function createProgress(
   let reported = 0;
   const report = (fraction: number): void => {
     if (!onProgress) return;
-    reported = Math.min(1, Math.max(reported, fraction));
+    reported = Math.max(reported, fraction);
     onProgress({ fraction: reported });
   };
   return {
@@ -101,10 +116,11 @@ function createProgress(
     },
     step(by = 1): void {
       done += by;
-      report(steps === 0 ? 1 : done / steps);
+      // Finishing counts as one step more, so every step done is still short of the end.
+      report(Math.min(done, steps) / (steps + 1));
     },
     finish(): void {
-      if (reported < 1) report(1);
+      report(1);
     },
   };
 }
@@ -117,11 +133,34 @@ const json = (document: unknown): Uint8Array<ArrayBuffer> =>
   new TextEncoder().encode(JSON.stringify(document));
 
 /**
- * A page with only its pictures, which is all {@link notebookAssets} reads
- * of it: a notebook's files are found without holding its pages in memory.
+ * A page with only its pictures, which is all {@link notebookAssetReferences}
+ * reads of it: a notebook's files are found without holding its pages in
+ * memory.
  */
 function picturesOf(page: NotesPage): NotesPage {
   return { id: page.id, items: page.items.filter((item) => item.type === "image") };
+}
+
+/**
+ * Every file a notebook and its pages refer to, once each, by its name.
+ *
+ * Several references may name one file, and only one of them is kept and
+ * checked against the file. So they must agree on its size first: otherwise
+ * a reference with a wrong size would pass unchecked behind a right one.
+ * References that disagree are refused with `asset-mismatch`.
+ */
+function assetsOf(
+  notebook: NotesNotebook,
+  pages: Iterable<NotesPage>,
+  where: string,
+): Map<string, NotesAssetReference> {
+  const assets = new Map<string, NotesAssetReference>();
+  for (const reference of notebookAssetReferences(notebook, pages)) {
+    const first = assets.get(reference.asset);
+    if (first === undefined) assets.set(reference.asset, reference);
+    else if (first.size !== reference.size) throw invalidDocument("asset-mismatch", where);
+  }
+  return assets;
 }
 
 /** The folders some notebooks are in, with every folder those are in, in the library's order. */
@@ -155,14 +194,21 @@ function foldersOf(index: NotesLibraryIndex, inFolders: Iterable<string | null>)
  * and a file the store doesn't have with `"asset"`. A stored file that no
  * longer matches its name or its size rejects with `INVALID_DOCUMENT` and
  * the reason `asset-mismatch`, since restore would refuse the whole backup
- * for it.
+ * for it. So do references to one file that disagree on its size.
+ *
+ * With `options.policy`, a backup that restore would refuse for its size
+ * rejects here with the same error: `TOO_MANY_BACKUP_ENTRIES` for more
+ * entries than `maxBackupEntries`, and `BACKUP_TOO_LARGE` when the file, or
+ * what its entries hold, is over `maxBackupSize`. It rejects as soon as the
+ * limit is passed, so `details.actual` is what was counted by then. The
+ * caller can then offer a backup of fewer notebooks.
  *
  * Nothing stops the library changing while it's read: the caller saves
  * what's open first, and keeps edits out until the backup is done.
  *
  * @param store - Where the library is kept.
  * @param index - The library's index.
- * @param options - Which notebooks, the clock, a signal and a progress listener.
+ * @param options - Which notebooks, the clock, the file policy, a signal and a progress listener.
  * @returns The backup, as a zip file.
  */
 export async function createNotesBackup(
@@ -170,7 +216,7 @@ export async function createNotesBackup(
   index: NotesLibraryIndex,
   options: NotesBackupOptions,
 ): Promise<Blob> {
-  const { signal } = options;
+  const { policy, signal } = options;
   throwIfAborted(signal);
   const listed = new Map(index.notebooks.map((summary) => [summary.id, summary]));
   const ids =
@@ -205,33 +251,44 @@ export async function createNotesBackup(
   };
 
   // The files a notebook's own document names are known now. Pictures are found page by page.
-  const known = notebooks.map((notebook) => notebookAssets(notebook, []).size);
-  const progress = createProgress(
-    options.onProgress,
-    notebooks.reduce(
-      (sum, notebook, position) => sum + 1 + notebook.pages.length + (known[position] ?? 0),
-      1,
-    ),
+  const known = notebooks.map(
+    (notebook, position) => assetsOf(notebook, [], `notebooks[${position}]/assets`).size,
   );
+  const expected = notebooks.reduce(
+    (sum, notebook, position) => sum + 1 + notebook.pages.length + (known[position] ?? 0),
+    1,
+  );
+  // More entries than restore takes are refused before anything is read.
+  policy?.check("maxBackupEntries", expected);
+  const progress = createProgress(options.onProgress, expected);
 
   const zip = createZipWriter();
-  await zip.add(MANIFEST, json(manifest));
-  progress.step();
+  let entries = 0;
+  let held = 0;
+  /** Adds an entry, within what restore accepts: so many entries, holding so many bytes. */
+  const add = async (name: string, data: Blob | Uint8Array, compress = true): Promise<void> => {
+    entries += 1;
+    held += data instanceof Uint8Array ? data.length : data.size;
+    policy?.check("maxBackupEntries", entries);
+    policy?.check("maxBackupSize", held);
+    await zip.add(name, data, { compress });
+    progress.step();
+  };
+
+  await add(MANIFEST, json(manifest));
   for (const [position, notebook] of notebooks.entries()) {
     throwIfAborted(signal);
-    await zip.add(notebookPath(notebook.id), json(toNotesNotebookDocument(notebook)));
-    progress.step();
+    await add(notebookPath(notebook.id), json(toNotesNotebookDocument(notebook)));
 
     const pictures: NotesPage[] = [];
     for (const info of notebook.pages) {
       throwIfAborted(signal);
       const page = (await store.readPage(notebook.id, info.id)) ?? { id: info.id, items: [] };
-      await zip.add(pagePath(notebook.id, info.id), json(toNotesPageDocument(page)));
+      await add(pagePath(notebook.id, info.id), json(toNotesPageDocument(page)));
       pictures.push(picturesOf(page));
-      progress.step();
     }
 
-    const assets = notebookAssets(notebook, pictures);
+    const assets = assetsOf(notebook, pictures, `notebooks[${position}]/assets`);
     progress.grow(assets.size - (known[position] ?? 0));
     for (const reference of assets.values()) {
       throwIfAborted(signal);
@@ -245,12 +302,13 @@ export async function createNotesBackup(
         throw invalidDocument("asset-mismatch", `notebooks[${position}]/assets`);
       }
       // Pictures, PDFs and recordings are compressed already.
-      await zip.add(assetPath(notebook.id, reference.asset), data, { compress: false });
-      progress.step();
+      await add(assetPath(notebook.id, reference.asset), data, false);
     }
   }
   throwIfAborted(signal);
   const backup = zip.finish();
+  // Restore bounds the file itself too, which the archive's own records make longer.
+  policy?.check("maxBackupSize", backup.size);
   progress.finish();
   return backup;
 }
@@ -332,14 +390,46 @@ function summaryOf(notebook: NotesNotebook, folder: string | null): NotesNoteboo
   };
 }
 
-/** Whether the store's notebook is the backup's, unchanged: the same time and the same pages. */
-function sameNotebook(stored: NotesNotebook, backup: NotesNotebook): boolean {
+/**
+ * Whether two JSON values are equal, whatever the order of their fields. A
+ * field that's `undefined` counts as absent, as it is once written.
+ */
+function sameJson(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (typeof left !== "object" || typeof right !== "object" || left === null || right === null) {
+    return false;
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, position) => sameJson(value, right[position]))
+    );
+  }
+  const defined = (value: object): [string, unknown][] =>
+    Object.entries(value).filter(([, field]) => field !== undefined);
+  const fields = defined(left);
+  const others = new Map(defined(right));
   return (
-    stored.updatedAt === backup.updatedAt &&
-    stored.pages.length === backup.pages.length &&
-    stored.pages.every((page, position) => page.id === backup.pages[position]?.id)
+    fields.length === others.size &&
+    fields.every(([name, value]) => others.has(name) && sameJson(value, others.get(name)))
   );
 }
+
+/**
+ * Whether the store's notebook has the backup's own document, whatever its
+ * id: every field, not just its time. Two saves in one tick of the clock, or
+ * a clock set back, change a notebook and leave `updatedAt` as it was. Its
+ * pages are compared one by one, as the backup's are read.
+ */
+function sameDocument(stored: NotesNotebook, backup: NotesNotebook): boolean {
+  return sameJson({ ...stored, id: backup.id }, backup);
+}
+
+/** Whether a failure is of a document that can't be read, and not of the store itself. */
+const isUnreadable = (error: unknown): boolean =>
+  isNotesError(error, "INVALID_DOCUMENT") || isNotesError(error, "UNSUPPORTED_FORMAT");
 
 /** The store's notebook of an id, `undefined` for none, or `"unreadable"` for a damaged one. */
 async function storedNotebook(
@@ -350,9 +440,22 @@ async function storedNotebook(
     return await store.readNotebook(id);
   } catch (error) {
     // A notebook that can't be read is exactly what a backup is restored for.
-    if (isNotesError(error, "INVALID_DOCUMENT") || isNotesError(error, "UNSUPPORTED_FORMAT")) {
-      return "unreadable";
-    }
+    if (isUnreadable(error)) return "unreadable";
+    throw error;
+  }
+}
+
+/**
+ * Whether the store's page of a notebook is the backup's. A page the store
+ * doesn't have is an empty one, as a backup writes it, and one it can't read
+ * is another page.
+ */
+async function samePage(store: NotesStore, notebook: string, backup: NotesPage): Promise<boolean> {
+  try {
+    const stored = (await store.readPage(notebook, backup.id)) ?? { id: backup.id, items: [] };
+    return sameJson(stored, backup);
+  } catch (error) {
+    if (isUnreadable(error)) return false;
     throw error;
   }
 }
@@ -379,26 +482,38 @@ function typedText(page: NotesPage): string {
  * file (`malformed-document`). Each notebook is within `maxPages` and each
  * page within `maxPageItems`. Every file a notebook refers to is in the
  * archive (`missing-entry`), with the size its reference says and the
- * SHA-256 its name says (`asset-mismatch`). Entries the manifest doesn't
- * lead to are ignored.
+ * SHA-256 its name says (`asset-mismatch`). References to one file that
+ * disagree on its size are refused too (`asset-mismatch`). Entries the
+ * manifest doesn't lead to are ignored.
  *
  * **What's written.** For each notebook of the backup:
  *
  * - the library doesn't have it: it's written under its own id;
- * - the store has the same notebook, with an equal `updatedAt` and the same
- *   pages in the same order: nothing is written. It's reported in
- *   `unchanged` when the index lists it, and in `restored` when the index
- *   doesn't, which is how a restore that was interrupted is picked up by
- *   the next;
+ * - the store has the same notebook, its document and every page equal to
+ *   the backup's: nothing is written. It's reported in `unchanged` when the
+ *   index lists it, and in `restored` when the index doesn't, which is how
+ *   a restore that was interrupted is picked up by the next;
  * - anything else, such as a notebook changed since the backup or one the
  *   store can't read: the backup's copy is written under a new id from
  *   `newId`, with its pages' and items' ids as they were, so both are kept.
+ *   If the store already holds that copy, whole, under another id, as an
+ *   earlier restore of the backup leaves it, no other is written: it's
+ *   reported under that id, in `unchanged` or `restored` as above.
  *
  * A notebook's files are written first, then its pages with their search
  * text, and its document last, so a restore that stops halfway never
  * leaves a notebook's document pointing at pages that aren't there. A
  * restore that fails while writing may leave notebooks the index doesn't
- * list; restoring the same backup again lists them.
+ * list; restoring the same backup again lists them. It may also leave the
+ * files and pages of a copy whose document was never written, under an id
+ * nothing knows: they take room, and no notebook has them.
+ *
+ * **Ids that are taken meanwhile.** A notebook written under its own id is
+ * written holding the store's lock on it, after reading that the id is
+ * still free. If the lock is held, or a notebook is there by then, the
+ * backup's goes beside it under a new id. So two restores at once, in one
+ * tab or two, never write one notebook between them. What this doesn't
+ * cover is a writer that puts a notebook under that id without the lock.
  *
  * **Folders.** A folder of the backup whose id the library has is the
  * library's: it isn't duplicated, and the library's name and place stand.
@@ -451,6 +566,27 @@ export async function restoreNotesBackup(
     throw new TypeError("newId must return a valid identifier that no notebook has.");
   };
 
+  // The store's notebooks under ids the backup doesn't name, among them the copies an earlier
+  // restore made under new ids, whether the index lists them yet or not. They're read once,
+  // and only when a notebook of the backup can't take its own id.
+  let found: Promise<NotesNotebook[]> | undefined;
+  const elsewhere = (): Promise<NotesNotebook[]> => {
+    found ??= (async () => {
+      const inBackup = new Set(manifest.notebooks.map((entry) => entry.id));
+      const notebooks: NotesNotebook[] = [];
+      for (const id of await store.listNotebooks()) {
+        if (inBackup.has(id)) continue;
+        throwIfAborted(signal);
+        const notebook = await storedNotebook(store, id);
+        if (notebook !== undefined && notebook !== "unreadable") notebooks.push(notebook);
+      }
+      return notebooks;
+    })();
+    return found;
+  };
+  /** Copies already taken for a notebook of the backup, which can't stand for another. */
+  const claimed = new Set<string>();
+
   // First pass: every notebook is read and checked whole. Nothing is written.
   const plans: RestorePlan[] = [];
   for (const [position, entry] of manifest.notebooks.entries()) {
@@ -467,6 +603,19 @@ export async function restoreNotesBackup(
     policy.check("maxPages", notebook.pages.length);
     progress.step();
 
+    // The store's notebooks that may be this one already: the one of its id, first, and, when
+    // that id isn't free, a copy an earlier restore made. Each stays while its pages match.
+    const stored = await storedNotebook(store, entry.id);
+    let same: NotesNotebook[] = [];
+    if (stored !== undefined && stored !== "unreadable" && sameDocument(stored, notebook)) {
+      same.push(stored);
+    }
+    if (stored !== undefined || listed.has(entry.id)) {
+      for (const copy of await elsewhere()) {
+        if (!claimed.has(copy.id) && sameDocument(copy, notebook)) same.push(copy);
+      }
+    }
+
     const pictures: NotesPage[] = [];
     for (const [number, info] of notebook.pages.entries()) {
       const at = `${where}/pages[${number}]`;
@@ -479,10 +628,15 @@ export async function restoreNotesBackup(
       if (page.id !== info.id) throw invalidDocument("malformed-document", `${at}:$.id`);
       policy.check("maxPageItems", page.items.length);
       pictures.push(picturesOf(page));
+      const matching: NotesNotebook[] = [];
+      for (const candidate of same) {
+        if (await samePage(store, candidate.id, page)) matching.push(candidate);
+      }
+      same = matching;
       progress.step();
     }
 
-    const assets = [...notebookAssets(notebook, pictures).values()];
+    const assets = [...assetsOf(notebook, pictures, `${where}/assets`).values()];
     for (const reference of assets) {
       throwIfAborted(signal);
       const path = assetPath(entry.id, reference.asset);
@@ -499,12 +653,13 @@ export async function restoreNotesBackup(
     }
 
     const entries = 1 + notebook.pages.length + assets.length;
-    const stored = await storedNotebook(store, entry.id);
-    if (stored !== undefined && stored !== "unreadable" && sameNotebook(stored, notebook)) {
+    const [held] = same;
+    if (held !== undefined) {
+      claimed.add(held.id);
       plans.push(
-        listed.has(entry.id)
-          ? { kind: "unchanged", id: entry.id }
-          : { kind: "list", summary: summaryOf(stored, entry.folder) },
+        listed.has(held.id)
+          ? { kind: "unchanged", id: held.id }
+          : { kind: "list", summary: summaryOf(held, entry.folder) },
       );
       // Its entries aren't read a second time.
       progress.step(entries);
@@ -555,35 +710,53 @@ export async function restoreNotesBackup(
       restored.push(plan.summary);
       continue;
     }
-    const { source, target, where } = plan;
-    const notebook = await readDocument(
-      context,
-      notebookPath(source),
-      `${where}/notebook.json`,
-      readNotesNotebookDocument,
-    );
-    for (const reference of plan.assets) {
-      throwIfAborted(signal);
-      const data = await archive.readBlob(assetPath(source, reference.asset));
-      await store.writeAsset(target, reference.asset, data);
-      progress.step();
+    const { source, where } = plan;
+    let { target } = plan;
+    // Its own id was free when the plan was made, and may not be by now: another restore, in
+    // this tab or another, may be writing it, or a notebook may have been made under it. So
+    // it's written holding the notebook's lock, and only if the id is still free. Otherwise
+    // the backup's goes beside what's there. A new id is nobody else's, and needs no lock.
+    let release: (() => void) | undefined;
+    if (target === source) {
+      release = await store.lockNotebook(target);
+      if (release === undefined || (await storedNotebook(store, target)) !== undefined) {
+        release?.();
+        release = undefined;
+        target = freshId();
+      }
     }
-    for (const [number, info] of notebook.pages.entries()) {
-      const page = await readDocument(
+    try {
+      const notebook = await readDocument(
         context,
-        pagePath(source, info.id),
-        `${where}/pages[${number}]`,
-        readNotesPageDocument,
+        notebookPath(source),
+        `${where}/notebook.json`,
+        readNotesNotebookDocument,
       );
-      await store.writePage(target, page);
-      await store.writePageText({ notebook: target, page: page.id, typed: typedText(page) });
+      for (const reference of plan.assets) {
+        throwIfAborted(signal);
+        const data = await archive.readBlob(assetPath(source, reference.asset));
+        await store.writeAsset(target, reference.asset, data);
+        progress.step();
+      }
+      for (const [number, info] of notebook.pages.entries()) {
+        const page = await readDocument(
+          context,
+          pagePath(source, info.id),
+          `${where}/pages[${number}]`,
+          readNotesPageDocument,
+        );
+        await store.writePage(target, page);
+        await store.writePageText({ notebook: target, page: page.id, typed: typedText(page) });
+        progress.step();
+      }
+      throwIfAborted(signal);
+      const written: NotesNotebook = { ...notebook, id: target };
+      await store.writeNotebook(written);
+      restored.push(summaryOf(written, plan.folder));
       progress.step();
+    } finally {
+      release?.();
     }
-    throwIfAborted(signal);
-    const written: NotesNotebook = { ...notebook, id: target };
-    await store.writeNotebook(written);
-    restored.push(summaryOf(written, plan.folder));
-    progress.step();
   }
   progress.finish();
   return { restored, unchanged, folders };

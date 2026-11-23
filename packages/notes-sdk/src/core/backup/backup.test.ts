@@ -45,8 +45,13 @@ interface FakeStore {
   readonly texts: Map<string, NotesPageText>;
   /** Each write, as `<kind> <key>`, in order. */
   readonly writes: string[];
+  /** Called before each write, which is refused with what this throws. */
+  beforeWrite: (write: string) => void;
   /** Called after each write. */
   afterWrite: (write: string) => void;
+  /** The notebooks that are locked, and what's called before a lock is asked for. */
+  readonly locked: Set<string>;
+  beforeLock: (id: string) => void;
   /** Makes `readNotebook` of an id reject. */
   readonly unreadable: Map<string, NotesError>;
 }
@@ -59,6 +64,7 @@ function createFakeStore(): FakeStore {
   const texts = new Map<string, NotesPageText>();
   const writes: string[] = [];
   const unreadable = new Map<string, NotesError>();
+  const locked = new Set<string>();
   let index: NotesLibraryIndex | undefined;
   const fake: FakeStore = {
     notebooks,
@@ -67,12 +73,17 @@ function createFakeStore(): FakeStore {
     texts,
     writes,
     unreadable,
+    locked,
+    beforeWrite: () => undefined,
     afterWrite: () => undefined,
+    beforeLock: () => undefined,
     store: {
       readIndex: async () => index,
-      writeIndex: async (value) => {
-        index = structuredClone(value);
+      updateIndex: async (change) => {
+        fake.beforeWrite("index");
+        index = structuredClone(change(index));
         wrote("index");
+        return index;
       },
       listNotebooks: async () => [...notebooks.keys()],
       readNotebook: async (id) => {
@@ -81,6 +92,7 @@ function createFakeStore(): FakeStore {
         return structuredClone(notebooks.get(id));
       },
       writeNotebook: async (notebook) => {
+        fake.beforeWrite(`notebook ${notebook.id}`);
         notebooks.set(notebook.id, structuredClone(notebook));
         wrote(`notebook ${notebook.id}`);
       },
@@ -90,6 +102,7 @@ function createFakeStore(): FakeStore {
       },
       readPage: async (notebook, page) => structuredClone(pages.get(`${notebook}/${page}`)),
       writePage: async (notebook, page) => {
+        fake.beforeWrite(`page ${notebook}/${page.id}`);
         pages.set(`${notebook}/${page.id}`, structuredClone(page));
         wrote(`page ${notebook}/${page.id}`);
       },
@@ -103,6 +116,7 @@ function createFakeStore(): FakeStore {
           .map((key) => key.slice(notebook.length + 1)),
       readAsset: async (notebook, asset) => assets.get(`${notebook}/${asset}`),
       writeAsset: async (notebook, asset, data) => {
+        fake.beforeWrite(`asset ${notebook}/${asset}`);
         assets.set(`${notebook}/${asset}`, data);
         wrote(`asset ${notebook}/${asset}`);
       },
@@ -110,15 +124,33 @@ function createFakeStore(): FakeStore {
         assets.delete(`${notebook}/${asset}`);
         wrote(`delete ${notebook}/${asset}`);
       },
-      writePageText: async (entry) => {
-        texts.set(`${entry.notebook}/${entry.page}`, structuredClone(entry));
-        wrote(`text ${entry.notebook}/${entry.page}`);
+      writePageText: async (change) => {
+        const key = `${change.notebook}/${change.page}`;
+        fake.beforeWrite(`text ${key}`);
+        // A field left out keeps what's stored, as the port says.
+        const stored = texts.get(key);
+        const pdf = change.pdf ?? stored?.pdf;
+        texts.set(key, {
+          notebook: change.notebook,
+          page: change.page,
+          typed: change.typed ?? stored?.typed ?? "",
+          ...(pdf === undefined ? {} : { pdf }),
+        });
+        wrote(`text ${key}`);
       },
       readPageTexts: async (notebook) =>
         [...texts.values()].filter(
           (entry) => notebook === undefined || entry.notebook === notebook,
         ),
-      lockNotebook: async () => () => undefined,
+      // One holder at a time, as the stores' locks are.
+      lockNotebook: async (id) => {
+        fake.beforeLock(id);
+        if (locked.has(id)) return undefined;
+        locked.add(id);
+        return () => {
+          locked.delete(id);
+        };
+      },
       persistence: async () => ({ persisted: false }),
       requestPersistence: async () => false,
       subscribe: () => () => undefined,
@@ -361,7 +393,7 @@ async function jsonOf(backup: Blob, name: string): Promise<unknown> {
   return JSON.parse(new TextDecoder().decode(await archive.read(name)));
 }
 
-/** Whether progress only ever went forwards, and ended at the end. */
+/** Whether progress only ever went forwards, and reached the end once, with its last report. */
 function expectProgress(reports: readonly NotesProgress[]): void {
   expect(reports.length).toBeGreaterThan(0);
   let last = 0;
@@ -371,6 +403,7 @@ function expectProgress(reports: readonly NotesProgress[]): void {
     last = fraction;
   }
   expect(last).toBe(1);
+  expect(reports.filter(({ fraction }) => fraction === 1)).toHaveLength(1);
 }
 
 describe("createNotesBackup", () => {
@@ -529,8 +562,141 @@ describe("createNotesBackup", () => {
       onProgress: (progress) => reports.push(progress),
     });
     const archive = await readZip(backup, LIMITS);
-    expect(reports).toHaveLength(archive.entries.size);
+    // One for each entry, and one when the archive is whole.
+    expect(reports).toHaveLength(archive.entries.size + 1);
     expectProgress(reports);
+  });
+
+  it("reports the end only once the last file is in the backup", async () => {
+    // A notebook of one page whose only file is a picture, which is found when the page is read:
+    // every entry known at the start is written before that file is read.
+    const fake = createFakeStore();
+    const picture = await referenceTo(PICTURE, "image/png");
+    const notebook: NotesNotebook = {
+      id: "one",
+      title: "One",
+      cover: "blue",
+      createdAt: T0,
+      updatedAt: T0,
+      pages: [{ id: "p1", ...A4, template: "blank" }],
+      outline: [],
+      recordings: [],
+    };
+    fake.notebooks.set("one", notebook);
+    fake.pages.set("one/p1", {
+      id: "p1",
+      items: [{ id: "i1", type: "image", x: 0, y: 0, width: 5000, height: 5000, image: picture }],
+    });
+    fake.assets.set(`one/${picture.asset}`, new Blob([PICTURE]));
+    const events: (number | "read the picture")[] = [];
+    const store: NotesStore = {
+      ...fake.store,
+      readAsset: async (id, asset) => {
+        events.push("read the picture");
+        return fake.store.readAsset(id, asset);
+      },
+    };
+    const index: NotesLibraryIndex = { ...EMPTY_LIBRARY, notebooks: [summaryOf(notebook, null)] };
+    await createNotesBackup(store, index, {
+      now: () => NOW,
+      onProgress: ({ fraction }) => events.push(fraction),
+    });
+    const read = events.indexOf("read the picture");
+    expect(read).toBeGreaterThan(0);
+    expect(events.slice(0, read).every((event) => typeof event === "number" && event < 1)).toBe(
+      true,
+    );
+    expect(events.at(-1)).toBe(1);
+    expect(events.filter((event) => event === 1)).toHaveLength(1);
+  });
+
+  it("refuses, as restore would, a backup over the limits of the policy it's given", async () => {
+    const { store, index } = await createLibrary();
+    const under = (overrides: NotesFilePolicyOverrides) =>
+      createNotesBackup(store, index, { now: () => NOW, policy: notesLimits.resolve(overrides) });
+
+    // The library's backup has 11 entries: the limit restore refuses it under refuses it here.
+    await expect(under({ maxBackupEntries: 10 })).rejects.toMatchObject({
+      name: "NotesError",
+      code: "TOO_MANY_BACKUP_ENTRIES",
+      details: { limit: "maxBackupEntries", maximum: 10, actual: 11, unit: "count" },
+    });
+    // More entries than the limit are known before a page is read, and nothing more is read.
+    const reads: string[] = [];
+    const counting: NotesStore = {
+      ...store,
+      readPage: async (notebook, page) => {
+        reads.push(page);
+        return store.readPage(notebook, page);
+      },
+    };
+    await expect(
+      createNotesBackup(counting, index, {
+        now: () => NOW,
+        policy: notesLimits.resolve({ maxBackupEntries: 5 }),
+      }),
+    ).rejects.toMatchObject({ code: "TOO_MANY_BACKUP_ENTRIES" });
+    expect(reads).toEqual([]);
+
+    const plain = await createNotesBackup(store, index, { now: () => NOW });
+    const archive = await readZip(plain, LIMITS);
+    const held = [...archive.entries.values()].reduce((sum, entry) => sum + entry.size, 0);
+    // What restore bounds: the file, and what its entries hold once read.
+    const needed = Math.max(held, plain.size);
+    await expect(under({ maxBackupSize: needed - 1 })).rejects.toMatchObject({
+      name: "NotesError",
+      code: "BACKUP_TOO_LARGE",
+      details: { limit: "maxBackupSize", maximum: needed - 1, unit: "bytes" },
+    });
+    await expect(under({ maxBackupSize: 500 })).rejects.toMatchObject({ code: "BACKUP_TOO_LARGE" });
+
+    // At the limits it's the same backup as without a policy, and restore takes it under them.
+    const limits = { maxBackupEntries: 11, maxBackupSize: needed };
+    const backup = await under(limits);
+    expect(await bytesOf(backup)).toEqual(await bytesOf(plain));
+    const target = createFakeStore();
+    const report = await restoreNotesBackup(
+      target.store,
+      EMPTY_LIBRARY,
+      backup,
+      restoreOptions(limits),
+    );
+    expect(report.restored.map((summary) => summary.id)).toEqual(["maths", "history"]);
+  });
+
+  it("refuses a notebook whose references to one file disagree on its size", async () => {
+    const mismatch = { code: "INVALID_DOCUMENT", details: { reason: "asset-mismatch" } };
+    // The first reference is wrong and the last is right, so the last alone would pass.
+    const { fake, store, index, h1, picture } = await createLibrary();
+    const wrong = { ...picture, size: picture.size + 1 };
+    fake.pages.set("history/h1", {
+      id: "h1",
+      items: [
+        { id: "i0", type: "image", x: 0, y: 0, width: 5000, height: 5000, image: wrong },
+        ...h1.items,
+      ],
+    });
+    await expect(createNotesBackup(store, index, { now: () => NOW })).rejects.toMatchObject(
+      mismatch,
+    );
+
+    // A notebook's own references are held to the same: a recording and a PDF of one file.
+    const other = await createLibrary();
+    other.fake.notebooks.set("maths", {
+      ...other.maths,
+      recordings: [
+        {
+          id: "r0",
+          audio: { ...other.sound, size: other.sound.size + 1 },
+          startedAt: T0,
+          duration: 5,
+        },
+        ...other.maths.recordings,
+      ],
+    });
+    await expect(
+      createNotesBackup(other.store, other.index, { now: () => NOW }),
+    ).rejects.toMatchObject(mismatch);
   });
 
   it("rejects with ABORTED when aborted, before or part of the way through", async () => {
@@ -721,6 +887,55 @@ describe("restoreNotesBackup", () => {
     expect(second.unchanged).toEqual(["history"]);
   });
 
+  it("keeps both when a page changed and the notebook's time didn't", async () => {
+    // Two saves within one tick of the clock, or with the clock set back, leave `updatedAt` as
+    // it was. The ink is still not the backup's, so the backup's must come back beside it.
+    const { fake, store, index, backup, maths, m1, m2 } = await backedUp();
+    const erased: NotesPage = { id: "m2", items: m2.items.slice(0, 1) };
+    fake.pages.set("maths/m2", erased);
+
+    const report = await restoreNotesBackup(store, index, backup, restoreOptions());
+
+    expect(report).toEqual({
+      restored: [{ ...summaryOf(maths, "science"), id: "copy-1" }],
+      unchanged: ["history"],
+      folders: [],
+    });
+    expect(fake.pages.get("maths/m2")).toEqual(erased);
+    expect(fake.pages.get("copy-1/m1")).toEqual(m1);
+    expect(fake.pages.get("copy-1/m2")).toEqual(m2);
+    expect(fake.notebooks.get("copy-1")).toEqual({ ...maths, id: "copy-1" });
+  });
+
+  it("keeps both when the notebook's own document changed and its time didn't", async () => {
+    const { fake, store, index, backup, history } = await backedUp();
+    const renamed: NotesNotebook = { ...history, title: "History of Rome" };
+    fake.notebooks.set("history", renamed);
+    const report = await restoreNotesBackup(store, index, backup, restoreOptions());
+    expect(report.restored).toEqual([{ ...summaryOf(history, null), id: "copy-1" }]);
+    expect(report.unchanged).toEqual(["maths"]);
+    expect(fake.notebooks.get("history")).toEqual(renamed);
+  });
+
+  it("keeps both when a page of the library's notebook can't be read", async () => {
+    const { fake, store, index, backup } = await backedUp();
+    const damaged: NotesStore = {
+      ...store,
+      readPage: async (notebook, page) => {
+        if (notebook === "history" && page === "h1") {
+          throw new NotesError("INVALID_DOCUMENT", "damaged", {
+            details: { reason: "malformed-document" },
+          });
+        }
+        return store.readPage(notebook, page);
+      },
+    };
+    const report = await restoreNotesBackup(damaged, index, backup, restoreOptions());
+    expect(report.restored.map((summary) => summary.id)).toEqual(["copy-1"]);
+    expect(report.unchanged).toEqual(["maths"]);
+    expect(fake.notebooks.has("copy-1")).toBe(true);
+  });
+
   it("lists a notebook the store has but the index doesn't, without writing it again", async () => {
     const { fake, store, index, backup, maths } = await backedUp();
     const withoutMaths = {
@@ -839,8 +1054,8 @@ describe("restoreNotesBackup", () => {
       onProgress: (progress) => fresh.push(progress),
     });
     expectProgress(fresh);
-    // Each entry is checked, and each but the manifest is written.
-    expect(fresh).toHaveLength(11 + 10);
+    // Each entry is checked, and each but the manifest is written. Then one for the end.
+    expect(fresh).toHaveLength(11 + 10 + 1);
 
     const unchanged: NotesProgress[] = [];
     await restoreNotesBackup(source.store, source.index, source.backup, {
@@ -891,6 +1106,44 @@ describe("restoreNotesBackup", () => {
         ),
         mismatch,
       );
+    });
+
+    it("a notebook whose references to one file disagree on its size", async () => {
+      const { backup, picture } = await backedUp();
+      const mismatch = {
+        code: "INVALID_DOCUMENT",
+        details: { reason: "asset-mismatch", at: "notebooks[1]/assets" },
+      };
+      // The archive's file is the size the last reference says, so the last alone would pass.
+      const wrong = { ...picture, size: picture.size + 1 };
+      const twice = await repacked(
+        backup,
+        editing(`${HISTORY}/pages/h1.json`, (page) => ({
+          ...page,
+          items: [
+            { id: "i0", type: "image", x: 0, y: 0, width: 5000, height: 5000, image: wrong },
+            ...(page["items"] as unknown[]),
+          ],
+        })),
+      );
+      await expectRefused(twice, mismatch);
+
+      // Across pages, and between a page and the notebook's own references, too.
+      const { backup: other, sound } = await backedUp();
+      const across = await repacked(
+        other,
+        editing("notebooks/maths/notebook.json", (notebook) => ({
+          ...notebook,
+          recordings: [
+            { id: "r0", audio: { ...sound, size: sound.size + 1 }, startedAt: T0, duration: 5 },
+            ...(notebook["recordings"] as unknown[]),
+          ],
+        })),
+      );
+      await expectRefused(across, {
+        code: "INVALID_DOCUMENT",
+        details: { reason: "asset-mismatch", at: "notebooks[0]/assets" },
+      });
     });
 
     it("a backup with an entry missing", async () => {
@@ -1096,21 +1349,24 @@ describe("restoreNotesBackup", () => {
     });
     expect(target.writes.every((write) => /^\w+ history(\/|$)/.test(write))).toBe(true);
     expect([...target.notebooks.keys()]).toEqual(["maths", "history"]);
+  });
 
-    // A page that was half-written is written again, whole.
+  it("writes again, whole, a notebook that a failed restore left half-written", async () => {
+    const source = await backedUp();
+    // The store fails between a page and its search text: the page is there, its text isn't.
     const halfway = createFakeStore();
-    const stop = new AbortController();
-    halfway.afterWrite = (write) => {
-      if (write === "page maths/m1") stop.abort();
+    const failure = new NotesError("STORAGE_FAILED", "no room", { details: { reason: "quota" } });
+    halfway.beforeWrite = (write) => {
+      if (write === "text maths/m1") throw failure;
     };
     await expect(
-      restoreNotesBackup(halfway.store, EMPTY_LIBRARY, source.backup, {
-        ...restoreOptions(),
-        signal: stop.signal,
-      }),
-    ).rejects.toMatchObject({ code: "ABORTED" });
+      restoreNotesBackup(halfway.store, EMPTY_LIBRARY, source.backup, restoreOptions()),
+    ).rejects.toBe(failure);
+    expect(halfway.pages.get("maths/m1")).toEqual(source.m1);
+    expect(halfway.texts.has("maths/m1")).toBe(false);
     expect(halfway.notebooks.size).toBe(0);
-    halfway.afterWrite = () => undefined;
+
+    halfway.beforeWrite = () => undefined;
     const retried = await restoreNotesBackup(
       halfway.store,
       EMPTY_LIBRARY,
@@ -1118,7 +1374,241 @@ describe("restoreNotesBackup", () => {
       restoreOptions(),
     );
     expect(retried.restored.map((summary) => summary.id)).toEqual(["maths", "history"]);
+    // The text that was missing is there, with the pages that were never reached.
+    expect(halfway.texts.get("maths/m1")).toEqual({
+      notebook: "maths",
+      page: "m1",
+      typed: "First line\nSe\u00f1al \u65e5\u672c\u8a9e",
+    });
+    expect(halfway.pages.get("maths/m1")).toEqual(source.m1);
     expect(halfway.pages.get("maths/m2")).toEqual(source.m2);
+    expect(halfway.notebooks.get("maths")).toEqual(source.maths);
+  });
+
+  it("lists the copy an interrupted restore made, and doesn't make another", async () => {
+    // The library's maths changed, so the backup's goes beside it as a copy. The first restore
+    // writes the copy, and stops before history.
+    const { fake, store, index, backup, maths, history, m1 } = await backedUp();
+    fake.notebooks.set("maths", { ...maths, title: "Maths, edited", updatedAt: T0 + 9000 });
+    fake.notebooks.delete("history");
+    const withoutHistory = {
+      ...index,
+      notebooks: index.notebooks.filter((summary) => summary.id !== "history"),
+    };
+    const ids = ["first-copy", "second-copy", "third-copy"];
+    const options = { ...restoreOptions(), newId: () => ids.shift() ?? "none-left" };
+    const controller = new AbortController();
+    fake.afterWrite = (write) => {
+      if (write === "notebook first-copy") controller.abort();
+    };
+    await expect(
+      restoreNotesBackup(store, withoutHistory, backup, { ...options, signal: controller.signal }),
+    ).rejects.toMatchObject({ code: "ABORTED" });
+    expect(fake.notebooks.get("first-copy")).toEqual({ ...maths, id: "first-copy" });
+
+    fake.afterWrite = () => undefined;
+    fake.writes.length = 0;
+    const report = await restoreNotesBackup(store, withoutHistory, backup, options);
+
+    // The copy is the one already there: nothing of it is written again, under any id.
+    expect(report).toEqual({
+      restored: [{ ...summaryOf(maths, "science"), id: "first-copy" }, summaryOf(history, null)],
+      unchanged: [],
+      folders: [],
+    });
+    expect([...fake.notebooks.keys()].sort()).toEqual(["binned", "first-copy", "history", "maths"]);
+    expect(fake.writes.every((write) => /^\w+ history(\/|$)/.test(write))).toBe(true);
+    expect(fake.pages.get("first-copy/m1")).toEqual(m1);
+    expect(ids).toEqual(["second-copy", "third-copy"]);
+  });
+
+  it("lists that copy too when the library's notebook differs only in a page", async () => {
+    // The library's document is the backup's, and a page isn't: still a copy, made once.
+    const { fake, store, index, backup, maths } = await backedUp();
+    fake.pages.set("maths/m1", { id: "m1", items: [] });
+    const first = await restoreNotesBackup(store, index, backup, restoreOptions());
+    expect(first.restored.map((summary) => summary.id)).toEqual(["copy-1"]);
+
+    // The index was never written, as when the restore fails after the copy: the next finds it.
+    fake.writes.length = 0;
+    const second = await restoreNotesBackup(store, index, backup, restoreOptions());
+    expect(second.restored).toEqual([{ ...summaryOf(maths, "science"), id: "copy-1" }]);
+    expect(second.unchanged).toEqual(["history"]);
+    expect(fake.writes).toEqual([]);
+  });
+
+  it("leaves alone a copy the library lists, and doesn't make another", async () => {
+    // Restoring one backup twice into a library whose notebook changed gives one copy, not two.
+    // It's also what a library that listed the store's notebooks on loading comes back with.
+    const { fake, store, index, backup, maths } = await backedUp();
+    fake.notebooks.set("maths", { ...maths, updatedAt: T0 + 9000 });
+    const first = await restoreNotesBackup(store, index, backup, restoreOptions());
+    expect(first.restored.map((summary) => summary.id)).toEqual(["copy-1"]);
+
+    const withCopy = { ...index, notebooks: [...index.notebooks, ...first.restored] };
+    fake.writes.length = 0;
+    const second = await restoreNotesBackup(store, withCopy, backup, restoreOptions());
+    expect(second).toEqual({ restored: [], unchanged: ["copy-1", "history"], folders: [] });
+    expect(fake.writes).toEqual([]);
+  });
+
+  it("makes its own copy when the one an earlier restore left isn't the backup's any more", async () => {
+    const { fake, store, index, backup, maths, m1 } = await backedUp();
+    fake.notebooks.set("maths", { ...maths, updatedAt: T0 + 9000 });
+    // A notebook the index doesn't list that was the backup's, with a page since changed.
+    fake.notebooks.set("stray", { ...maths, id: "stray" });
+    fake.pages.set("stray/m1", { id: "m1", items: [] });
+    fake.pages.set("stray/m2", fake.pages.get("maths/m2") as NotesPage);
+    const report = await restoreNotesBackup(store, index, backup, restoreOptions());
+    expect(report.restored.map((summary) => summary.id)).toEqual(["copy-1"]);
+    expect(fake.pages.get("copy-1/m1")).toEqual(m1);
+    expect(fake.pages.get("stray/m1")).toEqual({ id: "m1", items: [] });
+  });
+
+  it("gives each of two notebooks alike but for their ids its own copy", async () => {
+    // One copy is left from before. It can stand for one notebook of the backup, never for both.
+    const library = await createLibrary();
+    const twin: NotesNotebook = { ...library.history, id: "twin" };
+    library.fake.notebooks.set("twin", twin);
+    library.fake.pages.set("twin/h1", library.h1);
+    library.fake.assets.set(`twin/${library.picture.asset}`, new Blob([PICTURE]));
+    const index: NotesLibraryIndex = {
+      ...library.index,
+      notebooks: [...library.index.notebooks, summaryOf(twin, null)],
+    };
+    const backup = await createNotesBackup(library.store, index, {
+      now: () => NOW,
+      notebooks: ["history", "twin"],
+    });
+    for (const id of ["history", "twin"]) {
+      library.fake.notebooks.set(id, { ...library.history, id, updatedAt: T0 + 9000 });
+    }
+    library.fake.notebooks.set("stray", { ...library.history, id: "stray" });
+    library.fake.pages.set("stray/h1", library.h1);
+
+    const report = await restoreNotesBackup(library.store, index, backup, restoreOptions());
+
+    expect(report.restored.map((summary) => summary.id)).toEqual(["stray", "copy-1"]);
+    expect(library.fake.notebooks.get("copy-1")).toEqual({ ...library.history, id: "copy-1" });
+  });
+
+  describe("when something else takes a notebook's id while it restores", () => {
+    /** A backup of one notebook, `maths`, of one page with one line of text. */
+    async function backupOf(title: string, text: string): Promise<Blob> {
+      const fake = createFakeStore();
+      const notebook: NotesNotebook = {
+        id: "maths",
+        title,
+        cover: "blue",
+        createdAt: T0,
+        updatedAt: T0,
+        pages: [
+          { id: "p1", ...A4, template: "blank" },
+          { id: "p2", ...A4, template: "blank" },
+        ],
+        outline: [],
+        recordings: [],
+      };
+      fake.notebooks.set("maths", notebook);
+      for (const page of ["p1", "p2"]) {
+        fake.pages.set(`maths/${page}`, {
+          id: page,
+          items: [
+            { id: "t1", type: "text", x: 0, y: 0, width: 9000, text, size: 1200, color: "#000000" },
+          ],
+        });
+      }
+      const index = { ...EMPTY_LIBRARY, notebooks: [summaryOf(notebook, null)] };
+      return createNotesBackup(fake.store, index, { now: () => NOW });
+    }
+
+    it("never mixes two restores that run at once: each notebook is whole, under its own id", async () => {
+      const [first, second] = await Promise.all([
+        backupOf("First", "one"),
+        backupOf("Second", "two"),
+      ]);
+      const target = createFakeStore();
+      const reports = await Promise.all([
+        restoreNotesBackup(target.store, EMPTY_LIBRARY, first, restoreOptions()),
+        restoreNotesBackup(target.store, EMPTY_LIBRARY, second, restoreOptions()),
+      ]);
+
+      const ids = reports.flatMap((report) => report.restored.map((summary) => summary.id));
+      expect(new Set(ids).size).toBe(2);
+      expect(ids).toContain("maths");
+      expect([...target.notebooks.keys()].sort()).toEqual([...ids].sort());
+      // Each notebook has the pages of the backup it came from, and of no other.
+      const texts = { First: "one", Second: "two" } as Record<string, string>;
+      for (const [id, notebook] of target.notebooks) {
+        for (const page of ["p1", "p2"]) {
+          expect(target.texts.get(`${id}/${page}`)?.typed, `${notebook.title}, ${page}`).toBe(
+            texts[notebook.title],
+          );
+        }
+      }
+      expect(target.locked.size).toBe(0);
+    });
+
+    it("restores beside a notebook made under its id after the id was found free", async () => {
+      const backup = await backupOf("From the backup", "one");
+      const target = createFakeStore();
+      const made: NotesNotebook = {
+        id: "maths",
+        title: "Made meanwhile",
+        cover: "green",
+        createdAt: NOW,
+        updatedAt: NOW,
+        pages: [{ id: "p1", ...A4, template: "lined" }],
+        outline: [],
+        recordings: [],
+      };
+      const page: NotesPage = { id: "p1", items: [] };
+      // Restore asks for the lock once its checks are done: by then the id is taken.
+      target.beforeLock = () => {
+        target.notebooks.set("maths", made);
+        target.pages.set("maths/p1", page);
+      };
+      const report = await restoreNotesBackup(
+        target.store,
+        EMPTY_LIBRARY,
+        backup,
+        restoreOptions(),
+      );
+      expect(report.restored.map((summary) => summary.id)).toEqual(["copy-1"]);
+      expect(target.notebooks.get("maths")).toEqual(made);
+      expect(target.pages.get("maths/p1")).toEqual(page);
+      expect(target.notebooks.get("copy-1")?.title).toBe("From the backup");
+      expect(target.writes.every((write) => /^\w+ copy-1(\/|$)/.test(write))).toBe(true);
+      expect(target.locked.size).toBe(0);
+    });
+
+    it("restores beside a notebook that's held open under its id", async () => {
+      const backup = await backupOf("From the backup", "one");
+      const target = createFakeStore();
+      target.locked.add("maths");
+      const report = await restoreNotesBackup(
+        target.store,
+        EMPTY_LIBRARY,
+        backup,
+        restoreOptions(),
+      );
+      expect(report.restored.map((summary) => summary.id)).toEqual(["copy-1"]);
+      expect(target.writes.every((write) => /^\w+ copy-1(\/|$)/.test(write))).toBe(true);
+      expect([...target.locked]).toEqual(["maths"]);
+    });
+
+    it("gives the notebook back when a write fails", async () => {
+      const backup = await backupOf("From the backup", "one");
+      const target = createFakeStore();
+      const failure = new NotesError("STORAGE_FAILED", "no room", { details: { reason: "quota" } });
+      target.beforeWrite = (write) => {
+        if (write === "page maths/p2") throw failure;
+      };
+      await expect(
+        restoreNotesBackup(target.store, EMPTY_LIBRARY, backup, restoreOptions()),
+      ).rejects.toBe(failure);
+      expect(target.locked.size).toBe(0);
+    });
   });
 });
 

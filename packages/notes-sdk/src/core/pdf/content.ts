@@ -65,6 +65,9 @@ export class PdfContent {
   /** Where the current path is, which a quadratic curve starts from. */
   #x = 0;
   #y = 0;
+  /** Where the current subpath started, which closing it goes back to. */
+  #startX = 0;
+  #startY = 0;
 
   constructor(options: PdfContentOptions = {}) {
     this.#decimals = options.decimals ?? 4;
@@ -140,6 +143,8 @@ export class PdfContent {
   moveTo(x: number, y: number): this {
     this.#x = x;
     this.#y = y;
+    this.#startX = x;
+    this.#startY = y;
     return this.#write("m", this.#length(x), this.#length(y));
   }
 
@@ -184,11 +189,17 @@ export class PdfContent {
 
   /** `h`: closes the subpath with a straight line to its start. */
   closePath(): this {
+    this.#x = this.#startX;
+    this.#y = this.#startY;
     return this.#write("h");
   }
 
-  /** `re`: a rectangle, as a closed subpath. */
+  /** `re`: a rectangle, as a closed subpath that starts and ends at `x, y`. */
   rect(x: number, y: number, width: number, height: number): this {
+    this.#x = x;
+    this.#y = y;
+    this.#startX = x;
+    this.#startY = y;
     return this.#write(
       "re",
       this.#length(x),

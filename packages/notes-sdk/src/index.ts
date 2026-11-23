@@ -136,7 +136,12 @@ export type {
   NotesPdfRenderOptions,
 } from "./core/ports/notes-pdf.js";
 export type { NotesRecorder, NotesRecorderSession } from "./core/ports/notes-recorder.js";
-export type { NotesPageText, NotesPersistence, NotesStore } from "./core/ports/notes-store.js";
+export type {
+  NotesPageText,
+  NotesPageTextChange,
+  NotesPersistence,
+  NotesStore,
+} from "./core/ports/notes-store.js";
 export type {
   NotesCallOptions,
   NotesProgress,

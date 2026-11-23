@@ -80,6 +80,11 @@
     gap: var(--hm-notes-form-gap, var(--hm-gap-normal));
   }
 
+  /* An action apart from the form's own, such as removing what's named: at the other end. */
+  .hm-notes-form-extra {
+    margin-inline-end: auto;
+  }
+
   .hm-notes-select {
     min-height: var(--hm-control-height);
     padding-inline: var(--hm-control-padding-x);

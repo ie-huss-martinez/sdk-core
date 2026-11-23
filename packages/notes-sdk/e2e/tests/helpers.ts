@@ -254,14 +254,20 @@ export async function saved(page: Page): Promise<void> {
 }
 
 /**
- * The darkest opaque colour of the finished ink within two pixels of a place
- * on the first page, as red, green, blue and alpha: a thin line may fall a
- * pixel to either side of where it was aimed. The pixels are copied to a
+ * The darkest opaque colour within two pixels of a place on the first page,
+ * as red, green, blue and alpha: a thin line may fall a pixel to either side
+ * of where it was aimed. It looks at the finished ink, or with `layer`
+ * `"background"` at the PDF drawn under it. The pixels are copied to a
  * canvas made for reading, so the page's own canvas isn't read back.
  */
-export async function inkAt(page: Page, x: number, y: number): Promise<number[]> {
+export async function inkAt(
+  page: Page,
+  x: number,
+  y: number,
+  layer: "ink" | "background" = "ink",
+): Promise<number[]> {
   return page
-    .locator(".hm-notes-page-ink")
+    .locator(`.hm-notes-page-${layer}`)
     .first()
     .evaluate(
       (element, at) => {

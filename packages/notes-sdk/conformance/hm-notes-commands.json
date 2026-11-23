@@ -2,7 +2,7 @@
   "format": "hm-conformance",
   "version": 1,
   "subject": "hm-notes-commands",
-  "description": "notes-sdk's edit commands (docs/formats/conformance.md). input.state is a notebook's state: its hm-notes-notebook document, and the items of each loaded page by the page's id. input.command is an hm-notes-command, and input.limits, when present, holds maxPages and maxPageItems. expected is the resulting state with the command's inverse, or the rejection. Applying the inverse must restore the state. Generated cases come from the property tests' generators, with a fixed seed.",
+  "description": "notes-sdk's edit commands (docs/formats/conformance.md). input.state is a notebook's state: its hm-notes-notebook document, and the items of each loaded page by the page's id. input.command is an hm-notes-command, and input.limits, when present, holds maxPages and maxPageItems. expected is the resulting state, or the rejection. The command's inverse isn't in the vectors: applying it to the resulting state, under the same limits, must restore the state exactly. Generated cases come from the property tests' generators, with a fixed seed.",
   "cases": [
     {
       "name": "adds an item on top of a page's others",
@@ -248,13 +248,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removeItems",
-          "page": "p1",
-          "ids": [
-            "s2"
-          ]
         }
       }
     },
@@ -523,14 +516,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removeItems",
-          "page": "p1",
-          "ids": [
-            "s2",
-            "t2"
-          ]
         }
       }
     },
@@ -789,13 +774,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removeItems",
-          "page": "p1",
-          "ids": [
-            "i2"
-          ]
         }
       }
     },
@@ -1044,13 +1022,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removeItems",
-          "page": "p1",
-          "ids": [
-            "s2"
-          ]
         }
       }
     },
@@ -1308,13 +1279,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removeItems",
-          "page": "p1",
-          "ids": [
-            "i1"
-          ]
         }
       }
     },
@@ -1564,13 +1528,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removeItems",
-          "page": "p1",
-          "ids": [
-            "l2"
-          ]
         }
       }
     },
@@ -1821,13 +1778,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removeItems",
-          "page": "p1",
-          "ids": [
-            "s2"
-          ]
         }
       }
     },
@@ -5462,149 +5412,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removeItems",
-          "page": "p1",
-          "ids": [
-            "t2"
-          ]
-        }
-      }
-    },
-    {
-      "name": "refuses text with a lone surrogate",
-      "input": {
-        "state": {
-          "notebook": {
-            "format": "hm-notes-notebook",
-            "version": 1,
-            "id": "nb1",
-            "title": "Field notes",
-            "cover": "blue",
-            "createdAt": 1700000000000,
-            "updatedAt": 1700000360000,
-            "pages": [
-              {
-                "id": "p1",
-                "width": 59500,
-                "height": 84200,
-                "template": "lined"
-              },
-              {
-                "id": "p2",
-                "width": 61200,
-                "height": 79200,
-                "template": "blank",
-                "background": {
-                  "pdf": {
-                    "asset": "sha256:0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
-                    "mediaType": "application/pdf",
-                    "size": 48213
-                  },
-                  "pageIndex": 0
-                }
-              },
-              {
-                "id": "p3",
-                "width": 59500,
-                "height": 84200,
-                "template": "dotted"
-              }
-            ],
-            "outline": [
-              {
-                "id": "o1",
-                "title": "Week 1",
-                "page": "p1"
-              },
-              {
-                "id": "o2",
-                "title": "Handout",
-                "page": "p2"
-              }
-            ],
-            "recordings": [
-              {
-                "id": "r1",
-                "audio": {
-                  "asset": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
-                  "mediaType": "audio/webm",
-                  "size": 120000
-                },
-                "startedAt": 1700000100000,
-                "duration": 95000
-              }
-            ]
-          },
-          "pages": {
-            "p1": [
-              {
-                "id": "s1",
-                "type": "stroke",
-                "tool": "pen",
-                "color": "#1a1a1a",
-                "size": 200,
-                "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
-              },
-              {
-                "id": "t1",
-                "type": "text",
-                "x": 8000,
-                "y": 20000,
-                "width": 30000,
-                "text": "Check the units",
-                "size": 1200,
-                "color": "#0b57d0"
-              },
-              {
-                "id": "l1",
-                "type": "link",
-                "x": 40000,
-                "y": 3000,
-                "width": 12000,
-                "height": 2400,
-                "page": "p2"
-              }
-            ],
-            "p2": [
-              {
-                "id": "i1",
-                "type": "image",
-                "x": 5000,
-                "y": 40000,
-                "width": 24000,
-                "height": 18000,
-                "image": {
-                  "asset": "sha256:0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
-                  "mediaType": "image/png",
-                  "size": 20480
-                }
-              }
-            ]
-          }
-        },
-        "command": {
-          "type": "notes.addItems",
-          "page": "p1",
-          "items": [
-            {
-              "id": "t2",
-              "type": "text",
-              "x": 8000,
-              "y": 20000,
-              "width": 30000,
-              "text": "\ud83d",
-              "size": 1200,
-              "color": "#0b57d0"
-            }
-          ]
-        }
-      },
-      "expected": {
-        "error": {
-          "code": "INVALID_COMMAND",
-          "reason": "malformed-command"
         }
       }
     },
@@ -5827,25 +5634,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.restoreItems",
-          "page": "p1",
-          "entries": [
-            {
-              "index": 1,
-              "item": {
-                "id": "t1",
-                "type": "text",
-                "x": 8000,
-                "y": 20000,
-                "width": 30000,
-                "text": "Check the units",
-                "size": 1200,
-                "color": "#0b57d0"
-              }
-            }
-          ]
         }
       }
     },
@@ -6062,35 +5850,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.restoreItems",
-          "page": "p1",
-          "entries": [
-            {
-              "index": 0,
-              "item": {
-                "id": "s1",
-                "type": "stroke",
-                "tool": "pen",
-                "color": "#1a1a1a",
-                "size": 200,
-                "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
-              }
-            },
-            {
-              "index": 2,
-              "item": {
-                "id": "l1",
-                "type": "link",
-                "x": 40000,
-                "y": 3000,
-                "width": 12000,
-                "height": 2400,
-                "page": "p2"
-              }
-            }
-          ]
         }
       }
     },
@@ -6297,25 +6056,85 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.restoreItems",
-          "page": "p1",
-          "entries": [
-            {
-              "index": 0,
-              "item": {
+        }
+      }
+    },
+    {
+      "name": "removes an item from a page over its limit, which the inverse puts back",
+      "input": {
+        "state": {
+          "notebook": {
+            "format": "hm-notes-notebook",
+            "version": 1,
+            "id": "nb1",
+            "title": "Field notes",
+            "cover": "blue",
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000360000,
+            "pages": [
+              {
+                "id": "p1",
+                "width": 59500,
+                "height": 84200,
+                "template": "lined"
+              },
+              {
+                "id": "p2",
+                "width": 61200,
+                "height": 79200,
+                "template": "blank",
+                "background": {
+                  "pdf": {
+                    "asset": "sha256:0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+                    "mediaType": "application/pdf",
+                    "size": 48213
+                  },
+                  "pageIndex": 0
+                }
+              },
+              {
+                "id": "p3",
+                "width": 59500,
+                "height": 84200,
+                "template": "dotted"
+              }
+            ],
+            "outline": [
+              {
+                "id": "o1",
+                "title": "Week 1",
+                "page": "p1"
+              },
+              {
+                "id": "o2",
+                "title": "Handout",
+                "page": "p2"
+              }
+            ],
+            "recordings": [
+              {
+                "id": "r1",
+                "audio": {
+                  "asset": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+                  "mediaType": "audio/webm",
+                  "size": 120000
+                },
+                "startedAt": 1700000100000,
+                "duration": 95000
+              }
+            ]
+          },
+          "pages": {
+            "p1": [
+              {
                 "id": "s1",
                 "type": "stroke",
                 "tool": "pen",
                 "color": "#1a1a1a",
                 "size": 200,
                 "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
-              }
-            },
-            {
-              "index": 1,
-              "item": {
+              },
+              {
                 "id": "t1",
                 "type": "text",
                 "x": 8000,
@@ -6324,11 +6143,8 @@
                 "text": "Check the units",
                 "size": 1200,
                 "color": "#0b57d0"
-              }
-            },
-            {
-              "index": 2,
-              "item": {
+              },
+              {
                 "id": "l1",
                 "type": "link",
                 "x": 40000,
@@ -6337,8 +6153,134 @@
                 "height": 2400,
                 "page": "p2"
               }
-            }
+            ],
+            "p2": [
+              {
+                "id": "i1",
+                "type": "image",
+                "x": 5000,
+                "y": 40000,
+                "width": 24000,
+                "height": 18000,
+                "image": {
+                  "asset": "sha256:0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
+                  "mediaType": "image/png",
+                  "size": 20480
+                }
+              }
+            ]
+          }
+        },
+        "command": {
+          "type": "notes.removeItems",
+          "page": "p1",
+          "ids": [
+            "t1"
           ]
+        },
+        "limits": {
+          "maxPageItems": 2
+        }
+      },
+      "expected": {
+        "state": {
+          "notebook": {
+            "format": "hm-notes-notebook",
+            "version": 1,
+            "id": "nb1",
+            "title": "Field notes",
+            "cover": "blue",
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000360000,
+            "pages": [
+              {
+                "id": "p1",
+                "width": 59500,
+                "height": 84200,
+                "template": "lined"
+              },
+              {
+                "id": "p2",
+                "width": 61200,
+                "height": 79200,
+                "template": "blank",
+                "background": {
+                  "pdf": {
+                    "asset": "sha256:0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+                    "mediaType": "application/pdf",
+                    "size": 48213
+                  },
+                  "pageIndex": 0
+                }
+              },
+              {
+                "id": "p3",
+                "width": 59500,
+                "height": 84200,
+                "template": "dotted"
+              }
+            ],
+            "outline": [
+              {
+                "id": "o1",
+                "title": "Week 1",
+                "page": "p1"
+              },
+              {
+                "id": "o2",
+                "title": "Handout",
+                "page": "p2"
+              }
+            ],
+            "recordings": [
+              {
+                "id": "r1",
+                "audio": {
+                  "asset": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+                  "mediaType": "audio/webm",
+                  "size": 120000
+                },
+                "startedAt": 1700000100000,
+                "duration": 95000
+              }
+            ]
+          },
+          "pages": {
+            "p1": [
+              {
+                "id": "s1",
+                "type": "stroke",
+                "tool": "pen",
+                "color": "#1a1a1a",
+                "size": 200,
+                "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
+              },
+              {
+                "id": "l1",
+                "type": "link",
+                "x": 40000,
+                "y": 3000,
+                "width": 12000,
+                "height": 2400,
+                "page": "p2"
+              }
+            ],
+            "p2": [
+              {
+                "id": "i1",
+                "type": "image",
+                "x": 5000,
+                "y": 40000,
+                "width": 24000,
+                "height": 18000,
+                "image": {
+                  "asset": "sha256:0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
+                  "mediaType": "image/png",
+                  "size": 20480
+                }
+              }
+            ]
+          }
         }
       }
     },
@@ -6562,24 +6504,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.restoreItems",
-          "page": "p1",
-          "entries": [
-            {
-              "index": 2,
-              "item": {
-                "id": "l1",
-                "type": "link",
-                "x": 40000,
-                "y": 3000,
-                "width": 12000,
-                "height": 2400,
-                "page": "gone"
-              }
-            }
-          ]
         }
       }
     },
@@ -7346,6 +7270,133 @@
       }
     },
     {
+      "name": "refuses an id that ends with a line break",
+      "input": {
+        "state": {
+          "notebook": {
+            "format": "hm-notes-notebook",
+            "version": 1,
+            "id": "nb1",
+            "title": "Field notes",
+            "cover": "blue",
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000360000,
+            "pages": [
+              {
+                "id": "p1",
+                "width": 59500,
+                "height": 84200,
+                "template": "lined"
+              },
+              {
+                "id": "p2",
+                "width": 61200,
+                "height": 79200,
+                "template": "blank",
+                "background": {
+                  "pdf": {
+                    "asset": "sha256:0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+                    "mediaType": "application/pdf",
+                    "size": 48213
+                  },
+                  "pageIndex": 0
+                }
+              },
+              {
+                "id": "p3",
+                "width": 59500,
+                "height": 84200,
+                "template": "dotted"
+              }
+            ],
+            "outline": [
+              {
+                "id": "o1",
+                "title": "Week 1",
+                "page": "p1"
+              },
+              {
+                "id": "o2",
+                "title": "Handout",
+                "page": "p2"
+              }
+            ],
+            "recordings": [
+              {
+                "id": "r1",
+                "audio": {
+                  "asset": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+                  "mediaType": "audio/webm",
+                  "size": 120000
+                },
+                "startedAt": 1700000100000,
+                "duration": 95000
+              }
+            ]
+          },
+          "pages": {
+            "p1": [
+              {
+                "id": "s1",
+                "type": "stroke",
+                "tool": "pen",
+                "color": "#1a1a1a",
+                "size": 200,
+                "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
+              },
+              {
+                "id": "t1",
+                "type": "text",
+                "x": 8000,
+                "y": 20000,
+                "width": 30000,
+                "text": "Check the units",
+                "size": 1200,
+                "color": "#0b57d0"
+              },
+              {
+                "id": "l1",
+                "type": "link",
+                "x": 40000,
+                "y": 3000,
+                "width": 12000,
+                "height": 2400,
+                "page": "p2"
+              }
+            ],
+            "p2": [
+              {
+                "id": "i1",
+                "type": "image",
+                "x": 5000,
+                "y": 40000,
+                "width": 24000,
+                "height": 18000,
+                "image": {
+                  "asset": "sha256:0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
+                  "mediaType": "image/png",
+                  "size": 20480
+                }
+              }
+            ]
+          }
+        },
+        "command": {
+          "type": "notes.removeItems",
+          "page": "p1",
+          "ids": [
+            "s1\n"
+          ]
+        }
+      },
+      "expected": {
+        "error": {
+          "code": "INVALID_COMMAND",
+          "reason": "invalid-id"
+        }
+      }
+    },
+    {
       "name": "refuses ids that aren't a list",
       "input": {
         "state": {
@@ -7740,14 +7791,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removeItems",
-          "page": "p1",
-          "ids": [
-            "s0",
-            "t0"
-          ]
         }
       }
     },
@@ -7998,13 +8041,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removeItems",
-          "page": "p1",
-          "ids": [
-            "s2"
-          ]
         }
       }
     },
@@ -8274,14 +8310,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removeItems",
-          "page": "p1",
-          "ids": [
-            "s2",
-            "s3"
-          ]
         }
       }
     },
@@ -8534,13 +8562,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removeItems",
-          "page": "p1",
-          "ids": [
-            "l0"
-          ]
         }
       }
     },
@@ -9240,7 +9261,7 @@
       }
     },
     {
-      "name": "refuses restoring items over a page's limit",
+      "name": "restores an item over a page's limit",
       "input": {
         "state": {
           "notebook": {
@@ -9373,8 +9394,122 @@
         }
       },
       "expected": {
-        "error": {
-          "code": "TOO_MANY_ITEMS"
+        "state": {
+          "notebook": {
+            "format": "hm-notes-notebook",
+            "version": 1,
+            "id": "nb1",
+            "title": "Field notes",
+            "cover": "blue",
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000360000,
+            "pages": [
+              {
+                "id": "p1",
+                "width": 59500,
+                "height": 84200,
+                "template": "lined"
+              },
+              {
+                "id": "p2",
+                "width": 61200,
+                "height": 79200,
+                "template": "blank",
+                "background": {
+                  "pdf": {
+                    "asset": "sha256:0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+                    "mediaType": "application/pdf",
+                    "size": 48213
+                  },
+                  "pageIndex": 0
+                }
+              },
+              {
+                "id": "p3",
+                "width": 59500,
+                "height": 84200,
+                "template": "dotted"
+              }
+            ],
+            "outline": [
+              {
+                "id": "o1",
+                "title": "Week 1",
+                "page": "p1"
+              },
+              {
+                "id": "o2",
+                "title": "Handout",
+                "page": "p2"
+              }
+            ],
+            "recordings": [
+              {
+                "id": "r1",
+                "audio": {
+                  "asset": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+                  "mediaType": "audio/webm",
+                  "size": 120000
+                },
+                "startedAt": 1700000100000,
+                "duration": 95000
+              }
+            ]
+          },
+          "pages": {
+            "p1": [
+              {
+                "id": "s2",
+                "type": "stroke",
+                "tool": "pen",
+                "color": "#1a1a1a",
+                "size": 200,
+                "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
+              },
+              {
+                "id": "s1",
+                "type": "stroke",
+                "tool": "pen",
+                "color": "#1a1a1a",
+                "size": 200,
+                "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
+              },
+              {
+                "id": "t1",
+                "type": "text",
+                "x": 8000,
+                "y": 20000,
+                "width": 30000,
+                "text": "Check the units",
+                "size": 1200,
+                "color": "#0b57d0"
+              },
+              {
+                "id": "l1",
+                "type": "link",
+                "x": 40000,
+                "y": 3000,
+                "width": 12000,
+                "height": 2400,
+                "page": "p2"
+              }
+            ],
+            "p2": [
+              {
+                "id": "i1",
+                "type": "image",
+                "x": 5000,
+                "y": 40000,
+                "width": 24000,
+                "height": 18000,
+                "image": {
+                  "asset": "sha256:0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
+                  "mediaType": "image/png",
+                  "size": 20480
+                }
+              }
+            ]
+          }
         }
       }
     },
@@ -10027,22 +10162,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.replaceItems",
-          "page": "p1",
-          "items": [
-            {
-              "id": "t1",
-              "type": "text",
-              "x": 8000,
-              "y": 20000,
-              "width": 30000,
-              "text": "Check the units",
-              "size": 1200,
-              "color": "#0b57d0"
-            }
-          ]
         }
       }
     },
@@ -10291,29 +10410,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.replaceItems",
-          "page": "p1",
-          "items": [
-            {
-              "id": "s1",
-              "type": "stroke",
-              "tool": "pen",
-              "color": "#1a1a1a",
-              "size": 200,
-              "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
-            },
-            {
-              "id": "l1",
-              "type": "link",
-              "x": 40000,
-              "y": 3000,
-              "width": 12000,
-              "height": 2400,
-              "page": "p2"
-            }
-          ]
         }
       }
     },
@@ -10554,21 +10650,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.replaceItems",
-          "page": "p1",
-          "items": [
-            {
-              "id": "l1",
-              "type": "link",
-              "x": 40000,
-              "y": 3000,
-              "width": 12000,
-              "height": 2400,
-              "page": "gone"
-            }
-          ]
         }
       }
     },
@@ -11487,12 +11568,6 @@
             ],
             "p4": []
           }
-        },
-        "inverse": {
-          "type": "notes.removePages",
-          "pages": [
-            "p4"
-          ]
         }
       }
     },
@@ -11774,13 +11849,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removePages",
-          "pages": [
-            "p4",
-            "p5"
-          ]
         }
       }
     },
@@ -12044,12 +12112,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removePages",
-          "pages": [
-            "p4"
-          ]
         }
       }
     },
@@ -12353,13 +12415,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removePages",
-          "pages": [
-            "p4",
-            "p5"
-          ]
         }
       }
     },
@@ -12610,12 +12665,6 @@
             ],
             "p4": []
           }
-        },
-        "inverse": {
-          "type": "notes.removePages",
-          "pages": [
-            "p4"
-          ]
         }
       }
     },
@@ -14490,55 +14539,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.restorePages",
-          "entries": [
-            {
-              "index": 1,
-              "info": {
-                "id": "p2",
-                "width": 61200,
-                "height": 79200,
-                "template": "blank",
-                "background": {
-                  "pdf": {
-                    "asset": "sha256:0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
-                    "mediaType": "application/pdf",
-                    "size": 48213
-                  },
-                  "pageIndex": 0
-                }
-              },
-              "items": [
-                {
-                  "id": "i1",
-                  "type": "image",
-                  "x": 5000,
-                  "y": 40000,
-                  "width": 24000,
-                  "height": 18000,
-                  "image": {
-                    "asset": "sha256:0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
-                    "mediaType": "image/png",
-                    "size": 20480
-                  }
-                }
-              ]
-            }
-          ],
-          "outline": [
-            {
-              "id": "o1",
-              "title": "Week 1",
-              "page": "p1"
-            },
-            {
-              "id": "o2",
-              "title": "Handout",
-              "page": "p2"
-            }
-          ]
         }
       }
     },
@@ -14695,51 +14695,29 @@
             ]
           },
           "pages": {}
-        },
-        "inverse": {
-          "type": "notes.restorePages",
-          "entries": [
-            {
-              "index": 0,
-              "info": {
+        }
+      }
+    },
+    {
+      "name": "removes a page from a notebook over its limits, which the inverse puts back",
+      "input": {
+        "state": {
+          "notebook": {
+            "format": "hm-notes-notebook",
+            "version": 1,
+            "id": "nb1",
+            "title": "Field notes",
+            "cover": "blue",
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000360000,
+            "pages": [
+              {
                 "id": "p1",
                 "width": 59500,
                 "height": 84200,
                 "template": "lined"
               },
-              "items": [
-                {
-                  "id": "s1",
-                  "type": "stroke",
-                  "tool": "pen",
-                  "color": "#1a1a1a",
-                  "size": 200,
-                  "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
-                },
-                {
-                  "id": "t1",
-                  "type": "text",
-                  "x": 8000,
-                  "y": 20000,
-                  "width": 30000,
-                  "text": "Check the units",
-                  "size": 1200,
-                  "color": "#0b57d0"
-                },
-                {
-                  "id": "l1",
-                  "type": "link",
-                  "x": 40000,
-                  "y": 3000,
-                  "width": 12000,
-                  "height": 2400,
-                  "page": "p2"
-                }
-              ]
-            },
-            {
-              "index": 1,
-              "info": {
+              {
                 "id": "p2",
                 "width": 61200,
                 "height": 79200,
@@ -14753,35 +14731,165 @@
                   "pageIndex": 0
                 }
               },
-              "items": [
-                {
-                  "id": "i1",
-                  "type": "image",
-                  "x": 5000,
-                  "y": 40000,
-                  "width": 24000,
-                  "height": 18000,
-                  "image": {
-                    "asset": "sha256:0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
-                    "mediaType": "image/png",
-                    "size": 20480
-                  }
+              {
+                "id": "p3",
+                "width": 59500,
+                "height": 84200,
+                "template": "dotted"
+              }
+            ],
+            "outline": [
+              {
+                "id": "o1",
+                "title": "Week 1",
+                "page": "p1"
+              },
+              {
+                "id": "o2",
+                "title": "Handout",
+                "page": "p2"
+              }
+            ],
+            "recordings": [
+              {
+                "id": "r1",
+                "audio": {
+                  "asset": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+                  "mediaType": "audio/webm",
+                  "size": 120000
+                },
+                "startedAt": 1700000100000,
+                "duration": 95000
+              }
+            ]
+          },
+          "pages": {
+            "p1": [
+              {
+                "id": "s1",
+                "type": "stroke",
+                "tool": "pen",
+                "color": "#1a1a1a",
+                "size": 200,
+                "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
+              },
+              {
+                "id": "t1",
+                "type": "text",
+                "x": 8000,
+                "y": 20000,
+                "width": 30000,
+                "text": "Check the units",
+                "size": 1200,
+                "color": "#0b57d0"
+              },
+              {
+                "id": "l1",
+                "type": "link",
+                "x": 40000,
+                "y": 3000,
+                "width": 12000,
+                "height": 2400,
+                "page": "p2"
+              }
+            ],
+            "p2": [
+              {
+                "id": "i1",
+                "type": "image",
+                "x": 5000,
+                "y": 40000,
+                "width": 24000,
+                "height": 18000,
+                "image": {
+                  "asset": "sha256:0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
+                  "mediaType": "image/png",
+                  "size": 20480
                 }
-              ]
-            }
-          ],
-          "outline": [
-            {
-              "id": "o1",
-              "title": "Week 1",
-              "page": "p1"
-            },
-            {
-              "id": "o2",
-              "title": "Handout",
-              "page": "p2"
-            }
+              }
+            ]
+          }
+        },
+        "command": {
+          "type": "notes.removePages",
+          "pages": [
+            "p1"
           ]
+        },
+        "limits": {
+          "maxPages": 2,
+          "maxPageItems": 1
+        }
+      },
+      "expected": {
+        "state": {
+          "notebook": {
+            "format": "hm-notes-notebook",
+            "version": 1,
+            "id": "nb1",
+            "title": "Field notes",
+            "cover": "blue",
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000360000,
+            "pages": [
+              {
+                "id": "p2",
+                "width": 61200,
+                "height": 79200,
+                "template": "blank",
+                "background": {
+                  "pdf": {
+                    "asset": "sha256:0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+                    "mediaType": "application/pdf",
+                    "size": 48213
+                  },
+                  "pageIndex": 0
+                }
+              },
+              {
+                "id": "p3",
+                "width": 59500,
+                "height": 84200,
+                "template": "dotted"
+              }
+            ],
+            "outline": [
+              {
+                "id": "o2",
+                "title": "Handout",
+                "page": "p2"
+              }
+            ],
+            "recordings": [
+              {
+                "id": "r1",
+                "audio": {
+                  "asset": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+                  "mediaType": "audio/webm",
+                  "size": 120000
+                },
+                "startedAt": 1700000100000,
+                "duration": 95000
+              }
+            ]
+          },
+          "pages": {
+            "p2": [
+              {
+                "id": "i1",
+                "type": "image",
+                "x": 5000,
+                "y": 40000,
+                "width": 24000,
+                "height": 18000,
+                "image": {
+                  "asset": "sha256:0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
+                  "mediaType": "image/png",
+                  "size": 20480
+                }
+              }
+            ]
+          }
         }
       }
     },
@@ -15815,12 +15923,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removePages",
-          "pages": [
-            "p0"
-          ]
         }
       }
     },
@@ -16117,13 +16219,6 @@
             ],
             "p4": []
           }
-        },
-        "inverse": {
-          "type": "notes.removePages",
-          "pages": [
-            "p0",
-            "p4"
-          ]
         }
       }
     },
@@ -16403,12 +16498,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removePages",
-          "pages": [
-            "p4"
-          ]
         }
       }
     },
@@ -17164,7 +17253,7 @@
       }
     },
     {
-      "name": "refuses restoring pages over the notebook's limit",
+      "name": "restores a page over the notebook's limit",
       "input": {
         "state": {
           "notebook": {
@@ -17307,13 +17396,126 @@
         }
       },
       "expected": {
-        "error": {
-          "code": "TOO_MANY_PAGES"
+        "state": {
+          "notebook": {
+            "format": "hm-notes-notebook",
+            "version": 1,
+            "id": "nb1",
+            "title": "Field notes",
+            "cover": "blue",
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000360000,
+            "pages": [
+              {
+                "id": "p4",
+                "width": 59500,
+                "height": 84200,
+                "template": "lined"
+              },
+              {
+                "id": "p1",
+                "width": 59500,
+                "height": 84200,
+                "template": "lined"
+              },
+              {
+                "id": "p2",
+                "width": 61200,
+                "height": 79200,
+                "template": "blank",
+                "background": {
+                  "pdf": {
+                    "asset": "sha256:0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+                    "mediaType": "application/pdf",
+                    "size": 48213
+                  },
+                  "pageIndex": 0
+                }
+              },
+              {
+                "id": "p3",
+                "width": 59500,
+                "height": 84200,
+                "template": "dotted"
+              }
+            ],
+            "outline": [
+              {
+                "id": "o1",
+                "title": "Week 1",
+                "page": "p1"
+              },
+              {
+                "id": "o2",
+                "title": "Handout",
+                "page": "p2"
+              }
+            ],
+            "recordings": [
+              {
+                "id": "r1",
+                "audio": {
+                  "asset": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+                  "mediaType": "audio/webm",
+                  "size": 120000
+                },
+                "startedAt": 1700000100000,
+                "duration": 95000
+              }
+            ]
+          },
+          "pages": {
+            "p4": [],
+            "p1": [
+              {
+                "id": "s1",
+                "type": "stroke",
+                "tool": "pen",
+                "color": "#1a1a1a",
+                "size": 200,
+                "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
+              },
+              {
+                "id": "t1",
+                "type": "text",
+                "x": 8000,
+                "y": 20000,
+                "width": 30000,
+                "text": "Check the units",
+                "size": 1200,
+                "color": "#0b57d0"
+              },
+              {
+                "id": "l1",
+                "type": "link",
+                "x": 40000,
+                "y": 3000,
+                "width": 12000,
+                "height": 2400,
+                "page": "p2"
+              }
+            ],
+            "p2": [
+              {
+                "id": "i1",
+                "type": "image",
+                "x": 5000,
+                "y": 40000,
+                "width": 24000,
+                "height": 18000,
+                "image": {
+                  "asset": "sha256:0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
+                  "mediaType": "image/png",
+                  "size": 20480
+                }
+              }
+            ]
+          }
         }
       }
     },
     {
-      "name": "refuses restoring a page with more items than a page's limit",
+      "name": "restores a page with more items than a page's limit",
       "input": {
         "state": {
           "notebook": {
@@ -17473,8 +17675,138 @@
         }
       },
       "expected": {
-        "error": {
-          "code": "TOO_MANY_ITEMS"
+        "state": {
+          "notebook": {
+            "format": "hm-notes-notebook",
+            "version": 1,
+            "id": "nb1",
+            "title": "Field notes",
+            "cover": "blue",
+            "createdAt": 1700000000000,
+            "updatedAt": 1700000360000,
+            "pages": [
+              {
+                "id": "p4",
+                "width": 59500,
+                "height": 84200,
+                "template": "lined"
+              },
+              {
+                "id": "p1",
+                "width": 59500,
+                "height": 84200,
+                "template": "lined"
+              },
+              {
+                "id": "p2",
+                "width": 61200,
+                "height": 79200,
+                "template": "blank",
+                "background": {
+                  "pdf": {
+                    "asset": "sha256:0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+                    "mediaType": "application/pdf",
+                    "size": 48213
+                  },
+                  "pageIndex": 0
+                }
+              },
+              {
+                "id": "p3",
+                "width": 59500,
+                "height": 84200,
+                "template": "dotted"
+              }
+            ],
+            "outline": [
+              {
+                "id": "o1",
+                "title": "Week 1",
+                "page": "p1"
+              },
+              {
+                "id": "o2",
+                "title": "Handout",
+                "page": "p2"
+              }
+            ],
+            "recordings": [
+              {
+                "id": "r1",
+                "audio": {
+                  "asset": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+                  "mediaType": "audio/webm",
+                  "size": 120000
+                },
+                "startedAt": 1700000100000,
+                "duration": 95000
+              }
+            ]
+          },
+          "pages": {
+            "p4": [
+              {
+                "id": "a",
+                "type": "stroke",
+                "tool": "pen",
+                "color": "#1a1a1a",
+                "size": 200,
+                "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
+              },
+              {
+                "id": "b",
+                "type": "stroke",
+                "tool": "pen",
+                "color": "#1a1a1a",
+                "size": 200,
+                "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
+              }
+            ],
+            "p1": [
+              {
+                "id": "s1",
+                "type": "stroke",
+                "tool": "pen",
+                "color": "#1a1a1a",
+                "size": 200,
+                "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
+              },
+              {
+                "id": "t1",
+                "type": "text",
+                "x": 8000,
+                "y": 20000,
+                "width": 30000,
+                "text": "Check the units",
+                "size": 1200,
+                "color": "#0b57d0"
+              },
+              {
+                "id": "l1",
+                "type": "link",
+                "x": 40000,
+                "y": 3000,
+                "width": 12000,
+                "height": 2400,
+                "page": "p2"
+              }
+            ],
+            "p2": [
+              {
+                "id": "i1",
+                "type": "image",
+                "x": 5000,
+                "y": 40000,
+                "width": 24000,
+                "height": 18000,
+                "image": {
+                  "asset": "sha256:0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
+                  "mediaType": "image/png",
+                  "size": 20480
+                }
+              }
+            ]
+          }
         }
       }
     },
@@ -18735,14 +19067,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.reorderPages",
-          "order": [
-            "p1",
-            "p2",
-            "p3"
-          ]
         }
       }
     },
@@ -18976,14 +19300,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.reorderPages",
-          "order": [
-            "p1",
-            "p2",
-            "p3"
-          ]
         }
       }
     },
@@ -19858,19 +20174,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.setTemplates",
-          "templates": [
-            {
-              "page": "p1",
-              "template": "lined"
-            },
-            {
-              "page": "p3",
-              "template": "dotted"
-            }
-          ]
         }
       }
     },
@@ -20105,15 +20408,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.setTemplates",
-          "templates": [
-            {
-              "page": "p1",
-              "template": "lined"
-            }
-          ]
         }
       }
     },
@@ -20998,21 +21292,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.setOutline",
-          "outline": [
-            {
-              "id": "o1",
-              "title": "Week 1",
-              "page": "p1"
-            },
-            {
-              "id": "o2",
-              "title": "Handout",
-              "page": "p2"
-            }
-          ]
         }
       }
     },
@@ -21231,21 +21510,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.setOutline",
-          "outline": [
-            {
-              "id": "o1",
-              "title": "Week 1",
-              "page": "p1"
-            },
-            {
-              "id": "o2",
-              "title": "Handout",
-              "page": "p2"
-            }
-          ]
         }
       }
     },
@@ -22001,10 +22265,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.rename",
-          "title": "Field notes"
         }
       }
     },
@@ -22234,10 +22494,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.rename",
-          "title": "Field notes"
         }
       }
     },
@@ -22467,10 +22723,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.rename",
-          "title": "Field notes"
         }
       }
     },
@@ -22700,10 +22952,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.rename",
-          "title": "Field notes"
         }
       }
     },
@@ -22952,130 +23200,6 @@
         "error": {
           "code": "INVALID_COMMAND",
           "reason": "text-too-long"
-        }
-      }
-    },
-    {
-      "name": "refuses a title with a lone surrogate",
-      "input": {
-        "state": {
-          "notebook": {
-            "format": "hm-notes-notebook",
-            "version": 1,
-            "id": "nb1",
-            "title": "Field notes",
-            "cover": "blue",
-            "createdAt": 1700000000000,
-            "updatedAt": 1700000360000,
-            "pages": [
-              {
-                "id": "p1",
-                "width": 59500,
-                "height": 84200,
-                "template": "lined"
-              },
-              {
-                "id": "p2",
-                "width": 61200,
-                "height": 79200,
-                "template": "blank",
-                "background": {
-                  "pdf": {
-                    "asset": "sha256:0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
-                    "mediaType": "application/pdf",
-                    "size": 48213
-                  },
-                  "pageIndex": 0
-                }
-              },
-              {
-                "id": "p3",
-                "width": 59500,
-                "height": 84200,
-                "template": "dotted"
-              }
-            ],
-            "outline": [
-              {
-                "id": "o1",
-                "title": "Week 1",
-                "page": "p1"
-              },
-              {
-                "id": "o2",
-                "title": "Handout",
-                "page": "p2"
-              }
-            ],
-            "recordings": [
-              {
-                "id": "r1",
-                "audio": {
-                  "asset": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
-                  "mediaType": "audio/webm",
-                  "size": 120000
-                },
-                "startedAt": 1700000100000,
-                "duration": 95000
-              }
-            ]
-          },
-          "pages": {
-            "p1": [
-              {
-                "id": "s1",
-                "type": "stroke",
-                "tool": "pen",
-                "color": "#1a1a1a",
-                "size": 200,
-                "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
-              },
-              {
-                "id": "t1",
-                "type": "text",
-                "x": 8000,
-                "y": 20000,
-                "width": 30000,
-                "text": "Check the units",
-                "size": 1200,
-                "color": "#0b57d0"
-              },
-              {
-                "id": "l1",
-                "type": "link",
-                "x": 40000,
-                "y": 3000,
-                "width": 12000,
-                "height": 2400,
-                "page": "p2"
-              }
-            ],
-            "p2": [
-              {
-                "id": "i1",
-                "type": "image",
-                "x": 5000,
-                "y": 40000,
-                "width": 24000,
-                "height": 18000,
-                "image": {
-                  "asset": "sha256:0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
-                  "mediaType": "image/png",
-                  "size": 20480
-                }
-              }
-            ]
-          }
-        },
-        "command": {
-          "type": "notes.rename",
-          "title": "Lab\udcd3"
-        }
-      },
-      "expected": {
-        "error": {
-          "code": "INVALID_COMMAND",
-          "reason": "malformed-command"
         }
       }
     },
@@ -23460,21 +23584,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.setRecordings",
-          "recordings": [
-            {
-              "id": "r1",
-              "audio": {
-                "asset": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
-                "mediaType": "audio/webm",
-                "size": 120000
-              },
-              "startedAt": 1700000100000,
-              "duration": 95000
-            }
-          ]
         }
       }
     },
@@ -23561,7 +23670,11 @@
                 "width": 30000,
                 "text": "Check the units",
                 "size": 1200,
-                "color": "#0b57d0"
+                "color": "#0b57d0",
+                "audio": {
+                  "recording": "r1",
+                  "at": 30000
+                }
               },
               {
                 "id": "l1",
@@ -23665,7 +23778,11 @@
                 "width": 30000,
                 "text": "Check the units",
                 "size": 1200,
-                "color": "#0b57d0"
+                "color": "#0b57d0",
+                "audio": {
+                  "recording": "r1",
+                  "at": 30000
+                }
               },
               {
                 "id": "l1",
@@ -23693,21 +23810,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.setRecordings",
-          "recordings": [
-            {
-              "id": "r1",
-              "audio": {
-                "asset": "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
-                "mediaType": "audio/webm",
-                "size": 120000
-              },
-              "startedAt": 1700000100000,
-              "duration": 95000
-            }
-          ]
         }
       }
     },
@@ -24468,13 +24570,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removeItems",
-          "page": "__proto__",
-          "ids": [
-            "s1"
-          ]
         }
       }
     },
@@ -24688,13 +24783,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removeItems",
-          "page": "toString",
-          "ids": [
-            "constructor"
-          ]
         }
       }
     },
@@ -24988,37 +25076,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.restoreItems",
-          "page": "__proto__",
-          "entries": [
-            {
-              "index": 1,
-              "item": {
-                "id": "constructor",
-                "type": "text",
-                "x": 8000,
-                "y": 20000,
-                "width": 30000,
-                "text": "Check the units",
-                "size": 1200,
-                "color": "#0b57d0"
-              }
-            },
-            {
-              "index": 2,
-              "item": {
-                "id": "toString",
-                "type": "link",
-                "x": 40000,
-                "y": 3000,
-                "width": 12000,
-                "height": 2400,
-                "page": "constructor"
-              }
-            }
-          ]
         }
       }
     },
@@ -25328,20 +25385,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.replaceItems",
-          "page": "__proto__",
-          "items": [
-            {
-              "id": "__proto__",
-              "type": "stroke",
-              "tool": "pen",
-              "color": "#1a1a1a",
-              "size": 200,
-              "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
-            }
-          ]
         }
       }
     },
@@ -25820,85 +25863,6 @@
             "recordings": []
           },
           "pages": {}
-        },
-        "inverse": {
-          "type": "notes.restorePages",
-          "entries": [
-            {
-              "index": 0,
-              "info": {
-                "id": "__proto__",
-                "width": 59500,
-                "height": 84200,
-                "template": "lined"
-              },
-              "items": [
-                {
-                  "id": "__proto__",
-                  "type": "stroke",
-                  "tool": "pen",
-                  "color": "#1a1a1a",
-                  "size": 200,
-                  "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
-                },
-                {
-                  "id": "constructor",
-                  "type": "text",
-                  "x": 8000,
-                  "y": 20000,
-                  "width": 30000,
-                  "text": "Check the units",
-                  "size": 1200,
-                  "color": "#0b57d0"
-                },
-                {
-                  "id": "toString",
-                  "type": "link",
-                  "x": 40000,
-                  "y": 3000,
-                  "width": 12000,
-                  "height": 2400,
-                  "page": "constructor"
-                }
-              ]
-            },
-            {
-              "index": 2,
-              "info": {
-                "id": "toString",
-                "width": 59500,
-                "height": 84200,
-                "template": "lined"
-              },
-              "items": [
-                {
-                  "id": "toString",
-                  "type": "stroke",
-                  "tool": "pen",
-                  "color": "#1a1a1a",
-                  "size": 200,
-                  "points": [10000, 12000, 400, 10400, 12300, 650, 11000, 12500, 300]
-                }
-              ]
-            }
-          ],
-          "outline": [
-            {
-              "id": "__proto__",
-              "title": "toString",
-              "page": "toString"
-            },
-            {
-              "id": "constructor",
-              "title": "__proto__",
-              "page": "__proto__"
-            },
-            {
-              "id": "toString",
-              "title": "constructor",
-              "page": "constructor"
-            }
-          ]
         }
       }
     },
@@ -26094,14 +26058,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.reorderPages",
-          "order": [
-            "__proto__",
-            "constructor",
-            "toString"
-          ]
         }
       }
     },
@@ -26407,15 +26363,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.setTemplates",
-          "templates": [
-            {
-              "page": "constructor",
-              "template": "lined"
-            }
-          ]
         }
       }
     },
@@ -26869,12 +26816,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removePages",
-          "pages": [
-            "valueOf"
-          ]
         }
       }
     },
@@ -29354,15 +29295,6 @@
             ],
             "-_me0_": []
           }
-        },
-        "inverse": {
-          "type": "notes.setTemplates",
-          "templates": [
-            {
-              "page": "k4",
-              "template": "grid"
-            }
-          ]
         }
       }
     },
@@ -29505,24 +29437,6 @@
           "pages": {
             "a": []
           }
-        },
-        "inverse": {
-          "type": "notes.restoreItems",
-          "page": "a",
-          "entries": [
-            {
-              "index": 0,
-              "item": {
-                "id": "_",
-                "type": "link",
-                "x": 36177,
-                "y": 46505,
-                "width": 32876,
-                "height": 50323,
-                "page": "a"
-              }
-            }
-          ]
         }
       }
     },
@@ -30042,13 +29956,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removePages",
-          "pages": [
-            "3",
-            "_"
-          ]
         }
       }
     },
@@ -30441,15 +30348,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removeItems",
-          "page": "J2_-",
-          "ids": [
-            "U",
-            "3Z_wQx_",
-            "Di"
-          ]
         }
       }
     },
@@ -30836,41 +30734,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.setRecordings",
-          "recordings": [
-            {
-              "id": "---_U_zs",
-              "audio": {
-                "asset": "sha256:f31262d11539581db4014c7d6c0f3311822d24111c29839551c096a4c980d574",
-                "mediaType": "audio/ogg",
-                "size": 1269151175
-              },
-              "startedAt": 0,
-              "duration": 5579110
-            },
-            {
-              "id": "1Aa___G_",
-              "audio": {
-                "asset": "sha256:9963fc14dd4bc990a89d63611f9b216faedd4bbc587c78a839782f7c7113616d",
-                "mediaType": "audio/ogg",
-                "size": 131838209
-              },
-              "startedAt": 777704316764,
-              "duration": 197257
-            },
-            {
-              "id": "4O-x_Cu_",
-              "audio": {
-                "asset": "sha256:12fb56a58d67d9c72f2426563ccb60a0785e72afef898a0a997ad1dd50b20c76",
-                "mediaType": "audio/ogg",
-                "size": 173123455
-              },
-              "startedAt": 0,
-              "duration": 6497566
-            }
-          ]
         }
       }
     },
@@ -31022,12 +30885,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.reorderPages",
-          "order": [
-            "7i01"
-          ]
         }
       }
     },
@@ -31211,14 +31068,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removeItems",
-          "page": "_-",
-          "ids": [
-            "7Y8T_P",
-            "-d_E_"
-          ]
         }
       }
     },
@@ -31765,16 +31614,6 @@
             "K-2i1-Z_": [],
             "n_I1_N_-": []
           }
-        },
-        "inverse": {
-          "type": "notes.setOutline",
-          "outline": [
-            {
-              "id": "5J5-fY",
-              "title": "toString",
-              "page": "Am__-_TB"
-            }
-          ]
         }
       }
     },
@@ -31935,15 +31774,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.setTemplates",
-          "templates": [
-            {
-              "page": "-c",
-              "template": "dotted"
-            }
-          ]
         }
       }
     },
@@ -32227,38 +32057,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.replaceItems",
-          "page": "n",
-          "items": [
-            {
-              "id": "--9___",
-              "type": "stroke",
-              "tool": "pen",
-              "color": "#000012",
-              "size": 5302,
-              "points": [21223, 53996, 82, 53218, 33145, 462, 78502, 43251, 838, 2880000, 74449, 530, 15060, 29702, 888],
-              "audio": {
-                "recording": "K",
-                "at": 5995810
-              }
-            },
-            {
-              "id": "O_",
-              "type": "text",
-              "x": -991,
-              "y": 73709,
-              "width": 32710,
-              "text": "񊐐󴽓􏿼𮄓󚴃񂋓򆃘𿐋􃶎",
-              "size": 18817,
-              "color": "#ffffec",
-              "audio": {
-                "recording": "-__",
-                "at": 4174431
-              }
-            }
-          ]
         }
       }
     },
@@ -32631,45 +32429,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.replaceItems",
-          "page": "_4",
-          "items": [
-            {
-              "id": "r-8z_h-3",
-              "type": "text",
-              "x": 2391,
-              "y": 12068,
-              "width": 42894,
-              "text": "toString",
-              "size": 27218,
-              "color": "#fffff8",
-              "audio": {
-                "recording": "e0-oStri",
-                "at": 1898038
-              }
-            },
-            {
-              "id": "-0__",
-              "type": "link",
-              "x": 57279,
-              "y": 7,
-              "width": 11157,
-              "height": 1,
-              "page": "-9U-_"
-            },
-            {
-              "id": "__proto__",
-              "type": "text",
-              "x": 50904,
-              "y": -8,
-              "width": 43686,
-              "text": "🃧󍕢𕛄󵵦񾹛򑎅",
-              "size": 28378,
-              "color": "#000001"
-            }
-          ]
         }
       }
     },
@@ -33124,12 +32883,6 @@
             ],
             "constructor": []
           }
-        },
-        "inverse": {
-          "type": "notes.removePages",
-          "pages": [
-            "__8__u"
-          ]
         }
       }
     },
@@ -33421,14 +33174,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.reorderPages",
-          "order": [
-            "S",
-            "_-_8sL_7",
-            "4_"
-          ]
         }
       }
     },
@@ -33791,31 +33536,6 @@
             ],
             "Q": []
           }
-        },
-        "inverse": {
-          "type": "notes.setOutline",
-          "outline": [
-            {
-              "id": "constructor",
-              "title": "𠝊򓡐󬡪򃫧𷫹󤷢񞫮𔃟񞞺󇕆",
-              "page": "v-299_M"
-            },
-            {
-              "id": "2",
-              "title": "򉧁񁍵񒿷𖮻񀍷𳰄򜙹򝀲",
-              "page": "constructor"
-            },
-            {
-              "id": "toString",
-              "title": "󵖳񒯯󐦈󿥵򅋃񹽗􎽹􉂁",
-              "page": "v-299_M"
-            },
-            {
-              "id": "__",
-              "title": "􂙤󨨡񦥾𒘃񀹛򹌂򃚆񥁙",
-              "page": "8_H_-FF_"
-            }
-          ]
         }
       }
     },
@@ -34230,28 +33950,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.restoreItems",
-          "page": "h2",
-          "entries": [
-            {
-              "index": 0,
-              "item": {
-                "id": "0k-_c6",
-                "type": "stroke",
-                "tool": "pen",
-                "color": "#2fad42",
-                "size": 2477,
-                "points": [16162, 85695, 37],
-                "uniform": true,
-                "audio": {
-                  "recording": "toString",
-                  "at": 4021266
-                }
-              }
-            }
-          ]
         }
       }
     },
@@ -34421,10 +34119,6 @@
           "pages": {
             "0-pA--4": []
           }
-        },
-        "inverse": {
-          "type": "notes.rename",
-          "title": ""
         }
       }
     },
@@ -34875,41 +34569,6 @@
             ],
             "lc": []
           }
-        },
-        "inverse": {
-          "type": "notes.setRecordings",
-          "recordings": [
-            {
-              "id": "_",
-              "audio": {
-                "asset": "sha256:c71d8c809c09d4146cf321de3e8f7bcda100723b4e5d89d40fbac063da963db0",
-                "mediaType": "audio/webm",
-                "size": 9007199254740991
-              },
-              "startedAt": 1926917382992,
-              "duration": 4437805
-            },
-            {
-              "id": "toString",
-              "audio": {
-                "asset": "sha256:3ca14b82c5f20176c1eb4ff4fc96d947567c88814cc103a2ad77ccecacb2b907",
-                "mediaType": "audio/ogg",
-                "size": 9007199254740991
-              },
-              "startedAt": 0,
-              "duration": 4091951
-            },
-            {
-              "id": "--6FK--b",
-              "audio": {
-                "asset": "sha256:12e4fa323e43fd153594a6c855d08da5ceced8c58c2c54496b2895e0600f58f0",
-                "mediaType": "audio/webm",
-                "size": 2009506251
-              },
-              "startedAt": 8640000000000000,
-              "duration": 3261686
-            }
-          ]
         }
       }
     },
@@ -35265,13 +34924,6 @@
             ],
             "b-9": []
           }
-        },
-        "inverse": {
-          "type": "notes.removePages",
-          "pages": [
-            "--R33Y",
-            "_-7yy-K"
-          ]
         }
       }
     },
@@ -35669,115 +35321,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.restorePages",
-          "entries": [
-            {
-              "index": 1,
-              "info": {
-                "id": "o-E-_9",
-                "width": 36702,
-                "height": 38067,
-                "template": "dotted",
-                "background": {
-                  "pdf": {
-                    "asset": "sha256:5706889ef9f9857e006008b206d9000305bc020204de04060183dcbb042615ba",
-                    "mediaType": "application/pdf",
-                    "size": 0
-                  },
-                  "pageIndex": 792391
-                }
-              },
-              "items": [
-                {
-                  "id": "__2",
-                  "type": "image",
-                  "x": -9,
-                  "y": 24838,
-                  "width": 43685,
-                  "height": 32144,
-                  "image": {
-                    "asset": "sha256:777502033059059d6bc9d51dfdfd03f876826eaffc00003c01837b5fa3e0d907",
-                    "mediaType": "image/webp",
-                    "size": 0
-                  }
-                },
-                {
-                  "id": "-j8",
-                  "type": "stroke",
-                  "tool": "highlighter",
-                  "color": "#843bbc",
-                  "size": 17,
-                  "points": [36007, 79105, 511, 22795, 14968, 20, 45238, 21231, 469],
-                  "uniform": true,
-                  "audio": {
-                    "recording": "____C",
-                    "at": 11
-                  }
-                },
-                {
-                  "id": "Z-C_3p",
-                  "type": "text",
-                  "x": 8,
-                  "y": 2248,
-                  "width": 25096,
-                  "text": "񎥱𙙬􇗄񴳭􏺑",
-                  "size": 414,
-                  "color": "#060937",
-                  "audio": {
-                    "recording": "k2-on_C",
-                    "at": 2825875
-                  }
-                }
-              ]
-            },
-            {
-              "index": 3,
-              "info": {
-                "id": "-_O",
-                "width": 46287,
-                "height": 14897,
-                "template": "dotted",
-                "background": {
-                  "pdf": {
-                    "asset": "sha256:d4fface9017d0720a0fcf94c0201fc060d0e78fbfd9b8da5a3900304fdfa4bfd",
-                    "mediaType": "application/pdf",
-                    "size": 9007199254740991
-                  },
-                  "pageIndex": 665021
-                }
-              },
-              "items": [
-                {
-                  "id": "Bq_",
-                  "type": "link",
-                  "x": 2147,
-                  "y": 21626,
-                  "width": 21126,
-                  "height": 45171,
-                  "page": "o-E-_9"
-                }
-              ]
-            }
-          ],
-          "outline": [
-            {
-              "id": "-1_U6__",
-              "title": "񨩆񚖿򲂨󁌉󈕬",
-              "page": "o-E-_9"
-            },
-            {
-              "id": "-_8tY-4",
-              "title": "񆆥񑡆𮄨򏱊",
-              "page": "-_O"
-            },
-            {
-              "id": "_w_5_8_",
-              "title": "",
-              "page": "_--6Rjm_"
-            }
-          ]
         }
       }
     },
@@ -35901,10 +35444,6 @@
           "pages": {
             "-": []
           }
-        },
-        "inverse": {
-          "type": "notes.rename",
-          "title": ""
         }
       }
     },
@@ -36408,15 +35947,6 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removeItems",
-          "page": "d--8cPu",
-          "ids": [
-            "swm5-n_",
-            "U",
-            "_6_jo_-"
-          ]
         }
       }
     },
@@ -36579,52 +36109,6 @@
           "pages": {
             "7-x_3Q": []
           }
-        },
-        "inverse": {
-          "type": "notes.restorePages",
-          "entries": [
-            {
-              "index": 1,
-              "info": {
-                "id": "-9-",
-                "width": 7208,
-                "height": 7211,
-                "template": "dotted",
-                "background": {
-                  "pdf": {
-                    "asset": "sha256:150514ce87a10096fe06f3ffc4d699fc051f5efd3bb5f90006a57a01d55f0774",
-                    "mediaType": "application/pdf",
-                    "size": 9007199254740991
-                  },
-                  "pageIndex": 6
-                }
-              },
-              "items": [
-                {
-                  "id": "136-T",
-                  "type": "text",
-                  "x": 7522,
-                  "y": 56373,
-                  "width": 46230,
-                  "text": "𧦋",
-                  "size": 17852,
-                  "color": "#04956c"
-                }
-              ]
-            }
-          ],
-          "outline": [
-            {
-              "id": "_-_",
-              "title": "𩃗𪀶񷳏񃏵󃪑񁳚򌼐񮴣򊈤",
-              "page": "-9-"
-            },
-            {
-              "id": "1ze_",
-              "title": "󴄒󩆿ᮾ㭨𕒙",
-              "page": "7-x_3Q"
-            }
-          ]
         }
       }
     },
@@ -37012,13 +36496,6 @@
             ],
             "_": []
           }
-        },
-        "inverse": {
-          "type": "notes.removePages",
-          "pages": [
-            "toString",
-            "C_6Q-"
-          ]
         }
       }
     },
@@ -37392,158 +36869,11 @@
               }
             ]
           }
-        },
-        "inverse": {
-          "type": "notes.removeItems",
-          "page": "3j-__",
-          "ids": [
-            "--___-",
-            "constructor"
-          ]
         }
       }
     },
     {
-      "name": "generated 30: notes.restoreItems, refused, invalid-points",
-      "input": {
-        "state": {
-          "notebook": {
-            "format": "hm-notes-notebook",
-            "version": 1,
-            "id": "_1",
-            "title": "򃪦",
-            "cover": "gray",
-            "createdAt": 1669270955723,
-            "updatedAt": 1608497755018,
-            "pages": [
-              {
-                "id": "c_",
-                "width": 7213,
-                "height": 119995,
-                "template": "dotted",
-                "background": {
-                  "pdf": {
-                    "asset": "sha256:288015323c00fdce0500e304f9ee0107eefbd4e7602b4f00e303b5840bfae075",
-                    "mediaType": "application/pdf",
-                    "size": 0
-                  },
-                  "pageIndex": 999999
-                }
-              },
-              {
-                "id": "--Y7x",
-                "width": 86838,
-                "height": 7200,
-                "template": "grid"
-              }
-            ],
-            "outline": [
-              {
-                "id": "4K-_-___",
-                "title": "񄱍𫭡䪨򬎱򂦓񔺹𾥷ⵕ",
-                "page": "c_"
-              },
-              {
-                "id": "__proto__",
-                "title": "񟜫񀎌񏭺򋱾򾗙򚑾",
-                "page": "c_"
-              }
-            ],
-            "recordings": [
-              {
-                "id": "_oh_s",
-                "audio": {
-                  "asset": "sha256:8584c4b6232d9df248eb7137b4e1b3cad7f10c153cd3ffc7ab3b6e6f42b72b75",
-                  "mediaType": "audio/ogg",
-                  "size": 9007199254740991
-                },
-                "startedAt": 903863667796,
-                "duration": 6449884
-              },
-              {
-                "id": "0__",
-                "audio": {
-                  "asset": "sha256:58e374b37650f0b9ebbb34d642ea9937142a606833ed8979a1f4377e0429211f",
-                  "mediaType": "audio/ogg",
-                  "size": 1913798036
-                },
-                "startedAt": 1343029567857,
-                "duration": 2590290
-              }
-            ]
-          },
-          "pages": {
-            "c_": [
-              {
-                "id": "_2x--",
-                "type": "link",
-                "x": 47093,
-                "y": -1440000,
-                "width": 11,
-                "height": 59997,
-                "page": "--Y7x"
-              }
-            ],
-            "--Y7x": [
-              {
-                "id": "-_CUs",
-                "type": "text",
-                "x": 56844,
-                "y": 3484,
-                "width": 10796,
-                "text": "򱶙򅧶񤇀《򟸞򁙉",
-                "size": 16200,
-                "color": "#426d35",
-                "audio": {
-                  "recording": "sf__",
-                  "at": 5002404
-                }
-              }
-            ]
-          }
-        },
-        "command": {
-          "type": "notes.restoreItems",
-          "page": "--Y7x",
-          "entries": [
-            {
-              "index": 0,
-              "item": {
-                "id": "2n8",
-                "type": "stroke",
-                "tool": "pen",
-                "color": "#2573bf",
-                "size": 19,
-                "points": [
-                  "a\udc00",
-                  41528,
-                  418,
-                  2386,
-                  89566,
-                  333,
-                  77577,
-                  9062,
-                  726
-                ],
-                "uniform": true,
-                "audio": {
-                  "recording": "constructor",
-                  "at": 7115809
-                }
-              }
-            }
-          ]
-        }
-      },
-      "expected": {
-        "error": {
-          "code": "INVALID_COMMAND",
-          "reason": "invalid-points"
-        }
-      }
-    },
-    {
-      "name": "generated 31: notes.replaceItems, refused, invalid-size",
+      "name": "generated 30: notes.replaceItems, refused, invalid-size",
       "input": {
         "state": {
           "notebook": {
@@ -37762,7 +37092,7 @@
       }
     },
     {
-      "name": "generated 32: notes.addPages, refused, invalid-color",
+      "name": "generated 31: notes.addPages, refused, invalid-color",
       "input": {
         "state": {
           "notebook": {
@@ -37894,7 +37224,7 @@
       }
     },
     {
-      "name": "generated 33: notes.removePages, refused, unknown-page",
+      "name": "generated 32: notes.removePages, refused, unknown-page",
       "input": {
         "state": {
           "notebook": {
@@ -38104,7 +37434,7 @@
       }
     },
     {
-      "name": "generated 34: notes.reorderPages, refused, invalid-order",
+      "name": "generated 33: notes.reorderPages, refused, invalid-order",
       "input": {
         "state": {
           "notebook": {
@@ -38293,6 +37623,229 @@
         "error": {
           "code": "INVALID_COMMAND",
           "reason": "invalid-order"
+        }
+      }
+    },
+    {
+      "name": "generated 34: notes.restoreItems, refused, invalid-points",
+      "input": {
+        "state": {
+          "notebook": {
+            "format": "hm-notes-notebook",
+            "version": 1,
+            "id": "_",
+            "title": "",
+            "cover": "gray",
+            "createdAt": 1666520931292,
+            "updatedAt": 1351069061672,
+            "pages": [
+              {
+                "id": "__",
+                "width": 75781,
+                "height": 106508,
+                "template": "lined",
+                "background": {
+                  "pdf": {
+                    "asset": "sha256:4e036833c2050598f8873b02dbf902bf59b98bab4003ff02afffa2a24b01dbb4",
+                    "mediaType": "application/pdf",
+                    "size": 9007199254740991
+                  },
+                  "pageIndex": 895746
+                }
+              },
+              {
+                "id": "5Y3f_xB",
+                "width": 95729,
+                "height": 41067,
+                "template": "lined",
+                "background": {
+                  "pdf": {
+                    "asset": "sha256:a27f07e67283070435f58ed55d03ea4f0606b53f06010706a7b497fdda90a400",
+                    "mediaType": "application/pdf",
+                    "size": 9007199254740991
+                  },
+                  "pageIndex": 1
+                }
+              },
+              {
+                "id": "m-vc_6--",
+                "width": 46717,
+                "height": 77619,
+                "template": "grid",
+                "background": {
+                  "pdf": {
+                    "asset": "sha256:a20700c9fb5dff04ae97f1fad076d0fa025c6efa5c69edc8fcfcd5f797defaff",
+                    "mediaType": "application/pdf",
+                    "size": 1156938920
+                  },
+                  "pageIndex": 947851
+                }
+              },
+              {
+                "id": "y",
+                "width": 30569,
+                "height": 7213,
+                "template": "blank",
+                "background": {
+                  "pdf": {
+                    "asset": "sha256:0389ffec919e01bdaf1f3a61282a84b8c9035cf880defb40fd053ab7d600f6df",
+                    "mediaType": "application/pdf",
+                    "size": 898304103
+                  },
+                  "pageIndex": 9
+                }
+              }
+            ],
+            "outline": [
+              {
+                "id": "4ZD0-",
+                "title": "󶠥caller𰮶",
+                "page": "5Y3f_xB"
+              },
+              {
+                "id": "x_6",
+                "title": "踧",
+                "page": "m-vc_6--"
+              },
+              {
+                "id": "_6nO5",
+                "title": "񩾷񨅊䶩򗜘򄥶񨳊񰻲񎚩",
+                "page": "m-vc_6--"
+              }
+            ],
+            "recordings": [
+              {
+                "id": "gI4",
+                "audio": {
+                  "asset": "sha256:6f2837ea2728d33b290acf9bee4e2621380bed16c84350dad12b2699dd9a9fd3",
+                  "mediaType": "audio/mp4",
+                  "size": 2108448542
+                },
+                "startedAt": 918061262337,
+                "duration": 4480075
+              },
+              {
+                "id": "__proto__",
+                "audio": {
+                  "asset": "sha256:8c0a451f6a799c8ee828757b54f7c44e4ff54f7f1098ddb2d17dbddc3d871fcc",
+                  "mediaType": "audio/wav",
+                  "size": 596991863
+                },
+                "startedAt": 1580504242004,
+                "duration": 3384465
+              },
+              {
+                "id": "_",
+                "audio": {
+                  "asset": "sha256:6325a6b29f1b9d77c5b7fe5934cf432dba8bdebc7a5be4af241bc6f7077d4409",
+                  "mediaType": "audio/mp4",
+                  "size": 1704856555
+                },
+                "startedAt": 0,
+                "duration": 2777004
+              }
+            ]
+          },
+          "pages": {
+            "__": [
+              {
+                "id": "M",
+                "type": "stroke",
+                "tool": "highlighter",
+                "color": "#defeef",
+                "size": 5650,
+                "points": [64337, 37125, 163, 59406, 71657, 264, 26776, 88363, 545],
+                "uniform": true
+              }
+            ],
+            "5Y3f_xB": [
+              {
+                "id": "_S_q8___",
+                "type": "link",
+                "x": 25956,
+                "y": 0,
+                "width": 56553,
+                "height": 27673,
+                "page": "__"
+              }
+            ],
+            "m-vc_6--": [],
+            "y": [
+              {
+                "id": "constructor",
+                "type": "stroke",
+                "tool": "pen",
+                "color": "#dd1bfd",
+                "size": 16,
+                "points": [2804, 67210, 396, 7710, 30731, 49],
+                "uniform": true,
+                "audio": {
+                  "recording": "OM__--Fg",
+                  "at": 2738994
+                }
+              }
+            ]
+          }
+        },
+        "command": {
+          "type": "notes.restoreItems",
+          "page": "5Y3f_xB",
+          "entries": [
+            {
+              "index": 0,
+              "item": {
+                "id": "__proto__",
+                "type": "image",
+                "x": 54808,
+                "y": 5,
+                "width": 59991,
+                "height": 34515,
+                "image": {
+                  "asset": "sha256:25474807f02ff80706901f6117629282043d6d02b1b52c29ab0700631ebb26da",
+                  "mediaType": "image/png",
+                  "size": 0
+                }
+              }
+            },
+            {
+              "index": 1,
+              "item": {
+                "id": "toString",
+                "type": "stroke",
+                "tool": "highlighter",
+                "color": "#d874bd",
+                "size": 19,
+                "points": [
+                  -1440000,
+                  68864,
+                  523,
+                  72848,
+                  31999,
+                  784,
+                  84687,
+                  20385,
+                  389,
+                  [
+                    null,
+                    null,
+                    " N}Zy4FW1",
+                    "I"
+                  ]
+                ],
+                "uniform": true,
+                "audio": {
+                  "recording": "_wZ3sF",
+                  "at": 2113578
+                }
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "error": {
+          "code": "INVALID_COMMAND",
+          "reason": "invalid-points"
         }
       }
     },

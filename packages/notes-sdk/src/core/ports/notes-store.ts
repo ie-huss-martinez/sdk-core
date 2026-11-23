@@ -33,6 +33,20 @@ export interface NotesPageText {
 }
 
 /**
+ * A change to one page's search text. A field left out keeps what's stored.
+ *
+ * @public
+ */
+export interface NotesPageTextChange {
+  readonly notebook: string;
+  readonly page: string;
+  /** The text of the page's text boxes. */
+  readonly typed?: string;
+  /** The PDF page's own text. */
+  readonly pdf?: string;
+}
+
+/**
  * Where a library is kept (sdk-core ADR 0008, docs/adr/0003). The SDK's own
  * stores are `createOpfsNotesStore`, on the device, and
  * `createMemoryNotesStore`, for tests. A host can pass its own.
@@ -50,7 +64,19 @@ export interface NotesPageText {
 export interface NotesStore {
   /** The library's index, or `undefined` if none was ever written. */
   readIndex(): Promise<NotesLibraryIndex | undefined>;
-  writeIndex(index: NotesLibraryIndex): Promise<void>;
+  /**
+   * Changes the index: gives `change` the index as stored, `undefined` if
+   * none was ever written, and stores what it returns. The read and the
+   * write are one step, across tabs too, so a change another tab stored is
+   * never replaced by one made from an older copy. `change` is synchronous
+   * and has no side effects. If it throws, nothing is written and the call
+   * rejects with what it threw. An index that couldn't be read back is
+   * refused with `INVALID_DOCUMENT`, and a stored index that can't be read
+   * is never replaced. Resolves to the index as stored.
+   */
+  updateIndex(
+    change: (index: NotesLibraryIndex | undefined) => NotesLibraryIndex,
+  ): Promise<NotesLibraryIndex>;
 
   /** The ids of every notebook the store holds, to rebuild a lost index. */
   listNotebooks(): Promise<readonly string[]>;
@@ -70,15 +96,21 @@ export interface NotesStore {
   writeAsset(notebook: string, asset: string, data: Blob): Promise<void>;
   deleteAsset(notebook: string, asset: string): Promise<void>;
 
-  /** Replaces one page's search text. Deleting the page or its notebook removes it. */
-  writePageText(entry: NotesPageText): Promise<void>;
+  /**
+   * Stores one page's search text. A field left out keeps what's stored for
+   * it, as one step: the typed text and the PDF's text have different
+   * writers, and neither replaces the other's. The typed text of a page
+   * with none stored is empty. Deleting the page or its notebook removes it.
+   */
+  writePageText(change: NotesPageTextChange): Promise<void>;
   /** Every page's search text, of one notebook or of all. */
   readPageTexts(notebook?: string): Promise<readonly NotesPageText[]>;
 
   /**
    * Takes the notebook for this tab, so two tabs never write the same
    * notebook. Resolves to a function that gives it back, or `undefined`
-   * when another tab holds it.
+   * when another tab holds it. It's given back only once the calls already
+   * made on the notebook have settled.
    */
   lockNotebook(id: string): Promise<(() => void) | undefined>;
 
