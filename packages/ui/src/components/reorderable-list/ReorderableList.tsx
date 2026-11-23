@@ -352,6 +352,9 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
     // keeps the cell it pressed. On touch, focus comes when the finger lifts,
     // however long it was held, so it's state, not a time.
     const pressing = useRef(false);
+    // Removes the listeners that end the current press, if one is waiting.
+    const endPress = useRef<(() => void) | undefined>(undefined);
+    useEffect(() => () => endPress.current?.(), []);
     const announce = useAnnounce();
     const messages = useUiMessages();
     // How a control cell names its control's state, in the current messages.
@@ -695,13 +698,22 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
           pressing.current = true;
           // A press that focuses nothing ends with the pointer, wherever it
           // lifts; after a tick, so the focus a lift causes still counts.
+          // Both listeners go when either fires, or when a new press or the
+          // list's unmounting replaces them.
+          endPress.current?.();
           const release = (): void => {
+            endPress.current?.();
             setTimeout(() => {
               pressing.current = false;
             });
           };
-          window.addEventListener("pointerup", release, { once: true });
-          window.addEventListener("pointercancel", release, { once: true });
+          endPress.current = () => {
+            window.removeEventListener("pointerup", release);
+            window.removeEventListener("pointercancel", release);
+            endPress.current = undefined;
+          };
+          window.addEventListener("pointerup", release);
+          window.addEventListener("pointercancel", release);
           onPointerDown?.(event);
         }}
         onClick={handleClick}

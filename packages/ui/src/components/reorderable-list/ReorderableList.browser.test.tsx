@@ -799,6 +799,51 @@ describe("ReorderableList", () => {
       expect(document.activeElement).toBe(item(container, "Shape"));
     });
 
+    it("leaves no pointer listener behind once a press ends, or when the list unmounts", async () => {
+      const added: string[] = [];
+      const removed: string[] = [];
+      const add = vi.spyOn(window, "addEventListener").mockImplementation(function (
+        this: Window,
+        type,
+        ...rest
+      ) {
+        if (type === "pointerup" || type === "pointercancel") added.push(type);
+        return EventTarget.prototype.addEventListener.call(
+          this,
+          type,
+          ...(rest as [EventListener]),
+        );
+      });
+      const remove = vi.spyOn(window, "removeEventListener").mockImplementation(function (
+        this: Window,
+        type,
+        ...rest
+      ) {
+        if (type === "pointerup" || type === "pointercancel") removed.push(type);
+        return EventTarget.prototype.removeEventListener.call(
+          this,
+          type,
+          ...(rest as [EventListener]),
+        );
+      });
+      const container = render(<Layers />);
+      const shape = item(container, "Shape");
+      for (let press = 0; press < 3; press += 1) {
+        shape.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+        window.dispatchEvent(new PointerEvent("pointerup"));
+      }
+      // Ended by a lift: each press's two listeners went with it.
+      expect(added.sort()).toEqual(removed.sort());
+      // A press still going when the list unmounts.
+      shape.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      expect(added.length - removed.length).toBe(2);
+      act(() => root?.unmount());
+      root = undefined;
+      expect(added.sort()).toEqual(removed.sort());
+      add.mockRestore();
+      remove.mockRestore();
+    });
+
     it("keeps the cell a pointer presses, coming from outside", async () => {
       const onSelectedChange = vi.fn();
       const container = render(<Layers calls={{ onSelectedChange }} />);
