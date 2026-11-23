@@ -1,5 +1,17 @@
 # @hussmartinez/pdf-sdk
 
+## 0.7.0
+
+### Minor Changes
+
+- [#210](https://github.com/ie-huss-martinez/sdk-core/pull/210) [`b87a8f8`](https://github.com/ie-huss-martinez/sdk-core/commit/b87a8f8ff0101671b203aa8b1372a15fe2567506) Thanks [@hussmartinez](https://github.com/hussmartinez)! - A build can draw one page over another. `PdfBuildPage` takes an optional `overlay`, a `PdfPageOverlay` naming the `source` and `pageIndex` of a page to draw over it, from any source of the job: `{ source: "report", pageIndex: 0, overlay: { source: "ink", pageIndex: 0 } }`. The overlay lands on the page as displayed, after its rotation, upright and centred; a larger one is scaled down to fit and a smaller one keeps its size. Only what it paints covers the page, and its links and form fields come with it. `onProgress` reports a new `"overlay"` step, between `"assemble"` and `"compress"`, for jobs that have one, so a `switch` over every `PdfBuildStep` needs a case for it. An overlay that names an unknown source throws `TypeError`, and a page outside its source `RangeError`. Jobs without overlays build as before.
+
+### Patch Changes
+
+- [#209](https://github.com/ie-huss-martinez/sdk-core/pull/209) [`4c7b4b6`](https://github.com/ie-huss-martinez/sdk-core/commit/4c7b4b63e49f18ec57934267c02d46c10d5b65b5) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The editor's message catalogue has four more keys from ui's `ReorderableList`: `reorderableList.control.pressed`, `notPressed`, `checked` and `notChecked`. They name a row control's state, such as "Visible, pressed", now that focus stays on the control's cell. Override them with your other translations.
+- Updated dependencies [[`4c7b4b6`](https://github.com/ie-huss-martinez/sdk-core/commit/4c7b4b63e49f18ec57934267c02d46c10d5b65b5)]:
+  - @hussmartinez/ui@0.16.6
+
 ## 0.6.1
 
 ### Patch Changes
