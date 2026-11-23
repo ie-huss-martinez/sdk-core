@@ -7,12 +7,14 @@
 // A package counts as verified when a Verify run on this commit succeeded as
 // a whole and ran that package's job. A push to main verifies the packages it
 // changed, which include every package its version pull request releases.
-// When none did, such as on a re-run from a later commit, a Verify run started
-// by hand verifies every package.
+// When none did, such as for a release left pending from an earlier commit, a
+// Verify run started by hand on main verifies every package on main's commit.
 //
 // Usage: node .github/release/check-verified.mjs <publish-plan.json>
 // It uses `gh`, with GH_TOKEN, GITHUB_REPOSITORY and GITHUB_SHA from the
-// workflow. VERIFIED_TIMEOUT_MS and VERIFIED_POLL_MS change how long it waits.
+// workflow. VERIFIED_TIMEOUT_MS, VERIFIED_POLL_MS and VERIFIED_GRACE_MS change
+// how long it waits, how often it looks, and how long it waits for a Verify
+// run to appear at all.
 
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -46,26 +48,45 @@ export function plannedNames(plan) {
 
 /**
  * Whether the planned packages are verified on this commit, may still be, or
- * can't be without another Verify run.
+ * can't be without another Verify run. Release and Verify start on the same
+ * push independently, so while `early` is true, no run at all means Verify
+ * hasn't shown up yet, not that it won't.
  *
  * @param {VerifyRun[]} runs
  * @param {string[]} planned Folder names under packages/.
- * @returns {{ state: "verified" | "waiting" | "missing", missing: string[] }}
+ * @param {{ early?: boolean }} [options]
+ * @returns {{ state: "verified" | "waiting" | "missing", missing: string[], failed: boolean }}
  */
-export function verification(runs, planned) {
+export function verification(runs, planned, { early = false } = {}) {
   const verified = new Set(
     runs
       .filter((run) => run.status === "completed" && run.conclusion === "success")
       .flatMap((run) => run.packages),
   );
   const missing = planned.filter((folder) => !verified.has(folder)).sort();
+  // A run on this commit that finished without succeeding.
+  const failed = runs.some((run) => run.status === "completed" && run.conclusion !== "success");
   if (missing.length === 0) {
-    return { state: "verified", missing };
+    return { state: "verified", missing, failed };
   }
-  return {
-    state: runs.some((run) => run.status !== "completed") ? "waiting" : "missing",
-    missing,
-  };
+  const pending = runs.some((run) => run.status !== "completed") || (early && runs.length === 0);
+  return { state: pending ? "waiting" : "missing", missing, failed };
+}
+
+/**
+ * What to do when a planned package can't be verified on this commit. A
+ * re-run of a workflow keeps its commit, and Verify by hand runs on main's
+ * latest commit, so the advice depends on why.
+ *
+ * @param {string} sha
+ * @param {string[]} missing
+ * @param {boolean} failed
+ */
+export function notVerifiedMessage(sha, missing, failed) {
+  const what = `No successful Verify run on ${sha} verified ${missing.join(", ")}.`;
+  return failed
+    ? `${what} A Verify run on this commit failed or was cancelled: re-run its failed jobs, then re-run this workflow.`
+    : `${what} Verify on this commit didn't run them. Run the Verify workflow by hand on main, which verifies every package, then re-run the Release run of the commit it verified: a re-run keeps its own commit, so if main has moved past ${sha}, that's main's latest Release run, not this one.`;
 }
 
 /** @param {string[]} args */
@@ -112,16 +133,22 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
   const timeout = Number(process.env.VERIFIED_TIMEOUT_MS ?? 60 * 60_000);
   const poll = Number(process.env.VERIFIED_POLL_MS ?? 30_000);
-  const deadline = Date.now() + timeout;
+  // How long to wait for Verify's run to appear at all.
+  const grace = Number(process.env.VERIFIED_GRACE_MS ?? 5 * 60_000);
+  const start = Date.now();
+  const deadline = start + timeout;
   for (;;) {
-    const { state, missing } = verification(verifyRuns(repository, sha), planned);
+    const early = Date.now() - start < grace;
+    const { state, missing, failed } = verification(verifyRuns(repository, sha), planned, {
+      early,
+    });
     if (state === "verified") {
       process.stdout.write(`Verify succeeded on ${sha} for ${planned.join(", ")}.\n`);
       process.exit(0);
     }
     if (state === "missing") {
       process.stdout.write(
-        `::error title=Not verified::No successful Verify run on ${sha} verified ${missing.join(", ")}. Run the Verify workflow by hand on main, which verifies every package, then re-run this workflow.\n`,
+        `::error title=Not verified::${notVerifiedMessage(sha, missing, failed)}\n`,
       );
       process.exit(1);
     }
