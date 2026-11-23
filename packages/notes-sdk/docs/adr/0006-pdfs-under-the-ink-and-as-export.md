@@ -57,4 +57,5 @@ Links between pages and the outline. The writer doesn't write link annotations o
 - Exported ink is vectors: sharp at any size, and a few kilobytes a page.
 - Typed text in Latin script is real text in the PDF; other scripts are pictures until a font is embedded.
 - pdf-sdk gains one small, general capability, drawing a page over another, which other hosts can use.
+- **A known limit: a PDF whose trim box differs from its crop box.** The editor shows a page by its crop box, as pdf.js does, and pdf-sdk places what's drawn over a page by its trim box ([pdf-sdk ADR 0011](../../../pdf-sdk/docs/adr/0011-drawing-one-page-over-another.md)). On such a file, usually one prepared for print with bleed, the exported ink is fitted to the trim box, so it comes out smaller than it was written, and shifted if the trim box isn't centred. Nothing is lost, and the notebook itself is unaffected. Closing it needs pdf-sdk to place by the box it's asked for, which is its own change.
 - The PDF writer is our own code. It only writes, from the SDK's own checked model, so it faces no hostile input, and a browser test opens what it writes with pdf.js.

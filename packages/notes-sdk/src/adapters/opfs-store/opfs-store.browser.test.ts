@@ -645,8 +645,8 @@ describe.runIf(usable)("createOpfsNotesStore on the browser's storage", () => {
           writable.write = async () => {
             throw failed;
           };
-          // A writer the store can't keep out, as a tab is in a browser without
-          // Web Locks, stores the page between the failure and the tidying up.
+          // A writer the store can't keep out, because it takes no lock, stores
+          // the page between the failure and the tidying up.
           writable.abort = async (reason) => {
             await abort(reason);
             await putFile(await folder("n1", PAGES_DIRECTORY), "p1.json", theirs);
@@ -660,6 +660,32 @@ describe.runIf(usable)("createOpfsNotesStore on the browser's storage", () => {
       });
       expect(await fileText(await folder("n1", PAGES_DIRECTORY), "p1.json")).toBe(theirs);
       await expect(store.readPage("n1", "p1")).resolves.toEqual(pageOf("p1", []));
+    });
+
+    it("as a document's first, leaves an empty file where there is no Web Locks API", async () => {
+      const store = openStore();
+      await withoutWebLocks(async () => {
+        failWrites("write", failed);
+        await expect(store.writeNotebook(notebookOf("n1"))).rejects.toMatchObject({
+          code: "STORAGE_FAILED",
+        });
+        await expect(store.writePage("n1", pageOf("p1"))).rejects.toMatchObject({
+          code: "STORAGE_FAILED",
+        });
+        vi.restoreAllMocks();
+        // Another tab can't be kept out there, and could store its document between the look
+        // at an empty file and its removal. So the files stay, and read as none.
+        const pages = await folder("n1", PAGES_DIRECTORY);
+        expect(await namesIn(await folder("n1"))).toEqual([NOTEBOOK_FILE, PAGES_DIRECTORY]);
+        expect(await namesIn(pages)).toEqual(["p1.json"]);
+        expect(await fileText(pages, "p1.json")).toBe("");
+        await expect(store.readNotebook("n1")).resolves.toBeUndefined();
+        await expect(store.readPage("n1", "p1")).resolves.toBeUndefined();
+        await expect(store.listNotebooks()).resolves.toEqual([]);
+        // And the next write fills them.
+        await store.writePage("n1", pageOf("p1"));
+        await expect(store.readPage("n1", "p1")).resolves.toEqual(pageOf("p1"));
+      });
     });
 
     it("of two stores' first writes of one page, made together, leaves the other's", async () => {

@@ -219,9 +219,11 @@ export interface NotesLibrary {
   /** Asks the browser to keep the storage, and resolves to whether it will. */
   requestPersistence(): Promise<boolean>;
   /**
-   * Stops listening to the store, after closing the notebooks still open:
-   * each is saved, and given back even if its save fails. Resolves once the
-   * store is no longer written to.
+   * Stops listening to the store, after what's under way has finished and
+   * the notebooks still open are closed: each is saved, and given back even
+   * if its save fails. Resolves once the store is no longer written to.
+   * Every method that changes the library rejects with `NOT_FOUND` from
+   * then on.
    */
   close(): Promise<void>;
 }
@@ -504,6 +506,20 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
       .catch(() => undefined);
   };
 
+  /** What the library is in the middle of: `close()` waits for it. */
+  const running = new Set<Promise<unknown>>();
+  /** Makes a method refuse once the library is closed, and be waited for when it closes. */
+  const tracked =
+    <Args extends unknown[], Result>(method: (...args: Args) => Promise<Result>) =>
+    (...args: Args): Promise<Result> => {
+      if (closed) return Promise.reject(new NotesError("NOT_FOUND", "The library is closed."));
+      const run = method(...args);
+      running.add(run);
+      const done = () => running.delete(run);
+      run.then(done, done);
+      return run;
+    };
+
   const library: NotesLibrary = {
     getSnapshot: state.getSnapshot,
     subscribe: state.subscribe,
@@ -515,9 +531,14 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
       unsubscribe ??= store.subscribe(follow);
       loaded ??= (async () => {
         try {
-          const next = await reconcile();
           const persistence = await store.persistence().catch(() => undefined);
-          show(next, { status: "ready", persistence, error: undefined });
+          // In turn with what other tabs' changes show, so an index read
+          // earlier never replaces a newer one.
+          const reading = writes.then(async () => {
+            show(await reconcile(), { status: "ready", persistence, error: undefined });
+          });
+          writes = reading.catch(() => undefined);
+          await reading;
         } catch (error) {
           loaded = undefined;
           const failure = fail("library", error);
@@ -703,7 +724,16 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
 
     async restoreNotebook(id) {
       summary(id);
-      await patchNotebook(id, { deletedAt: null });
+      const restore = () => patchNotebook(id, { deletedAt: null });
+      try {
+        // Never while it's being deleted for good, here or in another tab:
+        // a deletion holds the notebook, so a failed one leaves it in the
+        // bin. A session of this library holding it is no deletion.
+        if (sessions.has(id)) await restore();
+        else await holding(id, restore);
+      } catch (error) {
+        throw fail("library", error);
+      }
       emit({ type: "notebook_restored" });
     },
 
@@ -825,9 +855,15 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
       try {
         // What's open is saved first, so the backup holds the latest ink.
         // Only what the backup takes: a notebook left out can't fail it.
+        // A notebook in the bin is taken only when it's named.
         const wanted = input.notebooks ? new Set(input.notebooks) : undefined;
+        const binned = new Set(
+          index()
+            .notebooks.filter((notebook) => notebook.deletedAt !== null)
+            .map((notebook) => notebook.id),
+        );
         for (const [id, session] of sessions) {
-          if (!wanted || wanted.has(id)) await session.flush();
+          if (wanted ? wanted.has(id) : !binned.has(id)) await session.flush();
         }
         // From before the first read: an edit saved while the archive is
         // written isn't in it, and still counts as not backed up.
@@ -1045,14 +1081,37 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
       unsubscribe?.();
       if (reminder !== undefined) clearTimeout(reminder);
       reminder = undefined;
-      // Each is saved if it can be, and given back either way.
-      await Promise.allSettled(
-        [...sessions.values()].map((session) => session.close({ discard: true })),
-      );
-      sessions.clear();
+      // An import, a restore or an open still under way finishes first, and
+      // each notebook is saved if it can be and given back either way: the
+      // store isn't written to once this resolves.
+      while (running.size > 0 || sessions.size > 0) {
+        const open = [...sessions.values()];
+        sessions.clear();
+        await Promise.allSettled(open.map((session) => session.close({ discard: true })));
+        await Promise.allSettled([...running]);
+      }
       await writes;
     },
   };
 
-  return library;
+  return {
+    ...library,
+    createNotebook: tracked(library.createNotebook),
+    importPdf: tracked(library.importPdf),
+    duplicateNotebook: tracked(library.duplicateNotebook),
+    renameNotebook: tracked(library.renameNotebook),
+    setNotebookCover: tracked(library.setNotebookCover),
+    moveNotebook: tracked(library.moveNotebook),
+    binNotebook: tracked(library.binNotebook),
+    restoreNotebook: tracked(library.restoreNotebook),
+    deleteNotebook: tracked(library.deleteNotebook),
+    createFolder: tracked(library.createFolder),
+    renameFolder: tracked(library.renameFolder),
+    deleteFolder: tracked(library.deleteFolder),
+    open: tracked(library.open),
+    backup: tracked(library.backup),
+    restore: tracked(library.restore),
+    indexPdfText: tracked(library.indexPdfText),
+    exportPdf: tracked(library.exportPdf),
+  };
 }

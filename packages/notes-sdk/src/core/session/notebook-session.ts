@@ -246,6 +246,8 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
   let timer: ReturnType<typeof setTimeout> | undefined;
   let saving: Promise<void> | undefined;
   let closing: Promise<void> | undefined;
+  /** Giving the notebook back, once that has begun. */
+  let finishing: Promise<void> | undefined;
   /** The files being stored: the notebook is held until each has finished. */
   const assetWrites = new Set<Promise<unknown>>();
   /** The search text of pages removed and saved, in case an undo brings one back. */
@@ -305,12 +307,15 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
       }
       return;
     }
-    const run = writeChanges();
+    // The slot is taken before the save tells anyone it has started: a
+    // listener that calls flush() waits for this save, and never starts
+    // another beside it.
+    const run = Promise.resolve().then(writeChanges);
     saving = run;
     try {
       await run;
     } finally {
-      saving = undefined;
+      if (saving === run) saving = undefined;
     }
   };
 
@@ -518,7 +523,7 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
     },
 
     close(input = {}) {
-      if (closed) return Promise.resolve();
+      if (finishing) return finishing;
       const discard = input.discard === true;
       // One close at a time: a second call joins the first, unless it alone discards.
       if (closing && !discard) return closing;
@@ -534,11 +539,17 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
         } catch (error) {
           if (!discard) throw error;
         }
-        if (closed) return;
-        closed = true;
-        cancelTimer();
-        release();
-        emit({ type: "notebook_closed" });
+        finishing ??= (async () => {
+          // Nothing new is accepted from here. A file already on its way
+          // lands before the notebook is given back, so it never arrives in
+          // a notebook that's someone else's by then.
+          closed = true;
+          cancelTimer();
+          while (assetWrites.size > 0) await Promise.allSettled([...assetWrites]);
+          release();
+          emit({ type: "notebook_closed" });
+        })();
+        await finishing;
       };
       const run = attempt().finally(() => {
         if (closing === run) closing = undefined;

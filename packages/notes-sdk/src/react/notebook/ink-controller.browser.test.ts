@@ -108,28 +108,44 @@ async function stage(
   };
 }
 
-/** Sends one pointer event to an element, at a place in CSS pixels from the viewport's corner. */
+type PointerType = "pointerdown" | "pointermove" | "pointerup" | "pointercancel";
+
+/** A pointer event at a place in CSS pixels from the viewport's corner. */
+function pointer(type: PointerType, x: number, y: number, init: PointerEventInit): PointerEvent {
+  return new PointerEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    isPrimary: true,
+    clientX: x,
+    clientY: y,
+    width: 1,
+    height: 1,
+    pressure: type === "pointerup" ? 0 : 0.5,
+    ...init,
+  });
+}
+
+/**
+ * Sends one pointer event to an element. With `coalesced`, the event brings
+ * the samples the browser joined into it, each a place: the last is the
+ * event's own.
+ */
 function fire(
   target: Element,
-  type: "pointerdown" | "pointermove" | "pointerup" | "pointercancel",
+  type: PointerType,
   x: number,
   y: number,
   init: PointerEventInit,
+  coalesced?: ReadonlyArray<readonly [x: number, y: number]>,
 ): void {
-  target.dispatchEvent(
-    new PointerEvent(type, {
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      isPrimary: true,
-      clientX: x,
-      clientY: y,
-      width: 1,
-      height: 1,
-      pressure: type === "pointerup" ? 0 : 0.5,
-      ...init,
-    }),
-  );
+  const event = pointer(type, x, y, init);
+  if (coalesced) {
+    // Set on the event itself: not every browser takes the samples from the constructor.
+    const samples = coalesced.map(([sampleX, sampleY]) => pointer(type, sampleX, sampleY, init));
+    Object.defineProperty(event, "getCoalescedEvents", { value: () => samples });
+  }
+  target.dispatchEvent(event);
 }
 
 /** The pen in contact: 1. With its barrel button held too: 3. */
@@ -221,10 +237,44 @@ describe("the pen's barrel button, pressed and let go while the pen is down", ()
     expect(errors).toEqual([]);
     const [before, after, ...others] = strokes(items());
     expect(others).toEqual([]);
-    // The stroke that was there is erased, and there's ink on each side of where the button was held.
+    // The stroke that was there is erased, and there's ink on each side of where the button was
+    // held, up to the sample it went down at and from the sample it was let go at. The eraser
+    // began on the end of the first ink, and left it.
     expect(items().some((item) => item.id === "s")).toBe(false);
-    expect(span(before)).toEqual([20 * UNITS, 60 * UNITS]);
+    expect(span(before)).toEqual([20 * UNITS, 80 * UNITS]);
     expect(span(after)).toEqual([160 * UNITS, 200 * UNITS]);
+  });
+
+  it("keeps the ink of every sample that comes with the button going down", async () => {
+    const { page, items, errors } = await stage({ eraserMode: "stroke" });
+    fire(page, "pointerdown", 20, 120, { ...PEN, button: 0, buttons: 1 });
+    fire(page, "pointermove", 40, 120, { ...PEN, button: -1, buttons: 1 });
+    // One event brings the button and three samples: the pen went down the page and back.
+    fire(page, "pointermove", 80, 120, { ...PEN, button: -1, buttons: 3 }, [
+      [50, 140],
+      [70, 140],
+      [80, 120],
+    ]);
+    fire(page, "pointerup", 80, 120, { ...PEN, button: 2, buttons: 0 });
+
+    expect(errors).toEqual([]);
+    const [ink, ...others] = strokes(items());
+    expect(others).toEqual([]);
+    const places = [20, 120, 40, 120, 50, 140, 70, 140, 80, 120].map((pixels) => pixels * UNITS);
+    expect(ink?.points.filter((_, index) => index % 3 !== 2)).toEqual(places);
+  });
+
+  it("erases up to the sample where the button is let go", async () => {
+    const { page, items, errors } = await stage({ eraserMode: "stroke" }, [upright("near")]);
+    fire(page, "pointerdown", 100, 120, { ...PEN, button: 2, buttons: 3 });
+    // Let go past the stroke: only the way to this sample crosses it.
+    fire(page, "pointermove", 140, 120, { ...PEN, button: -1, buttons: 1 });
+    fire(page, "pointermove", 200, 120, { ...PEN, button: -1, buttons: 1 });
+    fire(page, "pointerup", 200, 120, { ...PEN, button: 0, buttons: 0 });
+
+    expect(errors).toEqual([]);
+    expect(items().map((item) => item.id)).toEqual(["new-1"]);
+    expect(span(strokes(items())[0])).toEqual([140 * UNITS, 200 * UNITS]);
   });
 
   it("stops erasing when the button is let go, though the pen stays down", async () => {
@@ -335,5 +385,47 @@ describe("the eraser, while an undo or a redo changes the page under it", () => 
     expect(errors).toEqual([]);
     expect(items()).toEqual([]);
     expect(session.getSnapshot().canUndo).toBe(false);
+  });
+
+  /** A short stroke on the eraser's way, put under the upright one in the page's order. */
+  function addDashUnder(session: NotesSession): void {
+    const dash = stroke("dash", [27_000, 30_000], [28_000, 30_000]);
+    session.execute({ type: "notes.addItems", page: "p1", index: 0, items: [dash] });
+  }
+
+  it("keeps a stroke's pieces when an undo took away a stroke erased whole before it", async () => {
+    const { page, session, items, errors } = await stage({ eraserMode: "precise" }, [upright("s")]);
+    addDashUnder(session);
+
+    // The eraser takes all of the dash, then cuts the upright stroke in two.
+    const lift = eraseAcross(page);
+    session.undo();
+    expect(items().map((item) => item.id)).toEqual(["s"]);
+    lift();
+
+    expect(errors).toEqual([]);
+    expect(items().map((item) => item.id)).toEqual(["new-1", "new-2"]);
+    session.undo();
+    expect(items().map((item) => item.id)).toEqual(["s"]);
+  });
+
+  it("keeps them through a later pass that cuts one of the pieces", async () => {
+    const { page, session, items, errors } = await stage({ eraserMode: "precise" }, [upright("s")]);
+    addDashUnder(session);
+
+    eraseAcross(page);
+    // Down beside the stroke, and back across its lower piece.
+    fire(page, "pointermove", 140, 140, { ...PEN, button: -1, buttons: 3 });
+    fire(page, "pointermove", 100, 140, { ...PEN, button: -1, buttons: 3 });
+    session.undo();
+    fire(page, "pointerup", 100, 140, { ...PEN, button: 2, buttons: 0 });
+
+    expect(errors).toEqual([]);
+    // The upper piece, then the two the lower one became, down the page.
+    expect(items().map((item) => item.id)).toEqual(["new-1", "new-3", "new-4"]);
+    const tops = strokes(items()).map((item) => item.points[1] ?? 0);
+    expect(tops).toEqual([...tops].sort((a, b) => a - b));
+    session.undo();
+    expect(items().map((item) => item.id)).toEqual(["s"]);
   });
 });

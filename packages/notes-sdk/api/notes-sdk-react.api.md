@@ -103,7 +103,12 @@ export interface NotesLibraryViewProps {
 }
 
 // @public
-export function NotesNotebook(props: NotesNotebookProps): ReactNode;
+export const NotesNotebook: ForwardRefExoticComponent<NotesNotebookProps & RefAttributes<NotesNotebookHandle>>;
+
+// @public
+export interface NotesNotebookHandle {
+    close(): Promise<void>;
+}
 
 // @public
 export interface NotesNotebookProps {

@@ -80,6 +80,34 @@ describe("pageCanvasSize", () => {
     expect(pageCanvasSize(100, 200, 0)).toEqual({ width: 100, height: 200 });
     expect(pageCanvasSize(100, 200, Number.NaN)).toEqual({ width: 100, height: 200 });
   });
+
+  it("holds a long, narrow page to 32,767 pixels a side, keeping its shape", () => {
+    // 200 times taller than wide: the pixels alone would allow 245 by 48,990.
+    expect(pageCanvasSize(300, 60_000, 1)).toEqual({ width: 164, height: 32_767 });
+    expect(pageCanvasSize(60_000, 300, 1)).toEqual({ width: 32_767, height: 164 });
+  });
+
+  it("leaves a page whose sides fit as it was, up to the longest side allowed", () => {
+    expect(pageCanvasSize(100, 32_767, 1)).toEqual({ width: 100, height: 32_767 });
+    expect(pageCanvasSize(100, 32_768, 1)).toEqual({ width: 100, height: 32_767 });
+  });
+
+  it("stays within 12 million pixels and 32,767 a side, whatever the page", () => {
+    fc.assert(
+      fc.property(
+        fc.double({ min: 0.001, max: 1e7, noNaN: true }),
+        fc.double({ min: 0.001, max: 1e7, noNaN: true }),
+        fc.double({ min: 0.01, max: 8, noNaN: true }),
+        (width, height, devicePixelRatio) => {
+          const size = pageCanvasSize(width, height, devicePixelRatio);
+          expect(Number.isInteger(size.width) && Number.isInteger(size.height)).toBe(true);
+          expect(Math.min(size.width, size.height)).toBeGreaterThanOrEqual(1);
+          expect(Math.max(size.width, size.height)).toBeLessThanOrEqual(32_767);
+          expect(size.width * size.height).toBeLessThanOrEqual(12_000_000);
+        },
+      ),
+    );
+  });
 });
 
 describe("textRasterSize", () => {

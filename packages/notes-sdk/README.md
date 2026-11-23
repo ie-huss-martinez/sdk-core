@@ -195,6 +195,8 @@ The last two major versions of Chrome, Edge, Firefox and Safari. The first devic
 ## Development
 
 ```sh
+pnpm install
+pnpm --filter "@hussmartinez/notes-sdk^..." build   # the family's packages it builds on, once
 pnpm --filter @hussmartinez/notes-sdk verify:fast   # types, unit tests, dependency rules, the API report
 pnpm --filter @hussmartinez/notes-sdk verify        # everything CI runs; it needs Docker for the browser tests
 ```

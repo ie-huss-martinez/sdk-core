@@ -919,7 +919,6 @@ export interface NotesSearchHit {
 // @public
 export interface NotesSession {
     addAsset(data: Blob, mediaType: string): Promise<NotesAssetReference>;
-    // Warning: (ae-forgotten-export) The symbol "NotesSessionCloseOptions" needs to be exported by the entry point index.d.ts
     close(options?: NotesSessionCloseOptions): Promise<void>;
     execute(commands: NotesCommand | readonly NotesCommand[]): void;
     flush(): Promise<void>;
@@ -934,6 +933,11 @@ export interface NotesSession {
     subscribe(listener: () => void): () => void;
     // (undocumented)
     undo(): void;
+}
+
+// @public
+export interface NotesSessionCloseOptions {
+    readonly discard?: boolean;
 }
 
 // @public

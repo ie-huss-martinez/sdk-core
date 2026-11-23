@@ -349,6 +349,132 @@ describe.runIf(!deviceStorage)("NotesEditor where the browser gives no storage",
   });
 });
 
+describe("NotesEditor closed through its handle", () => {
+  /** A recorder whose sessions count what was asked of them. */
+  function fakeRecorder() {
+    const calls = { starts: 0, stops: 0, cancels: 0 };
+    let admit: () => void = () => undefined;
+    let gate: Promise<void> | undefined;
+    return {
+      calls,
+      /** Makes the next microphone wait until `admit()`. */
+      hold() {
+        gate = new Promise<void>((resolve) => {
+          admit = resolve;
+        });
+      },
+      admit: () => admit(),
+      recorder: {
+        supported: true,
+        start: async () => {
+          calls.starts += 1;
+          await gate;
+          return {
+            startedAt: Date.now(),
+            elapsed: () => 0,
+            stop: async () => {
+              calls.stops += 1;
+              return { audio: new Blob(["sound"], { type: "audio/webm" }), duration: 1_000 };
+            },
+            cancel: () => {
+              calls.cancels += 1;
+            },
+          };
+        },
+      },
+    };
+  }
+
+  const notebookOf = async ({ handle, store }: Mounted) => {
+    const [summary] = handle.current?.library.getSnapshot().index.notebooks ?? [];
+    return store.readNotebook(summary?.id ?? "");
+  };
+
+  it("commits the text being typed before it closes the notebook", async () => {
+    const mounted = await mountEditor();
+    const { container } = mounted;
+    await newNotebook(mounted);
+    await press(container, "Text");
+    await draw(PAGE, [{ x: 0.3, y: 0.3 }]);
+    const field = await waitFor(() => {
+      const found = container.querySelector<HTMLTextAreaElement>(".hm-notes-text-editor");
+      if (!found) throw new Error("No text editor opened.");
+      return found;
+    });
+    await userEvent.type(field, "Still being typed");
+    // The box still has the focus: nothing has committed the draft yet.
+    await mounted.handle.current?.close();
+    await waitFor(() => expect(button(container, "New notebook")).toBeTruthy());
+    expect(await storedItems(mounted)).toEqual([
+      expect.objectContaining({ type: "text", text: "Still being typed" }),
+    ]);
+  });
+
+  it("stops and stores a recording before it closes the notebook", async () => {
+    const { recorder, calls } = fakeRecorder();
+    const mounted = await mountEditor({ recorder });
+    await newNotebook(mounted);
+    await press(mounted.container, "Record sound");
+    await waitFor(() => expect(button(mounted.container, "Stop recording")).toBeTruthy());
+    await mounted.handle.current?.close();
+    await waitFor(() => expect(button(mounted.container, "New notebook")).toBeTruthy());
+    expect(calls.stops).toBe(1);
+    expect((await notebookOf(mounted))?.recordings).toHaveLength(1);
+  });
+
+  it("stays open, and says why, when the recording can't be stored", async () => {
+    const store = createMemoryNotesStore();
+    store.writeAsset = async () => {
+      throw new Error("The disk is full.");
+    };
+    const { recorder } = fakeRecorder();
+    const mounted = await mountEditor({ recorder }, store);
+    await newNotebook(mounted);
+    await press(mounted.container, "Record sound");
+    await waitFor(() => expect(button(mounted.container, "Stop recording")).toBeTruthy());
+    await expect(mounted.handle.current?.close()).rejects.toMatchObject({ code: "UNKNOWN" });
+    // Still in the notebook, with the sound kept for another try.
+    await waitFor(() => expect(button(mounted.container, "Save the recording")).toBeTruthy());
+    expect(mounted.container.querySelector(PAGE)).toBeTruthy();
+  });
+
+  it("asks for one microphone, however often Record is pressed while the browser asks", async () => {
+    const fake = fakeRecorder();
+    fake.hold();
+    const mounted = await mountEditor({ recorder: fake.recorder });
+    await newNotebook(mounted);
+    await press(mounted.container, "Record sound");
+    await press(mounted.container, "Record sound");
+    fake.admit();
+    await waitFor(() => expect(button(mounted.container, "Stop recording")).toBeTruthy());
+    expect(fake.calls.starts).toBe(1);
+    await press(mounted.container, "Stop recording");
+    await waitFor(async () => expect((await notebookOf(mounted))?.recordings).toHaveLength(1));
+  });
+
+  it("gives back a microphone that arrives after the notebook began to close", async () => {
+    const fake = fakeRecorder();
+    fake.hold();
+    const mounted = await mountEditor({ recorder: fake.recorder });
+    await newNotebook(mounted);
+    await press(mounted.container, "Record sound");
+    await mounted.handle.current?.close();
+    fake.admit();
+    await waitFor(() => expect(fake.calls.cancels).toBe(1));
+    expect((await notebookOf(mounted))?.recordings).toEqual([]);
+  });
+
+  it("lets the microphone go when the editor is removed while it records", async () => {
+    const { recorder, calls } = fakeRecorder();
+    const mounted = await mountEditor({ recorder });
+    await newNotebook(mounted);
+    await press(mounted.container, "Record sound");
+    await waitFor(() => expect(button(mounted.container, "Stop recording")).toBeTruthy());
+    await cleanUp();
+    expect(calls.cancels).toBe(1);
+  });
+});
+
 describe("NotesEditor when the storage fails", () => {
   /** A store whose page writes fail while `failing` is set. */
   function unreliable() {

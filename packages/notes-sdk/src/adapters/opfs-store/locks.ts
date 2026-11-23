@@ -103,11 +103,18 @@ export function tryLock(name: string): Promise<(() => Promise<void>) | undefined
  * only one store at a time, of this page or of another tab, does the work
  * of one name.
  *
+ * The work is told whether the lock keeps other tabs out. Without the Web
+ * Locks API it keeps out only the stores of this page, so a step that is
+ * safe only while nobody else is at the same thing must be left out.
+ *
  * @param name - The lock's name, from {@link lockName}.
- * @param work - What to do while it's held.
+ * @param work - What to do while it's held, given whether other tabs are kept out too.
  */
-export function whileLocked<Result>(name: string, work: () => Promise<Result>): Promise<Result> {
+export function whileLocked<Result>(
+  name: string,
+  work: (acrossTabs: boolean) => Promise<Result>,
+): Promise<Result> {
   const locks = lockManager();
-  if (!locks) return queueOn(queuedHere, name, work);
-  return locks.request(name, work);
+  if (!locks) return queueOn(queuedHere, name, () => work(false));
+  return locks.request(name, () => work(true));
 }

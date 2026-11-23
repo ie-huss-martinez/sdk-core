@@ -101,7 +101,9 @@ function storageManager(): Partial<StorageManager> | undefined {
  * - **Across tabs:** `lockNotebook` uses the Web Locks API, and `subscribe`
  *   a `BroadcastChannel`, on which each store announces its `updateIndex`.
  *   In a browser without Web Locks a lock still keeps out the other stores
- *   of the page, but another tab can't be seen.
+ *   of the page, but another tab can't be seen. There a first write that
+ *   fails leaves its file empty and never removes it, since another tab may
+ *   have stored a document under that name meanwhile.
  * - **Closing:** `close()` refuses new calls at once. The calls already made
  *   still finish. A notebook's lock is given back, by its function or by
  *   `close()`, only once the calls made on that notebook have settled, so
@@ -178,7 +180,10 @@ export function createOpfsNotesStore(options: OpfsNotesStoreOptions = {}): Notes
    * Writes a file of a notebook while no other store writes it, in this tab
    * or another. A first write makes the file, fills it, and removes it again
    * if that fails: were two stores to do that at once, the one that failed
-   * could remove what the other had just stored.
+   * could remove what the other had just stored. In a browser without Web
+   * Locks another tab can't be kept out, so there the file that couldn't be
+   * filled is left empty. An empty document reads as missing, and an empty
+   * file of another size is one cut short, which `writeAsset` writes again.
    *
    * @param directory - The file's folder.
    * @param path - The folder's path below the notebooks, for the lock's name.
@@ -191,8 +196,8 @@ export function createOpfsNotesStore(options: OpfsNotesStoreOptions = {}): Notes
     file: string,
     data: string | Blob,
   ): Promise<void> =>
-    whileLocked(lockName(name, "file", [...path, file].join("/")), () =>
-      writeFile(directory, file, data),
+    whileLocked(lockName(name, "file", [...path, file].join("/")), (acrossTabs) =>
+      writeFile(directory, file, data, acrossTabs),
     );
 
   const originRoot = (): Promise<FileSystemDirectoryHandle> => {

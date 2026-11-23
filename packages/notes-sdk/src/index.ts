@@ -160,6 +160,7 @@ export { createNotesLibrary } from "./core/session/library.js";
 export type {
   NotesSaveState,
   NotesSession,
+  NotesSessionCloseOptions,
   NotesSessionEvent,
   NotesSessionOptions,
   NotesSessionSnapshot,

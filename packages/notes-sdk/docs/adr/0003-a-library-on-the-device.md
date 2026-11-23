@@ -82,7 +82,7 @@ Each page's typed text, and the text of the PDF page under it, are kept in the s
 
 ## Consequences
 
-- A notebook costs one small write per changed page. Each page survives a crash at any point: it's either the old page or the new one. A save that changes several pages replaces them one at a time, so it isn't one step for the notebook. No edit moves ink from one page to another, so no ink depends on two pages being written together. One that did would need the pages staged and published together.
+- A notebook costs one small write per changed page. Each page survives a crash at any point: it's either the old page or the new one. A save that changes several pages replaces them one at a time, so it isn't one step for the notebook. No edit the editor makes moves ink from one page to another, so none of its ink depends on two pages being written together. A host can: `execute` takes several commands as one step, and one that removes ink from a page and adds it to another is saved a page at a time, so a crash between the two writes can lose that ink. A host that needs such a move to be safe adds the ink to the new page, saves, and only then removes it from the old one. Making the step safe in the SDK would need the pages staged and published together.
 - The browser can still clear a site's storage. The notice, `persist()`, installing the app and backups are the defences, in that order.
 - A host can pass its own `NotesStore`, such as one that syncs to a folder the user chooses.
 - Files a notebook no longer refers to stay in its folder until the notebook is deleted. Collecting them is a later step.

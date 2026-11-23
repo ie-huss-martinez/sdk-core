@@ -146,6 +146,34 @@ const STATES: Readonly<Record<string, State>> = {
   },
 };
 
+/**
+ * Draws the whole page again, from nothing. Chromium keeps the pixels of what
+ * a frame didn't change, and a rounded edge drawn before the sidebar opened
+ * can come out a few levels apart from the same edge drawn after it. With the
+ * layout, styles, focus and canvases measured identical, the sidebar's scenes
+ * still gave one of two screenshots, about one run in three. Changing the
+ * root's background invalidates every tile, so each capture is of the page
+ * drawn in one go, whatever order it was built in. The comparison stays as
+ * strict as it was: the difference is removed at its source (sdk-core ADR 0054).
+ */
+async function repainted(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        const frames = (then: () => void) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => then()));
+        const root = document.documentElement;
+        const before = root.style.backgroundColor;
+        // A colour no theme uses, so the change always invalidates.
+        root.style.backgroundColor = "rgb(1, 2, 3)";
+        frames(() => {
+          root.style.backgroundColor = before;
+          frames(resolve);
+        });
+      }),
+  );
+}
+
 for (const [state, reach] of Object.entries(STATES)) {
   for (const variant of visualVariants) {
     test(`${state}, ${variant.name}`, async ({ page }) => {
@@ -164,6 +192,7 @@ for (const [state, reach] of Object.entries(STATES)) {
       // The pointer rests outside the editor, so no hover styles show.
       await page.mouse.move(0, 0);
       await settled(page);
+      await repainted(page);
       await expect(page).toHaveScreenshot(`${state}-${variant.name}.png`);
       expect(foreign).toEqual([]);
     });

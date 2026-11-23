@@ -49,6 +49,7 @@ describe("searchPageTexts", () => {
     expect(searchPageTexts([entry("p1", "\u039F\u03A3")], "\u03A3")).toHaveLength(1);
     expect(searchPageTexts([entry("p1", "\u03BF\u03C2")], "\u03C3")).toHaveLength(1);
     expect(searchPageTexts([entry("p1", "Stra\u00DFe")], "STRASSE")).toHaveLength(1);
+    expect(searchPageTexts([entry("p1", "STRA\u1E9EE")], "stra\u00DFe")).toHaveLength(1);
   });
 
   it("never cuts a snippet through the middle of a character", () => {
@@ -59,6 +60,7 @@ describe("searchPageTexts", () => {
       [entry("p1", `needle${"x".repeat(39)}\u{1F600}tail`)],
       "needle",
     );
+    expect(after?.snippet.slice(after.matchStart, after.matchStart + 6)).toBe("needle");
     expect(wellFormed(after?.snippet ?? "")).toBe(true);
   });
 

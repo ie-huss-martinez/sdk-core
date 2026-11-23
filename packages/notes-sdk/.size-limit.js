@@ -34,7 +34,7 @@ const built = (budget) => ({ ...budget, brotli: true, disablePlugins: ["@size-li
 
 export default [
   // The server-safe core (.).
-  entryBudget({ name: "Core (.), as built", entry: core, limit: "38.5 kB" }),
+  entryBudget({ name: "Core (.), as built", entry: core, limit: "39 kB" }),
   importBudget({
     // The floor: the error class, which a host uses to show the library's errors.
     name: "Core: the floor, NotesError",
@@ -89,18 +89,18 @@ export default [
     name: "Core: createNotesLibrary",
     entry: core,
     imports: "{ createNotesLibrary }",
-    limit: "24 kB",
+    limit: "24.5 kB",
   }),
   importBudget({
     // What a headless application uses together: a library on the device, with PDFs.
     name: "Core: a headless app's set",
     entry: core,
     imports: "{ createNotesLibrary, createOpfsNotesStore, createNotesPdfEngine }",
-    limit: "28 kB",
+    limit: "28.5 kB",
   }),
 
   // The React entry (./react).
-  entryBudget({ name: "React (./react), as built", entry: react, limit: "74.5 kB" }),
+  entryBudget({ name: "React (./react), as built", entry: react, limit: "75.5 kB" }),
   importBudget({
     // The floor: the components' catalogue, which every component reads.
     name: "React: the floor, notesEditorMessages",
@@ -126,18 +126,18 @@ export default [
     name: "React: NotesProvider",
     entry: react,
     imports: "{ NotesProvider }",
-    limit: "33 kB",
+    limit: "33.5 kB",
   }),
   importBudget({
     // What a typical application imports: the whole editor.
     name: "React: NotesEditor",
     entry: react,
     imports: "{ NotesEditor }",
-    limit: "57.5 kB",
+    limit: "58 kB",
   }),
 
   // The element entry (./element) mounts the whole editor, so it has only a ceiling.
-  entryBudget({ name: "Element (./element), as built", entry: "dist/element.js", limit: "75 kB" }),
+  entryBudget({ name: "Element (./element), as built", entry: "dist/element.js", limit: "76 kB" }),
 
   built({ name: "Stylesheet (./styles.css)", path: "dist/styles.css", limit: "4 kB" }),
 ];

@@ -39,7 +39,11 @@ const pagePath = (notebook: string, page: string): string =>
 const assetPath = (notebook: string, asset: string): string =>
   `notebooks/${notebook}/assets/${asset.slice("sha256:".length)}`;
 
-/** How often `newId` may return an identifier that's taken before restore gives up. */
+/**
+ * How many identifiers in a row `newId` may return that can't be used before
+ * restore gives up: invalid or taken when one is made, and held or taken by
+ * the time a notebook is written under it.
+ */
 const NEW_ID_ATTEMPTS = 8;
 
 /**
@@ -52,9 +56,11 @@ export interface NotesBackupOptions extends NotesProgressOptions {
   readonly now: () => number;
   /**
    * The file policy restore will read the backup under. With it, a backup
-   * over `maxBackupEntries` or `maxBackupSize` is refused here, with the
-   * error restore would give, and never handed over as if it were good.
-   * Without it, no limit is checked.
+   * that restore would refuse for a limit is refused here, with the error
+   * restore would give, and never handed over as if it were good: one over
+   * `maxBackupEntries` or `maxBackupSize`, with a document over
+   * `maxDecodedSize`, a notebook over `maxPages` or a page over
+   * `maxPageItems`. Without it, no limit is checked.
    */
   readonly policy?: NotesFilePolicy;
 }
@@ -196,12 +202,21 @@ function foldersOf(index: NotesLibraryIndex, inFolders: Iterable<string | null>)
  * the reason `asset-mismatch`, since restore would refuse the whole backup
  * for it. So do references to one file that disagree on its size.
  *
- * With `options.policy`, a backup that restore would refuse for its size
- * rejects here with the same error: `TOO_MANY_BACKUP_ENTRIES` for more
- * entries than `maxBackupEntries`, and `BACKUP_TOO_LARGE` when the file, or
- * what its entries hold, is over `maxBackupSize`. It rejects as soon as the
- * limit is passed, so `details.actual` is what was counted by then. The
- * caller can then offer a backup of fewer notebooks.
+ * With `options.policy`, a backup that restore would refuse for a limit
+ * rejects here with the same error:
+ *
+ * - `TOO_MANY_BACKUP_ENTRIES` for more entries than `maxBackupEntries`;
+ * - `BACKUP_TOO_LARGE` when the file, or what its entries hold, is over
+ *   `maxBackupSize`. A file that would take the backup over it is refused
+ *   before it's read;
+ * - `DECODED_SIZE_TOO_LARGE` for a manifest, a notebook's document or a
+ *   page's document over `maxDecodedSize`. Files aren't held to it, as
+ *   restore never holds one in memory as a document;
+ * - `TOO_MANY_PAGES` for a notebook over `maxPages`, and `TOO_MANY_ITEMS`
+ *   for a page over `maxPageItems`.
+ *
+ * It rejects as soon as a limit is passed, so `details.actual` is what was
+ * counted by then. The caller can then offer a backup of fewer notebooks.
  *
  * Nothing stops the library changing while it's read: the caller saves
  * what's open first, and keeps edits out until the backup is done.
@@ -258,8 +273,10 @@ export async function createNotesBackup(
     (sum, notebook, position) => sum + 1 + notebook.pages.length + (known[position] ?? 0),
     1,
   );
-  // More entries than restore takes are refused before anything is read.
+  // More entries than restore takes, and a notebook of more pages, are refused before a
+  // page is read.
   policy?.check("maxBackupEntries", expected);
+  for (const notebook of notebooks) policy?.check("maxPages", notebook.pages.length);
   const progress = createProgress(options.onProgress, expected);
 
   const zip = createZipWriter();
@@ -274,17 +291,24 @@ export async function createNotesBackup(
     await zip.add(name, data, { compress });
     progress.step();
   };
+  /** Adds a JSON document, no larger than restore will parse. */
+  const addDocument = (name: string, document: unknown): Promise<void> => {
+    const data = json(document);
+    policy?.check("maxDecodedSize", data.length);
+    return add(name, data);
+  };
 
-  await add(MANIFEST, json(manifest));
+  await addDocument(MANIFEST, manifest);
   for (const [position, notebook] of notebooks.entries()) {
     throwIfAborted(signal);
-    await add(notebookPath(notebook.id), json(toNotesNotebookDocument(notebook)));
+    await addDocument(notebookPath(notebook.id), toNotesNotebookDocument(notebook));
 
     const pictures: NotesPage[] = [];
     for (const info of notebook.pages) {
       throwIfAborted(signal);
       const page = (await store.readPage(notebook.id, info.id)) ?? { id: info.id, items: [] };
-      await add(pagePath(notebook.id, info.id), json(toNotesPageDocument(page)));
+      policy?.check("maxPageItems", page.items.length);
+      await addDocument(pagePath(notebook.id, info.id), toNotesPageDocument(page));
       pictures.push(picturesOf(page));
     }
 
@@ -295,12 +319,12 @@ export async function createNotesBackup(
       const data = await store.readAsset(notebook.id, reference.asset);
       if (data === undefined) throw notFound("asset");
       // Restore checks the same, when it's too late to do anything about it.
-      if (
-        data.size !== reference.size ||
-        (await assetNameOf(await data.arrayBuffer())) !== reference.asset
-      ) {
-        throw invalidDocument("asset-mismatch", `notebooks[${position}]/assets`);
-      }
+      const mismatch = (): NotesError =>
+        invalidDocument("asset-mismatch", `notebooks[${position}]/assets`);
+      if (data.size !== reference.size) throw mismatch();
+      // Hashing reads the whole file into memory: one the backup has no room for isn't read.
+      policy?.check("maxBackupSize", held + data.size);
+      if ((await assetNameOf(await data.arrayBuffer())) !== reference.asset) throw mismatch();
       // Pictures, PDFs and recordings are compressed already.
       await add(assetPath(notebook.id, reference.asset), data, false);
     }
@@ -460,6 +484,21 @@ async function samePage(store: NotesStore, notebook: string, backup: NotesPage):
   }
 }
 
+/**
+ * Whether the store has every one of a notebook's files, by name. A
+ * notebook whose document and pages are the backup's still isn't the
+ * backup's notebook while its PDF, a picture or a recording is gone.
+ */
+async function hasAssets(
+  store: NotesStore,
+  notebook: string,
+  assets: readonly NotesAssetReference[],
+): Promise<boolean> {
+  if (assets.length === 0) return true;
+  const stored = new Set(await store.listAssets(notebook));
+  return assets.every((reference) => stored.has(reference.asset));
+}
+
 /** The text of a page's text boxes, as search reads it. */
 function typedText(page: NotesPage): string {
   return page.items
@@ -490,12 +529,14 @@ function typedText(page: NotesPage): string {
  *
  * - the library doesn't have it: it's written under its own id;
  * - the store has the same notebook, its document and every page equal to
- *   the backup's: nothing is written. It's reported in `unchanged` when the
- *   index lists it, and in `restored` when the index doesn't, which is how
- *   a restore that was interrupted is picked up by the next;
- * - anything else, such as a notebook changed since the backup or one the
- *   store can't read: the backup's copy is written under a new id from
- *   `newId`, with its pages' and items' ids as they were, so both are kept.
+ *   the backup's, with every file the backup's refers to: nothing is
+ *   written. It's reported in `unchanged` when the index lists it, and in
+ *   `restored` when the index doesn't, which is how a restore that was
+ *   interrupted is picked up by the next;
+ * - anything else, such as a notebook changed since the backup, one that
+ *   has lost a file or one the store can't read: the backup's copy is
+ *   written under a new id from `newId`, with its pages' and items' ids as
+ *   they were, so both are kept.
  *   If the store already holds that copy, whole, under another id, as an
  *   earlier restore of the backup leaves it, no other is written: it's
  *   reported under that id, in `unchanged` or `restored` as above.
@@ -508,12 +549,13 @@ function typedText(page: NotesPage): string {
  * files and pages of a copy whose document was never written, under an id
  * nothing knows: they take room, and no notebook has them.
  *
- * **Ids that are taken meanwhile.** A notebook written under its own id is
- * written holding the store's lock on it, after reading that the id is
- * still free. If the lock is held, or a notebook is there by then, the
- * backup's goes beside it under a new id. So two restores at once, in one
- * tab or two, never write one notebook between them. What this doesn't
- * cover is a writer that puts a notebook under that id without the lock.
+ * **Ids that are taken meanwhile.** A notebook is written holding the
+ * store's lock on the id it's written under, its own or a new one, after
+ * reading that the id is still free. If the lock is held, or a notebook is
+ * there by then, the backup's goes under another new id. So two restores at
+ * once, in one tab or two, never write one notebook between them, even when
+ * `newId` gives both the same id. What this doesn't cover is a writer that
+ * puts a notebook under that id without the lock.
  *
  * **Folders.** A folder of the backup whose id the library has is the
  * library's: it isn't duplicated, and the library's name and place stand.
@@ -528,7 +570,7 @@ function typedText(page: NotesPage): string {
  * @param file - The backup.
  * @param options - The file policy, how to make an id, a signal and a progress listener.
  * @returns What was restored, what was left alone, and the folders to add.
- * @throws `TypeError` if `newId` keeps returning ids that are invalid or taken.
+ * @throws `TypeError` if `newId` keeps returning ids that are invalid, taken or held.
  */
 export async function restoreNotesBackup(
   store: NotesStore,
@@ -555,6 +597,8 @@ export async function restoreNotesBackup(
     ...listed,
     ...manifest.notebooks.map((entry) => entry.id),
   ]);
+  const unusableIds = (): TypeError =>
+    new TypeError("newId must return a valid identifier that no notebook has and nobody holds.");
   const freshId = (): string => {
     for (let attempt = 0; attempt < NEW_ID_ATTEMPTS; attempt += 1) {
       const id = options.newId();
@@ -563,7 +607,7 @@ export async function restoreNotesBackup(
         return id;
       }
     }
-    throw new TypeError("newId must return a valid identifier that no notebook has.");
+    throw unusableIds();
   };
 
   // The store's notebooks under ids the backup doesn't name, among them the copies an earlier
@@ -653,7 +697,16 @@ export async function restoreNotesBackup(
     }
 
     const entries = 1 + notebook.pages.length + assets.length;
-    const [held] = same;
+    // The first that also has the notebook's files. One that lacks a file is left as it is,
+    // and the backup's goes beside it, whole.
+    let held: NotesNotebook | undefined;
+    for (const candidate of same) {
+      throwIfAborted(signal);
+      if (await hasAssets(store, candidate.id, assets)) {
+        held = candidate;
+        break;
+      }
+    }
     if (held !== undefined) {
       claimed.add(held.id);
       plans.push(
@@ -712,20 +765,24 @@ export async function restoreNotesBackup(
     }
     const { source, where } = plan;
     let { target } = plan;
-    // Its own id was free when the plan was made, and may not be by now: another restore, in
-    // this tab or another, may be writing it, or a notebook may have been made under it. So
-    // it's written holding the notebook's lock, and only if the id is still free. Otherwise
-    // the backup's goes beside what's there. A new id is nobody else's, and needs no lock.
+    // The id was free when the plan was made, and may not be by now: another restore, in this
+    // tab or another, may be writing under it, or a notebook may have been made under it. That
+    // holds for a new id too, which two restores can both be given. So a notebook is written
+    // holding the lock on its id, and only if the id is still free. Otherwise the backup's
+    // goes under another new id.
     let release: (() => void) | undefined;
-    if (target === source) {
-      release = await store.lockNotebook(target);
-      if (release === undefined || (await storedNotebook(store, target)) !== undefined) {
-        release?.();
-        release = undefined;
+    try {
+      for (let attempt = 0; ; attempt += 1) {
+        throwIfAborted(signal);
+        release = await store.lockNotebook(target);
+        if (release !== undefined) {
+          if ((await storedNotebook(store, target)) === undefined) break;
+          release();
+          release = undefined;
+        }
+        if (attempt === NEW_ID_ATTEMPTS) throw unusableIds();
         target = freshId();
       }
-    }
-    try {
       const notebook = await readDocument(
         context,
         notebookPath(source),

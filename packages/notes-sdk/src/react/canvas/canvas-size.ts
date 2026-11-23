@@ -50,8 +50,12 @@ export function fitCanvas(
   return { width: pixelWidth, height: pixelHeight };
 }
 
-/** The most pixels one page's canvas holds. Beyond it, the canvas is drawn at a lower density. */
-const PAGE_BUDGET: CanvasBudget = { maxPixels: 12_000_000 };
+/**
+ * What one page's canvas may hold. Beyond it, the canvas is drawn at a lower
+ * density. The pixels alone don't bound a long, narrow page: Firefox draws
+ * nothing on a canvas with a side over 32,767 pixels.
+ */
+const PAGE_BUDGET: CanvasBudget = { maxPixels: 12_000_000, maxSide: 32_767 };
 /** The lowest density a page is drawn at while the budget allows it: below it, ink is a blur. */
 const MIN_PAGE_DENSITY = 0.5;
 
@@ -59,7 +63,8 @@ const MIN_PAGE_DENSITY = 0.5;
  * The canvas of a page that's `width` by `height` CSS pixels on screen, on a
  * display of `devicePixelRatio`: as sharp as the display, and never under
  * half a pixel per CSS pixel unless the page is too large for that. The
- * budget wins over the floor, as a page at the highest zoom needs.
+ * budget wins over the floor, as a page at the highest zoom needs, and no
+ * side is over 32,767 pixels.
  */
 export function pageCanvasSize(
   width: number,

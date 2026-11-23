@@ -30,7 +30,7 @@ notebooks/<id>/assets/<64 hex digits>        each file, named by its SHA-256
 
 - What's open is saved first.
 - Each file is read back and checked against its reference's size and hash. A backup that silently lacked or held a damaged file would only fail when it's needed.
-- **A backup restore would refuse for its size isn't handed over.** The library gives its file policy, and a backup with more entries than `maxBackupEntries`, or larger than `maxBackupSize`, fails with that limit's error while it's made. The user can then back up fewer notebooks.
+- **A backup that restore would refuse for a limit isn't handed over.** The library gives its file policy, and the writer holds the backup to the limits restore reads it under: `maxBackupEntries` and `maxBackupSize` for the whole backup, `maxDecodedSize` for each JSON document, `maxPages` for each notebook and `maxPageItems` for each page. One that's over fails with that limit's error while it's made, and a file the backup has no room for is refused before it's read. The user can then back up fewer notebooks.
 - The library records when it was last backed up, and the editor reminds when notebooks have changed and two weeks have passed.
 
 ### Restoring
@@ -39,12 +39,13 @@ notebooks/<id>/assets/<64 hex digits>        each file, named by its SHA-256
 - **Restore never overwrites.** For each notebook:
   - the library doesn't have it: it's restored under its own id;
   - the library has the same notebook, unchanged: it's left alone;
-  - the library has a different version: the backup's copy is restored beside it, under a new id.
+  - the library has a different version, or the same one with a file missing: the backup's copy is restored beside it, under a new id.
 - **"Unchanged" means equal contents,** not an equal time: the notebook's document and every one of its pages are compared with the backup's. A notebook's `updatedAt` doesn't move when two saves fall in one tick of the clock, or while the clock is set back, so the time alone would leave the backup's ink unrestored.
+- **"Unchanged" also means every file is there.** The store must hold each PDF, picture and recording the backup's notebook refers to, by name. A notebook that has lost one gets the backup's copy beside it, whole, and is itself left as it is: restore still writes nothing into a notebook the library has. Files that are there aren't read and hashed again.
 - **Folders** the library already has are reused; the others are added.
 - **Writing order** is files, then pages, then the notebook's document, so an interrupted restore never leaves a notebook pointing at pages that aren't there.
-- **Running the same restore again finishes an interrupted one.** A notebook that was written whole is found in the store and listed, not written again. That holds for a copy made under a new id too: when a notebook can't take its own id, restore looks through the store's other notebooks, and one that equals the backup's stands for it. So restoring one backup twice makes one copy, not two. A notebook that was half-written under its own id is written again, whole.
-- **A restore writes a notebook under its own id only while it holds the store's lock on that notebook,** after reading again that the id is free. If another restore, a session or another tab holds it, or a notebook is there by then, the backup's copy goes beside it under a new id. The library also runs its restores one at a time. So two restores never write one notebook between them.
+- **Running the same restore again finishes an interrupted one.** A notebook that was written whole is found in the store and listed, not written again. That holds for a copy made under a new id too: when a notebook can't take its own id, restore looks through the store's other notebooks, and one that equals the backup's, with its files, stands for it. So restoring one backup twice makes one copy, not two. A notebook that was half-written under its own id is written again, whole.
+- **A restore writes a notebook only while it holds the store's lock on the id it writes under,** its own or a new one, after reading again that the id is free. If another restore, a session or another tab holds it, or a notebook is there by then, the backup's copy goes under another new id, up to a fixed number of tries. A new id is locked too, because two tabs can each be given the same one. The library also runs its restores one at a time. So two restores never write one notebook between them.
 
 What restore doesn't do:
 

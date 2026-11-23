@@ -32,12 +32,16 @@ const CONTEXT = 40;
  * then lowercase, then one sigma, makes both sides of a comparison alike.
  */
 function fold(value: string): string {
-  return value
-    .normalize("NFKC")
-    .toUpperCase()
-    .toLowerCase()
-    .replace(/\u03C2/g, "\u03C3")
-    .replace(/\s+/g, " ");
+  return (
+    value
+      .normalize("NFKC")
+      // A capital sharp s lowercases to a sharp s, which uppercases to "SS".
+      .replace(/\u1E9E/g, "\u00DF")
+      .toUpperCase()
+      .toLowerCase()
+      .replace(/\u03C2/g, "\u03C3")
+      .replace(/\s+/g, " ")
+  );
 }
 
 const isHighSurrogate = (unit: number) => unit >= 0xd800 && unit <= 0xdbff;

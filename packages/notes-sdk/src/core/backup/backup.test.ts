@@ -664,6 +664,172 @@ describe("createNotesBackup", () => {
     expect(report.restored.map((summary) => summary.id)).toEqual(["maths", "history"]);
   });
 
+  it("refuses, as restore would, a notebook of too many pages and a page of too many items", async () => {
+    const { store, index } = await createLibrary();
+    const reads: string[] = [];
+    const counting: NotesStore = {
+      ...store,
+      readPage: async (notebook, page) => {
+        reads.push(page);
+        return store.readPage(notebook, page);
+      },
+    };
+    const under = (overrides: NotesFilePolicyOverrides) =>
+      createNotesBackup(counting, index, {
+        now: () => NOW,
+        policy: notesLimits.resolve(overrides),
+      });
+
+    // The errors restore gives for the same backup, in "a backup over the file policy's limits".
+    await expect(under({ maxPages: 2 })).rejects.toMatchObject({
+      name: "NotesError",
+      code: "TOO_MANY_PAGES",
+      details: { limit: "maxPages", maximum: 2, actual: 3 },
+    });
+    // A notebook's pages are counted before any is read.
+    expect(reads).toEqual([]);
+    await expect(under({ maxPageItems: 3 })).rejects.toMatchObject({
+      name: "NotesError",
+      code: "TOO_MANY_ITEMS",
+      details: { limit: "maxPageItems", maximum: 3, actual: 4 },
+    });
+
+    // At the limits it's the same backup as without a policy, and restore takes it under them.
+    const limits = { maxPages: 3, maxPageItems: 4 };
+    const backup = await under(limits);
+    const plain = await createNotesBackup(store, index, { now: () => NOW });
+    expect(await bytesOf(backup)).toEqual(await bytesOf(plain));
+    const report = await restoreNotesBackup(
+      createFakeStore().store,
+      EMPTY_LIBRARY,
+      backup,
+      restoreOptions(limits),
+    );
+    expect(report.restored.map((summary) => summary.id)).toEqual(["maths", "history"]);
+  });
+
+  it("refuses, as restore would, a document larger than restore parses", async () => {
+    const { fake, store, index, m1 } = await createLibrary();
+    // A page with a long text on it, so each kind of document has a size of its own.
+    const [, line] = m1.items;
+    if (line?.type !== "text") throw new Error("The page's second item is its text.");
+    fake.pages.set("maths/m1", { id: "m1", items: [{ ...line, text: "word ".repeat(400) }] });
+    const under = (overrides: NotesFilePolicyOverrides) =>
+      createNotesBackup(store, index, { now: () => NOW, policy: notesLimits.resolve(overrides) });
+    const plain = await createNotesBackup(store, index, { now: () => NOW });
+    const archive = await readZip(plain, LIMITS);
+    const sizeOf = (name: string): number => archive.entries.get(name)?.size ?? Number.NaN;
+    const manifest = sizeOf("backup.json");
+    const notebook = sizeOf("notebooks/maths/notebook.json");
+    const page = sizeOf("notebooks/maths/pages/m1.json");
+    // In the order they're written, each is larger than everything before it.
+    expect(manifest).toBeGreaterThan(0);
+    expect(notebook).toBeGreaterThan(manifest);
+    expect(page).toBeGreaterThan(notebook);
+
+    // So each limit refuses one kind of document: the manifest, a notebook's and a page's.
+    for (const size of [manifest, notebook, page]) {
+      const refusal = {
+        name: "NotesError",
+        code: "DECODED_SIZE_TOO_LARGE",
+        details: { limit: "maxDecodedSize", maximum: size - 1, actual: size, unit: "bytes" },
+      };
+      await expect(under({ maxDecodedSize: size - 1 })).rejects.toMatchObject(refusal);
+      // Restore gives the same for the backup that a writer without the policy made.
+      await expect(
+        restoreNotesBackup(
+          createFakeStore().store,
+          EMPTY_LIBRARY,
+          plain,
+          restoreOptions({ maxDecodedSize: size - 1 }),
+        ),
+      ).rejects.toMatchObject(refusal);
+    }
+
+    // At the limit it's the same backup as without a policy.
+    expect(await bytesOf(await under({ maxDecodedSize: page }))).toEqual(await bytesOf(plain));
+  });
+
+  it("holds no file to the size of a document", async () => {
+    // One page with a picture far larger than any of the backup's documents.
+    const fake = createFakeStore();
+    const large = new Uint8Array(20_000).fill(7);
+    const picture = await referenceTo(large, "image/png");
+    const notebook: NotesNotebook = {
+      id: "one",
+      title: "One",
+      cover: "blue",
+      createdAt: T0,
+      updatedAt: T0,
+      pages: [{ id: "p1", ...A4, template: "blank" }],
+      outline: [],
+      recordings: [],
+    };
+    fake.notebooks.set("one", notebook);
+    fake.pages.set("one/p1", {
+      id: "p1",
+      items: [{ id: "i1", type: "image", x: 0, y: 0, width: 5000, height: 5000, image: picture }],
+    });
+    fake.assets.set(`one/${picture.asset}`, new Blob([large]));
+    const index: NotesLibraryIndex = { ...EMPTY_LIBRARY, notebooks: [summaryOf(notebook, null)] };
+    const limits = { maxDecodedSize: 2000 };
+
+    const backup = await createNotesBackup(fake.store, index, {
+      now: () => NOW,
+      policy: notesLimits.resolve(limits),
+    });
+    const target = createFakeStore();
+    await restoreNotesBackup(target.store, EMPTY_LIBRARY, backup, restoreOptions(limits));
+    expect(await bytesOf(target.assets.get(`one/${picture.asset}`) as Blob)).toEqual(large);
+  });
+
+  it("doesn't read a file the backup has no room for", async () => {
+    const { store, index, pdf, sound } = await createLibrary();
+    const plain = await createNotesBackup(store, index, { now: () => NOW });
+    const archive = await readZip(plain, LIMITS);
+    // What the backup holds up to maths' last file, its picture: five documents and three files.
+    const held = [...archive.entries.values()]
+      .slice(0, 8)
+      .reduce((sum, entry) => sum + entry.size, 0);
+
+    /** The files whose bytes were read, which is what hashing one does. */
+    const read: string[] = [];
+    const watching: NotesStore = {
+      ...store,
+      readAsset: async (notebook, asset) => {
+        const stored = await store.readAsset(notebook, asset);
+        if (stored === undefined) return undefined;
+        const data = stored.slice();
+        const arrayBuffer = data.arrayBuffer.bind(data);
+        data.arrayBuffer = () => {
+          read.push(asset);
+          return arrayBuffer();
+        };
+        return data;
+      },
+    };
+    await expect(
+      createNotesBackup(watching, index, {
+        now: () => NOW,
+        policy: notesLimits.resolve({ maxBackupSize: held - 1 }),
+      }),
+    ).rejects.toMatchObject({
+      name: "NotesError",
+      code: "BACKUP_TOO_LARGE",
+      details: { limit: "maxBackupSize", maximum: held - 1, actual: held, unit: "bytes" },
+    });
+    // The two that fit were hashed and checked. The picture, one byte too many, never was.
+    expect(read).toEqual([pdf.asset, sound.asset]);
+
+    // With room for it, every file is still read and checked.
+    read.length = 0;
+    await createNotesBackup(watching, index, {
+      now: () => NOW,
+      policy: notesLimits.resolve({ maxBackupSize: Math.max(held, plain.size) + 100_000 }),
+    });
+    expect(read).toHaveLength(4);
+  });
+
   it("refuses a notebook whose references to one file disagree on its size", async () => {
     const mismatch = { code: "INVALID_DOCUMENT", details: { reason: "asset-mismatch" } };
     // The first reference is wrong and the last is right, so the last alone would pass.
@@ -1485,11 +1651,103 @@ describe("restoreNotesBackup", () => {
     }
     library.fake.notebooks.set("stray", { ...library.history, id: "stray" });
     library.fake.pages.set("stray/h1", library.h1);
+    library.fake.assets.set(`stray/${library.picture.asset}`, new Blob([PICTURE]));
 
     const report = await restoreNotesBackup(library.store, index, backup, restoreOptions());
 
     expect(report.restored.map((summary) => summary.id)).toEqual(["stray", "copy-1"]);
     expect(library.fake.notebooks.get("copy-1")).toEqual({ ...library.history, id: "copy-1" });
+  });
+
+  describe("when the library's notebook has lost a file", () => {
+    it("restores the backup's beside it, whole, and leaves it as it is", async () => {
+      // The document and every page are the backup's. Only the recording's file is gone.
+      const { fake, store, index, backup, maths, pdf, sound, picture } = await backedUp();
+      fake.assets.delete(`maths/${sound.asset}`);
+
+      const report = await restoreNotesBackup(store, index, backup, restoreOptions());
+
+      expect(report).toEqual({
+        restored: [{ ...summaryOf(maths, "science"), id: "copy-1" }],
+        unchanged: ["history"],
+        folders: [],
+      });
+      // The copy has every file, and nothing was written into the library's own.
+      for (const reference of [pdf, sound, picture]) {
+        expect(fake.assets.has(`copy-1/${reference.asset}`)).toBe(true);
+      }
+      expect(await bytesOf(fake.assets.get(`copy-1/${sound.asset}`) as Blob)).toEqual(SOUND);
+      expect(fake.assets.has(`maths/${sound.asset}`)).toBe(false);
+      expect(fake.writes.every((write) => /^\w+ copy-1(\/|$)/.test(write))).toBe(true);
+
+      // The next restore finds that copy, and makes no other.
+      fake.writes.length = 0;
+      const again = await restoreNotesBackup(store, index, backup, restoreOptions());
+      expect(again.restored).toEqual([{ ...summaryOf(maths, "science"), id: "copy-1" }]);
+      expect(again.unchanged).toEqual(["history"]);
+      expect(fake.writes).toEqual([]);
+    });
+
+    it("does the same for a picture on a page, which only the page names", async () => {
+      const { fake, store, index, backup, history, picture } = await backedUp();
+      fake.assets.delete(`history/${picture.asset}`);
+      const report = await restoreNotesBackup(store, index, backup, restoreOptions());
+      expect(report.restored).toEqual([{ ...summaryOf(history, null), id: "copy-1" }]);
+      expect(report.unchanged).toEqual(["maths"]);
+      expect(await bytesOf(fake.assets.get(`copy-1/${picture.asset}`) as Blob)).toEqual(PICTURE);
+      expect(fake.assets.has(`history/${picture.asset}`)).toBe(false);
+    });
+
+    it("doesn't list a notebook the index lacks while a file of it is missing", async () => {
+      const { fake, store, index, backup, maths, pdf } = await backedUp();
+      fake.assets.delete(`maths/${pdf.asset}`);
+      const withoutMaths = {
+        ...index,
+        notebooks: index.notebooks.filter((summary) => summary.id !== "maths"),
+      };
+      const report = await restoreNotesBackup(store, withoutMaths, backup, restoreOptions());
+      expect(report.restored).toEqual([{ ...summaryOf(maths, "science"), id: "copy-1" }]);
+      expect(fake.assets.has(`copy-1/${pdf.asset}`)).toBe(true);
+      expect(fake.assets.has(`maths/${pdf.asset}`)).toBe(false);
+    });
+
+    it("doesn't take a copy that has lost a file for the backup's notebook", async () => {
+      // The library's notebook changed, and an earlier copy of the backup's lacks its PDF.
+      const { fake, store, index, backup, maths, m1, m2, pdf, sound, picture } = await backedUp();
+      fake.notebooks.set("maths", { ...maths, updatedAt: T0 + 9000 });
+      fake.notebooks.set("stray", { ...maths, id: "stray" });
+      fake.pages.set("stray/m1", m1);
+      fake.pages.set("stray/m2", m2);
+      fake.assets.set(`stray/${sound.asset}`, new Blob([SOUND]));
+      fake.assets.set(`stray/${picture.asset}`, new Blob([PICTURE]));
+
+      const report = await restoreNotesBackup(store, index, backup, restoreOptions());
+      expect(report.restored.map((summary) => summary.id)).toEqual(["copy-1"]);
+      expect(fake.assets.has(`copy-1/${pdf.asset}`)).toBe(true);
+      expect(fake.assets.has(`stray/${pdf.asset}`)).toBe(false);
+
+      // With its PDF, that copy is the backup's notebook, and no other is made.
+      const whole = await backedUp();
+      whole.fake.notebooks.set("maths", { ...whole.maths, updatedAt: T0 + 9000 });
+      whole.fake.notebooks.set("stray", { ...whole.maths, id: "stray" });
+      whole.fake.pages.set("stray/m1", whole.m1);
+      whole.fake.pages.set("stray/m2", whole.m2);
+      for (const [reference, data] of [
+        [whole.pdf, PDF],
+        [whole.sound, SOUND],
+        [whole.picture, PICTURE],
+      ] as const) {
+        whole.fake.assets.set(`stray/${reference.asset}`, new Blob([data]));
+      }
+      const second = await restoreNotesBackup(
+        whole.store,
+        whole.index,
+        whole.backup,
+        restoreOptions(),
+      );
+      expect(second.restored.map((summary) => summary.id)).toEqual(["stray"]);
+      expect(whole.fake.writes).toEqual([]);
+    });
   });
 
   describe("when something else takes a notebook's id while it restores", () => {
@@ -1608,6 +1866,128 @@ describe("restoreNotesBackup", () => {
         restoreNotesBackup(target.store, EMPTY_LIBRARY, backup, restoreOptions()),
       ).rejects.toBe(failure);
       expect(target.locked.size).toBe(0);
+    });
+
+    it("gives the notebook back when the store fails to say whether its id is still free", async () => {
+      const backup = await backupOf("From the backup", "one");
+      const target = createFakeStore();
+      const failure = new NotesError("STORAGE_FAILED", "no storage", {
+        details: { reason: "unavailable" },
+      });
+      // The id reads as free while the backup is checked, and can't be read once it's locked.
+      target.beforeLock = () => target.unreadable.set("maths", failure);
+      await expect(
+        restoreNotesBackup(target.store, EMPTY_LIBRARY, backup, restoreOptions()),
+      ).rejects.toBe(failure);
+      expect(target.locked.size).toBe(0);
+      expect(target.writes).toEqual([]);
+    });
+
+    /** A store whose own `maths` isn't the backups', and the index that lists it. */
+    function withAnotherMaths(): { target: FakeStore; index: NotesLibraryIndex } {
+      const target = createFakeStore();
+      const own: NotesNotebook = {
+        id: "maths",
+        title: "The library's own",
+        cover: "green",
+        createdAt: NOW,
+        updatedAt: NOW,
+        pages: [],
+        outline: [],
+        recordings: [],
+      };
+      target.notebooks.set("maths", own);
+      return { target, index: { ...EMPTY_LIBRARY, notebooks: [summaryOf(own, null)] } };
+    }
+
+    it("never mixes two restores that are given the same new id", async () => {
+      // As two tabs are: each restore has its own source of ids, and both come up with one.
+      const [first, second] = await Promise.all([
+        backupOf("First", "one"),
+        backupOf("Second", "two"),
+      ]);
+      const { target, index } = withAnotherMaths();
+      const idsFrom = (ids: string[]) => ({
+        ...restoreOptions(),
+        newId: () => ids.shift() ?? "none-left",
+      });
+      const reports = await Promise.all([
+        restoreNotesBackup(target.store, index, first, idsFrom(["same", "first-other"])),
+        restoreNotesBackup(target.store, index, second, idsFrom(["same", "second-other"])),
+      ]);
+
+      const ids = reports.flatMap((report) => report.restored.map((summary) => summary.id));
+      expect(new Set(ids).size).toBe(2);
+      expect(ids).toContain("same");
+      expect([...target.notebooks.keys()].sort()).toEqual(["maths", ...ids].sort());
+      // Each notebook has the pages of the backup it came from, and of no other.
+      const texts = { First: "one", Second: "two" } as Record<string, string>;
+      for (const id of ids) {
+        const title = target.notebooks.get(id)?.title ?? "";
+        for (const page of ["p1", "p2"]) {
+          expect(target.texts.get(`${id}/${page}`)?.typed, `${title}, ${page}`).toBe(texts[title]);
+        }
+      }
+      expect(target.notebooks.get("maths")?.title).toBe("The library's own");
+      expect(target.locked.size).toBe(0);
+    });
+
+    it("writes under another new id when a notebook was made under the first meanwhile", async () => {
+      const backup = await backupOf("From the backup", "one");
+      const { target, index } = withAnotherMaths();
+      const made: NotesNotebook = {
+        id: "copy-1",
+        title: "Made meanwhile",
+        cover: "green",
+        createdAt: NOW,
+        updatedAt: NOW,
+        pages: [{ id: "p1", ...A4, template: "lined" }],
+        outline: [],
+        recordings: [],
+      };
+      const page: NotesPage = { id: "p1", items: [] };
+      // The new id was free when it was made. By the time it's locked, it's taken.
+      target.beforeLock = (id) => {
+        if (id !== "copy-1") return;
+        target.notebooks.set("copy-1", made);
+        target.pages.set("copy-1/p1", page);
+      };
+      const report = await restoreNotesBackup(target.store, index, backup, restoreOptions());
+      expect(report.restored.map((summary) => summary.id)).toEqual(["copy-2"]);
+      expect(target.notebooks.get("copy-1")).toEqual(made);
+      expect(target.pages.get("copy-1/p1")).toEqual(page);
+      expect(target.notebooks.get("copy-2")?.title).toBe("From the backup");
+      expect(target.writes.every((write) => /^\w+ copy-2(\/|$)/.test(write))).toBe(true);
+      expect(target.locked.size).toBe(0);
+    });
+
+    it("writes under another new id when the first is held", async () => {
+      const backup = await backupOf("From the backup", "one");
+      const { target, index } = withAnotherMaths();
+      target.locked.add("copy-1");
+      const report = await restoreNotesBackup(target.store, index, backup, restoreOptions());
+      expect(report.restored.map((summary) => summary.id)).toEqual(["copy-2"]);
+      expect(target.writes.every((write) => /^\w+ copy-2(\/|$)/.test(write))).toBe(true);
+      expect([...target.locked]).toEqual(["copy-1"]);
+    });
+
+    it("gives up, having written nothing, when every id it's given is held", async () => {
+      const backup = await backupOf("From the backup", "one");
+      const { target, index } = withAnotherMaths();
+      let asked = 0;
+      const held: NotesStore = {
+        ...target.store,
+        lockNotebook: async () => {
+          asked += 1;
+          return undefined;
+        },
+      };
+      await expect(
+        restoreNotesBackup(held, index, backup, restoreOptions()),
+      ).rejects.toBeInstanceOf(TypeError);
+      // The id of the plan, and as many more as an id is ever asked for again.
+      expect(asked).toBe(9);
+      expect(target.writes).toEqual([]);
     });
   });
 });

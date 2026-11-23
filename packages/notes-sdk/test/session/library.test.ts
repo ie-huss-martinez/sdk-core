@@ -383,12 +383,16 @@ describe("a library in two tabs", () => {
   it("refuses to delete, rename or recolour a notebook that's open, and changes nothing", async () => {
     const { store, first, second } = await tabs();
     const id = await first.createNotebook({ title: "Physics" });
-    await second.load();
+    // The second tab learns of the notebook with its own next change.
+    await second.createFolder("Work");
     const session = await first.open(id);
     const inUse = { code: "NOTEBOOK_IN_USE" };
-    await expect(first.deleteNotebook(id)).rejects.toMatchObject(inUse);
-    await expect(first.renameNotebook(id, "Chemistry")).rejects.toMatchObject(inUse);
-    await expect(first.setNotebookCover(id, "red")).rejects.toMatchObject(inUse);
+    // From the tab that has it open, and from the other, which only the store's lock stops.
+    for (const library of [first, second]) {
+      await expect(library.deleteNotebook(id)).rejects.toMatchObject(inUse);
+      await expect(library.renameNotebook(id, "Chemistry")).rejects.toMatchObject(inUse);
+      await expect(library.setNotebookCover(id, "red")).rejects.toMatchObject(inUse);
+    }
     expect(await store.readNotebook(id)).toMatchObject({ title: "Physics", cover: "blue" });
     expect(first.getSnapshot().index.notebooks[0]).toMatchObject({ deletedAt: null });
     await session.close();
@@ -417,6 +421,50 @@ describe("a library when something fails", () => {
     await library.deleteNotebook(id);
     expect(library.getSnapshot().index.notebooks).toEqual([]);
     expect(await store.listNotebooks()).toEqual([]);
+  });
+
+  it("refuses to take a notebook out of the bin while it's being deleted for good", async () => {
+    const { library, store } = setup();
+    await library.load();
+    const id = await library.createNotebook({ title: "Physics" });
+    await library.binNotebook(id);
+    let fail: (error: Error) => void = () => undefined;
+    store.deleteNotebook = () =>
+      new Promise<void>((_, reject) => {
+        fail = reject;
+      });
+    const deleting = library.deleteNotebook(id);
+    // The deletion has the notebook by now.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await expect(library.restoreNotebook(id)).rejects.toMatchObject({ code: "NOTEBOOK_IN_USE" });
+    fail(new Error("The disk won't answer."));
+    await expect(deleting).rejects.toMatchObject({ code: "UNKNOWN" });
+    // Half deleted, so still in the bin, where the deletion can be made again.
+    expect(library.getSnapshot().index.notebooks).toEqual([
+      expect.objectContaining({ id, deletedAt: expect.any(Number) }),
+    ]);
+  });
+
+  it("backs up the library without saving a notebook in the bin that can't be saved", async () => {
+    const { library, store } = setup();
+    await library.load();
+    await library.createNotebook({ title: "Physics" });
+    const binned = await library.createNotebook({ title: "Chemistry" });
+    const session = await library.open(binned);
+    const [page] = session.getSnapshot().notebook.pages;
+    if (!page) throw new Error("A new notebook has a page.");
+    await session.loadPage(page.id);
+    await library.binNotebook(binned);
+    store.writePage = async () => {
+      throw new Error("The disk is full.");
+    };
+    session.execute({ type: "notes.addItems", page: page.id, items: [stroke("s1")] });
+    // The bin isn't in a backup of the library, so its notebook can't fail one.
+    await expect(library.backup()).resolves.toBeInstanceOf(Blob);
+    await expect(library.backup({ notebooks: [binned] })).rejects.toMatchObject({
+      code: "UNKNOWN",
+    });
+    await session.close({ discard: true });
   });
 
   it("stores nothing of an import that fails part way", async () => {
@@ -542,6 +590,36 @@ describe("closing a library", () => {
     expect((await store.readPage(id, page.id))?.items).toHaveLength(1);
     expect(await store.lockNotebook(id)).toBeTypeOf("function");
     await expect(library.load()).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("waits for an import under way, and refuses what's asked of it afterwards", async () => {
+    const { library, store } = setup();
+    await library.load();
+    const writeAsset = store.writeAsset.bind(store);
+    let land: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      land = resolve;
+    });
+    store.writeAsset = async (notebook, asset, data) => {
+      await held;
+      await writeAsset(notebook, asset, data);
+    };
+    const importing = library.importPdf(new Blob([fakePdf(["Alpha"])]), { title: "Imported" });
+    let closed = false;
+    const closing = library.close().then(() => {
+      closed = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // The store is still being written to, so close() hasn't resolved.
+    expect(closed).toBe(false);
+    land();
+    const id = await importing;
+    await closing;
+    expect(await store.readNotebook(id)).toBeDefined();
+    expect((await store.readIndex())?.notebooks).toHaveLength(1);
+    await expect(library.createNotebook({ title: "Late" })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
   });
 
   it("restores one backup at a time, so two never restore the same notebook twice", async () => {

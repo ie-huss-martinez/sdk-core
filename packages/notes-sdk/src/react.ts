@@ -43,5 +43,5 @@ export type { NotesProviderProps, NotesSavedFileInfo } from "./react/NotesProvid
 export { NotesProvider } from "./react/NotesProvider.js";
 export type { NotesToolbarProps } from "./react/notebook/NotebookToolbar.js";
 export { NotesToolbar } from "./react/notebook/NotebookToolbar.js";
-export type { NotesNotebookProps } from "./react/notebook/NotesNotebook.js";
+export type { NotesNotebookHandle, NotesNotebookProps } from "./react/notebook/NotesNotebook.js";
 export { NotesNotebook } from "./react/notebook/NotesNotebook.js";

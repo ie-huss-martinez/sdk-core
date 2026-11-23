@@ -351,6 +351,71 @@ describe("closing a notebook session", () => {
     });
   });
 
+  it("holds the notebook, even when discarding, until a file accepted meanwhile has landed", async () => {
+    const store = await seeded();
+    const session = await open(store);
+    await session.loadPage("p1");
+    let failPage: (error: Error) => void = () => undefined;
+    store.writePage = () =>
+      new Promise<void>((_, reject) => {
+        failPage = reject;
+      });
+    const writeAsset = store.writeAsset.bind(store);
+    let landAsset: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      landAsset = resolve;
+    });
+    store.writeAsset = async (book, asset, data) => {
+      await held;
+      await writeAsset(book, asset, data);
+    };
+    session.execute({ type: "notes.addItems", page: "p1", items: [stroke("s1")] });
+    const closing = session.close({ discard: true });
+    // The save is on its way when a file is added, then the save fails.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const adding = session.addAsset(new Blob(["sound"]), "audio/webm");
+    failPage(new Error("The disk is full."));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await expect(open(store)).rejects.toMatchObject({ code: "NOTEBOOK_IN_USE" });
+    landAsset();
+    await adding;
+    await closing;
+    const again = await open(store);
+    await again.close();
+  });
+
+  it("writes one batch at a time when a listener saves again as a save starts", async () => {
+    const store = await seeded();
+    const session = await open(store);
+    await session.loadPage("p1");
+    await session.loadPage("p2");
+    const writePage = store.writePage.bind(store);
+    let writing = 0;
+    let most = 0;
+    store.writePage = async (book, page) => {
+      writing += 1;
+      most = Math.max(most, writing);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await writePage(book, page);
+      writing -= 1;
+    };
+    let nested: Promise<void> | undefined;
+    let reacted = false;
+    session.subscribe(() => {
+      if (session.getSnapshot().saveState !== "saving" || reacted) return;
+      reacted = true;
+      // As a host might: another edit and a save, from inside the notification.
+      session.execute({ type: "notes.addItems", page: "p2", items: [stroke("s2")] });
+      nested = session.flush();
+    });
+    session.execute({ type: "notes.addItems", page: "p1", items: [stroke("s1")] });
+    await session.flush();
+    await nested;
+    expect(most).toBe(1);
+    expect((await store.readPage("book", "p1"))?.items).toHaveLength(1);
+    expect((await store.readPage("book", "p2"))?.items).toHaveLength(1);
+  });
+
   it("is never failed by what a host's analytics throws", async () => {
     const store = await seeded();
     const session = await openNotesSession({

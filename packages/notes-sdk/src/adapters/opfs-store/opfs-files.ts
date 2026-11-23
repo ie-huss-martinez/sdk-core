@@ -89,22 +89,26 @@ export async function readText(
  *
  * `createWritable()` writes to a temporary file, which replaces the real
  * one only when `close()` succeeds. On any failure the temporary file is
- * dropped with `abort()`, so the file keeps what it held. A file that this
- * call made, and then couldn't fill, is removed again, unless it has since
- * been filled: then another writer stored a document there, which stays.
+ * dropped with `abort()`, so the file keeps what it held.
  *
- * The store calls this for one file from one writer at a time, across tabs.
- * The check before removing is for a writer the store can't keep out, such
- * as another tab in a browser without Web Locks.
+ * A file that this call made, and then couldn't fill, is left empty. It's
+ * removed again only when `alone` says no other writer can be at the file,
+ * in this tab or another. Looking at the file and removing it are two
+ * steps: a writer that isn't kept out could store a document there between
+ * them, and the removal would take it. So without that promise the empty
+ * file stays. It takes no room, an empty document reads as missing, and
+ * the next write fills it.
  *
  * @param directory - The folder, which must exist.
  * @param name - The file's name.
  * @param data - The file's whole contents. Text is written as UTF-8.
+ * @param alone - Whether every other writer of this file is kept out until this resolves.
  */
 export async function writeFile(
   directory: FileSystemDirectoryHandle,
   name: string,
   data: string | Blob,
+  alone: boolean,
 ): Promise<void> {
   let handle: FileSystemFileHandle;
   let made = false;
@@ -123,12 +127,18 @@ export async function writeFile(
   } catch (error) {
     // Both are best effort: the failure to report is the write's own.
     await writable?.abort().catch(() => undefined);
-    if (made) await removeIfEmpty(directory, handle, name);
+    if (made && alone) await removeIfEmpty(directory, handle, name);
     throw error;
   }
 }
 
-/** Removes a file that still holds nothing. Never throws: it only tidies up. */
+/**
+ * Removes a file that still holds nothing. Never throws: it only tidies up.
+ *
+ * The caller keeps the store's other writers out. The look at the file's
+ * size is for a writer that takes no lock at all: it makes losing that
+ * writer's document less likely, and can't rule it out.
+ */
 async function removeIfEmpty(
   directory: FileSystemDirectoryHandle,
   handle: FileSystemFileHandle,

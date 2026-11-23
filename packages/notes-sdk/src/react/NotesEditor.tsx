@@ -22,7 +22,7 @@ import { DEFAULT_INK_SETTINGS, type NotesInkSettings } from "../features/tool-ty
 import { useNotes } from "./context.js";
 import { NotesLibraryView } from "./library/NotesLibraryView.js";
 import { NotesProvider, type NotesProviderProps } from "./NotesProvider.js";
-import { NotesNotebook } from "./notebook/NotesNotebook.js";
+import { NotesNotebook, type NotesNotebookHandle } from "./notebook/NotesNotebook.js";
 
 /**
  * What the editor shows: the library, or an open notebook.
@@ -121,6 +121,7 @@ const NotesEditorShell = /* @__PURE__ */ forwardRef<NotesEditorHandle, Shell>(
       ...props.initialSettings,
     }));
     const current = useRef<NotesSession | undefined>(undefined);
+    const notebookView = useRef<NotesNotebookHandle>(null);
     const viewChanged = useRef(onViewChange);
     /** Whether the editor is on the page: a notebook that opens after it left is closed again. */
     const mounted = useRef(false);
@@ -167,17 +168,29 @@ const NotesEditorShell = /* @__PURE__ */ forwardRef<NotesEditorHandle, Shell>(
       }
     }, []);
 
+    /**
+     * Closes the open notebook through its view, which first commits what's
+     * being typed and stores a recording, then saves and gives the notebook
+     * back. The view tells `show` once it's closed.
+     */
+    const closeCurrent = useCallback(async () => {
+      const view = notebookView.current;
+      if (view) {
+        await view.close();
+      } else if (current.current) {
+        await current.current.close();
+        show(undefined);
+      }
+    }, [show]);
+
     const openNotebook = useCallback(
       (notebook: string, page?: string) =>
         inTurn(async () => {
           setError(undefined);
           setOpening(true);
           try {
-            if (current.current) {
-              // If its save fails it stays open, and this call rejects.
-              await current.current.close();
-              show(undefined);
-            }
+            // If it can't be saved it stays open, and this call rejects.
+            await closeCurrent();
             const session = await library.open(notebook);
             if (!mounted.current) {
               // The editor went away meanwhile: nobody is left to close it.
@@ -192,17 +205,10 @@ const NotesEditorShell = /* @__PURE__ */ forwardRef<NotesEditorHandle, Shell>(
             setOpening(false);
           }
         }),
-      [inTurn, library, show],
+      [closeCurrent, inTurn, library, show],
     );
 
-    const closeNotebook = useCallback(
-      () =>
-        inTurn(async () => {
-          await current.current?.close();
-          show(undefined);
-        }),
-      [inTurn, show],
-    );
+    const closeNotebook = useCallback(() => inTurn(() => closeCurrent()), [closeCurrent, inTurn]);
 
     useImperativeHandle(
       handle,
@@ -234,6 +240,7 @@ const NotesEditorShell = /* @__PURE__ */ forwardRef<NotesEditorHandle, Shell>(
         {open ? (
           <div className={join("hm-notes-editor-view", classNames.notebook)}>
             <NotesNotebook
+              ref={notebookView}
               key={open.session.getSnapshot().notebook.id}
               session={open.session}
               settings={settings}
