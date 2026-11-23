@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       scripts:
-        description: "Scripts to run, comma-separated, such as list,lanes. Empty runs them all; set, it skips learn-sdk's job."
+        description: "Scripts to run, comma-separated, such as list,lanes. Empty runs them all. learn runs in learn-sdk's own job, with its Thai voice."
         required: false
         default: ""
   pull_request:
@@ -118,7 +118,15 @@ jobs:
         env:
           BROWSER: ${{ matrix.browser }}
           SCRIPTS: ${{ inputs.scripts || 'list,list-controls,lanes,moving-clips' }}
-        run: node run.mjs --reader nvda --browser "$BROWSER" --scripts "$SCRIPTS" --out transcripts --assert
+        # learn needs learn-sdk's site and the Thai voice, which only the
+        # learn job has, so it runs there.
+        run: |
+          scripts=$(printf '%s' "$SCRIPTS" | tr ',' '\n' | tr -d ' \t' | grep -vx learn | paste -sd, - || true)
+          if [ -z "$scripts" ]; then
+            echo "::notice::No script for this job: learn runs in the learn job."
+            exit 0
+          fi
+          node run.mjs --reader nvda --browser "$BROWSER" --scripts "$scripts" --out transcripts --assert
 
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -133,8 +141,8 @@ jobs:
   learn:
     name: learn (nvda)
     needs: build
-    # A run by hand of chosen scripts doesn't install the Thai voice.
-    if: ${{ !inputs.scripts }}
+    # A run by hand installs the Thai voice only when it asks for learn.
+    if: ${{ !inputs.scripts || contains(inputs.scripts, 'learn') }}
     runs-on: windows-latest
     timeout-minutes: 45
     defaults:
