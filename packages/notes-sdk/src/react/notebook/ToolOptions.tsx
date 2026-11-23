@@ -81,14 +81,14 @@ export function ToolOptions({ settings, onChange }: ToolOptionsProps): ReactNode
     const outside = (event: PointerEvent) => {
       if (!root.current?.contains(event.target as Node)) setMore(false);
     };
-    const escape = (event: globalThis.KeyboardEvent) => {
+    const onEscape = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") setMore(false);
     };
     document.addEventListener("pointerdown", outside, true);
-    document.addEventListener("keydown", escape);
+    document.addEventListener("keydown", onEscape);
     return () => {
       document.removeEventListener("pointerdown", outside, true);
-      document.removeEventListener("keydown", escape);
+      document.removeEventListener("keydown", onEscape);
     };
   }, [more]);
 

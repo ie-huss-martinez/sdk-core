@@ -3,7 +3,7 @@
  * motion. They're declared on the editor's root, so a host overrides any of
  * them there. Colours are mixed from ui's semantic tokens wherever they
  * follow the theme; a cover's board and the paper keep their own colours in
- * every theme, as a real notebook does.
+ * every theme, as a real notebook does, and so does the bar of tools.
  *
  * These are meant to move to ui once they've settled (docs/adr/0008).
  */
@@ -76,7 +76,7 @@
     --hm-notes-tint: color-mix(in srgb, var(--hm-color-accent) 14%, transparent);
     --hm-notes-tint-strong: color-mix(in srgb, var(--hm-color-accent) 24%, transparent);
     --hm-notes-ring: color-mix(in srgb, var(--hm-color-accent) 45%, transparent);
-    --hm-notes-ink-muted: color-mix(in srgb, var(--hm-color-text) 62%, transparent);
+    --hm-notes-ink-muted: color-mix(in srgb, var(--hm-color-text) 78%, transparent);
     --hm-notes-scrim: color-mix(in srgb, var(--hm-black) 28%, transparent);
     --hm-notes-paper: #fffefb;
     --hm-notes-paper-rule: #c9d3e6;
@@ -85,15 +85,15 @@
     --hm-notes-record-glow: rgb(229 72 77 / 35%);
 
     /* The bar across the top of an open notebook, in the accent colour */
-    --hm-notes-chrome: color-mix(in srgb, var(--hm-color-accent) 90%, var(--hm-black));
-    --hm-notes-chrome-deep: color-mix(in srgb, var(--hm-color-accent) 68%, var(--hm-black));
-    --hm-notes-on-chrome: var(--hm-color-on-accent);
-    --hm-notes-on-chrome-muted: color-mix(in srgb, var(--hm-color-on-accent) 72%, transparent);
-    --hm-notes-on-chrome-hover: color-mix(in srgb, var(--hm-color-on-accent) 16%, transparent);
-    --hm-notes-on-chrome-pressed: color-mix(in srgb, var(--hm-color-on-accent) 26%, transparent);
-    --hm-notes-on-chrome-line: color-mix(in srgb, var(--hm-color-on-accent) 28%, transparent);
+    --hm-notes-chrome: #2f5fb3;
+    --hm-notes-chrome-deep: #234a8f;
+    --hm-notes-on-chrome: #ffffff;
+    --hm-notes-on-chrome-muted: rgb(255 255 255 / 78%);
+    --hm-notes-on-chrome-hover: rgb(255 255 255 / 16%);
+    --hm-notes-on-chrome-pressed: rgb(255 255 255 / 26%);
+    --hm-notes-on-chrome-line: rgb(255 255 255 / 28%);
     --hm-notes-chrome-active: #ffffff;
-    --hm-notes-chrome-active-ink: color-mix(in srgb, var(--hm-color-accent) 78%, var(--hm-black));
+    --hm-notes-chrome-active-ink: #234a8f;
     --hm-notes-swatch-edge: rgb(15 23 42 / 14%);
     --hm-notes-eraser-ring: #94a3b8;
 

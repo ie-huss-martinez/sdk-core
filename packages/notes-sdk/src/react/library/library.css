@@ -372,10 +372,6 @@
     animation-delay: calc(var(--hm-notes-time-stagger) * 6);
   }
 
-  .hm-notes-library-empty > .hm-button {
-    margin-block-start: var(--hm-space-3);
-  }
-
   /* The drawing: two notebooks leaning on each other, and a pen across them. */
   .hm-notes-empty-art {
     position: relative;
@@ -430,8 +426,8 @@
     background: linear-gradient(135deg, var(--hm-notes-cover-sheen), transparent 45%)
       var(--hm-notes-cover-amber);
     border-inline-start-color: var(--hm-notes-cover-amber-deep);
-    animation: hm-notes-sway calc(var(--hm-notes-time-loop) * 3) var(--hm-notes-ease-in-out)
-      infinite alternate;
+    /* It leans in once, and stays: nothing in the library moves for ever. */
+    animation: hm-notes-sway var(--hm-notes-time-loop) var(--hm-notes-ease-spring) both;
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-empty-pen {
@@ -542,8 +538,7 @@
   }
 
   .hm-notes-cover,
-  .hm-notes-folder,
-  .hm-notes-new {
+  .hm-notes-folder {
     display: flex;
     flex-direction: column;
     gap: var(--hm-space-1);
@@ -564,16 +559,14 @@
   }
 
   .hm-notes-cover:focus-visible,
-  .hm-notes-folder:focus-visible,
-  .hm-notes-new:focus-visible {
+  .hm-notes-folder:focus-visible {
     outline: var(--hm-focus-ring);
     outline-offset: var(--hm-space-2);
     border-radius: var(--hm-notes-radius-sm);
   }
 
   .hm-notes-cover-art,
-  .hm-notes-folder-art,
-  .hm-notes-new-art {
+  .hm-notes-folder-art {
     position: relative;
     display: flex;
     align-items: center;
@@ -585,8 +578,7 @@
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-cover-art,
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-folder-art,
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-new-art {
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-folder-art {
     transform-origin: 50% 100%;
     transition:
       translate var(--hm-notes-time-base) var(--hm-notes-ease-spring),
@@ -652,6 +644,11 @@
     background: var(--hm-notes-cover-band);
   }
 
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-cover:disabled .hm-notes-cover-art {
+    filter: grayscale(0.6);
+    opacity: var(--hm-notes-opacity-faint);
+  }
+
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-cover:not(:disabled):hover .hm-notes-cover-art,
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-folder:hover .hm-notes-folder-art {
     box-shadow: var(--hm-notes-shadow-cover-lifted), var(--hm-notes-shadow-inset);
@@ -662,14 +659,8 @@
   .hm-notes-editor:not([data-hm-unstyled])
     .hm-notes-cover:not(:disabled):active
     .hm-notes-cover-art,
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-folder:active .hm-notes-folder-art,
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-new:active .hm-notes-new-art {
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-folder:active .hm-notes-folder-art {
     scale: 0.96;
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-cover:disabled .hm-notes-cover-art {
-    filter: grayscale(0.6);
-    opacity: var(--hm-notes-opacity-faint);
   }
 
   /* The label plate: the notebook's title on a piece of its own paper. */
@@ -738,10 +729,6 @@
 
   /* --- A folder: a back board with its tab, a sheet peeking out, and the front --- */
 
-  .hm-notes-folder-art {
-    aspect-ratio: 3 / 4;
-  }
-
   .hm-notes-folder-back,
   .hm-notes-folder-sheet,
   .hm-notes-folder-front {
@@ -809,47 +796,6 @@
     translate: 0 calc(var(--hm-space-2) * -1);
   }
 
-  /* --- The tile that makes a new notebook --- */
-
-  .hm-notes-new-plus {
-    display: grid;
-    place-items: center;
-    width: var(--hm-notes-tool-size);
-    height: var(--hm-notes-tool-size);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-new-art {
-    color: var(--hm-color-accent-text);
-    background: var(--hm-notes-tint);
-    border: calc(var(--hm-notes-hairline) * 2) dashed var(--hm-notes-ring);
-    border-radius: var(--hm-notes-radius-md);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-new-plus {
-    color: var(--hm-color-on-accent);
-    background: var(--hm-color-accent);
-    border-radius: var(--hm-notes-radius-pill);
-    box-shadow: var(--hm-notes-shadow-md);
-    transition:
-      rotate var(--hm-notes-time-slow) var(--hm-notes-ease-spring),
-      scale var(--hm-notes-time-base) var(--hm-notes-ease-spring);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-new:hover .hm-notes-new-art {
-    background: var(--hm-notes-tint-strong);
-    border-color: var(--hm-color-accent);
-    translate: 0 var(--hm-notes-lift);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-new:hover .hm-notes-new-plus {
-    rotate: 90deg;
-    scale: 1.12;
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-new .hm-notes-item-title {
-    color: var(--hm-color-accent-text);
-  }
-
   /* --- Under a cover: its title, when it changed, and the way to its settings --- */
 
   .hm-notes-item-title {
@@ -913,10 +859,6 @@
     margin-block-start: auto;
   }
 
-  .hm-notes-banner > .hm-icon {
-    flex: none;
-  }
-
   .hm-notes-banner > span {
     flex: 1;
   }
@@ -931,6 +873,7 @@
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-banner > .hm-icon {
+    flex: none;
     color: var(--hm-color-accent-text);
   }
 
@@ -1079,11 +1022,7 @@
 
   @keyframes hm-notes-sway {
     from {
-      rotate: 7deg;
-    }
-
-    to {
-      rotate: 11deg;
+      rotate: 18deg;
     }
   }
 }
