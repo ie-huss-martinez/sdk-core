@@ -12,5 +12,5 @@
       "@hussmartinez/ui/react": ["../../src/react.ts"]
     }
   },
-  "include": [".storybook", "src", "visual", "*.ts"]
+  "include": [".storybook", "src", "visual", "screen-reader", "*.ts"]
 }

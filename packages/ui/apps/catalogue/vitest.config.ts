@@ -67,6 +67,26 @@ export default defineConfig(({ mode }) => {
           },
         },
         {
+          // What a screen reader says while a person works a story, step by
+          // step, as the manual pass in ui's docs/testing/manual-pass.md
+          // does (sdk-core ADR 0065). The virtual screen reader computes its
+          // phrases from the page, so the browsers differ only in focus and
+          // keys, which is what the other browsers in CI are for.
+          extends: true,
+          test: {
+            name: "screen-reader",
+            include: ["screen-reader/**/*.screen-reader.test.tsx"],
+            globalSetup: ["@hussmartinez/sdk-config/testing/require-image"],
+            setupFiles: ["@hussmartinez/sdk-config/testing/firefox-labelled-by/setup"],
+            browser: {
+              enabled: true,
+              headless: true,
+              provider: provider(),
+              instances: browsers.map((browser) => ({ browser })),
+            },
+          },
+        },
+        {
           // Visual regression: every story in three themes and two densities,
           // on Chromium, inside the pinned Playwright image only. Run it with
           // pnpm test:visual.

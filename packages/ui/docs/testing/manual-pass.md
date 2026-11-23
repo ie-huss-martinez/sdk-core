@@ -5,6 +5,8 @@
 - **Alt with an arrow key in real browsers.** Chrome and Firefox on Windows and Linux use Alt+← and Alt+→ for Back and Forward. The automated browsers have no Back button, so the tests can only show that the key's default is prevented, not that a real browser stays on the page.
 - **A screen-reader pass.** Nobody has heard these components yet. The design assumes a screen reader passes the arrow keys through to a `grid` and a `listbox` without being told to, and that a timeline with lanes makes sense spoken.
 
+**Some of it is automated.** The catalogue's `screen-reader` tests play part 1's moves and part 2's list and lanes tables with a virtual screen reader, and check what it says after each step ([sdk-core ADR 0065](../../../../docs/adr/0065-screen-reader-tests-with-a-virtual-screen-reader.md)). They hear what focus lands on and what's announced. They can't hear what only a real screen reader does: the containers focus enters, a control's changing state, and whether NVDA switches to focus mode. Those are what this pass is still for. The tests also confirm the question in the lanes table: a clip's place is said twice.
+
 This is a script for a person. It takes about 20 minutes: 5 for the keys, 5 for each NVDA browser and 5 for VoiceOver. Each step has a pass condition. Record what you find as described at the end, and the records are then amended and accepted in one pull request.
 
 ## Setting up
