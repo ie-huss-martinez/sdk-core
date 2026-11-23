@@ -221,6 +221,13 @@ async function runScript(script, attempt, info) {
     // heard as nothing.
     await sleep(browserName === "firefox" ? 15_000 : 8_000);
     await waitForSpeech(count, { firstMs: 3_000, quietMs: 2_000 });
+    // "Tab from the top of the page": NVDA's Control+Home puts its browse
+    // cursor there. In Firefox, NVDA's first keys were silent, and in one
+    // script its first Tab started from the page's end.
+    if (readerName === "nvda") {
+      await reader.press("Control+Home", CAPTURE);
+      await waitForSpeech(count, { firstMs: 3_000, quietMs: 2_000 });
+    }
     // What was said while the page loaded, before the first key: it shows
     // where the screen reader starts, which a browser opened by the OS
     // doesn't say otherwise.
