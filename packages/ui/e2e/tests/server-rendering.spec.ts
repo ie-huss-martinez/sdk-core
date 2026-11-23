@@ -231,11 +231,9 @@ for (const app of apps) {
       const clipsList = page.getByRole("listbox", { name: "Clips", exact: true });
       await expect(clipsList.getByRole("option")).toHaveCount(3);
       // The clips: one Tab stop, arrows select, Shift extends.
-      await clipsList.getByRole("option", { name: "Clip 1 of 3, Intro" }).focus();
+      await clipsList.getByRole("option", { name: "Intro" }).focus();
       await page.keyboard.press("ArrowRight");
-      await expect(clipsList.getByRole("option", { selected: true })).toHaveAccessibleName(
-        "Clip 2 of 3, Talk",
-      );
+      await expect(clipsList.getByRole("option", { selected: true })).toHaveAccessibleName("Talk");
       await page.keyboard.press("Shift+ArrowRight");
       await expect(clipsList.getByRole("option", { selected: true })).toHaveCount(2);
       // Alt with an arrow moves the selected clips, and its default is
@@ -251,33 +249,27 @@ for (const app of apps) {
         });
       });
       await page.keyboard.press("Alt+ArrowLeft");
-      await expect(clipsList.getByRole("option").first()).toHaveAccessibleName("Clip 1 of 3, Talk");
-      await expect(clipsList.getByRole("option", { name: "Clip 2 of 3, Outro" })).toBeFocused();
+      await expect(clipsList.getByRole("option").first()).toHaveAccessibleName("Talk");
+      await expect(clipsList.getByRole("option", { name: "Outro" })).toBeFocused();
       await page.keyboard.press("Alt+ArrowLeft");
       expect(
         await page.evaluate(() => (window as unknown as { hmClipKeys: boolean[] }).hmClipKeys),
       ).toEqual([true, true]);
       // The buttons move them back without the keys.
       await page.getByRole("button", { name: "Move clips later" }).click();
-      await expect(clipsList.getByRole("option").first()).toHaveAccessibleName(
-        "Clip 1 of 3, Intro",
-      );
+      await expect(clipsList.getByRole("option").first()).toHaveAccessibleName("Intro");
       // Alt with a bracket shortens the focused clip at that edge, by a frame.
-      await clipsList.getByRole("option", { name: "Clip 2 of 3, Talk" }).focus();
-      const wide = await clipsList.getByRole("option", { name: "Clip 2 of 3, Talk" }).boundingBox();
+      await clipsList.getByRole("option", { name: "Talk" }).focus();
+      const wide = await clipsList.getByRole("option", { name: "Talk" }).boundingBox();
       for (let press = 0; press < 30; press++) {
         await page.keyboard.press("Alt+BracketRight");
       }
-      const narrow = await clipsList
-        .getByRole("option", { name: "Clip 2 of 3, Talk" })
-        .boundingBox();
+      const narrow = await clipsList.getByRole("option", { name: "Talk" }).boundingBox();
       expect(narrow?.width ?? 0).toBeLessThan((wide?.width ?? 0) * 0.95);
 
       // Each clip is as wide as its length: now 120 frames to 60.
-      const talk = await clipsList.getByRole("option", { name: "Clip 2 of 3, Talk" }).boundingBox();
-      const outro = await clipsList
-        .getByRole("option", { name: "Clip 3 of 3, Outro" })
-        .boundingBox();
+      const talk = await clipsList.getByRole("option", { name: "Talk" }).boundingBox();
+      const outro = await clipsList.getByRole("option", { name: "Outro" }).boundingBox();
       expect((talk?.width ?? 0) / (outro?.width ?? 1)).toBeCloseTo(2, 1);
 
       // Lanes: each is a group with a toolbar and its clips; ↓ goes to the
@@ -287,13 +279,11 @@ for (const app of apps) {
       await expect(mix.getByRole("toolbar", { name: "Music track" })).toBeVisible();
       const voice = mix.getByRole("listbox", { name: "Voice clips" });
       const music = mix.getByRole("listbox", { name: "Music clips" });
-      await voice.getByRole("option", { name: "Voice 2, clip 2 of 2" }).focus();
+      await voice.getByRole("option", { name: "Voice 2" }).focus();
       await page.keyboard.press("ArrowDown");
-      await expect(music.getByRole("option", { name: "Music 3, clip 3 of 3" })).toBeFocused();
+      await expect(music.getByRole("option", { name: "Music 3" })).toBeFocused();
       await expect(mix.getByRole("option", { selected: true })).toHaveCount(1);
-      await expect(music.getByRole("option", { selected: true })).toHaveAccessibleName(
-        "Music 3, clip 3 of 3",
-      );
+      await expect(music.getByRole("option", { selected: true })).toHaveAccessibleName("Music 3");
       // Music's clips have a start each: there's room before the first and
       // between them, where Voice's lie back to back.
       const [first, second] = await Promise.all(
@@ -320,7 +310,7 @@ for (const app of apps) {
       expect(
         await page.evaluate(() => (window as unknown as { hmLaneKey?: boolean }).hmLaneKey),
       ).toBe(true);
-      await expect(music.getByRole("option", { name: "Music 3, clip 3 of 3" })).toBeFocused();
+      await expect(music.getByRole("option", { name: "Music 3" })).toBeFocused();
 
       // The header stays beside its lane, before the lane's first clip.
       const head = await mix.getByRole("toolbar", { name: "Music track" }).boundingBox();

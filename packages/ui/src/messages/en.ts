@@ -27,6 +27,8 @@ export const uiMessages = /* @__PURE__ */ defineMessages({
   "reorderableList.control.pressed": "{label}, pressed",
   "reorderableList.control.notPressed": "{label}, not pressed",
   "spinner.label": "Loading",
+  "timelineClips.selected": "{label}, selected",
+  "timelineClips.notSelected": "{label}, not selected",
   "errors.INVALID_THEME_TOKEN": "The theme setting {token} has a value that can't be used.",
   "errors.INVALID_THEME_SELECTOR": "The theme can't be applied to the selector {selector}.",
 });

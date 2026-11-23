@@ -42,12 +42,22 @@ export const audioEditorText = {
   }),
   "timeline.clips": "Clips on {track}",
   // A clip's accessible name starts with what it shows, its recording's
-  // name, when it has one (WCAG 2.5.3).
-  "timeline.clip": "Clip {index} of {count} on {track}, {start} to {end}",
-  "timeline.clip.named": "{name}, clip {index} of {count} on {track}, {start} to {end}",
-  "timeline.clip.gain": "Clip {index} of {count} on {track}, {start} to {end}, {gain, number} dB",
-  "timeline.clip.named.gain":
-    "{name}, clip {index} of {count} on {track}, {start} to {end}, {gain, number} dB",
+  // name, when it has one (WCAG 2.5.3). Its place, "2 of 5", is left out:
+  // the clips are a listbox, and screen readers say an option's place
+  // themselves (ui ADR 0011). The count is still given, as the plural's
+  // selector, so a host's own text can use it.
+  "timeline.clip": /* @__PURE__ */ plural("count", {
+    other: "Clip {index} on {track}, {start} to {end}",
+  }),
+  "timeline.clip.named": /* @__PURE__ */ plural("count", {
+    other: "{name}, clip {index} on {track}, {start} to {end}",
+  }),
+  "timeline.clip.gain": /* @__PURE__ */ plural("count", {
+    other: "Clip {index} on {track}, {start} to {end}, {gain, number} dB",
+  }),
+  "timeline.clip.named.gain": /* @__PURE__ */ plural("count", {
+    other: "{name}, clip {index} on {track}, {start} to {end}, {gain, number} dB",
+  }),
   "toolbar.label": "Tools",
   "toolbar.file": "File",
   "toolbar.history": "History",

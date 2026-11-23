@@ -136,10 +136,10 @@ function Clock() {
         <TimelineClips
           label="Clips"
           selectionMode="multiple"
-          clips={clips.map((clip, index) => ({
+          clips={clips.map((clip) => ({
             key: clip.key,
             length: clip.length,
-            label: `Clip ${index + 1} of ${clips.length}, ${clip.name}`,
+            label: clip.name,
             content: clip.name,
           }))}
           selectedKeys={selected}
@@ -205,7 +205,7 @@ function Mix() {
               key: `${track.id}-${index + 1}`,
               length,
               at: track.at?.[index],
-              label: `${track.name} ${index + 1}, clip ${index + 1} of ${track.clips.length}`,
+              label: `${track.name} ${index + 1}`,
               content: `${track.name} ${index + 1}`,
             }))}
             selectedKeys={selected}

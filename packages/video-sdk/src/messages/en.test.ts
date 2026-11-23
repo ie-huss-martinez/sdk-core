@@ -144,3 +144,28 @@ describe("what the server-safe entry's catalogue holds (sdk-core ADR 0059)", () 
     expect(editor.filter((key) => key in uiMessages)).toEqual([]);
   });
 });
+
+describe("a clip's name in the timeline", () => {
+  const catalogue = { ...videoMessages, ...videoEditorText };
+  const clip = { index: 2, count: 5, start: "0:04.00", end: "0:09.20" };
+
+  it("leaves out the clip's place, which screen readers say for the listbox (ui ADR 0011)", () => {
+    const messages = createMessages(catalogue);
+    expect(messages.t("timeline.clip", clip)).toBe("Clip 2, 0:04.00 to 0:09.20");
+    expect(messages.t("timeline.clipMuted", clip)).toBe("Clip 2, 0:04.00 to 0:09.20, muted");
+  });
+
+  it("still gives the count, so a host's own text can say it", () => {
+    const messages = createMessages(catalogue, {
+      overrides: {
+        "timeline.clip": "Clip {index, number} of {count, number}, {start} to {end}",
+        "timeline.clipMuted": "Clip {index, number} of {count, number}, {start} to {end}, muted",
+      },
+    });
+    expect(messages.t("timeline.clip", clip)).toBe("Clip 2 of 5, 0:04.00 to 0:09.20");
+    expect(messages.t("timeline.clipMuted", clip)).toBe("Clip 2 of 5, 0:04.00 to 0:09.20, muted");
+    // The check is on: a placeholder the message doesn't have is a type error.
+    // @ts-expect-error -- "total" isn't one of the message's placeholders.
+    createMessages(catalogue, { overrides: { "timeline.clip": "Clip {index} of {total}" } });
+  });
+});

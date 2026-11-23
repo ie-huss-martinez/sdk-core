@@ -157,11 +157,13 @@ export default [
   // under NVDA (sdk-core#201, #202), with names that follow each control's
   // state, native checkboxes included, and text fields that keep focus.
   scenario("ReorderableList", ["ReorderableList", "ReorderableListItem"], "3.5 kB"),
-  // 9 kB; 8.52 kB. The largest component, which only audio-sdk uses so far.
+  // 9.5 kB; 9.16 kB once the clips announce a clip added to the selection or
+  // taken out of it (sdk-core#204), which brings in ui's messages and the
+  // announcer. The SDKs' editors load both already. The largest component.
   scenario(
     "the Timeline with lanes",
     ["Timeline", "TimelineClips", "TimelinePlayhead", "TimelineLane"],
-    "9 kB",
+    "9.5 kB",
   ),
   // 3.5 kB; 3.00 kB for 62 icons, about 0.05 kB each.
   scenario("every icon", ICONS, "3.5 kB"),

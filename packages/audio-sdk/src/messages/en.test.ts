@@ -2,6 +2,7 @@ import { createMessages, sdkCoreMessages } from "@hussmartinez/sdk-core";
 import { describe, expect, it } from "vitest";
 import { AudioError, type AudioErrorCode } from "../core/errors/audio-error.js";
 import { audioLimitDefinitions, audioLimits } from "../core/errors/audio-limits.js";
+import { audioEditorText } from "./editor-en.js";
 import { audioMessages } from "./en.js";
 
 // Listing every code here makes the type checker fail when a code is added
@@ -121,5 +122,40 @@ describe("audioMessages", () => {
     expect(de.t("warnings.maxSampleRate", { actual: 352_800 })).toBe(
       "This recording's sample rate is 352.800 Hz, and it may be slow to edit.",
     );
+  });
+});
+
+describe("a clip's name in the timeline", () => {
+  const catalogue = { ...audioMessages, ...audioEditorText };
+  const clip = { index: 2, count: 5, track: "Voice", start: "0:04.00", end: "0:09.20" };
+
+  it("leaves out the clip's place, which screen readers say for the listbox (ui ADR 0011)", () => {
+    const messages = createMessages(catalogue);
+    expect(messages.t("timeline.clip", clip)).toBe("Clip 2 on Voice, 0:04.00 to 0:09.20");
+    expect(messages.t("timeline.clip.named", { ...clip, name: "Intro" })).toBe(
+      "Intro, clip 2 on Voice, 0:04.00 to 0:09.20",
+    );
+    expect(messages.t("timeline.clip.gain", { ...clip, gain: -3 })).toBe(
+      "Clip 2 on Voice, 0:04.00 to 0:09.20, -3 dB",
+    );
+    expect(messages.t("timeline.clip.named.gain", { ...clip, name: "Intro", gain: -3 })).toBe(
+      "Intro, clip 2 on Voice, 0:04.00 to 0:09.20, -3 dB",
+    );
+  });
+
+  it("still gives the count, so a host's own text can say it", () => {
+    const messages = createMessages(catalogue, {
+      overrides: {
+        "timeline.clip": "Clip {index} of {count} on {track}, {start} to {end}",
+        "timeline.clip.named": "{name}, clip {index} of {count} on {track}, {start} to {end}",
+      },
+    });
+    expect(messages.t("timeline.clip", clip)).toBe("Clip 2 of 5 on Voice, 0:04.00 to 0:09.20");
+    expect(messages.t("timeline.clip.named", { ...clip, name: "Intro" })).toBe(
+      "Intro, clip 2 of 5 on Voice, 0:04.00 to 0:09.20",
+    );
+    // The check is on: a placeholder the message doesn't have is a type error.
+    // @ts-expect-error -- "total" isn't one of the message's placeholders.
+    createMessages(catalogue, { overrides: { "timeline.clip": "Clip {index} of {total}" } });
   });
 });

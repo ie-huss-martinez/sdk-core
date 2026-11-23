@@ -20,7 +20,9 @@ const PLAYHEAD = "slider, Playhead, orientated horizontally, max value 300, min 
 describe("Timeline, spoken", () => {
   it("reads the playhead, a lane's controls and its clips (part 2, the lanes table)", async () => {
     await play(Lanes, [
-      // NVDA also says the region "Timeline".
+      // NVDA also says the region "Timeline". Its first Tab on a page goes
+      // past the page's first control, the playhead, so with NVDA the manual
+      // pass Shift+Tabs back to it (#203).
       ["Tab from the top of the page.", "{Tab}", [`${PLAYHEAD}, current value 3.33 seconds`]],
       // NVDA says the playhead's time, larger each time.
       ["Press →.", "{ArrowRight}", []],
@@ -34,27 +36,18 @@ describe("Timeline, spoken", () => {
           "slider, Voice gain, orientated horizontally, max value 12, min value -60, current value 0 decibels",
         ],
       ],
-      // The clip's place is said twice: "clip 1 of 3" is in its name, and a
-      // listbox's options are counted too. The manual pass asks to note it.
-      ["Tab.", "{Tab}", ["option, Voice 1, clip 1 of 3, not selected, position 1, set size 3"]],
-      [
-        "Press →.",
-        "{ArrowRight}",
-        ["option, Voice 2, clip 2 of 3, selected, position 2, set size 3"],
-      ],
+      // The clip's place is said once, as the listbox counts its options:
+      // the names leave it out (#205).
+      ["Tab.", "{Tab}", ["option, Voice 1, not selected, position 1, set size 3"]],
+      ["Press →.", "{ArrowRight}", ["option, Voice 2, selected, position 2, set size 3"]],
       // NVDA also says the group "Track 2, Music", and below it "Track 3,
       // Effects, muted".
-      [
-        "Press ↓.",
-        "{ArrowDown}",
-        ["option, Music 1, clip 1 of 2, selected, position 1, set size 2"],
-      ],
-      [
-        "Press ↓ again.",
-        "{ArrowDown}",
-        ["option, Effects 2, clip 2 of 3, selected, position 2, set size 3"],
-      ],
-      ["Press Space.", "[Space]", []],
+      ["Press ↓.", "{ArrowDown}", ["option, Music 1, selected, position 1, set size 2"]],
+      ["Press ↓ again.", "{ArrowDown}", ["option, Effects 2, selected, position 2, set size 3"]],
+      // Selection follows focus, so Space takes the clip out of the selection,
+      // and the clips announce it, as screen readers don't (#204).
+      ["Press Space.", "[Space]", ["polite: Effects 2, not selected"]],
+      ["Press Space again.", "[Space]", ["polite: Effects 2, selected"]],
     ]);
   });
 

@@ -1,4 +1,5 @@
 import {
+  AnnouncerProvider,
   Button,
   Slider,
   Timeline,
@@ -22,6 +23,15 @@ const meta = {
   title: "Components/Timeline",
   component: Timeline,
   args: { label: "Timeline", length: 300 },
+  // An editor has one announcer at its root; the clips announce through it
+  // when Space or a Ctrl-click adds a clip to the selection or removes it.
+  decorators: [
+    (Story) => (
+      <AnnouncerProvider>
+        <Story />
+      </AnnouncerProvider>
+    ),
+  ],
 } satisfies Meta<typeof Timeline>;
 
 export default meta;
@@ -84,19 +94,20 @@ const SHOTS: readonly Shot[] = [
 
 /**
  * The clips as the track shows them, each named from where it is now: what
- * it shows, its place and its range. The names are worked out at every
- * render, as an SDK's must be. A fixed name goes stale as soon as a clip
- * moves or is trimmed, and a screen reader then reads the old place.
+ * it shows and its range. A clip's place, "1 of 3", isn't in its name: the
+ * clips are a listbox, and screen readers count its options themselves.
+ * The names are worked out at every render, as an SDK's must be. A fixed
+ * name goes stale as soon as a clip is moved or trimmed.
  */
 function clipsOf(shots: readonly Shot[]): TimelineClip[] {
   let end = 0;
-  return shots.map((shot, index) => {
+  return shots.map((shot) => {
     const start = end;
     end += shot.length;
     return {
       key: shot.key,
       length: shot.length,
-      label: `${shot.name}, clip ${index + 1} of ${shots.length}, ${(start / RATE).toFixed(2)} to ${time(end)}`,
+      label: `${shot.name}, ${(start / RATE).toFixed(2)} to ${time(end)}`,
       content: shot.name,
     };
   });
@@ -175,8 +186,8 @@ export const AtTheEnds: Story = {
 
 /**
  * With a clip track: a listbox with one Tab stop. ← and → move between clips
- * and select. Each clip's name says its place and range, which a screen
- * reader can't see on the track.
+ * and select. Each clip's name says its range, which a screen reader can't
+ * see on the track; the listbox says its place.
  */
 export const WithClips: Story = {
   name: "With clips",
@@ -356,8 +367,7 @@ function Tracks({ zoom = 1, start = 100 }: { zoom?: number; start?: number }) {
             clips={track.clips.map((length, clip) => ({
               key: `${track.id}-${clip + 1}`,
               length,
-              // The name starts with what the clip shows, then says where it is.
-              label: `${track.name} ${clip + 1}, clip ${clip + 1} of ${track.clips.length}`,
+              label: `${track.name} ${clip + 1}`,
               content: `${track.name} ${clip + 1}`,
             }))}
             selectionMode="multiple"
@@ -401,18 +411,18 @@ function Placed() {
   const [selected, setSelected] = useState<readonly string[]>(["sound-2"]);
   const [frame, setFrame] = useState(150);
   const picture: TimelineClip[] = [
-    { key: "shot-1", length: 100, label: "Shot 1, clip 1 of 3", content: "Shot 1" },
-    { key: "shot-2", length: 140, label: "Shot 2, clip 2 of 3", content: "Shot 2" },
-    { key: "shot-3", length: 60, label: "Shot 3, clip 3 of 3", content: "Shot 3" },
+    { key: "shot-1", length: 100, label: "Shot 1", content: "Shot 1" },
+    { key: "shot-2", length: 140, label: "Shot 2", content: "Shot 2" },
+    { key: "shot-3", length: 60, label: "Shot 3", content: "Shot 3" },
   ];
   const sound: TimelineClip[] = [
-    { key: "sound-1", at: 20, length: 60, label: "Voice, clip 1 of 3", content: "Voice" },
-    { key: "sound-2", at: 120, length: 50, label: "Door, clip 2 of 3", content: "Door" },
+    { key: "sound-1", at: 20, length: 60, label: "Voice", content: "Voice" },
+    { key: "sound-2", at: 120, length: 50, label: "Door", content: "Door" },
     {
       key: "sound-3",
       at: 260,
       length: 80,
-      label: "Music, clip 3 of 3, past the end of the picture",
+      label: "Music, past the end of the picture",
       content: "Music",
     },
   ];
