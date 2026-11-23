@@ -9,8 +9,12 @@ export interface TextEditorProps {
   /** The text box being edited: an existing one, or a new one that isn't on the page yet. */
   readonly item: NotesText;
   readonly pixelsPerPoint: number;
-  /** Called with the text when editing ends. Empty text removes the box. */
-  readonly onDone: (text: string) => void;
+  /**
+   * Called with the text when editing ends. Empty text removes the box.
+   * Returning `false` says the text couldn't be kept: the field then stays,
+   * with what was typed, and ends again when it's next left.
+   */
+  readonly onDone: (text: string) => boolean | undefined;
 }
 
 /**
@@ -34,7 +38,8 @@ export function TextEditor({ item, pixelsPerPoint, onDone }: TextEditorProps): R
   const end = useCallback(() => {
     if (ended.current) return;
     ended.current = true;
-    latest.current.onDone(latest.current.text);
+    // Refused, as on a page that's full: the draft isn't dropped.
+    if (latest.current.onDone(latest.current.text) === false) ended.current = false;
   }, [latest]);
 
   // A page that scrolls out of view takes its field away, and a browser

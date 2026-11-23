@@ -149,6 +149,14 @@ export const NotesNotebook = /* @__PURE__ */ forwardRef<NotesNotebookHandle, Not
     >(undefined);
     // What was recorded and couldn't be stored: kept, so storing it can be tried again.
     const [unsaved, setUnsaved] = useState<StoppedRecording | undefined>(undefined);
+    /** The same, known at once: the state is only known after a render. */
+    const unsavedNow = useRef<StoppedRecording | undefined>(undefined);
+    const keepUnsaved = useCallback((kept: StoppedRecording | undefined) => {
+      unsavedNow.current = kept;
+      setUnsaved(kept);
+    }, []);
+    /** Why the text being typed couldn't be put on the page, if it couldn't. */
+    const draftFailure = useRef<unknown>(undefined);
     const stopping = useRef<Promise<boolean> | undefined>(undefined);
     /** The recording under way, known at once: the state above is only known after a render. */
     const liveRecording = useRef<{ id: string; session: NotesRecorderSession } | undefined>(
@@ -390,18 +398,18 @@ export const NotesNotebook = /* @__PURE__ */ forwardRef<NotesNotebookHandle, Not
               },
             ],
           });
-          setUnsaved(undefined);
+          keepUnsaved(undefined);
           announce(messages.t("recordings.stopped"));
           return true;
         } catch (reason) {
           // The sound is all there is of it: it stays here until it can be stored.
-          setUnsaved(stopped);
+          keepUnsaved(stopped);
           recordingFailure.current = reason;
           fail(reason);
           return false;
         }
       },
-      [announce, fail, messages, session],
+      [announce, fail, keepUnsaved, messages, session],
     );
 
     /**
@@ -412,7 +420,7 @@ export const NotesNotebook = /* @__PURE__ */ forwardRef<NotesNotebookHandle, Not
     const stopRecording = useCallback((): Promise<boolean> => {
       if (stopping.current) return stopping.current;
       const current = liveRecording.current;
-      const kept = latestRef.current.unsaved;
+      const kept = unsavedNow.current;
       if (!current && !kept) return Promise.resolve(true);
       const run = (async () => {
         let stopped = kept;
@@ -440,14 +448,14 @@ export const NotesNotebook = /* @__PURE__ */ forwardRef<NotesNotebookHandle, Not
         stopping.current = undefined;
       });
       return run;
-    }, [fail, latestRef, storeRecording]);
+    }, [fail, storeRecording]);
 
     const toggleRecording = useCallback(() => {
       // One microphone at a time: a second press while the first is still
       // being asked for would leave a recorder nothing could stop.
       if (starting.current) return;
       // One recording at a time: the one waiting to be stored goes first.
-      if (liveRecording.current || latestRef.current.unsaved || stopping.current) {
+      if (liveRecording.current || unsavedNow.current || stopping.current) {
         void stopRecording();
         return;
       }
@@ -470,7 +478,7 @@ export const NotesNotebook = /* @__PURE__ */ forwardRef<NotesNotebookHandle, Not
         .finally(() => {
           starting.current = false;
         });
-    }, [announce, fail, latestRef, messages, newId, recorder, stopRecording]);
+    }, [announce, fail, messages, newId, recorder, stopRecording]);
 
     // A notebook removed without being closed lets the microphone go.
     useEffect(() => {
@@ -488,9 +496,18 @@ export const NotesNotebook = /* @__PURE__ */ forwardRef<NotesNotebookHandle, Not
         leaving.current = true;
         try {
           // What's being typed is committed first, as leaving its box does.
-          const focused = document.activeElement;
+          // The focus is asked of the notebook's own tree: inside a shadow
+          // root, the document only knows the host.
+          const scope = root.current?.getRootNode();
+          const focused =
+            scope instanceof Document || scope instanceof ShadowRoot ? scope.activeElement : null;
+          draftFailure.current = undefined;
           if (focused instanceof HTMLTextAreaElement && root.current?.contains(focused)) {
             focused.blur();
+          }
+          // The page wouldn't take it: the box stays, with what was typed.
+          if (draftFailure.current !== undefined && !discard) {
+            throw asNotesError(draftFailure.current);
           }
           // Then the recording, whether it's still running or already being stored.
           const stored = await stopRecording();
@@ -645,22 +662,26 @@ export const NotesNotebook = /* @__PURE__ */ forwardRef<NotesNotebookHandle, Not
       [latestRef, newId],
     );
 
-    const finishText = (text: string) => {
+    /**
+     * Puts what was typed on the page. Returns false when the page won't
+     * take it, as when it's full: the box then stays, with its text, to be
+     * tried again or emptied.
+     */
+    const finishText = (text: string): boolean => {
       const current = editing;
-      if (!current) return;
-      // A box that commits as it unmounts mustn't close the one opened after it.
-      setEditing((now) => (now === current ? undefined : now));
+      if (!current) return true;
       const cut = [...text].slice(0, NOTES_MAX_TEXT_LENGTH).join("");
       const empty = cut.trim() === "";
-      execute(() => {
+      try {
         if (current.isNew) {
-          if (empty) return;
-          const anchor = audioAnchor();
-          session.execute({
-            type: "notes.addItems",
-            page: current.page,
-            items: [{ ...current.item, text: cut, ...(anchor ? { audio: anchor } : {}) }],
-          });
+          if (!empty) {
+            const anchor = audioAnchor();
+            session.execute({
+              type: "notes.addItems",
+              page: current.page,
+              items: [{ ...current.item, text: cut, ...(anchor ? { audio: anchor } : {}) }],
+            });
+          }
         } else if (empty) {
           session.execute({
             type: "notes.removeItems",
@@ -674,7 +695,14 @@ export const NotesNotebook = /* @__PURE__ */ forwardRef<NotesNotebookHandle, Not
             items: [{ ...current.item, text: cut }],
           });
         }
-      });
+      } catch (reason) {
+        draftFailure.current = reason;
+        fail(reason);
+        return false;
+      }
+      // A box that commits as it unmounts mustn't close the one opened after it.
+      setEditing((now) => (now === current ? undefined : now));
+      return true;
     };
 
     const audioAnchor = useCallback(() => {

@@ -546,6 +546,31 @@ describe("a library's backup reminder", () => {
     expect(library.getSnapshot().index.lastBackupAt).toBe(began);
   });
 
+  it("keeps counting from the backup before when a notebook left the bin while one was written", async () => {
+    const store = createMemoryNotesStore();
+    let time = 1_800_000_000_000;
+    const library = createNotesLibrary({ store, now: () => time });
+    await library.load();
+    await library.createNotebook({ title: "Physics" });
+    const binned = await library.createNotebook({ title: "Chemistry" });
+    await library.binNotebook(binned);
+    const readNotebook = store.readNotebook.bind(store);
+    let restored: Promise<void> | undefined;
+    store.readNotebook = async (id) => {
+      // While the archive is written, the other notebook comes out of the bin.
+      restored ??= library.restoreNotebook(binned);
+      return readNotebook(id);
+    };
+    time += 1_000;
+    const backup = await library.backup();
+    await restored;
+    // It isn't in the archive, so the library isn't taken for backed up.
+    const other = createNotesLibrary({ store: createMemoryNotesStore() });
+    await other.load();
+    expect((await other.restore(backup)).restored).toHaveLength(1);
+    expect(library.getSnapshot().index.lastBackupAt).toBeNull();
+  });
+
   it("rebuilds when the notebooks last changed along with a lost index", async () => {
     const store = createMemoryNotesStore();
     const written = 1_800_000_000_000;
@@ -620,6 +645,30 @@ describe("closing a library", () => {
     await expect(library.createNotebook({ title: "Late" })).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
+  });
+
+  it("tells every caller it has closed only once nothing is left to write", async () => {
+    const { library, store } = setup();
+    await library.load();
+    const writeAsset = store.writeAsset.bind(store);
+    let land: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      land = resolve;
+    });
+    store.writeAsset = async (notebook, asset, data) => {
+      await held;
+      await writeAsset(notebook, asset, data);
+    };
+    const importing = library.importPdf(new Blob([fakePdf(["Alpha"])]), { title: "Imported" });
+    const settled: string[] = [];
+    const first = library.close().then(() => settled.push("first"));
+    const second = library.close().then(() => settled.push("second"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(settled).toEqual([]);
+    land();
+    await importing;
+    await Promise.all([first, second]);
+    expect(settled).toHaveLength(2);
   });
 
   it("restores one backup at a time, so two never restore the same notebook twice", async () => {

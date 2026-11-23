@@ -116,10 +116,18 @@ export interface PaintOptions {
 
 /** Sets the canvas up to draw in page units, and clears it. */
 export function beginPage(context: Context, info: NotesPageInfo): void {
-  const scale = context.canvas.width / info.width;
   context.setTransform(1, 0, 0, 1, 0, 0);
   context.clearRect(0, 0, context.canvas.width, context.canvas.height);
-  context.setTransform(scale, 0, 0, scale, 0, 0);
+  // Each axis by its own side: a canvas held to its limits is rounded on
+  // each, and one factor for both would stop short of a long page's end.
+  context.setTransform(
+    context.canvas.width / info.width,
+    0,
+    0,
+    context.canvas.height / info.height,
+    0,
+    0,
+  );
 }
 
 /** Paints the paper and its rules. A page over a PDF has no paper of its own. */

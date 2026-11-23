@@ -356,6 +356,7 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
   let loaded: Promise<void> | undefined;
   let reminder: ReturnType<typeof setTimeout> | undefined;
   let closed = false;
+  let closing: Promise<void> | undefined;
 
   const index = () => state.getSnapshot().index;
 
@@ -853,22 +854,24 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
 
     async backup(input = {}) {
       try {
+        // One reading of the index decides what's saved first, what's
+        // archived and what's counted: a notebook that leaves the bin
+        // meanwhile is in none of them, never in the archive without its
+        // latest ink.
+        const taken = index();
+        const live = (from: NotesLibraryIndex) =>
+          from.notebooks.filter((notebook) => notebook.deletedAt === null);
+        // A notebook in the bin is taken only when it's named.
+        const archived = new Set(input.notebooks ?? live(taken).map((notebook) => notebook.id));
         // What's open is saved first, so the backup holds the latest ink.
         // Only what the backup takes: a notebook left out can't fail it.
-        // A notebook in the bin is taken only when it's named.
-        const wanted = input.notebooks ? new Set(input.notebooks) : undefined;
-        const binned = new Set(
-          index()
-            .notebooks.filter((notebook) => notebook.deletedAt !== null)
-            .map((notebook) => notebook.id),
-        );
         for (const [id, session] of sessions) {
-          if (wanted ? wanted.has(id) : !binned.has(id)) await session.flush();
+          if (archived.has(id)) await session.flush();
         }
         // From before the first read: an edit saved while the archive is
         // written isn't in it, and still counts as not backed up.
         const capturedAt = now();
-        const blob = await createNotesBackup(store, index(), {
+        const blob = await createNotesBackup(store, taken, {
           now,
           // The limits restore will hold it to: a backup that couldn't be read back is refused now.
           policy,
@@ -876,11 +879,16 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
           ...(input.signal ? { signal: input.signal } : {}),
           ...(input.onProgress ? { onProgress: input.onProgress } : {}),
         });
-        const count =
-          input.notebooks?.length ??
-          index().notebooks.filter((notebook) => notebook.deletedAt === null).length;
+        const count = archived.size;
         if (!input.notebooks) {
-          await update((current) => ({ ...current, lastBackupAt: capturedAt }));
+          // A notebook made, or taken out of the bin, while the archive was
+          // written isn't in it. The reminder then keeps counting from the
+          // backup before, so that notebook is never taken for backed up.
+          await update((current) =>
+            live(current).every((notebook) => archived.has(notebook.id))
+              ? { ...current, lastBackupAt: capturedAt }
+              : current,
+          );
         }
         emit({ type: "backup_created", notebooks: count });
         return blob;
@@ -1075,27 +1083,32 @@ export function createNotesLibrary(options: NotesLibraryOptions): NotesLibrary {
       return granted;
     },
 
-    async close() {
-      if (closed) return;
-      closed = true;
-      unsubscribe?.();
-      if (reminder !== undefined) clearTimeout(reminder);
-      reminder = undefined;
-      // An import, a restore or an open still under way finishes first, and
-      // each notebook is saved if it can be and given back either way: the
-      // store isn't written to once this resolves.
-      while (running.size > 0 || sessions.size > 0) {
-        const open = [...sessions.values()];
-        sessions.clear();
-        await Promise.allSettled(open.map((session) => session.close({ discard: true })));
-        await Promise.allSettled([...running]);
-      }
-      await writes;
+    close() {
+      // One closing, whoever asks: every caller is told only once nothing
+      // is left to write.
+      closing ??= (async () => {
+        closed = true;
+        unsubscribe?.();
+        if (reminder !== undefined) clearTimeout(reminder);
+        reminder = undefined;
+        // An import, a restore, a load or an open still under way finishes
+        // first, and each notebook is saved if it can be and given back
+        // either way: the store isn't written to once this resolves.
+        while (running.size > 0 || sessions.size > 0) {
+          const open = [...sessions.values()];
+          sessions.clear();
+          await Promise.allSettled(open.map((session) => session.close({ discard: true })));
+          await Promise.allSettled([...running]);
+        }
+        await writes;
+      })();
+      return closing;
     },
   };
 
   return {
     ...library,
+    load: tracked(library.load),
     createNotebook: tracked(library.createNotebook),
     importPdf: tracked(library.importPdf),
     duplicateNotebook: tracked(library.duplicateNotebook),

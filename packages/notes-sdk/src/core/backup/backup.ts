@@ -56,8 +56,8 @@ export interface NotesBackupOptions extends NotesProgressOptions {
   readonly now: () => number;
   /**
    * The file policy restore will read the backup under. With it, a backup
-   * that restore would refuse for a limit is refused here, with the error
-   * restore would give, and never handed over as if it were good: one over
+   * that restore would refuse for a limit is refused here, with that
+   * limit's error, and never handed over as if it were good: one over
    * `maxBackupEntries` or `maxBackupSize`, with a document over
    * `maxDecodedSize`, a notebook over `maxPages` or a page over
    * `maxPageItems`. Without it, no limit is checked.
@@ -203,7 +203,10 @@ function foldersOf(index: NotesLibraryIndex, inFolders: Iterable<string | null>)
  * for it. So do references to one file that disagree on its size.
  *
  * With `options.policy`, a backup that restore would refuse for a limit
- * rejects here with the same error:
+ * rejects here, with that limit's error. A backup over more than one limit
+ * is refused for the first one each side meets, which needn't be the same:
+ * the writer counts a notebook's pages before it sizes the manifest, and
+ * restore reads the manifest first.
  *
  * - `TOO_MANY_BACKUP_ENTRIES` for more entries than `maxBackupEntries`;
  * - `BACKUP_TOO_LARGE` when the file, or what its entries hold, is over

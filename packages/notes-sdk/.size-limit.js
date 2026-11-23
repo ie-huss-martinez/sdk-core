@@ -34,7 +34,7 @@ const built = (budget) => ({ ...budget, brotli: true, disablePlugins: ["@size-li
 
 export default [
   // The server-safe core (.).
-  entryBudget({ name: "Core (.), as built", entry: core, limit: "39 kB" }),
+  entryBudget({ name: "Core (.), as built", entry: core, limit: "39.5 kB" }),
   importBudget({
     // The floor: the error class, which a host uses to show the library's errors.
     name: "Core: the floor, NotesError",
@@ -119,7 +119,7 @@ export default [
     name: "React: NotesNotebook",
     entry: react,
     imports: "{ NotesNotebook }",
-    limit: "25.5 kB",
+    limit: "26 kB",
   }),
   importBudget({
     // The provider brings the library and the stores.
@@ -133,7 +133,7 @@ export default [
     name: "React: NotesEditor",
     entry: react,
     imports: "{ NotesEditor }",
-    limit: "58 kB",
+    limit: "58.5 kB",
   }),
 
   // The element entry (./element) mounts the whole editor, so it has only a ceiling.

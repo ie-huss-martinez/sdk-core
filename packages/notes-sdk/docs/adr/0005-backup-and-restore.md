@@ -30,7 +30,7 @@ notebooks/<id>/assets/<64 hex digits>        each file, named by its SHA-256
 
 - What's open is saved first.
 - Each file is read back and checked against its reference's size and hash. A backup that silently lacked or held a damaged file would only fail when it's needed.
-- **A backup that restore would refuse for a limit isn't handed over.** The library gives its file policy, and the writer holds the backup to the limits restore reads it under: `maxBackupEntries` and `maxBackupSize` for the whole backup, `maxDecodedSize` for each JSON document, `maxPages` for each notebook and `maxPageItems` for each page. One that's over fails with that limit's error while it's made, and a file the backup has no room for is refused before it's read. The user can then back up fewer notebooks.
+- **A backup that restore would refuse for a limit isn't handed over.** The library gives its file policy, and the writer holds the backup to the limits restore reads it under: `maxBackupEntries` and `maxBackupSize` for the whole backup, `maxDecodedSize` for each JSON document, `maxPages` for each notebook and `maxPageItems` for each page. One that's over fails with that limit's error while it's made (over several, with the first the writer meets, which needn't be the one restore would meet first), and a file the backup has no room for is refused before it's read. The user can then back up fewer notebooks.
 - The library records when it was last backed up, and the editor reminds when notebooks have changed and two weeks have passed.
 
 ### Restoring

@@ -121,7 +121,10 @@ const NotesEditorShell = /* @__PURE__ */ forwardRef<NotesEditorHandle, Shell>(
       ...props.initialSettings,
     }));
     const current = useRef<NotesSession | undefined>(undefined);
-    const notebookView = useRef<NotesNotebookHandle>(null);
+    /** The view of an open notebook, with the session it shows. */
+    const notebookView = useRef<{ session: NotesSession; handle: NotesNotebookHandle } | undefined>(
+      undefined,
+    );
     const viewChanged = useRef(onViewChange);
     /** Whether the editor is on the page: a notebook that opens after it left is closed again. */
     const mounted = useRef(false);
@@ -174,11 +177,15 @@ const NotesEditorShell = /* @__PURE__ */ forwardRef<NotesEditorHandle, Shell>(
      * back. The view tells `show` once it's closed.
      */
     const closeCurrent = useCallback(async () => {
+      const session = current.current;
+      if (!session) return;
       const view = notebookView.current;
-      if (view) {
-        await view.close();
-      } else if (current.current) {
-        await current.current.close();
+      // Only the view of the notebook that's current: just after an open,
+      // the view on the screen may still be the one before, or none yet.
+      if (view?.session === session) {
+        await view.handle.close();
+      } else {
+        await session.close();
         show(undefined);
       }
     }, [show]);
@@ -240,7 +247,9 @@ const NotesEditorShell = /* @__PURE__ */ forwardRef<NotesEditorHandle, Shell>(
         {open ? (
           <div className={join("hm-notes-editor-view", classNames.notebook)}>
             <NotesNotebook
-              ref={notebookView}
+              ref={(handle) => {
+                notebookView.current = handle ? { session: open.session, handle } : undefined;
+              }}
               key={open.session.getSnapshot().notebook.id}
               session={open.session}
               settings={settings}

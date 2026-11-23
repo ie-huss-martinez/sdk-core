@@ -184,10 +184,18 @@ export function attachInk(host: InkHost): () => void {
   const wetContext = (page: InkPage) => {
     const context = page.wet.getContext("2d", { desynchronized: true });
     if (!context) return undefined;
-    const scale = page.wet.width / page.info.width;
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.clearRect(0, 0, page.wet.width, page.wet.height);
-    context.setTransform(scale, 0, 0, scale, 0, 0);
+    // Each axis by its own side: a canvas held to its limits is rounded on
+    // each, and one factor for both would stop short of a long page's end.
+    context.setTransform(
+      page.wet.width / page.info.width,
+      0,
+      0,
+      page.wet.height / page.info.height,
+      0,
+      0,
+    );
     return context;
   };
 
@@ -744,7 +752,16 @@ export function attachInk(host: InkHost): () => void {
     // A button that changes while the pen is down arrives as a move. Its
     // samples, taken above, are the last of what the pen was doing: the way
     // to this one is still ink, or still erased.
-    if (current.pointerType === "pen" && penErases(event) !== current.barrel) swap(current, event);
+    if (current.pointerType === "pen" && penErases(event) !== current.barrel) {
+      // The event's own position may lie past its last sample: the way there
+      // belongs to what the pen was doing too, so no gap is left before the
+      // other tool starts from it.
+      const last = samples.at(-1);
+      if (last && (last.clientX !== event.clientX || last.clientY !== event.clientY)) {
+        add(current, event, [event]);
+      }
+      swap(current, event);
+    }
   };
 
   const onPointerUp = (event: PointerEvent) => {

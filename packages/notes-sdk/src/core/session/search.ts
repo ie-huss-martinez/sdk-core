@@ -32,6 +32,12 @@ const CONTEXT = 40;
  * then lowercase, then one sigma, makes both sides of a comparison alike.
  */
 function fold(value: string): string {
+  // A dotless i is its own letter: uppercase and back would make it an "i",
+  // and "kir" would find "k\u0131r", another word.
+  return value.split("\u0131").map(foldPart).join("\u0131");
+}
+
+function foldPart(value: string): string {
   return (
     value
       .normalize("NFKC")

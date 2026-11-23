@@ -27,7 +27,7 @@ interface Controls {
 /** A text editor on a page, which a test can take away or zoom. */
 function Stage(props: {
   readonly value: string;
-  readonly onDone: (text: string) => void;
+  readonly onDone: (text: string) => boolean | undefined;
   readonly controls: RefObject<Controls | null>;
   readonly wrap?: (children: ReactNode) => ReactNode;
 }): ReactNode {
@@ -50,7 +50,7 @@ function Stage(props: {
 }
 
 async function mountEditor(value = "", wrap?: (children: ReactNode) => ReactNode) {
-  const onDone = vi.fn<(text: string) => void>();
+  const onDone = vi.fn<(text: string) => boolean | undefined>();
   const controls = createRef<Controls>();
   const container = await mount(
     <NotesProvider store={createMemoryNotesStore()} pdfEngine={createFakePdfEngine()}>
@@ -138,5 +138,19 @@ describe("TextEditor", () => {
     await zoom(2);
     expect(Number.parseFloat(field.style.fontSize)).toBe(28);
     expect(Math.abs(height() - 105)).toBeLessThan(2);
+  });
+
+  it("stays, with what was typed, when the text can't be kept, and ends again when it's next left", async () => {
+    const { container, field, onDone } = await mountEditor("Heat");
+    onDone.mockReturnValueOnce(false);
+    field.focus();
+    await type(" and work");
+    await act(async () => field.blur());
+    expect(onDone).toHaveBeenCalledExactlyOnceWith("Heat and work");
+    // Refused: the field is still there, with the draft.
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("Heat and work");
+    field.focus();
+    await act(async () => field.blur());
+    expect(onDone).toHaveBeenCalledTimes(2);
   });
 });

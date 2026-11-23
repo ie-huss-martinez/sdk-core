@@ -50,6 +50,11 @@ describe("searchPageTexts", () => {
     expect(searchPageTexts([entry("p1", "\u03BF\u03C2")], "\u03C3")).toHaveLength(1);
     expect(searchPageTexts([entry("p1", "Stra\u00DFe")], "STRASSE")).toHaveLength(1);
     expect(searchPageTexts([entry("p1", "STRA\u1E9EE")], "stra\u00DFe")).toHaveLength(1);
+    // A dotless i stays apart from a dotted one, and still finds itself.
+    expect(searchPageTexts([entry("p1", "k\u0131r")], "kir")).toEqual([]);
+    expect(
+      searchPageTexts([entry("p1", "K\u0131r \u00E7i\u00E7e\u011Fi")], "k\u0131r"),
+    ).toHaveLength(1);
   });
 
   it("never cuts a snippet through the middle of a character", () => {

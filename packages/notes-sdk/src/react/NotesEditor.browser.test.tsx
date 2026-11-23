@@ -410,6 +410,27 @@ describe("NotesEditor closed through its handle", () => {
     ]);
   });
 
+  it("closes the notebook that just opened when a host asks from its own notification", async () => {
+    let closing: Promise<void> | undefined;
+    const reach: { handle?: RefObject<NotesEditorHandle | null> } = {};
+    const mounted = await mountEditor({
+      onViewChange: (view) => {
+        // Before the notebook's view is on the screen.
+        if (view.view === "notebook") closing ??= reach.handle?.current?.close();
+      },
+    });
+    reach.handle = mounted.handle;
+    await press(mounted.container, "New notebook");
+    await press(mounted.container, "Create");
+    await waitFor(() => expect(closing).toBeDefined());
+    await closing;
+    await waitFor(() => expect(button(mounted.container, "New notebook")).toBeTruthy());
+    expect(mounted.container.querySelector(PAGE)).toBeNull();
+    // Given back, not left open behind the library.
+    const [summary] = mounted.handle.current?.library.getSnapshot().index.notebooks ?? [];
+    expect(await mounted.store.lockNotebook(summary?.id ?? "")).toBeTypeOf("function");
+  });
+
   it("stops and stores a recording before it closes the notebook", async () => {
     const { recorder, calls } = fakeRecorder();
     const mounted = await mountEditor({ recorder });
