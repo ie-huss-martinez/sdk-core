@@ -1,0 +1,240 @@
+/*
+ * NotesEditor, and what the library and an open notebook share: alerts,
+ * notices, forms and hidden inputs. Every value is a --hm-notes-* token,
+ * falling back to ui's semantic tokens. The editor fills the height its host
+ * gives it; its views scroll within it.
+ */
+@layer hm.sdk {
+  .hm-notes-editor {
+    container: hm-notes-editor / inline-size;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    position: relative;
+    min-height: 0;
+    height: 100%;
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) {
+    background: var(--hm-notes-editor-bg, var(--hm-color-bg));
+    color: var(--hm-notes-editor-text, var(--hm-color-text));
+  }
+
+  .hm-notes-editor-view {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  /* The pickers are opened by their buttons; the inputs themselves never show. */
+  .hm-notes-file-input,
+  .hm-notes-audio {
+    display: none;
+  }
+
+  .hm-notes-alert,
+  .hm-notes-notice,
+  .hm-notes-warning {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--hm-notes-notice-gap, var(--hm-gap-normal));
+    margin: 0;
+    padding: var(--hm-notes-notice-inset, var(--hm-inset-normal));
+  }
+
+  /* A toast floats over the foot of whichever view shows. */
+  .hm-notes-toasts {
+    position: absolute;
+    inset-block-end: var(--hm-space-5);
+    inset-inline: var(--hm-space-4);
+    z-index: var(--hm-notes-layer-toast);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--hm-space-2);
+    pointer-events: none;
+  }
+
+  .hm-notes-toast {
+    box-sizing: border-box;
+    max-width: min(100%, var(--hm-notes-toast-max));
+    pointer-events: auto;
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-toast {
+    padding: var(--hm-space-2) var(--hm-space-2) var(--hm-space-2) var(--hm-space-4);
+    border-radius: var(--hm-notes-radius-lg);
+    box-shadow: var(--hm-notes-shadow-lg);
+    animation: hm-notes-toast-in var(--hm-notes-time-slow) var(--hm-notes-ease-spring) both;
+
+    --hm-button-radius: var(--hm-notes-radius-pill);
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-alert {
+    background: var(--hm-notes-alert-bg, var(--hm-color-danger-subtle));
+    color: var(--hm-notes-alert-text, var(--hm-color-danger-text));
+    border-radius: var(--hm-notes-notice-radius, var(--hm-radius-control));
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-notice {
+    background: var(--hm-notes-notice-bg, var(--hm-color-accent-subtle));
+    color: var(--hm-notes-notice-text, var(--hm-color-text));
+    border-radius: var(--hm-notes-notice-radius, var(--hm-radius-control));
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-warning {
+    background: var(--hm-notes-warning-bg, var(--hm-color-warning-subtle));
+    color: var(--hm-notes-warning-text, var(--hm-color-warning-text));
+    border-radius: var(--hm-notes-notice-radius, var(--hm-radius-control));
+  }
+
+  .hm-notes-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hm-notes-form-gap, var(--hm-gap-loose));
+  }
+
+  .hm-notes-form-label {
+    margin-block-end: calc(var(--hm-notes-form-gap, var(--hm-gap-loose)) * -0.75);
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-form-label {
+    color: var(--hm-notes-ink-muted);
+    font-size: var(--hm-notes-caption-size);
+    font-weight: var(--hm-notes-weight-label);
+    letter-spacing: var(--hm-notes-caption-tracking);
+    text-transform: uppercase;
+  }
+
+  /* A new notebook: its cover beside the choices that draw it. */
+  .hm-notes-new-notebook {
+    position: relative;
+    padding-inline-start: calc(var(--hm-notes-cover-width) + var(--hm-space-6));
+  }
+
+  .hm-notes-cover-preview {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 0;
+    width: var(--hm-notes-cover-width);
+    cursor: default;
+  }
+
+  .hm-notes-cover-preview[data-hm-upright="landscape"] .hm-notes-cover-art {
+    aspect-ratio: 4 / 3;
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-cover-preview .hm-notes-cover-art {
+    animation: hm-notes-pop var(--hm-notes-time-slow) var(--hm-notes-ease-spring);
+  }
+
+  @container hm-notes-editor (width < 36rem) {
+    .hm-notes-new-notebook {
+      padding-inline-start: 0;
+    }
+
+    .hm-notes-cover-preview {
+      display: none;
+    }
+  }
+
+  /* ui's dialogs and controls, rounded as the rest of the editor is. */
+  .hm-notes-editor:not([data-hm-unstyled]) {
+    --hm-dialog-radius: var(--hm-notes-radius-lg);
+    --hm-dialog-shadow: var(--hm-notes-shadow-lg);
+    --hm-dialog-backdrop: var(--hm-notes-scrim);
+    --hm-segmented-control-radius: var(--hm-notes-radius-sm);
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-dialog {
+    --hm-button-radius: var(--hm-notes-radius-pill);
+    --hm-radius-control: var(--hm-notes-radius-sm);
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-dialog[open] {
+    animation: hm-notes-dialog-in var(--hm-notes-time-slow) var(--hm-notes-ease-spring);
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-dialog[open]::backdrop {
+    backdrop-filter: blur(var(--hm-space-1));
+  }
+
+  @keyframes hm-notes-dialog-in {
+    from {
+      opacity: var(--hm-notes-opacity-ghost);
+      translate: 0 var(--hm-notes-rise);
+      scale: 0.94;
+    }
+  }
+
+  .hm-notes-form-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: var(--hm-notes-form-gap, var(--hm-gap-normal));
+  }
+
+  .hm-notes-form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--hm-notes-form-gap, var(--hm-gap-normal));
+  }
+
+  /* An action apart from the form's own, such as removing what's named: at the other end. */
+  .hm-notes-form-extra {
+    margin-inline-end: auto;
+  }
+
+  .hm-notes-select {
+    min-height: var(--hm-control-height);
+    padding-inline: var(--hm-control-padding-x);
+    font: inherit;
+    color: var(--hm-notes-select-text, var(--hm-color-text));
+    background: var(--hm-notes-select-bg, var(--hm-color-control));
+    border: var(--hm-border-width-1) solid
+      var(--hm-notes-select-border, var(--hm-color-border-strong));
+    border-radius: var(--hm-notes-select-radius, var(--hm-radius-control));
+  }
+
+  .hm-notes-select:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: var(--hm-focus-ring-offset);
+  }
+
+  .hm-notes-search-results,
+  .hm-notes-outline,
+  .hm-notes-recordings {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hm-notes-list-gap, var(--hm-gap-tight));
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hm-notes-search-result {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+    height: auto;
+    padding-block: var(--hm-notes-list-inset, var(--hm-inset-tight));
+    text-align: start;
+    white-space: normal;
+  }
+
+  .hm-notes-search-page {
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-search-snippet {
+    color: var(--hm-notes-snippet-text, var(--hm-color-text-muted));
+    font-size: var(--hm-font-size-small);
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-search-snippet mark {
+    background: var(--hm-notes-match-bg, var(--hm-color-warning-subtle));
+    color: var(--hm-notes-match-text, var(--hm-color-text));
+  }
+}

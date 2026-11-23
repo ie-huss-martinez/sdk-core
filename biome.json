@@ -9,6 +9,7 @@
       "!packages/audio-sdk/conformance",
       "!packages/image-sdk/conformance",
       "!packages/learn-sdk/conformance",
+      "!packages/notes-sdk/conformance",
       "!packages/pdf-sdk/conformance",
       "!packages/video-sdk/conformance"
     ]

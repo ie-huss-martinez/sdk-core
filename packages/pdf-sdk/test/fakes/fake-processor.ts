@@ -17,6 +17,7 @@ export function createFakeProcessor(): PdfProcessor {
       }
       throwIfAborted(options.signal);
       const steps: PdfBuildStep[] = ["fill", "assemble"];
+      if (job.pages.some((page) => page.overlay)) steps.push("overlay");
       if (job.pages.some((page) => page.annotations?.length)) steps.push("flatten");
       if (job.compress) steps.push("compress");
       if (job.encrypt) steps.push("encrypt");
@@ -53,10 +54,19 @@ export function createFakeProcessor(): PdfProcessor {
         if (!source) throw new TypeError(`The page refers to an unknown source, ${page.source}.`);
         assertPageIndex(page.pageIndex, source.pages.length);
         const original = source.pages[page.pageIndex] as FakePage;
+        if (page.overlay) {
+          const overlay = sources.get(page.overlay.source);
+          if (!overlay) {
+            throw new TypeError(`The overlay refers to an unknown source, ${page.overlay.source}.`);
+          }
+          assertPageIndex(page.overlay.pageIndex, overlay.pages.length);
+        }
         pages.push({
           ...original,
           rotation: addRotation(original.rotation ?? 0, page.rotation ?? 0),
           drawn: (original.drawn ?? 0) + (page.annotations?.length ?? 0),
+          // An overlay changes what a page shows, never its size or rotation.
+          ...(page.overlay ? { overlaid: (original.overlaid ?? 0) + 1 } : {}),
         });
         for (const field of source.fields.filter((f) => f.page === page.pageIndex)) {
           // Rename as qpdf does, so both values survive (ADR 0003).
@@ -67,6 +77,7 @@ export function createFakeProcessor(): PdfProcessor {
         }
       });
       report("assemble");
+      if (steps.includes("overlay")) report("overlay");
       if (steps.includes("flatten")) report("flatten");
       if (job.compress) report("compress");
       if (job.encrypt) report("encrypt");

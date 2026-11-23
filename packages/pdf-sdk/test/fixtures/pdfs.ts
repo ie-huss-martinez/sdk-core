@@ -1,4 +1,4 @@
-import { degrees, PDFDocument, PDFString, StandardFonts } from "@cantoo/pdf-lib";
+import { degrees, PDFDocument, PDFString, rgb, StandardFonts } from "@cantoo/pdf-lib";
 
 /**
  * Test documents, generated in code: never real documents (CONTRIBUTING.md).
@@ -49,6 +49,50 @@ export async function reportPdf(): Promise<Uint8Array> {
 export async function pagesPdf(sizes: readonly { width: number; height: number }[]) {
   const document = await PDFDocument.create();
   for (const { width, height } of sizes) document.addPage([width, height]);
+  return document.save();
+}
+
+/** Colours for {@link shapesPdf}, as RGB, far enough apart to tell from each other and from white. */
+export const SHAPE_COLOURS = {
+  red: [255, 0, 0],
+  green: [0, 255, 0],
+  blue: [0, 0, 255],
+} as const;
+
+/** A filled rectangle, in points from the bottom-left corner of its unrotated page. */
+export interface Shape {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly colour: keyof typeof SHAPE_COLOURS;
+}
+
+/**
+ * One page per entry, with only its shapes painted. The rest of each page is
+ * transparent, as a page of ink is, so a page under it shows through
+ * (docs/adr/0011). `rotation` is the page's own `/Rotate`, and `crop` its
+ * crop box, in points like a shape.
+ */
+export async function shapesPdf(
+  pages: readonly {
+    readonly width: number;
+    readonly height: number;
+    readonly rotation?: 0 | 90 | 180 | 270;
+    readonly crop?: Omit<Shape, "colour">;
+    readonly shapes?: readonly Shape[];
+  }[],
+): Promise<Uint8Array> {
+  const document = await PDFDocument.create();
+  for (const { width, height, rotation = 0, crop, shapes = [] } of pages) {
+    const page = document.addPage([width, height]);
+    if (crop) page.setCropBox(crop.x, crop.y, crop.width, crop.height);
+    for (const { colour, ...box } of shapes) {
+      const [red, green, blue] = SHAPE_COLOURS[colour];
+      page.drawRectangle({ ...box, color: rgb(red / 255, green / 255, blue / 255) });
+    }
+    if (rotation !== 0) page.setRotation(degrees(rotation));
+  }
   return document.save();
 }
 

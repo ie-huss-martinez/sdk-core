@@ -1,0 +1,18 @@
+{
+  "name": "@hussmartinez/notes-sdk-e2e",
+  "private": true,
+  "description": "End-to-end tests of the built @hussmartinez/notes-sdk in its Next.js and Vite examples: writing with a pen, saving on the device, backup and restore, PDFs, server rendering and hydration, accessibility, and no foreign requests (ADR 0039 in sdk-core).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "tsc --noEmit && hm-in-image playwright test"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "catalog:",
+    "@hussmartinez/sdk-config": "workspace:^",
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

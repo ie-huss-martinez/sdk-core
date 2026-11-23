@@ -87,6 +87,42 @@ export function describePdfProcessorContract(name: string, harness: PdfProcessor
       await processor.destroy();
     });
 
+    it("draws pages over others without changing the pages, and reports the step", async () => {
+      const processor = harness.createProcessor();
+      const progress: PdfBuildProgress[] = [];
+      const output = await processor.build(
+        {
+          sources: [
+            { id: "a", bytes: await harness.pages([A4, LETTER, A4]) },
+            { id: "b", bytes: await harness.pages([SQUARE, A4]) },
+          ],
+          pages: [
+            { source: "a", pageIndex: 0, overlay: { source: "b", pageIndex: 1 } },
+            { source: "a", pageIndex: 1 },
+            // An overlay of another size, on a rotated page, from the page's own source.
+            { source: "b", pageIndex: 0, rotation: 90, overlay: { source: "b", pageIndex: 1 } },
+            { source: "a", pageIndex: 2, overlay: { source: "a", pageIndex: 1 } },
+          ],
+          compress: {},
+        },
+        { onProgress: (value) => progress.push(value) },
+      );
+      expect((await harness.inspect(output)).pages).toEqual([
+        { ...A4, rotation: 0 },
+        { ...LETTER, rotation: 0 },
+        { ...SQUARE, rotation: 90 },
+        { ...A4, rotation: 0 },
+      ]);
+      expect(progress.map((value) => value.step)).toEqual([
+        "fill",
+        "assemble",
+        "overlay",
+        "compress",
+      ]);
+      expect(progress.at(-1)?.fraction).toBe(1);
+      await processor.destroy();
+    });
+
     it("fills each source's form values, keeping fields with the same name apart", async () => {
       const processor = harness.createProcessor();
       const form = await harness.form();
@@ -181,6 +217,32 @@ export function describePdfProcessorContract(name: string, harness: PdfProcessor
       await expect(
         processor.build({ sources: [{ id: "a", bytes }], pages: [{ source: "a", pageIndex: 1 }] }),
       ).rejects.toThrow(RangeError);
+      await processor.destroy();
+    });
+
+    it("rejects an overlay that refers to an unknown source or page, or to an unreadable one", async () => {
+      const processor = harness.createProcessor();
+      const a = { id: "a", bytes: await harness.pages([A4]) };
+      const broken = { id: "broken", bytes: new TextEncoder().encode("not a PDF") };
+      const page = { source: "a", pageIndex: 0 };
+      await expect(
+        processor.build({
+          sources: [a],
+          pages: [{ ...page, overlay: { source: "b", pageIndex: 0 } }],
+        }),
+      ).rejects.toThrow(TypeError);
+      await expect(
+        processor.build({
+          sources: [a],
+          pages: [{ ...page, overlay: { source: "a", pageIndex: 1 } }],
+        }),
+      ).rejects.toThrow(RangeError);
+      await expect(
+        processor.build({
+          sources: [a, broken],
+          pages: [{ ...page, overlay: { source: "broken", pageIndex: 0 } }],
+        }),
+      ).rejects.toSatisfy((error) => isPdfError(error, "INVALID_PDF"));
       await processor.destroy();
     });
 

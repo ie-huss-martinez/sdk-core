@@ -16,8 +16,35 @@ export interface PdfBuildSource {
 }
 
 /**
+ * A page drawn over a {@link PdfBuildPage}: a page of another source, or of
+ * the same one, such as a page of ink over the page it was written on
+ * (ADR 0011).
+ *
+ * The overlay is drawn over the page's content as the page is displayed,
+ * after its rotation: upright, and centred on it. An overlay that's wider or
+ * taller than the displayed page is scaled down to fit, keeping its
+ * proportions. A smaller one keeps its size; it's never enlarged. So an
+ * overlay for a page turned a quarter turn has the page's displayed size:
+ * its width is the page's height. The overlay page's own `/Rotate` is
+ * applied first, and each page is measured by its trim box, which is the
+ * crop box or the media box when it has none.
+ *
+ * Where the overlay page draws nothing, the page shows through. The overlay
+ * page's links and form fields come with it, placed as its content is, and a
+ * field whose name is taken is renamed as in a merge.
+ *
+ * @public
+ */
+export interface PdfPageOverlay {
+  /** The {@link PdfBuildSource.id} the overlay page comes from. */
+  readonly source: string;
+  /** The overlay page's zero-based index in its source. */
+  readonly pageIndex: number;
+}
+
+/**
  * One page of the output: a page of a source, with a rotation added to the
- * page's own, and the annotations to draw on it.
+ * page's own, a page to draw over it, and the annotations to draw on it.
  *
  * @public
  */
@@ -28,6 +55,8 @@ export interface PdfBuildPage {
   readonly pageIndex: number;
   /** Rotation added to the page's own `/Rotate`. Defaults to 0. */
   readonly rotation?: PdfRotation;
+  /** A page to draw over this one, once it's rotated. */
+  readonly overlay?: PdfPageOverlay;
   /** Annotations to flatten into the page's content. */
   readonly annotations?: readonly PdfAnnotation[];
 }
@@ -72,7 +101,8 @@ export interface PdfEncryption {
  *
  * The processor runs the steps in this order, skipping those with nothing to
  * do: fill each source's form values, assemble the pages with their
- * rotations, flatten the annotations, compress, encrypt.
+ * rotations, draw the page overlays, flatten the annotations, compress,
+ * encrypt.
  *
  * @public
  */
@@ -84,11 +114,11 @@ export interface PdfBuildJob {
 }
 
 /**
- * The steps of a build, reported as progress.
+ * The steps of a build, in the order they run, reported as progress.
  *
  * @public
  */
-export type PdfBuildStep = "fill" | "assemble" | "flatten" | "compress" | "encrypt";
+export type PdfBuildStep = "fill" | "assemble" | "overlay" | "flatten" | "compress" | "encrypt";
 
 /**
  * Progress of a build: the step running now, and the fraction of the whole

@@ -82,6 +82,32 @@ Deleting and moving work on the thumbnails' selection, so their keys work only w
 
 `toPdfPlanDocument(plan, sources)` writes the session's plan as portable JSON, `hm-pdf-plan` version 1: the pages in order, their rotations and annotations, and form values, with each source's page count. It holds no PDF bytes and no file names, so store the source files alongside it. `readPdfPlanDocument(json)` reads one back, refusing another format or a later version with `UNSUPPORTED_FORMAT`, and anything invalid with `INVALID_DOCUMENT`, each with a stable `details.reason`. The JSON Schemas ship with the package, under `@hussmartinez/pdf-sdk/formats/`, for validating documents elsewhere, such as on a server. [The format record](docs/formats/hm-pdf-plan.md) describes the format, how to load its schemas, and its conformance vectors ([sdk-core ADR 0045](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0045-portable-formats-and-conformance-vectors.md)).
 
+## Building a PDF without the editor
+
+`createPdfProcessor()`, from the server-safe entry, builds a document in the processing worker from a job: the sources, the pages in order with their rotations, and whether to compress and encrypt. It's what the editor's export runs ([ADR 0003](docs/adr/0003-page-plan-document-model.md)).
+
+A page can have an `overlay`: a page of another source, or of the same one, drawn over it, such as a page of ink over the page it was written on ([ADR 0011](docs/adr/0011-drawing-one-page-over-another.md)).
+
+```ts
+import { createPdfProcessor } from "@hussmartinez/pdf-sdk";
+
+const processor = createPdfProcessor();
+const bytes = await processor.build({
+  sources: [
+    { id: "report", bytes: report },
+    { id: "ink", bytes: ink },
+  ],
+  pages: [
+    { source: "report", pageIndex: 0, overlay: { source: "ink", pageIndex: 0 } },
+    { source: "report", pageIndex: 1 },
+  ],
+});
+```
+
+- **Where it lands:** on the page as displayed, after its rotation, upright and centred. A larger overlay is scaled down to fit, and a smaller one keeps its size, so make the overlay page the size the page is shown at: for a page turned a quarter turn, its width is the page's height.
+- **What shows:** only what the overlay page paints covers the page. Its links and form fields come with it.
+- **Progress:** `onProgress` reports an `"overlay"` step for a job that has one.
+
 ## Assets and Content Security Policy
 
 The SDK runs two workers: pdf.js's, which renders, and one with qpdf and pdf-lib, which builds documents. Some documents also need extra data: CMaps for CJK text whose fonts aren't embedded, standard fonts, and decoders for JBIG2 and JPX images, which are common in scanned documents. The SDK never fetches any of them from another origin. Choose one of two modes ([ADR 0002](docs/adr/0002-workers-and-assets.md), [ADR 0006](docs/adr/0006-icc-colour-and-self-hosted-assets.md), [ADR 0007](docs/adr/0007-one-assets-directory.md)):
