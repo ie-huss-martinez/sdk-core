@@ -51,6 +51,7 @@ describe("commitlint preset", () => {
   });
 });
 
-// sdk-ci's pr-title action checks pull request titles against this preset's
-// TYPES, SUBJECT_PATTERN and PR_TITLE_MAX_LENGTH, and sdk-ci's tests check
-// that the two agree (test/pr-title.test.js there).
+// sdk-core's pr-title workflow checks pull request titles with the same
+// types, subject pattern and length as this preset's TYPES, SUBJECT_PATTERN
+// and PR_TITLE_MAX_LENGTH. Nothing checks that the two agree: change them
+// together.

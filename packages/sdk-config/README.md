@@ -751,7 +751,7 @@ It reports:
 playwright 1.65.1 is locked, but ci/Dockerfile's image is Playwright 1.65.0.
 ```
 
-It exits with 0 when everything matches, 1 when something differs, and 2 for a usage error or a repository it can't read. It replaces a repository's own `ci-image` test. That test's remaining case, that no workflow has an image of its own, is `sdk-ci`'s `check-workflows`.
+It exits with 0 when everything matches, 1 when something differs, and 2 for a usage error or a repository it can't read. It replaces a repository's own `ci-image` test. That test's remaining case, that no workflow has an image of its own, is left to review: the family's workflows are all in `sdk-core`, and read `ci/Dockerfile`.
 
 **Dependabot** should propose the packages together, apart from other updates, and that pull request is merged together with the docker update for `ci/Dockerfile`:
 
