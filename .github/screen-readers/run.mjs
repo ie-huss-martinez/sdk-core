@@ -136,49 +136,28 @@ async function openPage(url) {
   };
 }
 
-/** Settings whose key names a hint, anywhere in VoiceOver's settings, turned off. */
-function hintsOff(settings) {
-  /** @type {Record<string, unknown>} */
-  const off = {};
-  const found = [];
-  const visit = (object, target, path) => {
-    for (const [key, value] of Object.entries(object ?? {})) {
-      if (value && typeof value === "object" && !Array.isArray(value)) {
-        const inner = {};
-        visit(value, inner, [...path, key]);
-        if (Object.keys(inner).length > 0) {
-          target[key] = inner;
-        }
-      } else if (/hint/i.test(key)) {
-        found.push({ key: [...path, key].join("."), value });
-        if (value === true || value === 1) {
-          target[key] = typeof value === "boolean" ? false : 0;
-        }
-      }
-    }
-  };
-  visit(settings, off, []);
-  return { off, found };
-}
+/**
+ * VoiceOver's setting for its spoken instructions, such as "You are currently
+ * on a slider. To start interacting with the slider, press…": "Speak
+ * instructions" in VoiceOver Utility's verbosity hints. Off, so that a step
+ * hears what the page says, not how to use VoiceOver. Found among the
+ * settings guidepup reads, on the hosted macOS runner.
+ */
+const VOICEOVER_SETTINGS = { SCRShouldOutputVOInstructions: false };
 
-/** Starts the screen reader. VoiceOver starts with its spoken hints off. */
+/** Starts the screen reader. VoiceOver starts with its spoken instructions off. */
 async function startReader() {
   if (readerName === "nvda") {
     await reader.start();
     return {};
   }
-  await voiceOver.start();
+  await voiceOver.start({ settings: VOICEOVER_SETTINGS });
   const settings = voiceOver.getSettings();
-  const { off, found } = hintsOff(settings);
-  await voiceOver.stop();
-  print(`VoiceOver's hint settings: ${JSON.stringify(found)}`);
-  await voiceOver.start({ settings: off });
-  return {
-    voiceOverHintSettings: found,
-    voiceOverSettingsApplied: off,
-    // Every setting's name, to find the one for hints if none says so.
-    voiceOverSettingKeys: Object.keys(settings),
-  };
+  const applied = Object.fromEntries(
+    Object.keys(VOICEOVER_SETTINGS).map((key) => [key, settings[key]]),
+  );
+  print(`VoiceOver's settings after start: ${JSON.stringify(applied)}`);
+  return { voiceOverSettings: applied };
 }
 
 const count = async () => (await reader.spokenPhraseLog()).length;
