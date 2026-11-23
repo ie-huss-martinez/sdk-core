@@ -21,7 +21,7 @@ describe("ReorderableList, spoken", () => {
       ["Press ↑.", "{ArrowUp}", ["gridcell, Photo"]],
       ["Press ↑ again.", "{ArrowUp}", ["gridcell, Title"]],
       ["Press Ctrl+↓.", "{Control>}{ArrowDown}{/Control}", ["gridcell, Photo"]],
-      ["Press →.", "{ArrowRight}", ["button, Show Photo, pressed"]],
+      ["Press →.", "{ArrowRight}", ["gridcell, Show Photo, pressed"]],
       // NVDA says "not pressed", then "pressed".
       ["Press Space.", "[Space]", []],
       ["Press Space again.", "[Space]", []],

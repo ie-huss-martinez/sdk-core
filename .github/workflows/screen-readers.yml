@@ -13,6 +13,11 @@ on:
   schedule:
     - cron: "23 5 * * 1" # Mondays, 05:23 UTC
   workflow_dispatch:
+    inputs:
+      scripts:
+        description: "Scripts to run, comma-separated, such as list,lanes. Empty runs them all. learn runs in learn-sdk's own job, with its Thai voice."
+        required: false
+        default: ""
   pull_request:
     paths:
       - .github/screen-readers/**
@@ -112,7 +117,16 @@ jobs:
       - name: Run the scripts
         env:
           BROWSER: ${{ matrix.browser }}
-        run: node run.mjs --reader nvda --browser "$BROWSER" --scripts list,list-controls,lanes,moving-clips --out transcripts --assert
+          SCRIPTS: ${{ inputs.scripts || 'list,list-controls,lanes,moving-clips' }}
+        # learn needs learn-sdk's site and the Thai voice, which only the
+        # learn job has, so it runs there.
+        run: |
+          scripts=$(printf '%s' "$SCRIPTS" | tr ',' '\n' | tr -d ' \t' | grep -vx learn | paste -sd, - || true)
+          if [ -z "$scripts" ]; then
+            echo "::notice::No script for this job: learn runs in the learn job."
+            exit 0
+          fi
+          node run.mjs --reader nvda --browser "$BROWSER" --scripts "$scripts" --out transcripts --assert
 
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -127,6 +141,8 @@ jobs:
   learn:
     name: learn (nvda)
     needs: build
+    # A run by hand installs the Thai voice only when it asks for learn.
+    if: ${{ !inputs.scripts || contains(inputs.scripts, 'learn') }}
     runs-on: windows-latest
     timeout-minutes: 45
     defaults:
@@ -231,7 +247,8 @@ jobs:
       - name: Run the scripts
         env:
           RUNS: ${{ github.event_name == 'pull_request' && '3' || '1' }}
-        run: node run.mjs --reader voiceover --browser safari --scripts list,list-controls,lanes,moving-clips,learn --out transcripts --runs "$RUNS"
+          SCRIPTS: ${{ inputs.scripts || 'list,list-controls,lanes,moving-clips,learn' }}
+        run: node run.mjs --reader voiceover --browser safari --scripts "$SCRIPTS" --out transcripts --runs "$RUNS"
 
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

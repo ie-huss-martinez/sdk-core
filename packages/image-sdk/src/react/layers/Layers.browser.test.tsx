@@ -406,11 +406,19 @@ describe("the layers (docs/adr/0013)", () => {
     // At the top there's nowhere to go: the key is still taken, and nothing changes.
     expect(await key(select("under"), { key: "ArrowUp", altKey: true })).toBe(true);
     expect(keys()).toEqual(["middle", "over", "under"]);
-    // From a row's other button, too, and focus stays on that button.
+    // From a row's other button, too. The button's cell has focus in its
+    // place, so screen readers keep sending the list its keys (ui's ADR
+    // 0009, sdk-core#202), and focus stays on that cell.
+    const visibilityCell = () =>
+      visibility("under")?.closest<HTMLElement>('[data-hm-cell="control"]') ?? null;
     await act(async () => visibility("under")?.focus());
-    expect(await key(visibility("under"), { key: "ArrowDown", altKey: true })).toBe(true);
+    expect(document.activeElement).toBe(visibilityCell());
+    expect(await key(visibilityCell(), { key: "ArrowDown", altKey: true })).toBe(true);
     expect(keys()).toEqual(["middle", "under", "over"]);
-    await until(() => document.activeElement === visibility("under"), "focus on its other button");
+    await until(
+      () => document.activeElement === visibilityCell(),
+      "focus on its other button's cell",
+    );
     await said("Moved Rectangle down. It's layer 2 of 3.");
     // Each move is one step.
     expect(session().undo()).toBe(true);

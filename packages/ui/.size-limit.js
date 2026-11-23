@@ -126,12 +126,15 @@ export default [
   entryBudget({
     name: "React entry (./react), with the shared code it loads",
     entry: "dist/react.js",
-    // 25 kB; 24.71 kB with Heading and HeadingLevelProvider (sdk-core ADR
-    // 0058), which only the Dialog and editor scenarios import, through
-    // Dialog's context for its content's headings. Every component counts here, though no
+    // 26 kB; 25.53 kB once ReorderableList kept focus on its cells and
+    // entered at its Tab stop under NVDA (sdk-core#201, #202), +0.60 kB of it
+    // in the ReorderableList import below. Before, 25 kB; 24.71 kB with
+    // Heading and HeadingLevelProvider (sdk-core ADR 0058), which only the
+    // Dialog and editor scenarios import, through Dialog's context for its
+    // content's headings. Every component counts here, though no
     // application ships them all, so a component's pull request raises it as
     // expected growth; review reads the import scenarios below to judge it.
-    limit: "25 kB",
+    limit: "26 kB",
   }),
   entryBudget({
     name: "Stylesheet (./styles.css)",
@@ -150,8 +153,10 @@ export default [
   scenario("the floor, IconButton with one icon", ["IconButton", "UndoIcon"], "0.9 kB"),
   // 2 kB; 1.86 kB.
   scenario("Dialog", ["Dialog"], "2 kB"),
-  // 3 kB; 2.51 kB.
-  scenario("ReorderableList", ["ReorderableList", "ReorderableListItem"], "3 kB"),
+  // 3.5 kB; 3.06 kB once focus stayed on cells and entered at the Tab stop
+  // under NVDA (sdk-core#201, #202), with names that follow each control's
+  // state, native checkboxes included, and text fields that keep focus.
+  scenario("ReorderableList", ["ReorderableList", "ReorderableListItem"], "3.5 kB"),
   // 9 kB; 8.52 kB. The largest component, which only audio-sdk uses so far.
   scenario(
     "the Timeline with lanes",

@@ -214,8 +214,11 @@ async function runScript(script, attempt, info) {
     page = await openPage(url);
     transcript.browserVersion = page.version;
     // Let the page load and the screen reader finish reading it before the
-    // first key, so the first step hears only its own speech.
-    await sleep(8_000);
+    // first key, so the first step hears only its own speech. Firefox, opened
+    // by the OS, starts slower, and NVDA says nothing in it until it has
+    // read the page: with 8 s, a first Tab that did reach the list was
+    // heard as nothing.
+    await sleep(browserName === "firefox" ? 15_000 : 8_000);
     await waitForSpeech(count, { firstMs: 3_000, quietMs: 2_000 });
     for (const step of script.steps) {
       const before = await count();
@@ -283,7 +286,14 @@ async function warmUp() {
   await sleep(3_000);
 }
 
-const names = values.scripts.split(",");
+const names = values.scripts
+  .split(",")
+  .map((name) => name.trim())
+  .filter(Boolean);
+if (names.length === 0) {
+  process.stderr.write(`No script named in --scripts "${values.scripts}".\n`);
+  process.exit(2);
+}
 const scripts = await Promise.all(
   names.map(async (name) => (await import(`./scripts/${name}.mjs`)).default),
 );
