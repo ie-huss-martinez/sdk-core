@@ -26,6 +26,7 @@
     "src/testing/firefox-labelled-by-setup.js",
     "src/testing/fonts.js",
     "src/testing/require-image.js",
+    "src/testing/screen-reader.js",
     "src/testing/timeouts.js",
     "src/testing/visual.js"
   ]

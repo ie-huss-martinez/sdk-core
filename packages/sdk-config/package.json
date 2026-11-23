@@ -69,6 +69,10 @@
       "types": "./src/testing/require-image.d.ts",
       "default": "./src/testing/require-image.js"
     },
+    "./testing/screen-reader": {
+      "types": "./src/testing/screen-reader.d.ts",
+      "default": "./src/testing/screen-reader.js"
+    },
     "./testing/timeouts": {
       "types": "./src/testing/timeouts.d.ts",
       "default": "./src/testing/timeouts.js"
@@ -112,6 +116,7 @@
   "peerDependencies": {
     "@biomejs/biome": "^2.6.2",
     "@commitlint/cli": "^21.2.4",
+    "@guidepup/virtual-screen-reader": "^0.33.0",
     "@microsoft/api-extractor": "^7.60.1",
     "@playwright/test": "^1.65.0",
     "@typescript-eslint/parser": "^8.73.0",
@@ -133,6 +138,9 @@
       "optional": true
     },
     "@commitlint/cli": {
+      "optional": true
+    },
+    "@guidepup/virtual-screen-reader": {
       "optional": true
     },
     "@microsoft/api-extractor": {
@@ -188,6 +196,7 @@
     "@commitlint/lint": "catalog:",
     "@commitlint/load": "catalog:",
     "@commitlint/types": "catalog:",
+    "@guidepup/virtual-screen-reader": "catalog:",
     "@microsoft/api-extractor": "catalog:",
     "@playwright/test": "catalog:",
     "@secretlint/node": "catalog:",

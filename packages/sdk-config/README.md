@@ -628,6 +628,33 @@ Tests that check behaviour before any gesture, such as autoplay, run in a file t
 
 It returns `{ available, reason, clockRatio }`. `reason` is empty when audio is available, and otherwise says why, such as ` (skipped: the AudioContext stays "suspended", so there's no audio output; sdk-core ADR 0043)`. It's test code only, with TypeScript declarations: import it only from tests.
 
+### Testing: `startScreenReader`
+
+For browser tests that check what a screen reader says while a test works a component ([ADR 0065](../../docs/adr/0065-screen-reader-tests-with-a-virtual-screen-reader.md)). It wraps [`@guidepup/virtual-screen-reader`](https://github.com/guidepup/virtual-screen-reader), which hears focus moving, by any means, and live regions changing, as a screen reader does. Drive the component with real keys and compare the phrases after each step:
+
+```ts
+import { startScreenReader } from "@hussmartinez/sdk-config/testing/screen-reader";
+import { expect, it, onTestFinished } from "vitest";
+import { userEvent } from "vitest/browser";
+
+it("announces a move", async () => {
+  // … render the component …
+  const reader = await startScreenReader();
+  onTestFinished(() => reader.stop());
+
+  expect(await reader.spoken(() => userEvent.keyboard("{Tab}"))).toEqual(["gridcell, Photo"]);
+  expect(await reader.spoken(() => userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}"))).toEqual([
+    "polite: Photo moved to position 3 of 4",
+  ]);
+});
+```
+
+- **`spoken(step)`** runs the step, waits until speech has stopped, 150 ms without a new phrase by default, and returns what was said since the previous call. A live region that was only emptied says nothing, as with a real screen reader. A step that keeps speaking fails after 3 seconds. `startScreenReader({ container, quietMs, timeoutMs })` changes these.
+- **One reader at a time.** Stop it in every test that starts one.
+- **It isn't a real screen reader.** It doesn't announce the containers focus enters, or a change to the focused control's own state or value, which NVDA and VoiceOver do. Those stay with a manual pass, or real screen readers.
+
+Install `@guidepup/virtual-screen-reader` as a dev dependency, pinned to the catalog's version: it's an optional peer dependency. It's test code only, with TypeScript declarations: import it only from tests.
+
 ### Testing: visual regression
 
 For every SDK's editor and element ([ADR 0048](../../docs/adr/0048-visual-regression-for-sdk-editors.md)): screenshots of each designed state on the built example page, in light and dark and both densities, compared with committed baselines on Chromium, inside the browser test image that `ci/Dockerfile` pins.

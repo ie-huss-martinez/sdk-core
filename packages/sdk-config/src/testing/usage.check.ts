@@ -46,6 +46,11 @@ import requireBrowserTestImage, {
   webServersFor,
 } from "@hussmartinez/sdk-config/testing/require-image";
 import {
+  type ScreenReader,
+  type ScreenReaderOptions,
+  startScreenReader,
+} from "@hussmartinez/sdk-config/testing/screen-reader";
+import {
   browserTimeouts,
   endToEndTimeouts,
   unitTimeouts,
@@ -84,6 +89,21 @@ export async function usage(): Promise<void> {
   const wrong: number = file.subject;
 
   void [skipped, ratio, errors, same, problem, wrong];
+}
+
+/** The screen reader, as a browser test uses it: a step, and what it said. */
+export async function spoken(): Promise<string[]> {
+  const options: ScreenReaderOptions = { container: document.body, quietMs: 150, timeoutMs: 3000 };
+  const reader: ScreenReader = await startScreenReader(options);
+  try {
+    const phrases: string[] = await reader.spoken(() => userEvent.keyboard("{Tab}"));
+    const quiet: string[] = await reader.spoken();
+    // @ts-expect-error: a step is a function, not the keys.
+    await reader.spoken("{Tab}");
+    return [...phrases, ...quiet];
+  } finally {
+    await reader.stop();
+  }
 }
 
 /** The guard, as a script of a repository's own would use it. */
