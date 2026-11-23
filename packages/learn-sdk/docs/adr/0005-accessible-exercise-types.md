@@ -46,6 +46,7 @@ The `disabled` failure is a real trap. The row's one Tab stop landed on a matche
 - **Never by colour alone:** right and wrong carry an icon and text from the catalogue, such as "Correct" or "Not quite: 2 of 3 words placed", and colours come from tokens that meet contrast.
 - **Announced:** each player has one polite live region (`role="status"`). It announces placements, moves, matches, check results and the next item's number, with catalogue messages, as plain text.
 - **Focus is never lost:** after checking, focus stays where it was; after "next", it moves to the new item's prompt; nothing is left focused on a removed element.
+  - **Amended, 2026-11-24: the heading can take focus only while it's given it.** NVDA's browse mode moves focus to any element that can take it, and the exercise's heading always could, with `tabindex="-1"`, for focus after "next". So NVDA's first Tab landed on the heading, before the choices, and Enter there did nothing ([#206](https://github.com/ie-huss-martinez/sdk-core/issues/206), found by the real screen-reader workflow of [sdk-core ADR 0066](../../../../docs/adr/0066-real-screen-readers-on-a-schedule.md)). The player now sets `tabindex="-1"` when it moves focus to the heading, and removes it when focus leaves.
 - **The editor ties every validation issue to its field,** with `aria-invalid` and `aria-describedby` pointing to the issue's message ([ADR 0002](0002-content-as-hostile-input.md)).
 
 ### Language, time, audio and touch
