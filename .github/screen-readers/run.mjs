@@ -108,6 +108,27 @@ function endFirefox() {
 }
 
 /**
+ * Brings Firefox's window to the front. Windows keeps a window opened by a
+ * process in the background from taking the keyboard, and a later script's
+ * keys, in a tab Firefox opened for it, were heard as nothing.
+ *
+ * @returns {boolean} Whether Windows activated it.
+ */
+function activateFirefox() {
+  try {
+    return (
+      run("powershell", [
+        "-NoProfile",
+        "-Command",
+        "(New-Object -ComObject WScript.Shell).AppActivate('Mozilla Firefox')",
+      ]) === "True"
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Opens a page in the real browser and returns how to close it.
  *
  * @param {string} url
@@ -236,6 +257,9 @@ async function runScript(script, attempt, info) {
     // read the page: with 8 s, a first Tab that did reach the list was
     // heard as nothing.
     await sleep(browserName === "firefox" ? 15_000 : 8_000);
+    if (browserName === "firefox") {
+      transcript.activated = activateFirefox();
+    }
     await waitForSpeech(count, { firstMs: 3_000, quietMs: 2_000 });
     // "Tab from the top of the page": NVDA's Control+Home puts its browse
     // cursor there. In Firefox, NVDA's first keys were silent, and in one
