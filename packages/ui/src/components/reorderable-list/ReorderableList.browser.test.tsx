@@ -413,6 +413,53 @@ describe("ReorderableList", () => {
     await vi.waitFor(() => expect(cell.getAttribute("aria-label")).toBe("Locked, not pressed"));
   });
 
+  it("names a native checkbox's cell after its checkedness, and follows it", async () => {
+    const container = render(
+      <ReorderableList label="Layers" selectedId="a">
+        <ReorderableListItem
+          id="a"
+          label="A"
+          controls={[<input key="on" type="checkbox" aria-label="Shown" defaultChecked />]}
+        >
+          A
+        </ReorderableListItem>
+      </ReorderableList>,
+    );
+    const cell = container.querySelector('[data-hm-cell="control"]') as HTMLElement;
+    await vi.waitFor(() => expect(cell.getAttribute("aria-label")).toBe("Shown, checked"));
+    act(() => item(container, "a").focus());
+    await press("{ArrowRight}");
+    await press(" ");
+    expect((container.querySelector("input") as HTMLInputElement).checked).toBe(false);
+    await vi.waitFor(() => expect(cell.getAttribute("aria-label")).toBe("Shown, not checked"));
+  });
+
+  it("leaves Escape in a text field to the field when it takes it", async () => {
+    const container = render(
+      <ReorderableList label="Layers" selectedId="a">
+        <ReorderableListItem
+          id="a"
+          label="A"
+          controls={[
+            <input
+              key="name"
+              aria-label="Name"
+              onKeyDown={(event) => {
+                if (event.key === "Escape") event.preventDefault();
+              }}
+            />,
+          ]}
+        >
+          A
+        </ReorderableListItem>
+      </ReorderableList>,
+    );
+    const field = container.querySelector("input") as HTMLInputElement;
+    await userEvent.click(field);
+    await userEvent.keyboard("{Escape}");
+    expect(document.activeElement).toBe(field);
+  });
+
   it("lets a text field among a row's controls be typed into, and Escape returns to its cell", async () => {
     const onRemove = vi.fn();
     const container = render(
@@ -527,6 +574,9 @@ describe("ReorderableList", () => {
     expect(onRemove.mock.calls).toEqual([["Photo"]]);
     expect(rows(container)).toEqual(["Title", "Shape", "Background"]);
     expect(document.activeElement).toBe(item(container, "Shape"));
+    // The row that took its place is selected, as focus on an item selects:
+    // the list put focus there, not an entry from outside.
+    expect(selected(container)).toBe("Shape");
 
     // The last row's place is taken by the new last row; from a control, its control.
     toggle(container, "Background").focus();

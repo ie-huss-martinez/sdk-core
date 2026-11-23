@@ -207,7 +207,13 @@ function syncControlCells(list: HTMLElement, words: ControlWords): void {
     control.tabIndex = -1;
     const label = nameOf(control);
     const pressed = control.getAttribute("aria-pressed");
-    const checked = control.getAttribute("aria-checked");
+    // A native checkbox or radio states its checkedness itself.
+    const native =
+      control instanceof HTMLInputElement &&
+      (control.type === "checkbox" || control.type === "radio")
+        ? String(control.checked)
+        : null;
+    const checked = control.getAttribute("aria-checked") ?? native;
     const state =
       pressed === "true"
         ? "pressed"
@@ -362,7 +368,8 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
       if (!element || typeof MutationObserver === "undefined") {
         return;
       }
-      const observer = new MutationObserver(() => syncControlCells(element, words.current));
+      const sync = (): void => syncControlCells(element, words.current);
+      const observer = new MutationObserver(sync);
       observer.observe(element, {
         subtree: true,
         childList: true,
@@ -370,7 +377,14 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
         attributes: true,
         attributeFilter: ["aria-pressed", "aria-checked", "aria-label", "aria-labelledby"],
       });
-      return () => observer.disconnect();
+      // A native checkbox changes its checkedness, not an attribute.
+      element.addEventListener("change", sync);
+      element.addEventListener("input", sync);
+      return () => {
+        observer.disconnect();
+        element.removeEventListener("change", sync);
+        element.removeEventListener("input", sync);
+      };
     }, []);
 
     // After every render: one Tab stop, and the focus a move or a removal
@@ -399,11 +413,19 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
           syncTabStop(element, target);
           // A moved item keeps its selection as it was; after a removal, the
           // item that took its place is focused, and selected, as any is.
+          // The list's own focus, not an entry from outside, though the
+          // removed row took focus with it.
           quiet.current = change.kind === "move";
+          if (target) {
+            requested.add(target);
+          }
           try {
             target?.focus();
           } finally {
             quiet.current = false;
+            if (target) {
+              requested.delete(target);
+            }
           }
         }
         if (row && change.kind === "move" && announceMoves) {
@@ -460,6 +482,9 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
       onKeyDown?.(event);
       // Whatever was asked for before, the user has moved on.
       pending.current = undefined;
+      if (event.defaultPrevented || event.nativeEvent.isComposing) {
+        return;
+      }
       if (event.key === "Escape" && editsText(event.target)) {
         // Escape leaves a text field among a row's controls for its cell.
         const fieldCell = (event.target as HTMLElement).closest<HTMLElement>(
