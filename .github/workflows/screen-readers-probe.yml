@@ -57,9 +57,24 @@ jobs:
         continue-on-error: true
         run: npx --no-install playwright test
 
+      # A fresh Firefox opens its Terms of Use and onboarding over the page.
+      # Enterprise policies, read from its distribution folder, skip them.
       - name: NVDA with real Firefox, without Playwright
         run: |
-          ls "/c/Program Files/Mozilla Firefox/firefox.exe"
+          "/c/Program Files/Mozilla Firefox/firefox.exe" --version || true
+          mkdir -p "/c/Program Files/Mozilla Firefox/distribution"
+          cat > "/c/Program Files/Mozilla Firefox/distribution/policies.json" <<'JSON'
+          {
+            "policies": {
+              "SkipTermsOfUse": true,
+              "DontCheckDefaultBrowser": true,
+              "DisableTelemetry": true,
+              "OverrideFirstRunPage": "",
+              "OverridePostUpdatePage": "",
+              "UserMessaging": { "SkipOnboarding": true, "ExtensionRecommendations": false, "FeatureRecommendations": false, "MoreFromMozilla": false }
+            }
+          }
+          JSON
           node native.mjs nvda-firefox
 
       - if: always()

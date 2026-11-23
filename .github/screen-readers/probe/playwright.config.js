@@ -8,7 +8,7 @@ export default {
   retries: 0,
   timeout: 180_000,
   reporter: [["list"]],
-  use: { headless: false, video: "retain-on-failure" },
+  use: { headless: false },
   // Real Chrome only: Firefox and Safari run without Playwright (native.mjs).
   projects: [{ name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome" } }],
 };
