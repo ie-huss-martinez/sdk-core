@@ -1,0 +1,262 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ie-huss-martinez/sdk-core/blob/main/packages/notes-sdk/formats/hm-notes-page/v1.schema.json",
+  "title": "hm-notes-page, version 1",
+  "description": "The contents of one page of a notebook: its items, from the bottom to the top (docs/formats/hm-notes-page.md, sdk-core ADR 0045). Positions and sizes are whole units, 100 to a PDF point. Beyond this schema, the reader checks that item ids are unique on the page, that a stroke's points are x, y, pressure triples with each pressure from 0 to 1,000, and that no text holds a lone surrogate. A page is read on its own, so the reader doesn't check that a link's page or an anchor's recording is in the notebook.",
+  "type": "object",
+  "required": ["format", "version", "id", "items"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "hm-notes-page"
+    },
+    "version": {
+      "const": 1
+    },
+    "id": {
+      "description": "The page's id, as its notebook lists it.",
+      "$ref": "#/$defs/id"
+    },
+    "items": {
+      "description": "The items, from the bottom to the top: up to 1,000,000.",
+      "type": "array",
+      "maxItems": 1000000,
+      "items": {
+        "$ref": "#/$defs/item"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "An identifier: 1 to 64 characters from A-Z, a-z, 0-9, _ and -.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "duration": {
+      "description": "A length of time, in whole milliseconds.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 8640000000000000
+    },
+    "color": {
+      "description": "A colour as #rrggbb, in lowercase.",
+      "type": "string",
+      "pattern": "^#[0-9a-f]{6}$"
+    },
+    "position": {
+      "description": "A position, in whole units from the page's top-left corner, with y growing downwards. There are 100 units to a PDF point. An item may reach up to 1,440,000 units outside its page.",
+      "type": "integer",
+      "minimum": -1440000,
+      "maximum": 2880000
+    },
+    "length": {
+      "description": "A width or a height, in whole units, from 1.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2880000
+    },
+    "assetName": {
+      "description": "A file's name: sha256: and the SHA-256 of its bytes, as 64 lowercase hexadecimal digits.",
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "assetSize": {
+      "description": "A file's size, in bytes.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "imageAsset": {
+      "description": "A reference to a picture's file. SVG is never one: it can carry scripts.",
+      "type": "object",
+      "required": ["asset", "mediaType", "size"],
+      "additionalProperties": false,
+      "properties": {
+        "asset": {
+          "$ref": "#/$defs/assetName"
+        },
+        "mediaType": {
+          "enum": ["image/png", "image/jpeg", "image/webp", "image/gif"]
+        },
+        "size": {
+          "$ref": "#/$defs/assetSize"
+        }
+      }
+    },
+    "audioAnchor": {
+      "description": "When an item was written during a recording, so playback can follow it.",
+      "type": "object",
+      "required": ["recording", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "recording": {
+          "description": "The recording's id, in the notebook's recordings.",
+          "$ref": "#/$defs/id"
+        },
+        "at": {
+          "description": "Milliseconds from the recording's start.",
+          "$ref": "#/$defs/duration"
+        }
+      }
+    },
+    "stroke": {
+      "description": "One stroke of ink.",
+      "type": "object",
+      "required": ["id", "type", "tool", "color", "size", "points"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "stroke"
+        },
+        "tool": {
+          "description": "A pen's stroke follows pressure. A highlighter's is translucent, and drawn under the pen's.",
+          "enum": ["pen", "highlighter"]
+        },
+        "color": {
+          "$ref": "#/$defs/color"
+        },
+        "size": {
+          "description": "The stroke's width at full pressure, in units: 0.1 to 72 points.",
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 7200
+        },
+        "points": {
+          "description": "The pen's path as flat x, y, pressure triples: 1 to 20,000 of them. x and y are positions in units. Pressure is from 0 to 1,000. A schema can't say that the count is a multiple of three, or bound every third number on its own: the reader checks both.",
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 60000,
+          "items": {
+            "$ref": "#/$defs/position"
+          }
+        },
+        "uniform": {
+          "description": "Present for a stroke of one width from end to end, whose pressures are ignored. Never false.",
+          "const": true
+        },
+        "audio": {
+          "$ref": "#/$defs/audioAnchor"
+        }
+      }
+    },
+    "text": {
+      "description": "A box of typed text. Its text wraps at the box's width, and its height follows from the text.",
+      "type": "object",
+      "required": ["id", "type", "x", "y", "width", "text", "size", "color"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "text"
+        },
+        "x": {
+          "$ref": "#/$defs/position"
+        },
+        "y": {
+          "$ref": "#/$defs/position"
+        },
+        "width": {
+          "$ref": "#/$defs/length"
+        },
+        "text": {
+          "description": "The text: up to 20,000 Unicode code points, with no lone surrogate. It's drawn as text, never interpreted as markup.",
+          "type": "string",
+          "maxLength": 20000
+        },
+        "size": {
+          "description": "The font size, in units: 4 to 288 points.",
+          "type": "integer",
+          "minimum": 400,
+          "maximum": 28800
+        },
+        "color": {
+          "$ref": "#/$defs/color"
+        },
+        "audio": {
+          "$ref": "#/$defs/audioAnchor"
+        }
+      }
+    },
+    "image": {
+      "description": "A picture placed on the page.",
+      "type": "object",
+      "required": ["id", "type", "x", "y", "width", "height", "image"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "image"
+        },
+        "x": {
+          "$ref": "#/$defs/position"
+        },
+        "y": {
+          "$ref": "#/$defs/position"
+        },
+        "width": {
+          "$ref": "#/$defs/length"
+        },
+        "height": {
+          "$ref": "#/$defs/length"
+        },
+        "image": {
+          "$ref": "#/$defs/imageAsset"
+        }
+      }
+    },
+    "link": {
+      "description": "An area of a page that leads to another page of the same notebook.",
+      "type": "object",
+      "required": ["id", "type", "x", "y", "width", "height", "page"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "link"
+        },
+        "x": {
+          "$ref": "#/$defs/position"
+        },
+        "y": {
+          "$ref": "#/$defs/position"
+        },
+        "width": {
+          "$ref": "#/$defs/length"
+        },
+        "height": {
+          "$ref": "#/$defs/length"
+        },
+        "page": {
+          "description": "The id of the page it leads to.",
+          "$ref": "#/$defs/id"
+        }
+      }
+    },
+    "item": {
+      "description": "Anything on a page, over its paper.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/stroke"
+        },
+        {
+          "$ref": "#/$defs/text"
+        },
+        {
+          "$ref": "#/$defs/image"
+        },
+        {
+          "$ref": "#/$defs/link"
+        }
+      ]
+    }
+  }
+}

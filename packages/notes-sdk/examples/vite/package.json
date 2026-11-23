@@ -1,0 +1,26 @@
+{
+  "name": "@hussmartinez/notes-sdk-example-vite",
+  "private": true,
+  "description": "A Vite React page that uses the built @hussmartinez/notes-sdk editor under the Content Security Policy the README gives, for the end-to-end tests.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build",
+    "start": "vite preview --port 4350 --strictPort"
+  },
+  "dependencies": {
+    "@hussmartinez/notes-sdk": "workspace:*",
+    "@hussmartinez/ui": "workspace:^",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@hussmartinez/sdk-config": "workspace:^",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:"
+  }
+}

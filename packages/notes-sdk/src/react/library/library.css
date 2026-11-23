@@ -1,0 +1,276 @@
+/*
+ * The library: a header of actions, the folders' trail, and a grid of
+ * folders and notebook covers. The covers are drawn here, from the design
+ * system's tokens: a coloured board with a spine and a label plate ruled
+ * like the notebook's paper (docs/adr/0001). States come from attributes:
+ * data-hm-cover and data-hm-template.
+ */
+@layer hm.sdk {
+  .hm-notes-library {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hm-notes-library-gap, var(--hm-gap-loose));
+    min-height: 0;
+    flex: 1;
+    padding: var(--hm-notes-library-inset, var(--hm-inset-loose));
+    overflow: auto;
+  }
+
+  .hm-notes-library-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--hm-notes-library-gap, var(--hm-gap-normal));
+  }
+
+  .hm-notes-library-title {
+    margin: 0;
+    margin-inline-end: auto;
+    font-size: var(--hm-font-size-title);
+  }
+
+  .hm-notes-library-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--hm-notes-library-gap, var(--hm-gap-tight));
+  }
+
+  .hm-notes-library-search {
+    flex: 1 1 100%;
+  }
+
+  .hm-notes-library-progress {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--hm-notes-library-gap, var(--hm-gap-normal));
+  }
+
+  .hm-notes-library-trail {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--hm-notes-library-gap, var(--hm-gap-tight));
+    margin: 0;
+  }
+
+  .hm-notes-library-state {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--hm-notes-library-gap, var(--hm-gap-normal));
+    padding: var(--hm-notes-library-inset, var(--hm-inset-loose));
+    text-align: center;
+  }
+
+  .hm-notes-library-state p {
+    margin: 0;
+  }
+
+  .hm-notes-library-empty-title {
+    font-size: var(--hm-font-size-title);
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-notes-library-grid {
+    display: grid;
+    grid-template-columns: repeat(
+        auto-fill,
+        minmax(var(--hm-notes-cover-width, calc(var(--hm-control-height, 4%) * 4)), 1fr)
+      );
+    gap: var(--hm-notes-library-grid-gap, var(--hm-gap-loose));
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hm-notes-library-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--hm-notes-library-gap, var(--hm-gap-tight));
+    min-width: 0;
+  }
+
+  .hm-notes-cover,
+  .hm-notes-folder {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hm-notes-cover-gap, var(--hm-gap-tight));
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-align: start;
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+
+  .hm-notes-cover:disabled {
+    cursor: default;
+  }
+
+  .hm-notes-cover:focus-visible,
+  .hm-notes-folder:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: var(--hm-focus-ring-offset);
+    border-radius: var(--hm-notes-cover-radius, var(--hm-radius-control));
+  }
+
+  .hm-notes-cover-art,
+  .hm-notes-folder-art {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    aspect-ratio: 3 / 4;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .hm-notes-cover {
+    --hm-notes-cover-color: var(--hm-color-accent);
+    --hm-notes-cover-on: var(--hm-color-on-accent);
+  }
+
+  .hm-notes-cover[data-hm-cover="green"] {
+    --hm-notes-cover-color: var(--hm-color-success);
+    --hm-notes-cover-on: var(--hm-color-on-success);
+  }
+
+  .hm-notes-cover[data-hm-cover="amber"] {
+    --hm-notes-cover-color: var(--hm-color-warning);
+    --hm-notes-cover-on: var(--hm-color-on-warning);
+  }
+
+  .hm-notes-cover[data-hm-cover="red"] {
+    --hm-notes-cover-color: var(--hm-color-danger);
+    --hm-notes-cover-on: var(--hm-color-on-danger);
+  }
+
+  .hm-notes-cover[data-hm-cover="gray"] {
+    --hm-notes-cover-color: var(--hm-color-border-strong);
+    --hm-notes-cover-on: var(--hm-color-bg);
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-cover-art {
+    padding: var(--hm-notes-cover-inset, var(--hm-inset-normal));
+    background: var(--hm-notes-cover-color);
+    /* The spine: a darker band down the binding edge. */
+    border-inline-start: var(--hm-space-3) solid
+      color-mix(in srgb, var(--hm-notes-cover-color) 70%, var(--hm-color-text));
+    border-radius: var(--hm-notes-cover-radius, var(--hm-radius-surface));
+    box-shadow: var(--hm-notes-cover-shadow, var(--hm-shadow-raised));
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-cover:disabled .hm-notes-cover-art {
+    opacity: var(--hm-opacity-disabled);
+  }
+
+  /* The label plate: the notebook's title on a piece of its own paper. */
+  .hm-notes-cover-label {
+    display: -webkit-box;
+    width: 100%;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow-wrap: anywhere;
+    text-align: center;
+  }
+
+  .hm-notes-cover-label::before {
+    content: attr(data-hm-title);
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-cover-label {
+    padding: var(--hm-notes-cover-label-inset, var(--hm-inset-tight));
+    font-weight: var(--hm-font-weight-strong);
+    line-height: var(--hm-line-height-tight);
+    color: var(--hm-notes-cover-label-text, var(--hm-color-text));
+    background-color: var(--hm-notes-cover-label-bg, var(--hm-color-surface));
+    border-radius: var(--hm-notes-cover-label-radius, var(--hm-radius-sm));
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) [data-hm-template="lined"] .hm-notes-cover-label {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--hm-space-3) - var(--hm-border-width-1)),
+      var(--hm-color-border) calc(var(--hm-space-3) - var(--hm-border-width-1)),
+      var(--hm-color-border) var(--hm-space-3)
+    );
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) [data-hm-template="grid"] .hm-notes-cover-label {
+    background-image:
+      repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent calc(var(--hm-space-3) - var(--hm-border-width-1)),
+        var(--hm-color-border) calc(var(--hm-space-3) - var(--hm-border-width-1)),
+        var(--hm-color-border) var(--hm-space-3)
+      ),
+      repeating-linear-gradient(
+        to right,
+        transparent 0,
+        transparent calc(var(--hm-space-3) - var(--hm-border-width-1)),
+        var(--hm-color-border) calc(var(--hm-space-3) - var(--hm-border-width-1)),
+        var(--hm-color-border) var(--hm-space-3)
+      );
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) [data-hm-template="dotted"] .hm-notes-cover-label {
+    background-image: radial-gradient(
+      circle,
+      var(--hm-color-border-strong) var(--hm-border-width-1),
+      transparent var(--hm-border-width-2)
+    );
+    background-size: var(--hm-space-3) var(--hm-space-3);
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-folder-art {
+    color: var(--hm-notes-folder-icon, var(--hm-color-text-muted));
+    background: var(--hm-notes-folder-bg, var(--hm-color-surface-sunken));
+    border: var(--hm-border-width-1) solid var(--hm-notes-folder-border, var(--hm-color-border));
+    border-radius: var(--hm-notes-cover-radius, var(--hm-radius-surface));
+  }
+
+  .hm-notes-folder-art .hm-icon {
+    width: 40%;
+    height: auto;
+  }
+
+  .hm-notes-item-title {
+    overflow: hidden;
+    font-weight: var(--hm-font-weight-strong);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-item-meta {
+    color: var(--hm-notes-meta-text, var(--hm-color-text-muted));
+    font-size: var(--hm-font-size-small);
+  }
+
+  .hm-notes-item-more {
+    position: absolute;
+    inset-block-start: var(--hm-notes-cover-more-inset, var(--hm-space-1));
+    inset-inline-end: var(--hm-notes-cover-more-inset, var(--hm-space-1));
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-item-more {
+    background: var(--hm-notes-cover-more-bg, var(--hm-color-surface-raised));
+    box-shadow: var(--hm-notes-cover-more-shadow, var(--hm-shadow-raised));
+  }
+
+  .hm-notes-item-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--hm-notes-library-gap, var(--hm-gap-tight));
+  }
+}

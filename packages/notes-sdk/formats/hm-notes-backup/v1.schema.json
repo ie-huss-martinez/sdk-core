@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ie-huss-martinez/sdk-core/blob/main/packages/notes-sdk/formats/hm-notes-backup/v1.schema.json",
+  "title": "hm-notes-backup, version 1",
+  "description": "The manifest of a backup of the notes SDK: backup.json, the first entry of the backup's zip archive (docs/formats/hm-notes-backup.md, sdk-core ADR 0045). It lists the notebooks the archive holds and the folders they are in. Each notebook's own documents and files are under notebooks/<id>/ in the archive. Beyond this schema, the reader checks that folder ids and notebook ids are each unique, that every folder's parent is listed, that no folder is inside itself, that every notebook's folder is listed, and that no name holds a lone surrogate.",
+  "type": "object",
+  "required": ["format", "version", "createdAt", "scope", "folders", "notebooks"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "hm-notes-backup"
+    },
+    "version": {
+      "const": 1
+    },
+    "createdAt": {
+      "description": "When the backup was made.",
+      "$ref": "#/$defs/time"
+    },
+    "scope": {
+      "description": "Whether it holds the whole library, or the notebooks chosen.",
+      "enum": ["library", "notebooks"]
+    },
+    "folders": {
+      "description": "The folders the notebooks are in, with the folders those are in: up to 100,000.",
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "$ref": "#/$defs/folder"
+      }
+    },
+    "notebooks": {
+      "description": "The notebooks the archive holds: up to 100,000.",
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "required": ["id", "folder"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/id"
+          },
+          "folder": {
+            "description": "The id of the folder it's in, or null at the top.",
+            "oneOf": [
+              {
+                "$ref": "#/$defs/id"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "An identifier: 1 to 64 characters from A-Z, a-z, 0-9, _ and -.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "time": {
+      "description": "A time, in whole milliseconds since the Unix epoch, up to the last one a date holds.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 8640000000000000
+    },
+    "title": {
+      "description": "A title or a name: up to 200 Unicode code points, with no lone surrogate.",
+      "type": "string",
+      "maxLength": 200
+    },
+    "folder": {
+      "description": "A folder of the library. Folders nest.",
+      "type": "object",
+      "required": ["id", "name", "parent", "createdAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "$ref": "#/$defs/title"
+        },
+        "parent": {
+          "description": "The id of the folder it's in, or null at the top.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "$ref": "#/$defs/time"
+        }
+      }
+    }
+  }
+}

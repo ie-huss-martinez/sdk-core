@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ie-huss-martinez/sdk-core/blob/main/packages/notes-sdk/formats/hm-notes-library/v1.schema.json",
+  "title": "hm-notes-library, version 1",
+  "description": "The index of a library of notebooks: its folders, what it shows of each notebook without opening it, and when it was last backed up (docs/formats/hm-notes-library.md, sdk-core ADR 0045). Times are whole milliseconds since the Unix epoch. Beyond this schema, the reader checks that folder ids and notebook ids are each unique, that every folder's parent is a folder the index lists, that no folder is inside itself, that every notebook's folder is listed, and that no text holds a lone surrogate.",
+  "type": "object",
+  "required": ["format", "version", "folders", "notebooks", "lastBackupAt", "lastChangeAt"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "hm-notes-library"
+    },
+    "version": {
+      "const": 1
+    },
+    "folders": {
+      "description": "The folders: up to 100,000.",
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "$ref": "#/$defs/folder"
+      }
+    },
+    "notebooks": {
+      "description": "The notebooks, with those in the bin: up to 100,000.",
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "$ref": "#/$defs/summary"
+      }
+    },
+    "lastBackupAt": {
+      "description": "When the whole library was last backed up, or null.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "lastChangeAt": {
+      "description": "When a notebook last changed, or null for an empty library.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "An identifier: 1 to 64 characters from A-Z, a-z, 0-9, _ and -.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "time": {
+      "description": "A time, in whole milliseconds since the Unix epoch, up to the last one a date holds.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 8640000000000000
+    },
+    "title": {
+      "description": "A title or a name: up to 200 Unicode code points, with no lone surrogate.",
+      "type": "string",
+      "maxLength": 200
+    },
+    "template": {
+      "description": "The paper a page is ruled with.",
+      "enum": ["blank", "lined", "grid", "dotted"]
+    },
+    "cover": {
+      "description": "The colour of a notebook's cover, by name.",
+      "enum": ["blue", "green", "amber", "red", "gray"]
+    },
+    "folder": {
+      "description": "A folder of the library. Folders nest.",
+      "type": "object",
+      "required": ["id", "name", "parent", "createdAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "$ref": "#/$defs/title"
+        },
+        "parent": {
+          "description": "The id of the folder it's in, or null at the top.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "$ref": "#/$defs/time"
+        }
+      }
+    },
+    "summary": {
+      "description": "What the library shows of a notebook without opening it.",
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "cover",
+        "template",
+        "folder",
+        "pageCount",
+        "createdAt",
+        "updatedAt",
+        "deletedAt"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "cover": {
+          "$ref": "#/$defs/cover"
+        },
+        "template": {
+          "description": "The paper of its first page, drawn on its cover.",
+          "$ref": "#/$defs/template"
+        },
+        "folder": {
+          "description": "The id of the folder it's in, or null at the top.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pageCount": {
+          "description": "How many pages it has.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "createdAt": {
+          "$ref": "#/$defs/time"
+        },
+        "updatedAt": {
+          "$ref": "#/$defs/time"
+        },
+        "deletedAt": {
+          "description": "When it was moved to the bin, or null.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

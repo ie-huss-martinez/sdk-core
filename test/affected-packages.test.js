@@ -91,6 +91,7 @@ describe("readPackages", () => {
       "audio-sdk",
       "image-sdk",
       "learn-sdk",
+      "notes-sdk",
       "pdf-sdk",
       "sdk-config",
       "sdk-core",
@@ -104,9 +105,15 @@ describe("readPackages", () => {
       "audio-sdk",
       "image-sdk",
       "learn-sdk",
+      "notes-sdk",
       "pdf-sdk",
       "ui",
       "video-sdk",
+    ]);
+    // notes-sdk reads and writes PDFs through pdf-sdk, so a change there reaches it.
+    expect(affectedPackages(["packages/pdf-sdk/src/index.ts"], real)).toEqual([
+      "notes-sdk",
+      "pdf-sdk",
     ]);
   });
 });
