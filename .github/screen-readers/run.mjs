@@ -22,7 +22,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
 import { nvda, voiceOver } from "@guidepup/guidepup";
 import { chromium } from "playwright";
-import { missingFragments, waitForQuiet } from "./steps.mjs";
+import { missingFragments, platformKey, waitForSpeech } from "./steps.mjs";
 
 const { values } = parseArgs({
   options: {
@@ -94,7 +94,23 @@ async function openPage(url) {
     const page = await browser.newPage();
     await page.goto(url);
     await page.bringToFront();
-    return { version: `Chrome ${browser.version()}`, close: () => browser.close() };
+    return {
+      version: `Chrome ${browser.version()}`,
+      close: () => browser.close(),
+      // What has focus, from the page itself, to tell late speech from
+      // focus that went somewhere else. Only Chrome has a page to ask.
+      focus: () =>
+        page.evaluate(() => {
+          const element = document.activeElement;
+          if (!element || element === document.body) {
+            return "(the page)";
+          }
+          const role = element.getAttribute("role") ?? element.tagName.toLowerCase();
+          const name =
+            element.getAttribute("aria-label") ?? element.textContent?.trim().slice(0, 60) ?? "";
+          return `${role}: ${name}`;
+        }),
+    };
   }
   if (browserName === "firefox") {
     spawn(FIREFOX, ["-new-window", url], { detached: true, stdio: "ignore" }).unref();
@@ -152,11 +168,17 @@ async function startReader() {
     return {};
   }
   await voiceOver.start();
-  const { off, found } = hintsOff(voiceOver.getSettings());
+  const settings = voiceOver.getSettings();
+  const { off, found } = hintsOff(settings);
   await voiceOver.stop();
   print(`VoiceOver's hint settings: ${JSON.stringify(found)}`);
   await voiceOver.start({ settings: off });
-  return { voiceOverHintSettings: found, voiceOverSettingsApplied: off };
+  return {
+    voiceOverHintSettings: found,
+    voiceOverSettingsApplied: off,
+    // Every setting's name, to find the one for hints if none says so.
+    voiceOverSettingKeys: Object.keys(settings),
+  };
 }
 
 const count = async () => (await reader.spokenPhraseLog()).length;
@@ -181,21 +203,22 @@ async function runScript(script, attempt, info) {
     // Let the page load and the screen reader finish reading it before the
     // first key, so the first step hears only its own speech.
     await sleep(8_000);
-    await waitForQuiet(count, { quietMs: 2_000 });
-    let heard = await count();
+    await waitForSpeech(count, { firstMs: 3_000, quietMs: 2_000 });
     for (const step of script.steps) {
+      const before = await count();
       for (const key of step.keys) {
-        await reader.press(key);
+        await reader.press(platformKey(key, process.platform));
       }
-      const { count: after, settled } = await waitForQuiet(count);
+      const { count: after, settled } = await waitForSpeech(count, { since: before });
       const log = await reader.spokenPhraseLog();
-      const said = [...log].slice(heard, after);
-      heard = after;
+      const said = [...log].slice(before, after);
+      const focus = await page.focus?.().catch(() => undefined);
       transcript.steps.push({
         ...step,
         said,
         missing: missingFragments(said, step.expect),
         settled,
+        ...(focus ? { focus } : {}),
       });
     }
   } catch (error) {
