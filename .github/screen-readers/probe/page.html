@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><title>Probe</title></head>
+  <body>
+    <main>
+      <h1>Probe</h1>
+      <button type="button">First</button>
+      <button type="button" aria-pressed="false" onclick="this.setAttribute('aria-pressed', this.getAttribute('aria-pressed') === 'true' ? 'false' : 'true')">Mute</button>
+      <div role="listbox" aria-label="Clips">
+        <div role="option" tabindex="0" aria-selected="true">Voice 1</div>
+      </div>
+      <div role="status" aria-live="polite" id="status"></div>
+      <button type="button" onclick="document.getElementById('status').textContent = 'Moved to position 2 of 3'">Announce</button>
+    </main>
+  </body>
+</html>
