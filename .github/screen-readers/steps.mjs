@@ -31,6 +31,9 @@
  * @typedef {object} KnownFailure
  * @property {string[]} on Pairings, such as "nvda-chrome".
  * @property {string} issue The issue's URL.
+ * @property {string[]} [fragments] The step's fragments that the bug keeps
+ *   from being said, as the step's `expect` writes them. Any other fragment
+ *   missing still fails the step. Without it, the bug covers the whole step.
  */
 
 /**
@@ -48,6 +51,10 @@ export function outcome(step, missing, pairing) {
   }
   const known = step.knownFailures?.find((failure) => failure.on.includes(pairing));
   if (known) {
+    const covered = (fragment) => !known.fragments || known.fragments.includes(fragment);
+    if (missing.some((fragment) => !covered(fragment))) {
+      return { outcome: "fail" };
+    }
     return missing.length > 0
       ? { outcome: "expected failure", issue: known.issue }
       : { outcome: "unexpected pass", issue: known.issue };

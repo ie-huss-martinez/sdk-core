@@ -37,7 +37,7 @@ Wording varies between screen readers: "pressed", "selected" or "toggle button, 
 
 | Do | Expect to hear |
 |---|---|
-| Tab to the first question's choices | The group "Choices for question 1", with the prompt กิน read **in Thai**, then "to eat, toggle button, not pressed". |
+| Tab to the first question's choices | The group "Choices for question 1", with the prompt กิน read **in Thai**, then "to eat, toggle button, not pressed". With NVDA, note whether the prompt is said at all ([#217](https://github.com/ie-huss-martinez/sdk-core/issues/217)), and in both readers whether it's in a Thai voice: the automated runs can't tell which voice speaks. |
 | Press → and ←, then Home and End | Each choice in turn, and focus stays inside the group. One Tab leaves the group. |
 | Press Enter on "to eat" | "pressed" or "selected". |
 | Tab to the second question, choose "rice" with Space | "Choices for question 2", น้ำ in Thai, then "rice, pressed". |
