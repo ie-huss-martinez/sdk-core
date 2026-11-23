@@ -900,8 +900,14 @@ export const TimelineClips = /* @__PURE__ */ forwardRef<TimelineClipsHandle, Tim
     // `selectedKeys` is the whole timeline's selection, which every lane is
     // given. A plain selection replaces it; adding, removing and extending
     // keep the other lanes' clips. With one lane there are no others.
-    const select = (keys: Iterable<string>, keepOthers = false): void => {
-      toggled.current = null;
+    const select = (
+      keys: Iterable<string>,
+      keepOthers = false,
+      change: (typeof toggled)["current"] = null,
+    ): void => {
+      // Recorded before the host is called: a host that renders the new
+      // selection at once, with flushSync, runs the announcement in the call.
+      toggled.current = change;
       const wanted = new Set(keys);
       const own = new Set(clips.map((clip) => clip.key));
       const next = clips.filter((clip) => wanted.has(clip.key)).map((clip) => clip.key);
@@ -929,10 +935,9 @@ export const TimelineClips = /* @__PURE__ */ forwardRef<TimelineClipsHandle, Tim
         next.add(key);
       }
       anchor.current = key;
-      select(next, true);
       const label = clips.find((clip) => clip.key === key)?.label ?? "";
       const change = { key, label, added, from: selected };
-      toggled.current = change;
+      select(next, true, change);
       // React renders what an event changed before the next frame. A toggle
       // the host hasn't rendered by then was refused, and a later change to
       // the selection mustn't announce it.

@@ -1,4 +1,5 @@
 import { act, createRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { createRoot, hydrateRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -99,6 +100,22 @@ function Fixture({
       </Timeline>
       <input type="text" aria-label="Name" />
     </div>
+  );
+}
+
+/** A host that renders a new selection at once, with flushSync. */
+function Immediate() {
+  const [keys, setKeys] = useState<readonly string[]>(["c2"]);
+  return (
+    <Timeline label="Timeline" length={300}>
+      <TimelineClips
+        label="Clips"
+        clips={five()}
+        selectionMode="multiple"
+        selectedKeys={keys}
+        onSelectedKeysChange={(next) => flushSync(() => setKeys(next))}
+      />
+    </Timeline>
   );
 }
 
@@ -317,6 +334,19 @@ describe("TimelineClips", () => {
     expect(selected(container)).toEqual(["c2", "c4"]);
     await expect.poll(status).toBe("Clip 4, selected");
     await userEvent.click(clip(container, "c2"), { modifiers: ["ControlOrMeta"] });
+    await expect.poll(status).toBe("Clip 2, not selected");
+  });
+
+  it("announces a toggle that the host renders at once, with flushSync", async () => {
+    const container = render(
+      <AnnouncerProvider>
+        <Immediate />
+      </AnnouncerProvider>,
+    );
+    const status = () => container.querySelector('[role="status"]')?.textContent;
+    clip(container, "c2").focus();
+    await press(" ");
+    expect(selected(container)).toEqual([]);
     await expect.poll(status).toBe("Clip 2, not selected");
   });
 
