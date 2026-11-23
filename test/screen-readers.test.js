@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   missingFragments,
   normalize,
+  outcome,
   platformKey,
   waitForSpeech,
 } from "../.github/screen-readers/steps.mjs";
@@ -114,6 +115,40 @@ describe("platformKey", () => {
   });
 });
 
+describe("outcome", () => {
+  const issue = "https://github.com/ie-huss-martinez/sdk-core/issues/1";
+  const step = {
+    does: "Press Alt+↓.",
+    keys: ["Alt+ArrowDown"],
+    expect: ["moved"],
+    knownFailures: [{ on: ["nvda-chrome", "nvda-firefox"], issue }],
+  };
+
+  it("passes or fails an unmarked step on what was said", () => {
+    const plain = { ...step, knownFailures: undefined };
+    expect(outcome(plain, [], "nvda-chrome")).toEqual({ outcome: "pass" });
+    expect(outcome(plain, ["moved"], "nvda-chrome")).toEqual({ outcome: "fail" });
+  });
+
+  it("expects a marked step to fail on the pairings it names", () => {
+    expect(outcome(step, ["moved"], "nvda-firefox")).toEqual({
+      outcome: "expected failure",
+      issue,
+    });
+  });
+
+  it("flags a marked step that passes, so the fix removes the marker", () => {
+    expect(outcome(step, [], "nvda-chrome")).toEqual({ outcome: "unexpected pass", issue });
+  });
+
+  it("judges a step normally on a pairing its marker doesn't name", () => {
+    expect(outcome(step, ["moved"], "voiceover-safari")).toEqual({ outcome: "fail" });
+    expect(outcome(step, [], "voiceover-safari")).toEqual({ outcome: "pass" });
+  });
+});
+
+const PAIRINGS = ["nvda-chrome", "nvda-firefox", "voiceover-safari"];
+
 describe("the scripts", () => {
   it("each have a site, a page and steps with keys", async () => {
     const dir = new URL("../.github/screen-readers/scripts/", import.meta.url);
@@ -124,9 +159,25 @@ describe("the scripts", () => {
       expect(["catalogue", "learn"]).toContain(script.site);
       expect(script.path.startsWith("/")).toBe(true);
       expect(script.steps.length).toBeGreaterThan(0);
+      // A step is named in issues and in failures by what it does.
+      const labels = script.steps.map((step) => step.does);
+      expect(new Set(labels).size, `${script.name}'s steps each say what they do`).toBe(
+        labels.length,
+      );
       for (const step of script.steps) {
         expect(step.keys.length, `${script.name}: ${step.does}`).toBeGreaterThan(0);
         expect(Array.isArray(step.expect)).toBe(true);
+        for (const failure of step.knownFailures ?? []) {
+          expect(failure.on.length, `${script.name}: ${step.does}`).toBeGreaterThan(0);
+          expect(failure.on.every((pairing) => PAIRINGS.includes(pairing))).toBe(true);
+          expect(failure.issue).toMatch(
+            /^https:\/\/github\.com\/ie-huss-martinez\/sdk-core\/issues\/\d+$/,
+          );
+          expect(
+            step.expect.length,
+            `${script.name}: ${step.does} asserts something`,
+          ).toBeGreaterThan(0);
+        }
         for (const fragment of step.expect) {
           const options = Array.isArray(fragment) ? fragment : [fragment];
           expect(options.every((option) => typeof option === "string" && option.length > 0)).toBe(

@@ -99,6 +99,9 @@ jobs:
           npx --no-install guidepup setup --ci
           npx --no-install guidepup install nvda
 
+      - name: Turn Windows' notifications off
+        run: ./quiet-windows.sh
+
       - name: Skip Firefox's first run
         if: matrix.browser == 'firefox'
         run: ./firefox-policies.sh
@@ -160,6 +163,9 @@ jobs:
         run: |
           npx --no-install guidepup setup --ci
           npx --no-install guidepup install nvda
+
+      - name: Turn Windows' notifications off
+        run: ./quiet-windows.sh
 
       - name: Skip Firefox's first run
         run: ./firefox-policies.sh

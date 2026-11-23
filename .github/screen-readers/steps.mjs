@@ -12,7 +12,37 @@
  *   what's said: a control's name and role, a toggle's state, an
  *   announcement. A list is alternatives, any of which will do, such as
  *   ["pressed", "selected"], which screen readers say for the same state.
+ * @property {KnownFailure[]} [knownFailures] Where the step is a known bug:
+ *   it still asserts, and must fail there until the bug is fixed.
  */
+
+/**
+ * A step that fails today for a known bug, with the pairings it fails on. It's
+ * a strict expected failure: when the step passes there, the run fails too,
+ * so the fix removes this marker and can't go unnoticed.
+ *
+ * @typedef {object} KnownFailure
+ * @property {string[]} on Pairings, such as "nvda-chrome".
+ * @property {string} issue The issue's URL.
+ */
+
+/**
+ * What a step's result means for a pairing.
+ *
+ * @param {Step} step
+ * @param {string[]} missing Its fragments that weren't said.
+ * @param {string} pairing Such as "nvda-firefox".
+ * @returns {{ outcome: "pass" | "fail" | "expected failure" | "unexpected pass", issue?: string }}
+ */
+export function outcome(step, missing, pairing) {
+  const known = step.knownFailures?.find((failure) => failure.on.includes(pairing));
+  if (known) {
+    return missing.length > 0
+      ? { outcome: "expected failure", issue: known.issue }
+      : { outcome: "unexpected pass", issue: known.issue };
+  }
+  return { outcome: missing.length > 0 ? "fail" : "pass" };
+}
 
 /**
  * @typedef {object} Script

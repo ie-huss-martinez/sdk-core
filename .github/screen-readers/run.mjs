@@ -22,7 +22,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
 import { nvda, voiceOver } from "@guidepup/guidepup";
 import { chromium } from "playwright";
-import { missingFragments, platformKey, waitForSpeech } from "./steps.mjs";
+import { missingFragments, outcome, platformKey, waitForSpeech } from "./steps.mjs";
 
 const { values } = parseArgs({
   options: {
@@ -139,25 +139,46 @@ async function openPage(url) {
 /**
  * VoiceOver's setting for its spoken instructions, such as "You are currently
  * on a slider. To start interacting with the slider, press…": "Speak
- * instructions" in VoiceOver Utility's verbosity hints. Off, so that a step
- * hears what the page says, not how to use VoiceOver. Found among the
- * settings guidepup reads, on the hosted macOS runner.
+ * instructions" in VoiceOver Utility's verbosity hints. Found among the
+ * settings guidepup reads, on the hosted macOS runner. VoiceOver failed to
+ * start with it set to `false` where it stores a number, so it's turned off
+ * in the type it has.
  */
-const VOICEOVER_SETTINGS = { SCRShouldOutputVOInstructions: false };
+const INSTRUCTIONS = "SCRShouldOutputVOInstructions";
 
-/** Starts the screen reader. VoiceOver starts with its spoken instructions off. */
+/** The setting's "off", in the type VoiceOver stores it with. */
+function off(value) {
+  return typeof value === "number" ? 0 : typeof value === "string" ? "0" : false;
+}
+
+/**
+ * Starts the screen reader. VoiceOver starts once to read its setting, then
+ * again with its spoken instructions off. If that second start fails, it
+ * starts as it was, and the transcript says the instructions stayed on.
+ */
 async function startReader() {
   if (readerName === "nvda") {
     await reader.start();
     return {};
   }
-  await voiceOver.start({ settings: VOICEOVER_SETTINGS });
-  const settings = voiceOver.getSettings();
-  const applied = Object.fromEntries(
-    Object.keys(VOICEOVER_SETTINGS).map((key) => [key, settings[key]]),
+  await voiceOver.start();
+  const before = voiceOver.getSettings()[INSTRUCTIONS];
+  await voiceOver.stop();
+  const wanted = { [INSTRUCTIONS]: off(before) };
+  try {
+    await voiceOver.start({ settings: wanted });
+  } catch (error) {
+    print(
+      `::warning title=VoiceOver::It didn't start with ${JSON.stringify(wanted)}, so its instructions stay on: ${error instanceof Error ? error.message : error}`,
+    );
+    await voiceOver.start();
+    return { voiceOverInstructions: { before, applied: null } };
+  }
+  const after = voiceOver.getSettings()[INSTRUCTIONS];
+  print(
+    `VoiceOver's ${INSTRUCTIONS}: ${JSON.stringify(before)} before, ${JSON.stringify(after)} now.`,
   );
-  print(`VoiceOver's settings after start: ${JSON.stringify(applied)}`);
-  return { voiceOverSettings: applied };
+  return { voiceOverInstructions: { before, applied: after } };
 }
 
 const count = async () => (await reader.spokenPhraseLog()).length;
@@ -192,10 +213,12 @@ async function runScript(script, attempt, info) {
       const log = await reader.spokenPhraseLog();
       const said = [...log].slice(before, after);
       const focus = await page.focus?.().catch(() => undefined);
+      const missing = missingFragments(said, step.expect);
       transcript.steps.push({
         ...step,
         said,
-        missing: missingFragments(said, step.expect),
+        missing,
+        ...outcome(step, missing, `${readerName}-${browserName}`),
         settled,
         ...(focus ? { focus } : {}),
       });
@@ -221,11 +244,12 @@ function summary(transcript) {
     lines.push("```", transcript.error, "```");
     return lines.join("\n");
   }
-  lines.push("| Step | Said | Missing |", "|---|---|---|");
+  lines.push("| Step | Said | Missing | Result |", "|---|---|---|---|");
   for (const step of transcript.steps) {
     const cell = (text) => text.replaceAll("|", "\\|").replaceAll("\n", " ");
+    const result = step.issue ? `${step.outcome}, ${step.issue}` : step.outcome;
     lines.push(
-      `| ${cell(step.does)} | ${cell(step.said.join(" / ")) || "(nothing)"} | ${cell(step.missing.join(", "))} |`,
+      `| ${cell(step.does)} | ${cell(step.said.join(" / ")) || "(nothing)"} | ${cell(step.missing.join(", "))} | ${result} |`,
     );
   }
   return lines.join("\n");
@@ -253,16 +277,22 @@ try {
       if (process.env.GITHUB_STEP_SUMMARY) {
         appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary(transcript)}\n\n`);
       }
-      const missing = transcript.steps.filter((step) => step.missing.length > 0);
+      const failing = transcript.steps.filter((step) => step.outcome === "fail");
+      const fixed = transcript.steps.filter((step) => step.outcome === "unexpected pass");
+      const expected = transcript.steps.filter((step) => step.outcome === "expected failure");
       if (transcript.error) {
         failed = true;
         print(
           `::error title=${script.name}::${readerName} with ${browserName} couldn't run it: ${transcript.error.split("\n")[0]}`,
         );
-      } else if (missing.length > 0) {
-        const where = missing
-          .map((step) => `"${step.does}" missed ${step.missing.join(", ")}`)
-          .join("; ");
+      } else if (failing.length > 0 || fixed.length > 0) {
+        const where = [
+          ...failing.map((step) => `"${step.does}" missed ${step.missing.join(", ")}`),
+          ...fixed.map(
+            (step) =>
+              `"${step.does}" now passes, though it's marked as failing for ${step.issue}: if that's fixed, remove the marker with the fix`,
+          ),
+        ].join("; ");
         if (values.assert) {
           failed = true;
           print(`::error title=${script.name}::${where}`);
@@ -270,7 +300,9 @@ try {
           print(`::notice title=${script.name}::Report only: ${where}`);
         }
       } else {
-        print(`${script.name}, run ${attempt}: every expected fragment was said.`);
+        print(
+          `${script.name}, run ${attempt}: as expected${expected.length > 0 ? `, with ${expected.length} known failures still failing` : ""}.`,
+        );
       }
     }
   }
