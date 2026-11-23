@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-11-17
-- **Amended:** 2026-11-17, twice. After [ADR 0011](0011-timeline.md)'s finding, the tests claim a prevented default and no scrolling, not "no navigation". Before that, with the component. Ctrl or ⌘ with an arrow moves focus without selecting, as in pdf-sdk's thumbnails, and so do Ctrl or ⌘ with Home and End, so that modifier never changes the selection. `classNames` is split between the list (`root`) and its items (`root`, `item`, `control`). With focus elsewhere, the Tab stop follows a selection made elsewhere
+- **Amended:** 2026-11-23: focus stays on cells, never on a row's control, since NVDA leaves focus mode on a button ([#202](https://github.com/ie-huss-martinez/sdk-core/issues/202)). 2026-11-17, twice. After [ADR 0011](0011-timeline.md)'s finding, the tests claim a prevented default and no scrolling, not "no navigation". Before that, with the component. Ctrl or ⌘ with an arrow moves focus without selecting, as in pdf-sdk's thumbnails, and so do Ctrl or ⌘ with Home and End, so that modifier never changes the selection. `classNames` is split between the list (`root`) and its items (`root`, `item`, `control`). With focus elsewhere, the Tab stop follows a selection made elsewhere
 
 ## Context
 
@@ -30,6 +30,9 @@ The component has to give:
 - **A listbox can't hold the row's control.** An option's descendants are presentational, so a toggle inside one isn't exposed as a toggle. That's why image-sdk fell back to buttons.
 - **A grid can.** Each row is a `row` with `aria-selected`. Its first cell is the row itself: its content and its accessible name. Each further cell holds exactly one control.
 - **A grid is a composite widget,** so screen readers send it the arrow keys, and it has one Tab stop by definition.
+  - **Amended, 2026-11-23: only while focus is on a cell.** NVDA, with its default settings, leaves focus mode for its browse mode when focus lands on a button, even inside a grid. The list used to move focus onto a row's control with →, and from there NVDA kept the arrows, and Alt with them, for itself. The list couldn't be reordered, and Chrome sometimes opened its own menu on the Alt ([#202](https://github.com/ie-huss-martinez/sdk-core/issues/202), found by the real screen-reader workflow of [sdk-core ADR 0066](../../../../docs/adr/0066-real-screen-readers-on-a-schedule.md)). So **focus stays on cells.** A control is part of its cell: the cell takes focus, is named after the control and its `aria-pressed` or `aria-checked` state ("Visible, pressed"), and passes Space, Enter and clicks to it. The control itself has no Tab stop, and focus that lands on it, from a click for instance, moves to its cell.
+  - **Measured** with NVDA 2026.3 in Chrome 157 and Firefox 160 ([run 45148635369](https://github.com/ie-huss-martinez/sdk-core/actions/runs/45148635369)). With focus on the control's cell, → says "Show Photo, pressed", Space "Show Photo, not pressed", and Alt+↓ "Shape moved to position 4 of 4". Before ([run 45147427419](https://github.com/ie-huss-martinez/sdk-core/actions/runs/45147427419)), Alt+↓ said "blank", and nothing moved.
+  - **The alternatives,** probed in the same runs. A `role="application"` region around the list broke it outright: NVDA's first Tab went past the list. A control with another role was set aside, since any button a host passes in would bring the problem back. VoiceOver in Safari never had the problem.
 
 ```html
 <div role="grid" aria-label="Layers" class="hm-reorderable-list">

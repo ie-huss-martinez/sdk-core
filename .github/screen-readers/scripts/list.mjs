@@ -29,29 +29,26 @@ export default {
     {
       does: "Press →.",
       keys: ["ArrowRight"],
-      expect: ["Show Photo", "toggle button", ["pressed", "selected"]],
+      expect: ["Show Photo", ["pressed", "selected"]],
     },
     { does: "Press Space.", keys: ["Space"], expect: ["not pressed"] },
     { does: "Press Space again.", keys: ["Space"], expect: [["pressed", "selected"]] },
-    { does: "Press ←.", keys: ["ArrowLeft"], expect: ["Photo"], knownFailures: known(202) },
+    { does: "Press ←.", keys: ["ArrowLeft"], expect: ["Photo"] },
     {
       does: "Press ↓ to Shape.",
       keys: ["ArrowDown"],
       expect: ["Shape"],
-      knownFailures: known(202),
     },
     {
       does: "Press Alt+↓.",
       keys: ["Alt+ArrowDown"],
       expect: ["Shape moved to position 4 of 4"],
-      knownFailures: known(202),
     },
     {
       does: "Press Alt+↑.",
       keys: ["Alt+ArrowUp"],
       expect: ["Shape moved to position 3 of 4"],
-      knownFailures: known(202),
     },
-    { does: "Press Delete.", keys: ["Delete"], expect: ["Background"], knownFailures: known(202) },
+    { does: "Press Delete.", keys: ["Delete"], expect: ["Background"] },
   ],
 };
