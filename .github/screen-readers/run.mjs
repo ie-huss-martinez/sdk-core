@@ -47,6 +47,12 @@ if (!PAIRINGS[readerName]?.includes(browserName) || !values.scripts) {
 }
 const reader = readerName === "nvda" ? nvda : voiceOver;
 const FIREFOX = "C:\\Program Files\\Mozilla Firefox\\firefox.exe";
+/**
+ * Everything the screen reader says for a command. Guidepup's default,
+ * "initial", keeps only the first utterance, which drops a control's name
+ * said after its container, or an announcement said after a focus change.
+ */
+const CAPTURE = { capture: true };
 const print = (text) => process.stdout.write(`${text}\n`);
 const run = (file, args) => execFileSync(file, args, { encoding: "utf8" }).trim();
 
@@ -91,9 +97,16 @@ function versions() {
 async function openPage(url) {
   if (browserName === "chrome") {
     const browser = await chromium.launch({ channel: "chrome", headless: false });
-    const page = await browser.newPage();
-    await page.goto(url);
-    await page.bringToFront();
+    let page;
+    try {
+      page = await browser.newPage();
+      await page.goto(url);
+      await page.bringToFront();
+    } catch (error) {
+      // Nothing returns a way to close it, so close it here.
+      await browser.close().catch(() => undefined);
+      throw error;
+    }
     return {
       version: `Chrome ${browser.version()}`,
       close: () => browser.close(),
@@ -158,20 +171,20 @@ function off(value) {
  */
 async function startReader() {
   if (readerName === "nvda") {
-    await reader.start();
+    await reader.start(CAPTURE);
     return {};
   }
-  await voiceOver.start();
+  await voiceOver.start(CAPTURE);
   const before = voiceOver.getSettings()[INSTRUCTIONS];
   await voiceOver.stop();
   const wanted = { [INSTRUCTIONS]: off(before) };
   try {
-    await voiceOver.start({ settings: wanted });
+    await voiceOver.start({ ...CAPTURE, settings: wanted });
   } catch (error) {
     print(
       `::warning title=VoiceOver::It didn't start with ${JSON.stringify(wanted)}, so its instructions stay on: ${error instanceof Error ? error.message : error}`,
     );
-    await voiceOver.start();
+    await voiceOver.start(CAPTURE);
     return { voiceOverInstructions: { before, applied: null } };
   }
   const after = voiceOver.getSettings()[INSTRUCTIONS];
@@ -207,7 +220,7 @@ async function runScript(script, attempt, info) {
     for (const step of script.steps) {
       const before = await count();
       for (const key of step.keys) {
-        await reader.press(platformKey(key, process.platform));
+        await reader.press(platformKey(key, process.platform), CAPTURE);
       }
       const { count: after, settled } = await waitForSpeech(count, { since: before });
       const log = await reader.spokenPhraseLog();

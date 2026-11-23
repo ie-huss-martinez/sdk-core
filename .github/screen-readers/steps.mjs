@@ -67,6 +67,22 @@ export function normalize(text) {
 }
 
 /**
+ * Whether a fragment was said as itself: as whole words, and, for a state
+ * such as "pressed" or "selected", not as part of its opposite, "not pressed".
+ *
+ * @param {string} heard Normalized speech.
+ * @param {string} fragment
+ */
+function wasSaid(heard, fragment) {
+  const words = normalize(fragment).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const negated = words.startsWith("not ") ? "" : "(?<!\\bnot )";
+  return new RegExp(
+    `${negated}(?<![\\p{L}\\p{M}\\p{N}])${words}(?![\\p{L}\\p{M}\\p{N}])`,
+    "u",
+  ).test(heard);
+}
+
+/**
  * The fragments that aren't in what was said. Alternatives count as said if
  * any one of them is, and are reported joined with " or ".
  *
@@ -78,7 +94,7 @@ export function missingFragments(said, fragments) {
   const heard = normalize(said.join(" "));
   return fragments
     .map((fragment) => (Array.isArray(fragment) ? fragment : [fragment]))
-    .filter((options) => !options.some((option) => heard.includes(normalize(option))))
+    .filter((options) => !options.some((option) => wasSaid(heard, option)))
     .map((options) => options.join(" or "));
 }
 

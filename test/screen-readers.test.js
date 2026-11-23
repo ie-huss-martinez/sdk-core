@@ -37,6 +37,29 @@ describe("missingFragments", () => {
     ]);
   });
 
+  it('doesn\'t take a state from its opposite: "pressed" isn\'t in "not pressed"', () => {
+    expect(missingFragments(["Mute, toggle button, not pressed"], ["pressed"])).toEqual([
+      "pressed",
+    ]);
+    expect(missingFragments(["Mute, toggle button, not pressed"], ["not pressed"])).toEqual([]);
+    expect(missingFragments(["Photo, not selected"], [["pressed", "selected"]])).toEqual([
+      "pressed or selected",
+    ]);
+    expect(missingFragments(["Show Photo, toggle button, pressed"], ["pressed"])).toEqual([]);
+  });
+
+  it("matches whole words only", () => {
+    expect(missingFragments(["unpressed"], ["pressed"])).toEqual(["pressed"]);
+    expect(missingFragments(["Voice 12"], ["Voice 1"])).toEqual(["Voice 1"]);
+    expect(missingFragments(["3.33 seconds"], ["3.33"])).toEqual([]);
+  });
+
+  it("finds Thai words, with their marks, between other words", () => {
+    expect(
+      missingFragments(["rice toggle button Choices for question 2 น้ำ group"], ["น้ำ"]),
+    ).toEqual([]);
+  });
+
   it("asks nothing of a step that expects nothing", () => {
     expect(missingFragments([], [])).toEqual([]);
   });
