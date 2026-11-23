@@ -14,7 +14,8 @@ export default {
     {
       does: "Tab to the list's buttons.",
       keys: ["Tab"],
-      expect: ["Move up", "button"],
+      // NVDA says the shortcut in words, VoiceOver as written.
+      expect: ["Move up", "button", ["Alt plus Arrow Up", "Alt+ArrowUp"]],
     },
   ],
 };

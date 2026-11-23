@@ -48,6 +48,19 @@ describe("missingFragments", () => {
     expect(missingFragments(["Show Photo, toggle button, pressed"], ["pressed"])).toEqual([]);
   });
 
+  it("finds a shortcut as each reader says it, and not another key", () => {
+    const shortcut = [["Alt plus Arrow Up", "Alt+ArrowUp"]];
+    expect(missingFragments(["Move up, button, unavailable, Alt plus Arrow Up"], shortcut)).toEqual(
+      [],
+    );
+    expect(
+      missingFragments(["Move up button. Shortcuts available: 'Alt+ArrowUp'"], shortcut),
+    ).toEqual([]);
+    expect(missingFragments(["Move up, button, Alt plus Arrow Down"], shortcut)).toEqual([
+      "Alt plus Arrow Up or Alt+ArrowUp",
+    ]);
+  });
+
   it("matches whole words only", () => {
     expect(missingFragments(["unpressed"], ["pressed"])).toEqual(["pressed"]);
     expect(missingFragments(["Voice 12"], ["Voice 1"])).toEqual(["Voice 1"]);
