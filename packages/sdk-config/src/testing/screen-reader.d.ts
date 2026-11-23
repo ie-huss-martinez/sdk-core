@@ -12,7 +12,7 @@
  *   onTestFinished(() => reader.stop());
  *   // … render the component and focus a row …
  *   expect(await reader.spoken(() => userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}"))).toEqual([
- *     "Shape moved to position 4 of 4",
+ *     "polite: Shape moved to position 4 of 4",
  *   ]);
  * });
  * ```

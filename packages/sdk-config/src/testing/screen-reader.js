@@ -64,7 +64,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  *   onTestFinished(() => reader.stop());
  *   // … render the component and focus a row …
  *   expect(await reader.spoken(() => userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}"))).toEqual([
- *     "Shape moved to position 4 of 4",
+ *     "polite: Shape moved to position 4 of 4",
  *   ]);
  * });
  * ```
@@ -102,26 +102,29 @@ export async function startScreenReader({
         await step();
       }
       const deadline = Date.now() + timeoutMs;
-      let log = await virtual.spokenPhraseLog();
+      // The library returns its own log, which grows in place, so what's
+      // compared is a count saved at each look, never the array.
+      let count = (await virtual.spokenPhraseLog()).length;
       let quietSince = Date.now();
       for (;;) {
         await sleep(Math.min(25, quietMs));
-        const next = await virtual.spokenPhraseLog();
-        if (next.length !== log.length) {
-          log = next;
+        const now = (await virtual.spokenPhraseLog()).length;
+        if (now !== count) {
+          count = now;
           quietSince = Date.now();
         } else if (Date.now() - quietSince >= quietMs) {
           break;
         }
         if (Date.now() >= deadline) {
+          const log = await virtual.spokenPhraseLog();
           throw new Error(
             `Speech didn't stop within ${timeoutMs} ms: ${JSON.stringify(log.slice(heard))}`,
           );
         }
       }
-      const phrases = log.slice(heard).filter((phrase) => !EMPTIED_REGION.test(phrase));
-      heard = log.length;
-      return phrases;
+      const log = [...(await virtual.spokenPhraseLog())].slice(heard, count);
+      heard = count;
+      return log.filter((phrase) => !EMPTIED_REGION.test(phrase));
     },
     async stop() {
       if (stopped) {

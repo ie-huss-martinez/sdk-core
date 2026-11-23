@@ -79,6 +79,25 @@ describe("startScreenReader", () => {
     expect(await reader.spoken(() => userEvent.keyboard("{Tab}"))).toEqual(["button, First"]);
   });
 
+  it("waits through speech that goes on, and fails a step that never stops", async () => {
+    const status = mount();
+    reader = await startScreenReader({ timeoutMs: 600 });
+    let count = 0;
+    // A new announcement every 50 ms, well inside the 150 ms of quiet a step
+    // waits for, so the step can only end by timing out.
+    const timer = setInterval(() => {
+      count += 1;
+      status.textContent = `Tick ${count}`;
+    }, 50);
+
+    try {
+      await expect(reader.spoken()).rejects.toThrow("Speech didn't stop within 600 ms");
+    } finally {
+      clearInterval(timer);
+    }
+    expect(count).toBeGreaterThanOrEqual(10);
+  });
+
   it("gives up on a step after timeoutMs, rather than hang", async () => {
     mount();
     // Speech can't stay quiet for a second within 300 ms, so the step can

@@ -24,14 +24,18 @@ export const alt = (key: string): string => `{Alt>}{${key}}{/Alt}`;
 export async function play(story: RunnableStory, steps: readonly Step[]): Promise<void> {
   const canvasElement = document.createElement("div");
   document.body.append(canvasElement);
-  await story.run({ canvasElement });
-  const reader = await startScreenReader();
   try {
-    for (const [does, keys, says] of steps) {
-      expect(await reader.spoken(() => userEvent.keyboard(keys)), does).toEqual(says);
+    await story.run({ canvasElement });
+    const reader = await startScreenReader();
+    try {
+      for (const [does, keys, says] of steps) {
+        expect(await reader.spoken(() => userEvent.keyboard(keys)), does).toEqual(says);
+      }
+    } finally {
+      await reader.stop();
     }
   } finally {
-    await reader.stop();
+    // Even if the story, the reader or stopping it failed.
     canvasElement.remove();
   }
 }
