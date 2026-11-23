@@ -71,3 +71,4 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0063](0063-a-lint-for-what-react-components-do-while-rendering.md) | A lint for what React components do while rendering | Accepted; refines [0015](0015-verification-and-releases.md) |
 | [0064](0064-one-repository-for-the-family.md) | One repository for the family | Accepted; supersedes [0002](0002-one-repository-per-sdk.md) and [0026](0026-share-ci-steps-from-sdk-ci.md); noted on releases; amended to run only what a change needs |
 | [0065](0065-screen-reader-tests-with-a-virtual-screen-reader.md) | Screen-reader tests with a virtual screen reader | Accepted; refines [0015](0015-verification-and-releases.md) |
+| [0066](0066-real-screen-readers-on-a-schedule.md) | Real screen readers on a schedule | Accepted; refines [0065](0065-screen-reader-tests-with-a-virtual-screen-reader.md) |

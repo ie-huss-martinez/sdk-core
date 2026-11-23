@@ -1,7 +1,7 @@
 # The browser test image (ADR 0025): Playwright's, with the browsers and their
-# system libraries preinstalled. CI's verify jobs, in verify.yml and
-# release.yml, run in it; both read it from the FROM line below, through
-# sdk-ci's image action (ADR 0026), so this is its only copy. Locally,
+# system libraries preinstalled. CI's package jobs run in it, and
+# verify.yml's image job reads it from the FROM line below, so this is its
+# only copy (ADR 0064). Locally,
 # sdk-config's hm-in-image and hm-test-visual build their image from the FROM
 # line (ADR 0049). Dependabot proposes digest and tag updates. playwright and
 # @playwright/test are pinned exactly to the tag's version and move with it in

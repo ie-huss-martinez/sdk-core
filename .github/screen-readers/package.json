@@ -1,0 +1,11 @@
+{
+  "name": "screen-readers",
+  "private": true,
+  "type": "module",
+  "description": "Real screen readers, NVDA and VoiceOver, on the manual passes' steps (sdk-core ADR 0066). Run by .github/workflows/screen-readers.yml.",
+  "dependencies": {
+    "@guidepup/guidepup": "0.40.0",
+    "@guidepup/setup": "0.29.3",
+    "playwright": "1.65.1"
+  }
+}

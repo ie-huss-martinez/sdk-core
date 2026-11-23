@@ -1,0 +1,242 @@
+name: Screen readers
+
+# Real screen readers on the manual passes' steps (ADR 0066): NVDA with
+# Chrome and Firefox on Windows, and VoiceOver with Safari on macOS, all real
+# browsers. NVDA's runs fail when an expected name, role, state or
+# announcement isn't said. VoiceOver's are report-only until they're steady.
+# Every run saves a transcript per script, with the versions that said it.
+#
+# It runs weekly, by hand before a release, and on pull requests that change
+# it or its scripts. Never on every pull request: it takes a Windows and a
+# macOS runner, and its findings are for a person as much as for a check.
+on:
+  schedule:
+    - cron: "23 5 * * 1" # Mondays, 05:23 UTC
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/screen-readers/**
+      - .github/workflows/screen-readers.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: screen-readers-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  HUSKY: "0"
+
+jobs:
+  # The pages the scripts open, built once: ui's catalogue and learn-sdk's
+  # Vite example, as the manual passes serve them.
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          cache: true
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter "@hussmartinez/ui-catalogue..." --filter "@hussmartinez/learn-sdk-example-vite..." --if-present build
+
+      # The artifact drops the paths' common folder, packages/: the sites
+      # arrive as sites/ui/… and sites/learn-sdk/….
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sites
+          path: |
+            packages/ui/apps/catalogue/storybook-static/
+            packages/learn-sdk/examples/vite/dist/
+          if-no-files-found: error
+          retention-days: 1
+
+  nvda:
+    name: nvda (${{ matrix.browser }})
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chrome, firefox]
+    defaults:
+      run:
+        shell: bash
+        working-directory: .github/screen-readers
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sites
+          path: sites
+
+      # ffmpeg-static's install script downloads ffmpeg, for guidepup's screen
+      # recordings, which these runs don't make.
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Set up NVDA
+        run: |
+          npx --no-install guidepup setup --ci
+          npx --no-install guidepup install nvda
+
+      - name: Turn Windows' notifications off
+        run: ./quiet-windows.sh
+
+      - name: Skip Firefox's first run
+        if: matrix.browser == 'firefox'
+        run: ./firefox-policies.sh
+
+      - name: Serve the catalogue
+        run: ./serve-and-wait.sh ../../sites/ui/apps/catalogue/storybook-static 6006
+
+      - name: Run the scripts
+        env:
+          BROWSER: ${{ matrix.browser }}
+        run: node run.mjs --reader nvda --browser "$BROWSER" --scripts list,list-controls,lanes,moving-clips --out transcripts --assert
+
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: transcripts-nvda-${{ matrix.browser }}
+          path: .github/screen-readers/transcripts/
+          if-no-files-found: warn
+          retention-days: 30
+
+  # learn-sdk's player, read with a Thai voice. Installing it takes most of
+  # this job, so it's apart from the others.
+  learn:
+    name: learn (nvda)
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: .github/screen-readers
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sites
+          path: sites
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      # Windows installs voices as the TextToSpeech feature on demand. The
+      # step fails unless the Thai voice is there afterwards.
+      - name: Install a Thai voice
+        shell: pwsh
+        run: |
+          Add-WindowsCapability -Online -Name "Language.TextToSpeech~~~th-TH~0.0.1.0" | Out-Null
+          $voices = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Speech_OneCore\Voices\Tokens" | ForEach-Object { $_.PSChildName }
+          $voices
+          if (-not ($voices -match "thTH")) { throw "No Thai voice after installing it." }
+
+      - name: Set up NVDA
+        run: |
+          npx --no-install guidepup setup --ci
+          npx --no-install guidepup install nvda
+
+      - name: Turn Windows' notifications off
+        run: ./quiet-windows.sh
+
+      - name: Skip Firefox's first run
+        run: ./firefox-policies.sh
+
+      - name: Serve learn-sdk's example
+        run: ./serve-and-wait.sh ../../sites/learn-sdk/examples/vite/dist 4340
+
+      - name: Run the script with Chrome
+        run: node run.mjs --reader nvda --browser chrome --scripts learn --out transcripts --assert
+
+      - name: Run the script with Firefox
+        if: ${{ !cancelled() }}
+        run: node run.mjs --reader nvda --browser firefox --scripts learn --out transcripts --assert
+
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: transcripts-learn-nvda
+          path: .github/screen-readers/transcripts/
+          if-no-files-found: warn
+          retention-days: 30
+
+  # Report-only: VoiceOver's transcripts differed between runs in the probe,
+  # so it fails only when it can't start. A pull request runs each script
+  # three times, to show whether it's steady yet.
+  voiceover:
+    name: voiceover (safari)
+    needs: build
+    runs-on: macos-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: .github/screen-readers
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sites
+          path: sites
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      # Writes VoiceOver's permissions into the TCC database, which the hosted
+      # macOS runner allows: its System Integrity Protection is off.
+      - name: Set up VoiceOver
+        run: |
+          csrutil status || true
+          npx --no-install guidepup setup --ci
+          npx --no-install guidepup install voiceover
+
+      - name: Serve the catalogue and learn-sdk's example
+        run: |
+          ./serve-and-wait.sh ../../sites/ui/apps/catalogue/storybook-static 6006
+          ./serve-and-wait.sh ../../sites/learn-sdk/examples/vite/dist 4340
+
+      - name: Run the scripts
+        env:
+          RUNS: ${{ github.event_name == 'pull_request' && '3' || '1' }}
+        run: node run.mjs --reader voiceover --browser safari --scripts list,list-controls,lanes,moving-clips,learn --out transcripts --runs "$RUNS"
+
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: transcripts-voiceover-safari
+          path: .github/screen-readers/transcripts/
+          if-no-files-found: warn
+          retention-days: 30
