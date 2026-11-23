@@ -10,6 +10,7 @@
  */
 @layer hm.tokens, hm.base, hm.components, hm.sdk;
 
+@import "./react/look.tokens.css";
 @import "./react/editor.css";
 @import "./react/library/library.css";
 @import "./react/notebook/notebook.css";

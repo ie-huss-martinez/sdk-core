@@ -859,24 +859,13 @@ export const NotesNotebook = /* @__PURE__ */ forwardRef<NotesNotebookHandle, Not
         ref={root}
         className="hm-notes-notebook"
         data-hm-sidebar={sidebar.open ? "open" : "closed"}
+        data-hm-recording={recording ? "" : undefined}
         onKeyDown={onKeyDown}
       >
         <header className="hm-notes-notebook-header">
-          <NotesToolbar
-            className="hm-notes-toolbar"
-            registry={registry}
-            shortcuts={shortcuts}
-            state={state}
-            onRun={runTool}
-          />
+          {/* The strip above the tools: the notebook's name on its tab, and whether it's saved. */}
           <div className="hm-notes-notebook-bar">
             <Heading className="hm-notes-notebook-title">{notebook.title}</Heading>
-            <span className="hm-notes-notebook-position">
-              {messages.t("notebook.page", {
-                page: Math.max(1, pageIndex(currentPage) + 1),
-                count: notebook.pages.length,
-              })}
-            </span>
             <output className="hm-notes-notebook-save" data-hm-save={snapshot.saveState}>
               {saveText}
             </output>
@@ -886,7 +875,12 @@ export const NotesNotebook = /* @__PURE__ */ forwardRef<NotesNotebookHandle, Not
               </Button>
             ) : null}
             {recording ? (
-              <Button size="small" variant="danger" onClick={() => void stopRecording()}>
+              <Button
+                size="small"
+                variant="danger"
+                className="hm-notes-notebook-recording"
+                onClick={() => void stopRecording()}
+              >
                 {messages.t("recordings.stop")}
               </Button>
             ) : null}
@@ -907,37 +901,13 @@ export const NotesNotebook = /* @__PURE__ */ forwardRef<NotesNotebookHandle, Not
               </Button>
             ) : null}
           </div>
-          <ToolOptions settings={settings} onChange={update} />
-          {exporting ? (
-            <div className="hm-notes-notebook-progress">
-              <ProgressBar
-                label={messages.t("notebook.exporting")}
-                value={exporting.fraction}
-                max={1}
-              />
-              <Button size="small" onClick={() => exporting.abort.abort()}>
-                {messages.t("notebook.cancel")}
-              </Button>
-            </div>
-          ) : null}
-          {snapshot.saveState === "failed" && snapshot.error ? (
-            <p className="hm-notes-alert" role="alert">
-              {messages.error(snapshot.error)}
-            </p>
-          ) : null}
-          {error ? (
-            <p className="hm-notes-alert" role="alert">
-              <span>{messages.error(error)}</span>
-              <Button size="small" variant="quiet" onClick={() => setError(undefined)}>
-                {messages.t("editor.dismiss")}
-              </Button>
-            </p>
-          ) : null}
-          {snapshot.warnings.map((warning) => (
-            <p key={warning.limit} className="hm-notes-warning">
-              {messages.warning(warning)}
-            </p>
-          ))}
+          <NotesToolbar
+            className="hm-notes-toolbar"
+            registry={registry}
+            shortcuts={shortcuts}
+            state={state}
+            onRun={runTool}
+          />
         </header>
         <div className="hm-notes-notebook-body">
           {sidebar.open ? (
@@ -998,6 +968,47 @@ export const NotesNotebook = /* @__PURE__ */ forwardRef<NotesNotebookHandle, Not
             onError={fail}
             renderOverlay={renderOverlay}
           />
+          {/* Over the pages: the tool's options at the top, where you are at the foot. */}
+          <ToolOptions key={settings.tool} settings={settings} onChange={update} />
+          <span className="hm-notes-notebook-position">
+            {messages.t("notebook.page", {
+              page: Math.max(1, pageIndex(currentPage) + 1),
+              count: notebook.pages.length,
+            })}
+          </span>
+          <div className="hm-notes-toasts">
+            {exporting ? (
+              <div className="hm-notes-notebook-progress hm-notes-toast">
+                <span>{messages.t("notebook.exporting")}</span>
+                <ProgressBar
+                  label={messages.t("notebook.exporting")}
+                  value={exporting.fraction}
+                  max={1}
+                />
+                <Button size="small" variant="quiet" onClick={() => exporting.abort.abort()}>
+                  {messages.t("notebook.cancel")}
+                </Button>
+              </div>
+            ) : null}
+            {snapshot.saveState === "failed" && snapshot.error ? (
+              <p className="hm-notes-alert hm-notes-toast" role="alert">
+                {messages.error(snapshot.error)}
+              </p>
+            ) : null}
+            {error ? (
+              <p className="hm-notes-alert hm-notes-toast" role="alert">
+                <span>{messages.error(error)}</span>
+                <Button size="small" variant="quiet" onClick={() => setError(undefined)}>
+                  {messages.t("editor.dismiss")}
+                </Button>
+              </p>
+            ) : null}
+            {snapshot.warnings.map((warning) => (
+              <p key={warning.limit} className="hm-notes-warning hm-notes-toast">
+                {messages.warning(warning)}
+              </p>
+            ))}
+          </div>
         </div>
         {/* biome-ignore lint/a11y/useMediaCaption: a recording the user made alongside their own notes has no captions to offer */}
         <audio

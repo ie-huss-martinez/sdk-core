@@ -42,6 +42,34 @@
     padding: var(--hm-notes-notice-inset, var(--hm-inset-normal));
   }
 
+  /* A toast floats over the foot of whichever view shows. */
+  .hm-notes-toasts {
+    position: absolute;
+    inset-block-end: var(--hm-space-5);
+    inset-inline: var(--hm-space-4);
+    z-index: var(--hm-notes-layer-toast);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--hm-space-2);
+    pointer-events: none;
+  }
+
+  .hm-notes-toast {
+    box-sizing: border-box;
+    max-width: min(100%, var(--hm-notes-toast-max));
+    pointer-events: auto;
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-toast {
+    padding: var(--hm-space-2) var(--hm-space-2) var(--hm-space-2) var(--hm-space-4);
+    border-radius: var(--hm-notes-radius-lg);
+    box-shadow: var(--hm-notes-shadow-lg);
+    animation: hm-notes-toast-in var(--hm-notes-time-slow) var(--hm-notes-ease-spring) both;
+
+    --hm-button-radius: var(--hm-notes-radius-pill);
+  }
+
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-alert {
     background: var(--hm-notes-alert-bg, var(--hm-color-danger-subtle));
     color: var(--hm-notes-alert-text, var(--hm-color-danger-text));
@@ -64,6 +92,79 @@
     display: flex;
     flex-direction: column;
     gap: var(--hm-notes-form-gap, var(--hm-gap-loose));
+  }
+
+  .hm-notes-form-label {
+    margin-block-end: calc(var(--hm-notes-form-gap, var(--hm-gap-loose)) * -0.75);
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-form-label {
+    color: var(--hm-notes-ink-muted);
+    font-size: var(--hm-notes-caption-size);
+    font-weight: var(--hm-notes-weight-label);
+    letter-spacing: var(--hm-notes-caption-tracking);
+    text-transform: uppercase;
+  }
+
+  /* A new notebook: its cover beside the choices that draw it. */
+  .hm-notes-new-notebook {
+    position: relative;
+    padding-inline-start: calc(var(--hm-notes-cover-width) + var(--hm-space-6));
+  }
+
+  .hm-notes-cover-preview {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 0;
+    width: var(--hm-notes-cover-width);
+    cursor: default;
+  }
+
+  .hm-notes-cover-preview[data-hm-upright="landscape"] .hm-notes-cover-art {
+    aspect-ratio: 4 / 3;
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-cover-preview .hm-notes-cover-art {
+    animation: hm-notes-pop var(--hm-notes-time-slow) var(--hm-notes-ease-spring);
+  }
+
+  @container hm-notes-editor (width < 36rem) {
+    .hm-notes-new-notebook {
+      padding-inline-start: 0;
+    }
+
+    .hm-notes-cover-preview {
+      display: none;
+    }
+  }
+
+  /* ui's dialogs and controls, rounded as the rest of the editor is. */
+  .hm-notes-editor:not([data-hm-unstyled]) {
+    --hm-dialog-radius: var(--hm-notes-radius-lg);
+    --hm-dialog-shadow: var(--hm-notes-shadow-lg);
+    --hm-dialog-backdrop: var(--hm-notes-scrim);
+    --hm-segmented-control-radius: var(--hm-notes-radius-sm);
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-dialog {
+    --hm-button-radius: var(--hm-notes-radius-pill);
+    --hm-radius-control: var(--hm-notes-radius-sm);
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-dialog[open] {
+    animation: hm-notes-dialog-in var(--hm-notes-time-slow) var(--hm-notes-ease-spring);
+  }
+
+  .hm-notes-editor:not([data-hm-unstyled]) .hm-dialog[open]::backdrop {
+    backdrop-filter: blur(var(--hm-space-1));
+  }
+
+  @keyframes hm-notes-dialog-in {
+    from {
+      opacity: var(--hm-notes-opacity-ghost);
+      translate: 0 var(--hm-notes-rise);
+      scale: 0.94;
+    }
   }
 
   .hm-notes-form-row {

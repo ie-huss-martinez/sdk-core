@@ -5,7 +5,7 @@ import type { NotesTool } from "../tool-types.js";
 export const exportPdfTool: NotesTool = /* @__PURE__ */ defineTool({
   id: "notes.export-pdf",
   label: "tools.exportPdf",
-  icon: "download",
+  icon: "share",
   group: "file",
   isEnabled: ({ exporting }) => !exporting,
   run: ({ exportPdf }) => {

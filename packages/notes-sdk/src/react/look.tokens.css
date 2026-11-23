@@ -1,0 +1,167 @@
+/*
+ * The notes editor's own design values: sizes, shadows, cover colours and
+ * motion. They're declared on the editor's root, so a host overrides any of
+ * them there. Colours are mixed from ui's semantic tokens wherever they
+ * follow the theme; a cover's board and the paper keep their own colours in
+ * every theme, as a real notebook does.
+ *
+ * These are meant to move to ui once they've settled (docs/adr/0008).
+ */
+@layer hm.sdk {
+  .hm-notes-editor {
+    /* Layout */
+    --hm-notes-rail-width: 15.5rem;
+    --hm-notes-rail-width-compact: 4.25rem;
+    --hm-notes-content-max: 82rem;
+    --hm-notes-cover-width: 9.5rem;
+    --hm-notes-cover-width-compact: 7rem;
+    --hm-notes-search-min: 14rem;
+    --hm-notes-search-max: 26rem;
+    --hm-notes-prose-max: 30rem;
+    --hm-notes-art-width: 11rem;
+    --hm-notes-art-height: 9rem;
+    --hm-notes-perspective: 40rem;
+    --hm-notes-toast-max: 36rem;
+    --hm-notes-progress-min: 8rem;
+    --hm-notes-popover-width: 18rem;
+    --hm-notes-grid-gap-x: 1.5rem;
+    --hm-notes-target: 2.75rem;
+    --hm-notes-grid-gap-y: 2.25rem;
+    --hm-notes-bar-height: 3.25rem;
+    --hm-notes-tool-size: 2.5rem;
+    --hm-notes-swatch-size: 1.625rem;
+    --hm-notes-sidebar-width: 15rem;
+    --hm-notes-page-gap: 1.5rem;
+    --hm-notes-hairline: 1px;
+    --hm-notes-title-size: 2rem;
+    --hm-notes-title-size-compact: 1.5rem;
+    --hm-notes-title-tracking: -0.02em;
+    --hm-notes-caption-tracking: 0.04em;
+    --hm-notes-caption-size: 0.75rem;
+    --hm-notes-label-size: 0.8125rem;
+    --hm-notes-weight-title: 700;
+    --hm-notes-weight-label: 600;
+    --hm-notes-weight-body: 500;
+
+    --hm-notes-tabs-height: 2.5rem;
+    --hm-notes-toolbar-height: 3.5rem;
+    --hm-notes-tool-icon: 1.375rem;
+    --hm-notes-pill-height: 3rem;
+    --hm-notes-float-gap: 0.75rem;
+    --hm-notes-tab-max: 22rem;
+    --hm-notes-size-mark: 1.25rem;
+    --hm-notes-size-small: 2px;
+    --hm-notes-size-medium: 4px;
+    --hm-notes-size-large: 7px;
+    --hm-notes-thumb-ring: 3px;
+
+    /* Shape */
+    --hm-notes-radius-xs: 0.375rem;
+    --hm-notes-radius-sm: 0.625rem;
+    --hm-notes-radius-md: 0.875rem;
+    --hm-notes-radius-lg: 1.25rem;
+    --hm-notes-radius-pill: 999px;
+    --hm-notes-cover-corner: 0.25rem 0.75rem 0.75rem 0.25rem;
+
+    /* Surfaces, mixed from the theme */
+    --hm-notes-canvas: color-mix(in srgb, var(--hm-color-bg) 55%, var(--hm-color-surface-sunken));
+    --hm-notes-desk: color-mix(in srgb, var(--hm-color-surface-sunken) 82%, var(--hm-color-text));
+    --hm-notes-glass: color-mix(in srgb, var(--hm-color-surface) 78%, transparent);
+    --hm-notes-glass-strong: color-mix(in srgb, var(--hm-color-surface-raised) 92%, transparent);
+    --hm-notes-glass-blur: 20px;
+    --hm-notes-line: color-mix(in srgb, var(--hm-color-text) 10%, transparent);
+    --hm-notes-line-strong: color-mix(in srgb, var(--hm-color-text) 18%, transparent);
+    --hm-notes-hover: color-mix(in srgb, var(--hm-color-text) 7%, transparent);
+    --hm-notes-pressed: color-mix(in srgb, var(--hm-color-text) 12%, transparent);
+    --hm-notes-tint: color-mix(in srgb, var(--hm-color-accent) 14%, transparent);
+    --hm-notes-tint-strong: color-mix(in srgb, var(--hm-color-accent) 24%, transparent);
+    --hm-notes-ring: color-mix(in srgb, var(--hm-color-accent) 45%, transparent);
+    --hm-notes-ink-muted: color-mix(in srgb, var(--hm-color-text) 62%, transparent);
+    --hm-notes-scrim: color-mix(in srgb, var(--hm-black) 28%, transparent);
+    --hm-notes-paper: #fffefb;
+    --hm-notes-paper-rule: #c9d3e6;
+    --hm-notes-paper-edge: #e7e2d6;
+    --hm-notes-record: #e5484d;
+    --hm-notes-record-glow: rgb(229 72 77 / 35%);
+
+    /* The bar across the top of an open notebook, in the accent colour */
+    --hm-notes-chrome: color-mix(in srgb, var(--hm-color-accent) 90%, var(--hm-black));
+    --hm-notes-chrome-deep: color-mix(in srgb, var(--hm-color-accent) 68%, var(--hm-black));
+    --hm-notes-on-chrome: var(--hm-color-on-accent);
+    --hm-notes-on-chrome-muted: color-mix(in srgb, var(--hm-color-on-accent) 72%, transparent);
+    --hm-notes-on-chrome-hover: color-mix(in srgb, var(--hm-color-on-accent) 16%, transparent);
+    --hm-notes-on-chrome-pressed: color-mix(in srgb, var(--hm-color-on-accent) 26%, transparent);
+    --hm-notes-on-chrome-line: color-mix(in srgb, var(--hm-color-on-accent) 28%, transparent);
+    --hm-notes-chrome-active: #ffffff;
+    --hm-notes-chrome-active-ink: color-mix(in srgb, var(--hm-color-accent) 78%, var(--hm-black));
+    --hm-notes-swatch-edge: rgb(15 23 42 / 14%);
+    --hm-notes-eraser-ring: #94a3b8;
+
+    /* Elevation */
+    --hm-notes-shadow-xs: 0 1px 2px rgb(15 23 42 / 8%);
+    --hm-notes-shadow-sm: 0 1px 2px rgb(15 23 42 / 6%), 0 2px 6px rgb(15 23 42 / 8%);
+    --hm-notes-shadow-md: 0 2px 4px rgb(15 23 42 / 6%), 0 8px 20px rgb(15 23 42 / 12%);
+    --hm-notes-shadow-lg: 0 4px 8px rgb(15 23 42 / 8%), 0 18px 44px rgb(15 23 42 / 20%);
+    --hm-notes-shadow-cover:
+      0 1px 1px rgb(15 23 42 / 14%), 0 6px 12px -2px rgb(15 23 42 / 22%),
+      0 16px 28px -10px rgb(15 23 42 / 30%);
+    --hm-notes-shadow-cover-lifted:
+      0 2px 2px rgb(15 23 42 / 14%), 0 14px 22px -4px rgb(15 23 42 / 26%),
+      0 30px 44px -14px rgb(15 23 42 / 38%);
+    --hm-notes-shadow-page: 0 0 0 1px rgb(15 23 42 / 5%), 0 4px 18px rgb(15 23 42 / 14%);
+    --hm-notes-shadow-inset: inset 0 1px 0 rgb(255 255 255 / 22%);
+
+    /* Covers: a board colour, a darker spine and a lighter sheen for each */
+    --hm-notes-cover-blue: #3b6fe0;
+    --hm-notes-cover-blue-deep: #2a4fb4;
+    --hm-notes-cover-green: #2f9e78;
+    --hm-notes-cover-green-deep: #1f7659;
+    --hm-notes-cover-amber: #f0a93b;
+    --hm-notes-cover-amber-deep: #c9801a;
+    --hm-notes-cover-red: #e2574c;
+    --hm-notes-cover-red-deep: #b63a31;
+    --hm-notes-cover-gray: #4a5568;
+    --hm-notes-cover-gray-deep: #2d3748;
+    --hm-notes-cover-sheen: rgb(255 255 255 / 20%);
+    --hm-notes-cover-shade: rgb(0 0 0 / 16%);
+    --hm-notes-cover-band: rgb(0 0 0 / 22%);
+    --hm-notes-cover-plate-text: #1f2937;
+    --hm-notes-folder-front: #7fb2f5;
+    --hm-notes-folder-back: #4f8fe6;
+    --hm-notes-folder-sheet: #f8fafc;
+
+    /* Motion */
+    --hm-notes-time-instant: 90ms;
+    --hm-notes-time-fast: 160ms;
+    --hm-notes-time-base: 240ms;
+    --hm-notes-time-slow: 380ms;
+    --hm-notes-time-stagger: 32ms;
+    --hm-notes-time-loop: 1600ms;
+    --hm-notes-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --hm-notes-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    --hm-notes-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --hm-notes-ease-linear: linear;
+    --hm-notes-lift: -0.375rem;
+    --hm-notes-rise: 0.75rem;
+    --hm-notes-opacity-faint: 0.55;
+    --hm-notes-opacity-ghost: 0;
+    --hm-notes-opacity-full: 1;
+    --hm-notes-layer-rail: 2;
+    --hm-notes-layer-bar: 3;
+    --hm-notes-layer-float: 4;
+    --hm-notes-layer-toast: 6;
+  }
+
+  /* Without motion, everything arrives at once and nothing loops. */
+  @media (prefers-reduced-motion: reduce) {
+    .hm-notes-editor {
+      --hm-notes-time-instant: 0.01ms;
+      --hm-notes-time-fast: 0.01ms;
+      --hm-notes-time-base: 0.01ms;
+      --hm-notes-time-slow: 0.01ms;
+      --hm-notes-time-stagger: 0ms;
+      --hm-notes-lift: 0rem;
+      --hm-notes-rise: 0rem;
+    }
+  }
+}
