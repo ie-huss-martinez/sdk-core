@@ -84,8 +84,8 @@ export type { SequenceLocation } from "./timeline/sequence.js";
 export { locate, sequenceOffsets, snap } from "./timeline/sequence.js";
 export type { ToolRegistry, ToolRegistryOptions } from "./tools/registry.js";
 export { createToolRegistry } from "./tools/registry.js";
-export type { Tool, ToolDefinition } from "./tools/tool.js";
-export { defineTool } from "./tools/tool.js";
+export type { EditorMode, Tool, ToolDefinition, ToolLevel } from "./tools/tool.js";
+export { defineTool, isToolInMode } from "./tools/tool.js";
 export {
   type AssetsResolver,
   createAssetsResolver,

@@ -56,13 +56,13 @@
     background: var(--hm-segmented-control-bg, var(--hm-color-surface-sunken));
     border: var(--hm-border-width) solid
       var(--hm-segmented-control-border-color, var(--hm-color-border-strong));
-    border-radius: var(--hm-segmented-control-radius, var(--hm-radius-control));
+    border-radius: var(--hm-segmented-control-radius, var(--hm-radius-round));
   }
 
   .hm-segmented-control:not([data-hm-unstyled]) .hm-segmented-control-option {
     background: transparent;
     border: var(--hm-border-width) solid transparent;
-    border-radius: var(--hm-segmented-control-radius, var(--hm-radius-control));
+    border-radius: var(--hm-segmented-control-radius, var(--hm-radius-round));
     color: var(--hm-segmented-control-option-fg, var(--hm-color-text));
     font-family: var(--hm-font-family);
     font-size: var(--hm-font-size-body);

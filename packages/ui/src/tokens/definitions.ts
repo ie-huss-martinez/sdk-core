@@ -98,6 +98,8 @@ export type BaseTokenName =
   | "radius-sm"
   | "radius-md"
   | "radius-lg"
+  | "radius-xl"
+  | "radius-2xl"
   | "radius-full"
   | "border-width-1"
   | "border-width-2"
@@ -116,7 +118,9 @@ export type BaseTokenName =
   | "duration-slow"
   | "easing-standard"
   | "easing-decelerate"
-  | "easing-accelerate";
+  | "easing-accelerate"
+  | "easing-emphasized"
+  | "easing-spring";
 
 /**
  * The names of the semantic tokens, which components use.
@@ -138,6 +142,8 @@ export type SemanticTokenName =
   | "color-control"
   | "color-control-hover"
   | "color-control-active"
+  | "color-control-disabled"
+  | "color-surface-glass"
   | "color-accent"
   | "color-accent-hover"
   | "color-accent-active"
@@ -187,18 +193,27 @@ export type SemanticTokenName =
   | "surface-width-medium"
   | "surface-width-large"
   | "track-size"
+  | "sidebar-width"
+  | "rail-width"
+  | "inspector-width"
+  | "bar-height"
   | "radius-control"
   | "radius-surface"
   | "radius-round"
   | "border-width"
   | "shadow-raised"
   | "shadow-overlay"
+  | "shadow-floating"
+  | "blur-glass"
   | "motion-duration-feedback"
   | "motion-duration-enter"
   | "motion-duration-exit"
   | "motion-easing-standard"
   | "motion-easing-enter"
   | "motion-easing-exit"
+  | "motion-duration-panel"
+  | "motion-easing-panel"
+  | "motion-easing-spring"
   | "motion-duration-loop"
   | "motion-easing-loop"
   | "z-raised"
@@ -285,6 +300,8 @@ const semantic = {
     category: "color",
     type: "color",
   },
+  "color-control-disabled": { category: "color", type: "color" },
+  "color-surface-glass": { category: "color", type: "color" },
   "color-accent": {
     category: "color",
     type: "color",
@@ -475,6 +492,10 @@ const semantic = {
   "surface-width-medium": { category: "size", type: "length" },
   "surface-width-large": { category: "size", type: "length" },
   "track-size": { category: "size", type: "length" },
+  "sidebar-width": { category: "size", type: "length" },
+  "rail-width": { category: "size", type: "length" },
+  "inspector-width": { category: "size", type: "length" },
+  "bar-height": { category: "size", type: "length" },
   "radius-control": {
     category: "shape",
     type: "length",
@@ -520,6 +541,11 @@ const semantic = {
     category: "motion",
     type: "easing",
   },
+  "shadow-floating": { category: "shadow", type: "shadow" },
+  "blur-glass": { category: "shadow", type: "length" },
+  "motion-duration-panel": { category: "motion", type: "duration" },
+  "motion-easing-panel": { category: "motion", type: "easing" },
+  "motion-easing-spring": { category: "motion", type: "easing" },
   "motion-duration-loop": { category: "motion", type: "duration" },
   "motion-easing-loop": { category: "motion", type: "easing" },
   "z-raised": {
@@ -584,6 +610,8 @@ export type ComponentTokenName =
   | "button-danger-bg"
   | "button-danger-bg-hover"
   | "button-danger-fg"
+  | "button-disabled-bg"
+  | "button-disabled-fg"
   | "button-pressed-bg"
   | "button-pressed-border-color"
   | "button-pressed-fg"
@@ -715,7 +743,7 @@ const component = {
   "button-padding-x": { fallback: "control-padding-x" },
   "button-gap": { fallback: "control-gap" },
   "button-icon-size": { fallback: "icon-size" },
-  "button-radius": { fallback: "radius-control" },
+  "button-radius": { fallback: "radius-round" },
   "button-font-weight": {
     fallback: "font-weight-strong",
   },
@@ -749,6 +777,8 @@ const component = {
     fallback: "color-danger-hover",
   },
   "button-danger-fg": { fallback: "color-on-danger" },
+  "button-disabled-bg": { fallback: "color-control-disabled" },
+  "button-disabled-fg": { fallback: "color-text-disabled" },
   "button-pressed-bg": {
     fallback: "color-accent-subtle",
   },
@@ -769,7 +799,7 @@ const component = {
   "segmented-control-small-height": { fallback: "control-height-small" },
   "segmented-control-padding": { fallback: "gap-tight" },
   "segmented-control-gap": { fallback: "gap-tight" },
-  "segmented-control-radius": { fallback: "radius-control" },
+  "segmented-control-radius": { fallback: "radius-round" },
   "segmented-control-bg": { fallback: "color-surface-sunken" },
   "segmented-control-border-color": { fallback: "color-border-strong" },
   "segmented-control-option-padding-x": { fallback: "control-padding-x" },
@@ -892,7 +922,7 @@ function baseDefinitions(): TokenDefinition[] {
   for (let step = 1; step <= 12; step++) {
     add(`space-${step}` as BaseTokenName, "space", "length");
   }
-  for (const size of ["none", "sm", "md", "lg", "full"] as const) {
+  for (const size of ["none", "sm", "md", "lg", "xl", "2xl", "full"] as const) {
     add(`radius-${size}`, "shape", "length");
   }
   add("border-width-1", "shape", "length");
@@ -911,7 +941,7 @@ function baseDefinitions(): TokenDefinition[] {
   for (const speed of ["fast", "normal", "slow"] as const) {
     add(`duration-${speed}`, "motion", "duration");
   }
-  for (const easing of ["standard", "decelerate", "accelerate"] as const) {
+  for (const easing of ["standard", "decelerate", "accelerate", "emphasized", "spring"] as const) {
     add(`easing-${easing}`, "motion", "easing");
   }
   return list;

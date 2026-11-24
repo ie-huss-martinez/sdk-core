@@ -152,8 +152,9 @@ export function themeBlocks(root: string, light: Theme, dark: Theme | undefined)
       values: light.coarsePointer,
     },
   ];
+  const motion = motionBlocks(root, lightTokens.scheme);
   if (!dark) {
-    return [{ selectors: [root], values: lightTokens.scheme }, ...density];
+    return [{ selectors: [root], values: lightTokens.scheme }, ...density, ...motion];
   }
   const darkTokens = splitTokens(dark.tokens).scheme;
   return [
@@ -177,6 +178,50 @@ export function themeBlocks(root: string, light: Theme, dark: Theme | undefined)
       values: darkTokens,
     },
     ...density,
+    ...motion,
+  ];
+}
+
+/** The durations reduced motion sets to zero. Loops keep theirs: a spinner still turns. */
+const MOTION_DURATIONS = [
+  "motion-duration-feedback",
+  "motion-duration-enter",
+  "motion-duration-exit",
+  "motion-duration-panel",
+] as const;
+
+/**
+ * Reduced motion as tokens (sdk-core ADR 0067): with the system's
+ * `prefers-reduced-motion: reduce`, or `data-hm-motion="reduced"` on any
+ * ancestor, the durations are zero, so every transition built on them
+ * happens at once. `data-hm-motion="full"` keeps them in its subtree, and
+ * `"system"` follows the system again inside a subtree that forced either.
+ * Themed elements inside a forced subtree are listed too, because a theme
+ * re-declares the durations on its own element.
+ */
+function motionBlocks(root: string, scheme: Readonly<Record<string, string>>): CssBlock[] {
+  const durations: Record<string, string> = {};
+  const zero: Record<string, string> = {};
+  for (const name of MOTION_DURATIONS) {
+    if (scheme[name] !== undefined) {
+      durations[name] = scheme[name];
+      zero[name] = "0s";
+    }
+  }
+  const forced = (value: "reduced" | "full"): string[] => [
+    `${root}[data-hm-motion="${value}"]`,
+    `[data-hm-motion="${value}"]`,
+    `[data-hm-motion="${value}"] [data-hm-theme]`,
+  ];
+  return [
+    { selectors: ['[data-hm-motion="system"]'], values: durations },
+    {
+      media: "(prefers-reduced-motion: reduce)",
+      selectors: [root, "[data-hm-theme]", '[data-hm-motion="system"]'],
+      values: zero,
+    },
+    { selectors: forced("reduced"), values: zero },
+    { selectors: forced("full"), values: durations },
   ];
 }
 

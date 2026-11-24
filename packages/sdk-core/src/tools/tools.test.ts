@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createToolRegistry } from "./registry.js";
-import { defineTool, type ToolDefinition } from "./tool.js";
+import { defineTool, isToolInMode, type ToolDefinition } from "./tool.js";
 
 interface State {
   readonly selection: readonly string[];
@@ -46,6 +46,23 @@ describe("defineTool", () => {
       "Mod+S",
       { keys: "Mod+Shift+S", inEditable: true, repeat: false },
     ]);
+  });
+
+  it("keeps a description key and a level", () => {
+    const tool = defineTool(
+      definition("image.crop", { description: "tools.crop.description", level: "easy" }),
+    );
+
+    expect(tool).toMatchObject({ description: "tools.crop.description", level: "easy" });
+  });
+
+  it.each([
+    [{ level: "beginner" }, 'must have a level of "easy", "advanced" or "expert"'],
+    [{ description: "" }, "must give its description as a message key"],
+  ])("refuses %j", (extra, problem) => {
+    expect(() =>
+      defineTool(definition("image.crop", extra as Partial<ToolDefinition<State, undefined>>)),
+    ).toThrow(new TypeError(`Tool "image.crop" ${problem}.`));
   });
 
   it("keeps a family action name and an opaque view as given", () => {
@@ -221,5 +238,17 @@ describe("createToolRegistry", () => {
 
     expect(run).not.toHaveBeenCalled();
     expect(isAvailable).not.toHaveBeenCalled();
+  });
+});
+
+describe("isToolInMode", () => {
+  it.each([
+    ["easy", ["easy"]],
+    ["advanced", ["easy", "advanced", undefined]],
+    ["expert", ["easy", "advanced", undefined, "expert"]],
+  ] as const)("lists in %s mode the levels %j", (mode, listed) => {
+    const levels = ["easy", "advanced", undefined, "expert"] as const;
+
+    expect(levels.filter((level) => isToolInMode({ level }, mode))).toEqual(listed);
   });
 });
