@@ -40,7 +40,7 @@ const five = (): TimelineClip[] =>
   Array.from({ length: 5 }, (_, index) => ({
     key: `c${index + 1}`,
     length: 60,
-    label: `Clip ${index + 1} of 5`,
+    label: `Clip ${index + 1}`,
     content: `Clip ${index + 1}`,
   }));
 

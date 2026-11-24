@@ -34,8 +34,16 @@ export const videoEditorText = /* @__PURE__ */ defineMessages({
   "timeline.tools": "Timeline tools",
   "timeline.clips": "Clips",
   "timeline.playhead": "Playhead",
-  "timeline.clip": "Clip {index, number} of {count, number}, {start} to {end}",
-  "timeline.clipMuted": "Clip {index, number} of {count, number}, {start} to {end}, muted",
+  // A clip's place, "2 of 5", is left out: the clips are a listbox, and
+  // screen readers say an option's place themselves (ui ADR 0011). The
+  // count is still given, as the plural's selector, so a host's own text
+  // can use it.
+  "timeline.clip": /* @__PURE__ */ plural("count", {
+    other: "Clip {index, number}, {start} to {end}",
+  }),
+  "timeline.clipMuted": /* @__PURE__ */ plural("count", {
+    other: "Clip {index, number}, {start} to {end}, muted",
+  }),
   "timeline.clipTitle": "Clip {index, number}",
   "timeline.trimStart": "Trim the clip's start to the playhead",
   "timeline.trimEnd": "Trim the clip's end to the playhead",

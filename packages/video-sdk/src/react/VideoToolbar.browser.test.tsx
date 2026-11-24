@@ -134,18 +134,18 @@ describe("the editor's tools", () => {
     // Focus goes to the second part, at the playhead (docs/adr/0007).
     await eventually(() => expect(names(view)).toHaveLength(2));
     await eventually(() => expect(document.activeElement).toBe(clipsIn(view)[1]));
-    expect(names(view)[1]).toBe("Clip 2 of 2, 0:01.50 to 0:02.00");
+    expect(names(view)[1]).toBe("Clip 2, 0:01.50 to 0:02.00");
     // The second part's key comes from the session, as its own keys do.
     expect(clipsIn(view)[1]?.dataset["hmKey"]).toMatch(/^clip-\d+$/);
     await userEvent.keyboard("m");
-    await eventually(() => expect(names(view)[1]).toBe("Clip 2 of 2, 0:01.50 to 0:02.00, muted"));
+    await eventually(() => expect(names(view)[1]).toBe("Clip 2, 0:01.50 to 0:02.00, muted"));
     // The toolbar's flags follow on an animation frame, which a loaded runner delays.
     await eventually(() =>
       expect(tool(view, "video.mute")?.getAttribute("aria-pressed")).toBe("true"),
     );
     await userEvent.keyboard("{Delete}");
     // The clip before takes focus when the last one goes.
-    await eventually(() => expect(names(view)).toEqual(["Clip 1 of 1, 0:00.00 to 0:01.50"]));
+    await eventually(() => expect(names(view)).toEqual(["Clip 1, 0:00.00 to 0:01.50"]));
     await eventually(() => expect(document.activeElement).toBe(clipsIn(view)[0]));
     await userEvent.keyboard(`{${mod}>}z{/${mod}}`);
     await eventually(() => expect(names(view)).toHaveLength(2));

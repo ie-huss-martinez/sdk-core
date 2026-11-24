@@ -22,7 +22,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
 import { nvda, voiceOver } from "@guidepup/guidepup";
 import { chromium } from "playwright";
-import { missingFragments, outcome, platformKey, waitForSpeech } from "./steps.mjs";
+import { missingFragments, outcome, platformKey, stepsFor, waitForSpeech } from "./steps.mjs";
 
 const { values } = parseArgs({
   options: {
@@ -90,6 +90,45 @@ function versions() {
 }
 
 /**
+ * Whether this job has started Firefox. It's started once: a second launch
+ * of Firefox lost the page to NVDA, which heard "blank" or the tab strip.
+ */
+let firefoxStarted = false;
+
+/** Ends Firefox, at the end of the job. */
+function endFirefox() {
+  if (!firefoxStarted) {
+    return;
+  }
+  try {
+    run("taskkill", ["/IM", "firefox.exe", "/F"]);
+  } catch {
+    // Already gone.
+  }
+}
+
+/**
+ * Brings Firefox's window to the front. Windows keeps a window opened by a
+ * process in the background from taking the keyboard, and a later script's
+ * keys, in a tab Firefox opened for it, were heard as nothing.
+ *
+ * @returns {boolean} Whether Windows activated it.
+ */
+function activateFirefox() {
+  try {
+    return (
+      run("powershell", [
+        "-NoProfile",
+        "-Command",
+        "(New-Object -ComObject WScript.Shell).AppActivate('Mozilla Firefox')",
+      ]) === "True"
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Opens a page in the real browser and returns how to close it.
  *
  * @param {string} url
@@ -126,16 +165,14 @@ async function openPage(url) {
     };
   }
   if (browserName === "firefox") {
-    spawn(FIREFOX, ["-new-window", url], { detached: true, stdio: "ignore" }).unref();
-    return {
-      close: async () => {
-        try {
-          run("taskkill", ["/IM", "firefox.exe", "/F"]);
-        } catch {
-          // Already gone.
-        }
-      },
-    };
+    // The first script starts Firefox; the others open in a new tab of it,
+    // which takes focus. Firefox ends with the job, not with each script.
+    spawn(FIREFOX, [firefoxStarted ? "-new-tab" : "-new-window", url], {
+      detached: true,
+      stdio: "ignore",
+    }).unref();
+    firefoxStarted = true;
+    return { close: async () => undefined };
   }
   run("open", ["-a", "Safari", url]);
   return {
@@ -211,6 +248,7 @@ async function runScript(script, attempt, info) {
   };
   let page;
   try {
+    const opened = await count();
     page = await openPage(url);
     transcript.browserVersion = page.version;
     // Let the page load and the screen reader finish reading it before the
@@ -219,8 +257,29 @@ async function runScript(script, attempt, info) {
     // read the page: with 8 s, a first Tab that did reach the list was
     // heard as nothing.
     await sleep(browserName === "firefox" ? 15_000 : 8_000);
+    if (browserName === "firefox") {
+      transcript.activated = activateFirefox();
+    }
     await waitForSpeech(count, { firstMs: 3_000, quietMs: 2_000 });
-    for (const step of script.steps) {
+    // "Tab from the top of the page": NVDA's Control+Home puts its browse
+    // cursor there. In Firefox, NVDA's first keys were silent, and in one
+    // script its first Tab started from the page's end.
+    if (readerName === "nvda") {
+      await reader.press("Control+Home", CAPTURE);
+      await waitForSpeech(count, { firstMs: 3_000, quietMs: 2_000 });
+    }
+    // What was said while the page loaded, before the first key: it shows
+    // where the screen reader starts, which a browser opened by the OS
+    // doesn't say otherwise.
+    transcript.loading = [...(await reader.spokenPhraseLog())].slice(opened);
+    // Where focus is before the first key: a screen reader can move it
+    // itself while reading the page, and then "Tab from the top" starts
+    // from there. Only Chrome has a page to ask.
+    const startFocus = await page.focus?.().catch(() => undefined);
+    if (startFocus) {
+      transcript.startFocus = startFocus;
+    }
+    for (const step of stepsFor(script, `${readerName}-${browserName}`)) {
       const before = await count();
       for (const key of step.keys) {
         await reader.press(platformKey(key, process.platform), CAPTURE);
@@ -319,6 +378,12 @@ try {
       const failing = transcript.steps.filter((step) => step.outcome === "fail");
       const fixed = transcript.steps.filter((step) => step.outcome === "unexpected pass");
       const expected = transcript.steps.filter((step) => step.outcome === "expected failure");
+      const reported = transcript.steps.filter((step) => step.outcome === "reported");
+      for (const step of reported) {
+        print(
+          `::notice title=${script.name}::Reported, not judged: "${step.does}" missed ${step.missing.join(", ")} (${step.issue})`,
+        );
+      }
       if (transcript.error) {
         failed = true;
         print(
@@ -351,6 +416,7 @@ try {
     `::error title=${readerName}::The screen reader couldn't start: ${error instanceof Error ? error.message : error}`,
   );
 } finally {
+  endFirefox();
   await reader.stop().catch(() => undefined);
 }
 process.exitCode = failed ? 1 : 0;

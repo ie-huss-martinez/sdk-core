@@ -100,44 +100,48 @@ export default [
   }),
 
   // The React entry (./react).
-  entryBudget({ name: "React (./react), as built", entry: react, limit: "75.5 kB" }),
+  entryBudget({ name: "React (./react), as built", entry: react, limit: "78 kB" }),
   importBudget({
     // The floor: the components' catalogue, which every component reads.
     name: "React: the floor, notesEditorMessages",
     entry: react,
     imports: "{ notesEditorMessages }",
-    limit: "3.2 kB",
+    limit: "3.3 kB",
   }),
   importBudget({
     name: "React: NotesLibraryView",
     entry: react,
     imports: "{ NotesLibraryView }",
-    limit: "6 kB",
+    limit: "6.5 kB",
   }),
   importBudget({
     // The open notebook: the ink engine, the canvas painting, the tools and the sidebar.
     name: "React: NotesNotebook",
     entry: react,
     imports: "{ NotesNotebook }",
-    limit: "26 kB",
+    limit: "26.5 kB",
   }),
   importBudget({
     // The provider brings the library and the stores.
     name: "React: NotesProvider",
     entry: react,
     imports: "{ NotesProvider }",
-    limit: "33.5 kB",
+    limit: "34 kB",
   }),
   importBudget({
     // What a typical application imports: the whole editor.
     name: "React: NotesEditor",
     entry: react,
     imports: "{ NotesEditor }",
-    limit: "58.5 kB",
+    limit: "60 kB",
   }),
 
   // The element entry (./element) mounts the whole editor, so it has only a ceiling.
-  entryBudget({ name: "Element (./element), as built", entry: "dist/element.js", limit: "76 kB" }),
+  entryBudget({
+    name: "Element (./element), as built",
+    entry: "dist/element.js",
+    limit: "78.5 kB",
+  }),
 
-  built({ name: "Stylesheet (./styles.css)", path: "dist/styles.css", limit: "4 kB" }),
+  built({ name: "Stylesheet (./styles.css)", path: "dist/styles.css", limit: "10.5 kB" }),
 ];

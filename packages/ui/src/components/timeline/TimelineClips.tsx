@@ -15,6 +15,8 @@ import {
   useState,
 } from "react";
 import { warnInDevelopment } from "../../internal/development.js";
+import { useAnnounce } from "../announcer/Announcer.js";
+import { useUiMessages } from "../messages/UiMessagesProvider.js";
 import { cx, type StyleProps, unstyledAttribute } from "../shared/style-props.js";
 import { setStyle } from "./set-style.js";
 import { type LaneClips, TimelineLaneContext, useTimelineContext } from "./Timeline.js";
@@ -38,9 +40,10 @@ export interface TimelineClip {
    */
   readonly at?: number | undefined;
   /**
-   * The clip's accessible name, with its place and range, such as
-   * "Clip 2 of 5, 0:04.00 to 0:09.20, muted". Use text from your message
-   * catalogue. When `content` shows text, start the name with that text, so
+   * The clip's accessible name, with its range, such as "Clip 2, 0:04.00
+   * to 0:09.20, muted". Leave out its place, "2 of 5": the clips are a
+   * listbox, and screen readers say an option's place themselves. Use text
+   * from your message catalogue. When `content` shows text, start the name with that text, so
    * what's seen is in what's heard (WCAG 2.5.3).
    */
   readonly label: string;
@@ -258,9 +261,12 @@ const Clip = /* @__PURE__ */ memo(function Clip({
  *   the last clip chosen; Ctrl or ⌘ moves focus without changing it; Space
  *   adds or removes the focused clip, and Shift+Space selects up to it;
  *   Ctrl or ⌘+A selects every clip. A click selects, a Shift-click
- *   extends, and a Ctrl- or ⌘-click adds or removes.
- * - **Clips are data.** Give each a `label` that says its place and range,
- *   since a screen reader can't see where it is on the track.
+ *   extends, and a Ctrl- or ⌘-click adds or removes. Once you render it,
+ *   adding or removing a clip is announced, "Shot 2, not selected", through
+ *   the closest `AnnouncerProvider`: screen readers don't say it themselves.
+ * - **Clips are data.** Give each a `label` that says its range, since a
+ *   screen reader can't see where it is on the track. Its place, "2 of 5",
+ *   is said already, as an option's in a listbox.
  * - **When the focused clip goes,** focus moves to the clip that took its
  *   place, or the one before, or the playhead, if focus was on the track.
  *
@@ -274,7 +280,7 @@ const Clip = /* @__PURE__ */ memo(function Clip({
  *   clips={plan.clips.map((clip, index) => ({
  *     key: clip.key,
  *     length: framesOf(clip),
- *     label: t("timeline.clip", { index: index + 1, count: plan.clips.length, … }),
+ *     label: t("timeline.clip", { index: index + 1, start: …, end: … }),
  *     content: clip.name,
  *   }))}
  *   selectedKeys={selected}
@@ -312,6 +318,8 @@ export const TimelineClips = /* @__PURE__ */ forwardRef<TimelineClipsHandle, Tim
     // Without a timeline around it, nothing is past the end.
     const timelineLength = context?.scale.length ?? Number.POSITIVE_INFINITY;
     const multiple = selectionMode === "multiple";
+    const announce = useAnnounce();
+    const messages = useUiMessages();
 
     // A clip has a whole, positive length (sdk-core ADR 0042); others are left out.
     const clips = useMemo(() => {
@@ -367,6 +375,33 @@ export const TimelineClips = /* @__PURE__ */ forwardRef<TimelineClipsHandle, Tim
     const moved = useRef(false);
 
     const selected = useMemo(() => new Set(selectedKeys), [selectedKeys]);
+    // A clip added to the selection or taken out of it, to announce once the
+    // host renders the new selection (#204).
+    const toggled = useRef<{
+      readonly key: string;
+      readonly label: string;
+      readonly added: boolean;
+      readonly from: ReadonlySet<string>;
+    } | null>(null);
+
+    // Screen readers don't say that the focused option's selection changed,
+    // so the clips say it, with the clip's name as rendered then. A change
+    // the host refused, or replaced with another, isn't announced.
+    useEffect(() => {
+      const change = toggled.current;
+      if (!change || change.from === selected) {
+        return;
+      }
+      toggled.current = null;
+      if (selected.has(change.key) === change.added) {
+        const label = clips.find((clip) => clip.key === change.key)?.label ?? change.label;
+        announce(
+          messages.t(change.added ? "timelineClips.selected" : "timelineClips.notSelected", {
+            label,
+          }),
+        );
+      }
+    }, [selected, clips, announce, messages]);
     const tabStop =
       clips.find((clip) => clip.key === focusKey) ??
       clips.find((clip) => selected.has(clip.key)) ??
@@ -865,7 +900,14 @@ export const TimelineClips = /* @__PURE__ */ forwardRef<TimelineClipsHandle, Tim
     // `selectedKeys` is the whole timeline's selection, which every lane is
     // given. A plain selection replaces it; adding, removing and extending
     // keep the other lanes' clips. With one lane there are no others.
-    const select = (keys: Iterable<string>, keepOthers = false): void => {
+    const select = (
+      keys: Iterable<string>,
+      keepOthers = false,
+      change: (typeof toggled)["current"] = null,
+    ): void => {
+      // Recorded before the host is called: a host that renders the new
+      // selection at once, with flushSync, runs the announcement in the call.
+      toggled.current = change;
       const wanted = new Set(keys);
       const own = new Set(clips.map((clip) => clip.key));
       const next = clips.filter((clip) => wanted.has(clip.key)).map((clip) => clip.key);
@@ -888,11 +930,22 @@ export const TimelineClips = /* @__PURE__ */ forwardRef<TimelineClipsHandle, Tim
 
     const toggle = (key: string): void => {
       const next = new Set(selected);
-      if (!next.delete(key)) {
+      const added = !next.delete(key);
+      if (added) {
         next.add(key);
       }
       anchor.current = key;
-      select(next, true);
+      const label = clips.find((clip) => clip.key === key)?.label ?? "";
+      const change = { key, label, added, from: selected };
+      select(next, true, change);
+      // React renders what an event changed before the next frame. A toggle
+      // the host hasn't rendered by then was refused, and a later change to
+      // the selection mustn't announce it.
+      requestAnimationFrame(() => {
+        if (toggled.current === change) {
+          toggled.current = null;
+        }
+      });
     };
 
     const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {

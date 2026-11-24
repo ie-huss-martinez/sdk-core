@@ -7,6 +7,7 @@ import {
   normalize,
   outcome,
   platformKey,
+  stepsFor,
   waitForSpeech,
 } from "../.github/screen-readers/steps.mjs";
 
@@ -177,9 +178,48 @@ describe("outcome", () => {
     expect(outcome(step, [], "nvda-chrome")).toEqual({ outcome: "unexpected pass", issue });
   });
 
+  it("reports a step the runner keeps from being judged, without failing, on the pairings it names", () => {
+    const runner = "https://github.com/ie-huss-martinez/sdk-core/issues/2";
+    const reported = {
+      ...step,
+      knownFailures: undefined,
+      reportOnly: [{ on: ["nvda-firefox"], issue: runner }],
+    };
+    expect(outcome(reported, ["moved"], "nvda-firefox")).toEqual({
+      outcome: "reported",
+      issue: runner,
+    });
+    expect(outcome(reported, [], "nvda-firefox")).toEqual({ outcome: "pass" });
+    expect(outcome(reported, ["moved"], "nvda-chrome")).toEqual({ outcome: "fail" });
+  });
+
+  it("fails a marked step on a missing fragment that its bug doesn't cover", () => {
+    const prompt = {
+      does: "Tab into the question.",
+      keys: ["Tab"],
+      expect: ["กิน", "to eat", "not pressed"],
+      knownFailures: [{ on: ["nvda-chrome"], issue, fragments: ["กิน"] }],
+    };
+    expect(outcome(prompt, ["กิน"], "nvda-chrome")).toEqual({ outcome: "expected failure", issue });
+    expect(outcome(prompt, ["กิน", "not pressed"], "nvda-chrome")).toEqual({ outcome: "fail" });
+    expect(outcome(prompt, ["to eat"], "nvda-chrome")).toEqual({ outcome: "fail" });
+    expect(outcome(prompt, [], "nvda-chrome")).toEqual({ outcome: "unexpected pass", issue });
+  });
+
   it("judges a step normally on a pairing its marker doesn't name", () => {
     expect(outcome(step, ["moved"], "voiceover-safari")).toEqual({ outcome: "fail" });
     expect(outcome(step, [], "voiceover-safari")).toEqual({ outcome: "pass" });
+  });
+});
+
+describe("stepsFor", () => {
+  const tab = { does: "Tab.", keys: ["Tab"], expect: [] };
+  const back = { does: "Shift+Tab.", keys: ["Shift+Tab"], expect: [], only: ["nvda-chrome"] };
+  const script = { name: "s", site: "catalogue", path: "/", steps: [tab, back] };
+
+  it("runs a step with `only` on the pairings it names, and every other step everywhere", () => {
+    expect(stepsFor(script, "nvda-chrome")).toEqual([tab, back]);
+    expect(stepsFor(script, "voiceover-safari")).toEqual([tab]);
   });
 });
 
@@ -209,9 +249,18 @@ describe("the scripts", () => {
       for (const step of script.steps) {
         expect(step.keys.length, `${script.name}: ${step.does}`).toBeGreaterThan(0);
         expect(Array.isArray(step.expect)).toBe(true);
-        for (const failure of step.knownFailures ?? []) {
+        if (step.only) {
+          expect(step.only.length, `${script.name}: ${step.does}`).toBeGreaterThan(0);
+          expect(step.only.every((pairing) => PAIRINGS.includes(pairing))).toBe(true);
+        }
+        for (const failure of [...(step.knownFailures ?? []), ...(step.reportOnly ?? [])]) {
           expect(failure.on.length, `${script.name}: ${step.does}`).toBeGreaterThan(0);
           expect(failure.on.every((pairing) => PAIRINGS.includes(pairing))).toBe(true);
+          for (const fragment of failure.fragments ?? []) {
+            expect(step.expect, `${script.name}: ${step.does} expects ${fragment}`).toContain(
+              fragment,
+            );
+          }
           expect(failure.issue).toMatch(
             /^https:\/\/github\.com\/ie-huss-martinez\/sdk-core\/issues\/\d+$/,
           );

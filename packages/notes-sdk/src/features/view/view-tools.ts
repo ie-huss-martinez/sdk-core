@@ -8,7 +8,7 @@ export const ZOOM_STEP = 1.25;
 export const closeTool: NotesTool = /* @__PURE__ */ defineTool({
   id: "notes.close",
   label: "tools.close",
-  icon: "chevron-left",
+  icon: "library",
   group: "navigation",
   run: ({ close }) => {
     close();
@@ -58,7 +58,7 @@ export const zoomFitTool: NotesTool = /* @__PURE__ */ defineTool({
 export const sidebarTool: NotesTool = /* @__PURE__ */ defineTool({
   id: "notes.sidebar",
   label: "tools.sidebar",
-  icon: "page-grid",
+  icon: "sidebar",
   group: "view",
   isActive: ({ sidebar }) => sidebar,
   run: ({ toggleSidebar }) => {

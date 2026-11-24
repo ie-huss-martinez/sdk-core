@@ -62,8 +62,7 @@ export const notesTools: readonly NotesTool[] = [
 
 /** The toolbar's default groups. Selection tools have keys, and no button of their own. */
 export const DEFAULT_TOOLBAR: readonly (readonly string[])[] = [
-  ["notes.close"],
-  ["notes.undo", "notes.redo"],
+  ["notes.close", "notes.sidebar", "notes.search"],
   [
     "notes.pen",
     "notes.highlighter",
@@ -75,8 +74,9 @@ export const DEFAULT_TOOLBAR: readonly (readonly string[])[] = [
     "notes.hand",
   ],
   ["notes.straighten", "notes.finger"],
-  ["notes.add-page", "notes.delete-page"],
-  ["notes.zoom-out", "notes.zoom-in", "notes.zoom-fit", "notes.sidebar", "notes.search"],
   ["notes.record"],
+  ["notes.add-page", "notes.delete-page"],
   ["notes.export-pdf"],
+  ["notes.undo", "notes.redo"],
+  ["notes.zoom-out", "notes.zoom-fit", "notes.zoom-in"],
 ];

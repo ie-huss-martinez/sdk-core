@@ -128,11 +128,16 @@ describe("LearnPlayer", () => {
 
   it("fills gaps by typing and by choosing, shows the right answers, and moves focus to the next heading", async () => {
     render();
+    // The heading takes focus only when the player moves it there: NVDA's
+    // browse mode focuses anything that can take focus, and its first Tab
+    // landed on the heading before the choices (#206).
+    expect(container?.querySelector("h2")?.hasAttribute("tabindex")).toBe(false);
     await userEvent.click(tool("Next"));
     expect(document.activeElement).toBe(container?.querySelector("h2"));
     expect(text()).toContain("Exercise 2 of 3");
     await userEvent.keyboard("{Tab}");
     expect(document.activeElement?.getAttribute("aria-label")).toBe("Gap 1");
+    expect(container?.querySelector("h2")?.hasAttribute("tabindex")).toBe(false);
     await userEvent.keyboard("กับ{Tab}");
     expect(document.activeElement?.textContent).toBe("กิน");
     await userEvent.keyboard("{ArrowRight}{Enter}");

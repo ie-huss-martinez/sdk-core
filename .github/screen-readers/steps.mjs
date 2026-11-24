@@ -14,6 +14,13 @@
  *   ["pressed", "selected"], which screen readers say for the same state.
  * @property {KnownFailure[]} [knownFailures] Where the step is a known bug:
  *   it still asserts, and must fail there until the bug is fixed.
+ * @property {KnownFailure[]} [reportOnly] Where the runner, not a
+ *   component, keeps the step from being judged on a pairing, with the
+ *   runner's issue: the step is reported there and never fails the run. A
+ *   component's bug is a known failure instead, which must keep failing.
+ * @property {string[]} [only] The pairings the step runs on, for a key one
+ *   screen reader needs and another doesn't, such as NVDA's first Tab
+ *   going past the page's first control. Without it, the step runs on all.
  */
 
 /**
@@ -24,6 +31,9 @@
  * @typedef {object} KnownFailure
  * @property {string[]} on Pairings, such as "nvda-chrome".
  * @property {string} issue The issue's URL.
+ * @property {string[]} [fragments] The step's fragments that the bug keeps
+ *   from being said, as the step's `expect` writes them. Any other fragment
+ *   missing still fails the step. Without it, the bug covers the whole step.
  */
 
 /**
@@ -32,16 +42,35 @@
  * @param {Step} step
  * @param {string[]} missing Its fragments that weren't said.
  * @param {string} pairing Such as "nvda-firefox".
- * @returns {{ outcome: "pass" | "fail" | "expected failure" | "unexpected pass", issue?: string }}
+ * @returns {{ outcome: "pass" | "fail" | "expected failure" | "unexpected pass" | "reported", issue?: string }}
  */
 export function outcome(step, missing, pairing) {
+  const runner = step.reportOnly?.find((entry) => entry.on.includes(pairing));
+  if (runner) {
+    return missing.length > 0 ? { outcome: "reported", issue: runner.issue } : { outcome: "pass" };
+  }
   const known = step.knownFailures?.find((failure) => failure.on.includes(pairing));
   if (known) {
+    const covered = (fragment) => !known.fragments || known.fragments.includes(fragment);
+    if (missing.some((fragment) => !covered(fragment))) {
+      return { outcome: "fail" };
+    }
     return missing.length > 0
       ? { outcome: "expected failure", issue: known.issue }
       : { outcome: "unexpected pass", issue: known.issue };
   }
   return { outcome: missing.length > 0 ? "fail" : "pass" };
+}
+
+/**
+ * The steps of a script that run on a pairing.
+ *
+ * @param {Script} script
+ * @param {string} pairing Such as "nvda-firefox".
+ * @returns {Step[]}
+ */
+export function stepsFor(script, pairing) {
+  return script.steps.filter((step) => !step.only || step.only.includes(pairing));
 }
 
 /**

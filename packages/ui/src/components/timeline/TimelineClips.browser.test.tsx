@@ -1,9 +1,11 @@
 import { act, createRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { createRoot, hydrateRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { cleanUp, loadStyles, mount, track } from "../../test/dom.js";
+import { AnnouncerProvider } from "../announcer/Announcer.js";
 import { Timeline, type TimelineScale, useTimelineScale } from "./Timeline.js";
 import { type TimelineClip, TimelineClips, type TimelineClipsHandle } from "./TimelineClips.js";
 import { TimelinePlayhead } from "./TimelinePlayhead.js";
@@ -35,7 +37,7 @@ const five = (): TimelineClip[] =>
   [60, 30, 90, 60, 60].map((length, index) => ({
     key: `c${index + 1}`,
     length,
-    label: `Clip ${index + 1} of 5`,
+    label: `Clip ${index + 1}`,
     content: `Clip ${index + 1}`,
   }));
 
@@ -46,6 +48,7 @@ function Probe() {
 }
 
 let setClips: (clips: TimelineClip[]) => void;
+let setSelection: (keys: readonly string[]) => void;
 const handle = createRef<TimelineClipsHandle>();
 
 interface Options {
@@ -55,14 +58,25 @@ interface Options {
   readonly dir?: "ltr" | "rtl";
   readonly zoom?: number;
   readonly start?: TimelineClip[];
+  /** Reports a new selection without rendering it, as a host that refuses it. */
+  readonly refuse?: boolean;
 }
 
 /** A 600-pixel timeline with a clip track that keeps its own selection, and a playhead. */
-function Fixture({ mode = "single", first = ["c2"], onChange, dir = "ltr", zoom, start }: Options) {
+function Fixture({
+  mode = "single",
+  first = ["c2"],
+  onChange,
+  dir = "ltr",
+  zoom,
+  start,
+  refuse = false,
+}: Options) {
   const [clips, set] = useState(start ?? five);
   const [selected, setSelected] = useState(first);
   const [frame, setFrame] = useState(0);
   setClips = set;
+  setSelection = setSelected;
   const length = clips.reduce((sum, clip) => sum + clip.length, 0);
   return (
     <div dir={dir} style={{ inlineSize: "600px" }}>
@@ -77,13 +91,51 @@ function Fixture({ mode = "single", first = ["c2"], onChange, dir = "ltr", zoom,
           selectedKeys={selected}
           onSelectedKeysChange={(keys) => {
             onChange?.(keys);
-            setSelected(keys);
+            if (!refuse) {
+              setSelected(keys);
+            }
           }}
         />
         <TimelinePlayhead label="Playhead" position={frame} onPositionChange={setFrame} />
       </Timeline>
       <input type="text" aria-label="Name" />
     </div>
+  );
+}
+
+/** A host that renders a new selection at once, with flushSync. */
+function Immediate() {
+  const [keys, setKeys] = useState<readonly string[]>(["c2"]);
+  return (
+    <Timeline label="Timeline" length={300}>
+      <TimelineClips
+        label="Clips"
+        clips={five()}
+        selectionMode="multiple"
+        selectedKeys={keys}
+        onSelectedKeysChange={(next) => flushSync(() => setKeys(next))}
+      />
+    </Timeline>
+  );
+}
+
+/** A host that renames the clips as it renders the selection, as a range moved or trimmed in the same update would. */
+function Renaming() {
+  const [keys, setKeys] = useState<readonly string[]>(["c2"]);
+  const [version, setVersion] = useState(1);
+  return (
+    <Timeline label="Timeline" length={300}>
+      <TimelineClips
+        label="Clips"
+        clips={five().map((clip) => ({ ...clip, label: `${clip.label}, version ${version}` }))}
+        selectionMode="multiple"
+        selectedKeys={keys}
+        onSelectedKeysChange={(next) => {
+          setKeys(next);
+          setVersion((value) => value + 1);
+        }}
+      />
+    </Timeline>
   );
 }
 
@@ -129,7 +181,7 @@ describe("TimelineClips", () => {
     expect(list.getByRole("option").elements()).toHaveLength(5);
     await expect
       .element(list.getByRole("option", { selected: true }))
-      .toHaveAccessibleName("Clip 2 of 5");
+      .toHaveAccessibleName("Clip 2");
   });
 
   it("sizes each clip to its length, in the first frame committed", () => {
@@ -263,6 +315,85 @@ describe("TimelineClips", () => {
     act(() => root?.render(<Fixture key="single" />));
     await userEvent.click(clip(container, "c4"), { modifiers: ["Shift"] });
     expect(selected(container)).toEqual(["c4"]);
+  });
+
+  it("announces a clip added to the selection or taken out of it, with Space or a Ctrl-click", async () => {
+    const container = render(
+      <AnnouncerProvider>
+        <Fixture mode="multiple" />
+      </AnnouncerProvider>,
+    );
+    const status = () => container.querySelector('[role="status"]')?.textContent;
+    clip(container, "c2").focus();
+    await press(" ");
+    expect(selected(container)).toEqual([]);
+    await expect.poll(status).toBe("Clip 2, not selected");
+    await press(" ");
+    await expect.poll(status).toBe("Clip 2, selected");
+    await userEvent.click(clip(container, "c4"), { modifiers: ["ControlOrMeta"] });
+    expect(selected(container)).toEqual(["c2", "c4"]);
+    await expect.poll(status).toBe("Clip 4, selected");
+    await userEvent.click(clip(container, "c2"), { modifiers: ["ControlOrMeta"] });
+    await expect.poll(status).toBe("Clip 2, not selected");
+  });
+
+  it("announces a toggle that the host renders at once, with flushSync", async () => {
+    const container = render(
+      <AnnouncerProvider>
+        <Immediate />
+      </AnnouncerProvider>,
+    );
+    const status = () => container.querySelector('[role="status"]')?.textContent;
+    clip(container, "c2").focus();
+    await press(" ");
+    expect(selected(container)).toEqual([]);
+    await expect.poll(status).toBe("Clip 2, not selected");
+  });
+
+  it("announces a clip by its name as rendered with the new selection", async () => {
+    const container = render(
+      <AnnouncerProvider>
+        <Renaming />
+      </AnnouncerProvider>,
+    );
+    const status = () => container.querySelector('[role="status"]')?.textContent;
+    clip(container, "c2").focus();
+    await press(" ");
+    await expect.poll(status).toBe("Clip 2, version 2, not selected");
+  });
+
+  it("doesn't announce a plain selection, or a change the host refused", async () => {
+    const container = render(
+      <AnnouncerProvider>
+        <Fixture mode="multiple" />
+      </AnnouncerProvider>,
+    );
+    const status = () => container.querySelector('[role="status"]')?.textContent;
+    // Selection follows focus: the option's state is read as focus arrives.
+    clip(container, "c2").focus();
+    await press("{ArrowRight}{Shift>}{ArrowRight}{/Shift}{Control>}a{/Control}");
+    expect(selected(container)).toEqual(["c1", "c2", "c3", "c4", "c5"]);
+    await userEvent.click(clip(container, "c1"));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(status()).toBe("");
+
+    const onChange = vi.fn();
+    act(() =>
+      root?.render(
+        <AnnouncerProvider key="refused">
+          <Fixture mode="multiple" refuse onChange={onChange} />
+        </AnnouncerProvider>,
+      ),
+    );
+    clip(container, "c2").focus();
+    await press(" ");
+    expect(onChange.mock.calls).toEqual([[[]]]);
+    expect(selected(container)).toEqual(["c2"]);
+    // Nor later, when the host changes the selection for its own reasons.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    act(() => setSelection([]));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(status()).toBe("");
   });
 
   it("leaves a press on a clip to the clip: the playhead doesn't move", async () => {

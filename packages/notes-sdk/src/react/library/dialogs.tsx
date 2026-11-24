@@ -57,7 +57,21 @@ export function NewNotebookDialog(props: NewNotebookDialogProps): ReactNode {
       closeLabel={messages.t("dialog.close")}
       initialFocus={name}
     >
-      <form className="hm-notes-form" onSubmit={create}>
+      <form className="hm-notes-form hm-notes-new-notebook" onSubmit={create}>
+        {/* The notebook as it will look, drawn as the library draws it. Decoration only. */}
+        <span
+          className="hm-notes-cover hm-notes-cover-preview"
+          data-hm-cover={cover}
+          data-hm-upright={upright}
+          aria-hidden="true"
+        >
+          <span key={cover} className="hm-notes-cover-art" data-hm-template={template}>
+            <span
+              className="hm-notes-cover-label"
+              data-hm-title={title.trim() || messages.t("newNotebook.defaultName")}
+            />
+          </span>
+        </span>
         <Field label={messages.t("newNotebook.name")}>
           {(control) => (
             <TextField
@@ -69,18 +83,27 @@ export function NewNotebookDialog(props: NewNotebookDialogProps): ReactNode {
             />
           )}
         </Field>
+        <span className="hm-notes-form-label" aria-hidden="true">
+          {messages.t("newNotebook.paper")}
+        </span>
         <SegmentedControl<NotesTemplate>
           label={messages.t("newNotebook.paper")}
           value={template}
           onValueChange={setTemplate}
           options={NOTES_TEMPLATES.map((value) => ({ value, label: t(`templates.${value}`) }))}
         />
+        <span className="hm-notes-form-label" aria-hidden="true">
+          {messages.t("newNotebook.cover")}
+        </span>
         <SegmentedControl<NotesCover>
           label={messages.t("newNotebook.cover")}
           value={cover}
           onValueChange={setCover}
           options={NOTES_COVERS.map((value) => ({ value, label: t(`covers.${value}`) }))}
         />
+        <span className="hm-notes-form-label" aria-hidden="true">
+          {messages.t("newNotebook.size")}
+        </span>
         <SegmentedControl<NotesPageSizeName>
           label={messages.t("newNotebook.size")}
           value={size}
@@ -90,6 +113,9 @@ export function NewNotebookDialog(props: NewNotebookDialogProps): ReactNode {
             { value: "letter", label: messages.t("newNotebook.sizes.letter") },
           ]}
         />
+        <span className="hm-notes-form-label" aria-hidden="true">
+          {messages.t("newNotebook.orientation")}
+        </span>
         <SegmentedControl<"portrait" | "landscape">
           label={messages.t("newNotebook.orientation")}
           value={upright}

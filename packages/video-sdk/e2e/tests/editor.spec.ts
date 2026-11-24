@@ -187,7 +187,7 @@ for (const target of targets) {
       await open(page);
       await noViolations(page);
       // The inspector's controls for the selected clip.
-      await page.getByRole("option", { name: /^Clip 1 of 1/ }).click();
+      await page.getByRole("option", { name: /^Clip 1,/ }).click();
       await expect(page.getByRole("slider", { name: "Volume" })).toBeVisible();
       await noViolations(page);
     });
@@ -200,9 +200,9 @@ for (const target of targets) {
       await page.goto(target.url);
       await open(page);
       // Select the clip with the timeline's own keys: selection follows focus.
-      await page.getByRole("option", { name: /^Clip 1 of 1/ }).focus();
+      await page.getByRole("option", { name: /^Clip 1,/ }).focus();
       await page.keyboard.press("Home");
-      await expect(page.getByRole("option", { name: /^Clip 1 of 1/ })).toHaveAttribute(
+      await expect(page.getByRole("option", { name: /^Clip 1,/ })).toHaveAttribute(
         "aria-selected",
         "true",
       );

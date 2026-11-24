@@ -143,12 +143,17 @@ function Exercise({
   const level = useHeadingLevel();
   const shown = useRef(snapshot.position);
 
-  // After moving, focus goes to the new exercise's heading (ADR 0005).
+  // After moving, focus goes to the new exercise's heading (ADR 0005). The
+  // heading can take focus only then: NVDA's browse mode moves focus to any
+  // element that can take it, and a heading that always could was where its
+  // first Tab landed, before the choices (#206).
   useEffect(() => {
-    if (shown.current !== snapshot.position) {
-      shown.current = snapshot.position;
-      heading.current?.focus();
-    }
+    const element = heading.current;
+    if (shown.current === snapshot.position || !element) return;
+    shown.current = snapshot.position;
+    element.tabIndex = -1;
+    element.addEventListener("blur", () => element.removeAttribute("tabindex"), { once: true });
+    element.focus();
   }, [snapshot.position]);
 
   if (!exercise || !state) return null;
@@ -160,7 +165,7 @@ function Exercise({
   return (
     <article className="hm-learn-exercise" aria-labelledby={headingId}>
       <p className="hm-learn-position">{position}</p>
-      <Heading ref={heading} id={headingId} className="hm-learn-title" tabIndex={-1}>
+      <Heading ref={heading} id={headingId} className="hm-learn-title">
         {exercise.title ?? position}
       </Heading>
       {exercise.instructions && <p className="hm-learn-instructions">{exercise.instructions}</p>}
