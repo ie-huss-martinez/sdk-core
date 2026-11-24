@@ -129,7 +129,7 @@ These are the maintainer's to decide. Until he does, the defaults below hold. Ne
 - **The ad slot or the properties panel on the inline end?** On wide screens both want the edge at the inline end, and editor-apps ADR 0007 requires the slot never to move or resize once shown. The draft spec offers three options:
   - the slot outside the frame, hidden while the panel is open, which breaks ADR 0007;
   - the slot under the panel, in its column;
-  - the slot only in Easy mode, which has no panel.
+  - the slot only in Easy mode, if the SDKs choose to show no properties panel there. The frame doesn't enforce that: `mode` and `properties` are separate preferences. Like the first option, it breaks ADR 0007, because switching to another mode would hide a slot that's shown.
 
   It recommends the slot under the panel. The choice belongs in editor-apps, before the image app moves onto the frame.
 
