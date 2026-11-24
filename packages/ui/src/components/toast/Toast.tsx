@@ -224,12 +224,16 @@ export function ToastProvider({
     (id: string) => {
       live.current.delete(id);
       setToasts((list) => list.filter((toast) => toast.id !== id));
-      // The last one gone hides the region at once, rather than after the
-      // commit's effects, so it's never shown open and empty in between.
-      const element = region.current;
-      if (live.current.size === 0 && element?.matches(":popover-open")) {
-        element.hidePopover();
-      }
+      // The last one gone hides the region before anything paints, rather
+      // than after the commit's effects, so it's never seen open and empty.
+      // A microtask, so a handler that dismisses and then shows, as Undo
+      // does, keeps it shown for the new toast.
+      queueMicrotask(() => {
+        const element = region.current;
+        if (live.current.size === 0 && element?.matches(":popover-open")) {
+          element.hidePopover();
+        }
+      });
       recheckFocus();
     },
     [recheckFocus],
@@ -282,9 +286,10 @@ export function ToastProvider({
 
   const api = useMemo<ToastApi>(() => ({ show, dismiss }), [show, dismiss]);
 
-  // Shown in the top layer while there's a toast, hidden when there's none.
-  const hasToasts = toasts.length > 0;
+  // Shown in the top layer while there's a toast, hidden when there's none:
+  // checked after every commit of the list, so it follows what's shown.
   useEffect(() => {
+    const hasToasts = toasts.length > 0;
     const element = region.current;
     if (!element || typeof element.showPopover !== "function") {
       return;
@@ -301,7 +306,7 @@ export function ToastProvider({
     } else if (!hasToasts && isOpen) {
       element.hidePopover();
     }
-  }, [hasToasts, host]);
+  }, [toasts, host]);
 
   // Follows modal dialogs opening and closing, in the order they do, so the
   // toasts are always in the one on top.
@@ -310,8 +315,8 @@ export function ToastProvider({
       return;
     }
     const observer = new MutationObserver((records) => {
-      for (const { target } of records) {
-        if (!(target instanceof HTMLDialogElement)) {
+      for (const { type, target } of records) {
+        if (type !== "attributes" || !(target instanceof HTMLDialogElement)) {
           continue;
         }
         opened.current = opened.current.filter((dialog) => dialog !== target);
@@ -319,6 +324,8 @@ export function ToastProvider({
           opened.current.push(target);
         }
       }
+      // Dialogs that left the page are forgotten, toasts or not.
+      opened.current = opened.current.filter((dialog) => dialog.isConnected);
       // Without toasts there's nothing to move; showing one chooses again.
       if (live.current.size > 0) {
         setHost(topModal(opened.current));
@@ -326,24 +333,12 @@ export function ToastProvider({
     });
     observer.observe(document.documentElement, {
       subtree: true,
+      childList: true,
       attributes: true,
       attributeFilter: ["open"],
     });
     return () => observer.disconnect();
   }, []);
-
-  // While toasts show, also follow dialogs leaving the page.
-  useEffect(() => {
-    if (!hasToasts || typeof MutationObserver === "undefined") {
-      return;
-    }
-    const observer = new MutationObserver(() => {
-      opened.current = opened.current.filter((dialog) => dialog.isConnected);
-      setHost(topModal(opened.current));
-    });
-    observer.observe(document.documentElement, { subtree: true, childList: true });
-    return () => observer.disconnect();
-  }, [hasToasts]);
 
   const paused = hovered || focused;
 

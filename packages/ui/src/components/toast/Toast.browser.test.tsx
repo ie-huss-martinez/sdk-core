@@ -269,4 +269,26 @@ describe("ToastProvider", () => {
       expect(document.querySelector('.hm-announcer [role="status"]')?.textContent).toBe("Rotated"),
     );
   });
+  it("stays shown when a handler dismisses the last toast and shows another, as Undo does", async () => {
+    const { region } = render();
+    let first = "";
+    act(() => {
+      first = api.show({
+        message: "Rotated",
+        duration: 60_000,
+        action: {
+          label: "Undo",
+          onAction: () => {
+            api.dismiss(first);
+            api.show({ message: "Undone: Rotate", duration: 60_000 });
+          },
+        },
+      });
+    });
+
+    await userEvent.click(region.querySelector(".hm-toast-action") as HTMLElement);
+
+    await vi.waitFor(() => expect(messages(region)).toEqual(["Undone: Rotate"]));
+    expect(region.matches(":popover-open")).toBe(true);
+  });
 });
