@@ -13,6 +13,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { flushSync } from "react-dom";
 import { uiEditorText } from "../../messages/editor.js";
 import { useUiMessagesFrom, useUiText } from "../messages/UiMessagesProvider.js";
 import { useMergedRef } from "../shared/merged-ref.js";
@@ -221,21 +222,15 @@ function Search({ items, onRun, label, placeholder, emptyText, classNames }: Sea
     if (!typed.current) {
       return;
     }
-    // Emptied first, then filled on the next frame, so the same count after
-    // another search is still a change, and spoken again.
-    let frame: number | undefined;
+    // Emptied and committed first, then filled, so the same count after
+    // another search is still a change to the region, and spoken again. The
+    // empty text is flushed on its own: left to React's scheduler, both
+    // updates can land in one commit (Firefox), and the region never changes.
     const timer = setTimeout(() => {
-      setStatus("");
-      frame = requestAnimationFrame(() => {
-        setStatus(messages.t("commandPalette.results", { count }));
-      });
+      flushSync(() => setStatus(""));
+      setStatus(messages.t("commandPalette.results", { count }));
     }, ANNOUNCE_DELAY);
-    return () => {
-      clearTimeout(timer);
-      if (frame !== undefined) {
-        cancelAnimationFrame(frame);
-      }
-    };
+    return () => clearTimeout(timer);
   }, [count, query, items, messages]);
 
   // The active option stays in view as the arrow keys move it.

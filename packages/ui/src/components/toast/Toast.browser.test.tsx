@@ -12,6 +12,11 @@ let root: Root | undefined;
 beforeEach(async () => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   await loadStyles();
+  // Start on a rendered frame. Toasts and the announcer speak on the next
+  // frame, and WebKit renders no frame for over a second after its first
+  // top-layer toast (measured: 1.3 s before the second test, under 15 ms
+  // before every other), which would otherwise eat into a test's waits.
+  await new Promise((resolve) => requestAnimationFrame(resolve));
 });
 afterEach(() => {
   act(() => root?.unmount());

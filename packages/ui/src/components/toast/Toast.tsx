@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { warnInDevelopment } from "../../internal/development.js";
 import { uiEditorText } from "../../messages/editor.js";
 import { type Politeness, useAnnounce } from "../announcer/Announcer.js";
@@ -178,10 +178,10 @@ export function ToastProvider({
   );
 
   /**
-   * Speaks from inside the toasts, as the announcer does: the region is
-   * emptied, then filled on the next frame, so it's a change even when it
-   * has just moved into the dialog or repeats the last message. Messages in
-   * the same frame are said together.
+   * Speaks from inside the toasts: on the next frame, once the region has
+   * moved into the dialog, it's emptied, then filled, so it's a change even
+   * when it repeats the last message. Messages in the same frame are said
+   * together.
    */
   const speakInside = useCallback(
     (message: string, politeness: Politeness) => {
@@ -192,13 +192,15 @@ export function ToastProvider({
       if (frames.current[politeness] !== undefined) {
         return;
       }
-      setSpoken((current) => ({ ...current, [politeness]: "" }));
       frames.current[politeness] = requestAnimationFrame(() => {
         delete frames.current[politeness];
         const joined = queue.splice(0).join(" ");
         // The dialog may have closed meanwhile, taking these regions with it;
         // then the page's announcer is live again.
         if (isOpenModal(region.current?.closest("dialog") ?? null)) {
+          // Emptied and committed on its own first, so a repeated message is
+          // still a change: batched with the text, it wouldn't be.
+          flushSync(() => setSpoken((current) => ({ ...current, [politeness]: "" })));
           setSpoken((current) => ({ ...current, [politeness]: joined }));
         } else {
           announce(joined, { politeness });
@@ -222,6 +224,12 @@ export function ToastProvider({
     (id: string) => {
       live.current.delete(id);
       setToasts((list) => list.filter((toast) => toast.id !== id));
+      // The last one gone hides the region at once, rather than after the
+      // commit's effects, so it's never shown open and empty in between.
+      const element = region.current;
+      if (live.current.size === 0 && element?.matches(":popover-open")) {
+        element.hidePopover();
+      }
       recheckFocus();
     },
     [recheckFocus],
