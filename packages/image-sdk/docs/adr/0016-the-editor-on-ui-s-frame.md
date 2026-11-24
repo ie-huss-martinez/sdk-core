@@ -36,7 +36,7 @@ sdk-core ADR 0067 gives every SDK editor one frame, three modes and preferences 
   Each toast reaches screen readers once, through ui's announcer.
 - **Preferences:**
   - `<ImageEditor>` takes `preferences`, `defaultPreferences` and `onPreferencesChange`, and never stores them.
-  - Without either, it starts in Advanced mode, so a host that embedded it before keeps every tool in the panel. The family's apps pass their own preferences, with Easy on a first visit.
+  - Without either, it starts in Advanced mode, so a host that embedded it before keeps nearly every tool in the panel. Layers and Frames are Expert tools: in Advanced they're in the command palette, with their shortcuts, but not the panel. A host that wants them listed passes `defaultPreferences={{ mode: "expert" }}`. The family's apps pass their own preferences, with Easy on a first visit.
   - The density and motion are set on the editor's root. So is the theme, once the host passes preferences or a default theme, or the person chooses one; until then, an embedded editor inherits the page's theme, as before. A `theme` prop still wins over the preferences, and then neither the toggle nor the setting is shown.
 
 ## Alternatives considered

@@ -86,6 +86,9 @@ function ImageEditorBody(props: BodyProps): ReactNode {
   const { engine, session, messages, view, editor, opener, inserter } = useImageInternals();
   const snapshot = useImageDocument();
   const toast = useToast();
+  // The last edit's toast: a new edit replaces it, so only one Undo is shown,
+  // and it undoes the edit it names.
+  const editToast = useRef<string | null>(null);
   const root = useRef<HTMLElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const layerInput = useRef<HTMLInputElement>(null);
@@ -178,10 +181,16 @@ function ImageEditorBody(props: BodyProps): ReactNode {
         const action = event.commands[0];
         const name = action ? t(`actions.${action}`) : "";
         if (event.type === "execute" && action) {
-          toast.show({
+          if (editToast.current) toast.dismiss(editToast.current);
+          editToast.current = toast.show({
             message: t("editor.applied", { action: name }),
             action: { label: t("tools.undo"), onAction: () => session.undo() },
           });
+        }
+        if (event.type === "undo" || event.type === "redo") {
+          // Undo and redo change what the last edit's Undo would do.
+          if (editToast.current) toast.dismiss(editToast.current);
+          editToast.current = null;
         }
         if (event.type === "undo") toast.show({ message: t("editor.undid", { action: name }) });
         if (event.type === "redo") toast.show({ message: t("editor.redid", { action: name }) });
@@ -358,7 +367,15 @@ function ImageEditorBody(props: BodyProps): ReactNode {
   };
 
   const animated = snapshot.status === "ready" && Boolean(snapshot.plan?.animation);
-  const startShown = mode === "easy" && sourceId !== undefined && startShownFor !== sourceId;
+  // Only the cards whose tool the host kept, and the adjustments' card only
+  // with adjustments or filters on.
+  const cards = START_CARDS.filter((card) =>
+    card.tool
+      ? lists.palette.some((item) => item.id === card.tool && !item.disabled)
+      : props.features?.adjust !== false || props.features?.filters !== false,
+  );
+  const startShown =
+    cards.length > 0 && mode === "easy" && sourceId !== undefined && startShownFor !== sourceId;
   // Easy mode shows the properties only while a tool needs them, or a card asked.
   const propertiesWanted =
     snapshot.plan !== null && (mode !== "easy" || editorState.tool !== null || easyProperties);
@@ -459,10 +476,13 @@ function ImageEditorBody(props: BodyProps): ReactNode {
           unstyled={unstyled}
           toolsState={preferences.tools}
           onToolsStateChange={(tools) => changePreferences({ ...preferences, tools })}
-          propertiesState={preferences.properties}
-          onPropertiesStateChange={(properties) =>
-            changePreferences({ ...preferences, properties })
-          }
+          // A start card can show the properties for now, in Easy mode, without
+          // changing the person's preference for them.
+          propertiesState={mode === "easy" && easyProperties ? "shown" : preferences.properties}
+          onPropertiesStateChange={(properties) => {
+            setEasyProperties(false);
+            changePreferences({ ...preferences, properties });
+          }}
           toolsLayout={preferences.toolsLayout}
           topBar={
             <>
@@ -557,7 +577,7 @@ function ImageEditorBody(props: BodyProps): ReactNode {
           ) : null}
           {startShown ? (
             <StartCards
-              cards={START_CARDS}
+              cards={cards}
               icons={icons}
               onChoose={chooseCard}
               onSkip={() => setStartShownFor(sourceId ?? null)}

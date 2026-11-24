@@ -15,7 +15,7 @@ New:
 - **Levels and descriptions:** each tool has a level and a one-line description. Easy, Advanced and Expert modes decide what the tools panel lists. The command palette (`Mod+K`) reaches every tool in every mode.
 - **Start cards:** Easy mode opens each image on four start cards.
 - **Toasts:** an edit shows a toast with Undo, and undo, redo, open and download show what happened.
-- **Preferences:** new props `preferences`, `defaultPreferences` and `onPreferencesChange` take ui's `EditorPreferences`. The editor never stores them; keep them where you like, such as `localStorage`. Without them, the editor starts in Advanced mode, so every tool stays in the panel.
+- **Preferences:** new props `preferences`, `defaultPreferences` and `onPreferencesChange` take ui's `EditorPreferences`. The editor never stores them; keep them where you like, such as `localStorage`. Without them, the editor starts in Advanced mode: every tool stays in the panel except Layers and Frames, which are Expert tools. They're still in the command palette, and on their shortcuts L and F. Pass `defaultPreferences={{ mode: "expert" }}` to list them.
 - **Messages:** new keys `tools.*.description`, `editor.applied`, `editor.downloaded`, `editor.mode.*`, `editor.theme.*`, `editor.commands`, `editor.settings`, `editor.size`, `start.*` and `toolbar.groups.playback`. Four group names now say what the group holds, such as "Crop and redact".
 
 **Migrating:**

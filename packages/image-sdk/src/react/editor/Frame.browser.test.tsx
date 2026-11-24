@@ -223,6 +223,32 @@ describe("Easy mode's start cards (sdk-core ADR 0067)", () => {
     expect(cards()).toBeNull();
   });
 
+  it("offers only the cards the host's tools and features allow", async () => {
+    const { open } = await mounted({
+      defaultPreferences: { mode: "easy" },
+      tools: ["image.rotate-left", "image.crop", "image.undo", "image.redo"],
+      features: { adjust: false, filters: false },
+    });
+    await open(await photo());
+    const titles = [...document.querySelectorAll(".hm-image-start-card-title")].map(
+      (title) => title.textContent,
+    );
+    expect(titles).toEqual(["Crop or straighten"]);
+  });
+
+  it("shows the properties for its card without changing the preference", async () => {
+    const onPreferencesChange = vi.fn();
+    const { open } = await mounted({
+      defaultPreferences: { mode: "easy", properties: "hidden" },
+      onPreferencesChange,
+    });
+    await open(await photo());
+    await click(named("Make it look better Brightness, colour and one-tap filters."));
+    const properties = document.querySelector<HTMLElement>(".hm-editor-frame-properties");
+    expect(properties?.hidden).toBe(false);
+    expect(onPreferencesChange).not.toHaveBeenCalled();
+  });
+
   it("never shows the cards in Advanced or Expert mode", async () => {
     const { open } = await mounted({ defaultPreferences: { mode: "advanced" } });
     await open(await photo());
@@ -246,5 +272,21 @@ describe("toasts (sdk-core ADR 0067)", () => {
       () => toasts().some((text) => text?.includes("Undid rotate or flip.")),
       "the undo's toast",
     );
+  });
+
+  it("keeps one edit's toast at a time, so its Undo undoes the edit it names", async () => {
+    const { open } = await mounted();
+    await open(await photo());
+    await click(row("image.rotate-right"));
+    await click(row("image.flip-horizontal"));
+    await until(
+      () => toasts().filter((text) => text?.includes("Applied")).length === 1,
+      "one edit's toast",
+    );
+    expect(document.querySelectorAll(".hm-toast button").length).toBeGreaterThan(0);
+    const undos = [...document.querySelectorAll<HTMLElement>(".hm-toast button")].filter(
+      (button) => button.textContent === "Undo",
+    );
+    expect(undos).toHaveLength(1);
   });
 });
