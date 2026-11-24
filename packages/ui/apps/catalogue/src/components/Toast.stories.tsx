@@ -48,13 +48,19 @@ function Shows() {
   );
 }
 
-/** Neutral with Undo, success, and an error in the danger colour. */
+/**
+ * Neutral with Undo, success, and an error in the danger colour. Shown with
+ * reduced motion, so the screenshot is of where the toasts come to rest, not
+ * a moment of their spring.
+ */
 export const Tones: Story = {
   render: () => (
-    <AnnouncerProvider>
-      <ToastProvider>
-        <Shows />
-      </ToastProvider>
-    </AnnouncerProvider>
+    <div data-hm-motion="reduced">
+      <AnnouncerProvider>
+        <ToastProvider>
+          <Shows />
+        </ToastProvider>
+      </AnnouncerProvider>
+    </div>
   ),
 };

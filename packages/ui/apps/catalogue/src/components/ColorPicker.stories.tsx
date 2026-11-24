@@ -24,6 +24,10 @@ const recentColors = ["#0b2a5c", "#ec4899", "#a9c8fa"];
 const meta = {
   title: "Components/ColorPicker",
   component: ColorPicker,
+  // The area's and strips' gradients are dithered differently on different
+  // CPUs, by one level in mixed directions, which the strict comparison
+  // refuses (sdk-core ADR 0054). They're masked; everything else is compared.
+  parameters: { visual: { mask: [".hm-color-picker-area", ".hm-color-picker-strip"] } },
   args: { label: "Fill", defaultValue: "#1570ef", swatches, recentColors },
 } satisfies Meta<typeof ColorPicker>;
 
