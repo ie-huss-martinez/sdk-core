@@ -6,6 +6,7 @@
 
 import { ButtonHTMLAttributes } from 'react';
 import { DialogHTMLAttributes } from 'react';
+import type { EditorMode } from '@hussmartinez/sdk-core';
 import { ForwardRefExoticComponent } from 'react';
 import { HTMLAttributes } from 'react';
 import { InputHTMLAttributes } from 'react';
@@ -23,6 +24,9 @@ import { TextareaHTMLAttributes } from 'react';
 
 // @public
 export function AddIcon(props: IconProps): ReactElement;
+
+// @public
+export function addRecentColor(list: readonly string[], color: string, max?: number): readonly string[];
 
 // @public
 export type Announce = (message: string, options?: {
@@ -103,13 +107,80 @@ export interface ColorFieldProps extends Omit<InputHTMLAttributes<HTMLInputEleme
 export type ColorMode = "light" | "dark" | "system";
 
 // @public
+export const ColorPicker: ForwardRefExoticComponent<ColorPickerProps & RefAttributes<HTMLDivElement>>;
+
+// @public
+export type ColorPickerPart = "root" | "area" | "hue" | "alpha" | "row" | "preview" | "input" | "eyeDropper" | "contrast" | "recent" | "swatches" | "swatch";
+
+// @public
+export interface ColorPickerProps extends Omit<HTMLAttributes<HTMLDivElement>, "className" | "defaultValue" | "onChange">, StyleProps<ColorPickerPart> {
+    readonly alpha?: boolean | undefined;
+    readonly alphaLabel?: string | undefined;
+    readonly brightnessLabel?: string | undefined;
+    readonly contrastWith?: string | undefined;
+    readonly defaultValue?: string | undefined;
+    // (undocumented)
+    readonly disabled?: boolean | undefined;
+    readonly eyeDropperIcon?: ReactNode;
+    readonly eyeDropperLabel?: string | undefined;
+    readonly hexLabel?: string | undefined;
+    readonly hueLabel?: string | undefined;
+    readonly label?: string | undefined;
+    readonly onValueChange?: ((value: string) => void) | undefined;
+    readonly onValueCommit?: ((value: string) => void) | undefined;
+    readonly recentColors?: readonly string[] | undefined;
+    readonly recentLabel?: string | undefined;
+    readonly saturationLabel?: string | undefined;
+    readonly swatches?: readonly ColorSwatch[] | undefined;
+    readonly swatchesLabel?: string | undefined;
+    readonly value?: string | undefined;
+    readonly variant?: "full" | "palette" | undefined;
+}
+
+// @public
 export interface ColorSwatch {
     readonly label: string;
     readonly value: string;
 }
 
 // @public
+export function CommandIcon(props: IconProps): ReactElement;
+
+// @public
+export const CommandPalette: ForwardRefExoticComponent<CommandPaletteProps & RefAttributes<HTMLDialogElement>>;
+
+// @public
+export interface CommandPaletteItem {
+    readonly description?: string | undefined;
+    readonly disabled?: boolean | undefined;
+    readonly group?: string | undefined;
+    readonly icon?: ReactNode;
+    readonly id: string;
+    readonly keywords?: readonly string[] | undefined;
+    readonly label: string;
+    readonly shortcut?: string | undefined;
+}
+
+// @public
+export type CommandPalettePart = "root" | "title" | "input" | "list" | "option" | "label" | "details" | "shortcut" | "empty";
+
+// @public
+export interface CommandPaletteProps extends Omit<DialogHTMLAttributes<HTMLDialogElement>, "className" | "title" | "open" | "children">, StyleProps<CommandPalettePart> {
+    readonly emptyText?: string | undefined;
+    readonly items: readonly CommandPaletteItem[];
+    readonly label?: string | undefined;
+    readonly onOpenChange: (open: boolean) => void;
+    readonly onRun: (id: string) => void;
+    readonly open: boolean;
+    readonly placeholder?: string | undefined;
+    readonly title?: string | undefined;
+}
+
+// @public
 export function CropIcon(props: IconProps): ReactElement;
+
+// @public
+export const defaultEditorPreferences: EditorPreferences;
 
 // @public
 export function DeleteIcon(props: IconProps): ReactElement;
@@ -143,7 +214,81 @@ export function DownloadIcon(props: IconProps): ReactElement;
 export function DuplicateIcon(props: IconProps): ReactElement;
 
 // @public
+export const EditorFrame: ForwardRefExoticComponent<EditorFrameProps & RefAttributes<HTMLDivElement>>;
+
+// @public
+export interface EditorFrameControls {
+    readonly layout: "sidebar" | "dock";
+    // (undocumented)
+    readonly propertiesState: EditorFramePropertiesState;
+    // (undocumented)
+    readonly setPropertiesState: (state: EditorFramePropertiesState) => void;
+    // (undocumented)
+    readonly setToolsState: (state: EditorFrameToolsState) => void;
+    readonly toggleTools: () => void;
+    readonly toolsId: string;
+    // (undocumented)
+    readonly toolsState: EditorFrameToolsState;
+}
+
+// @public
+export type EditorFramePart = "root" | "top" | "body" | "tools" | "stage" | "properties" | "bottom" | "tabBar" | "edge";
+
+// @public
+export type EditorFramePropertiesState = "shown" | "hidden";
+
+// @public
+export interface EditorFrameProps extends Omit<HTMLAttributes<HTMLDivElement>, "className">, StyleProps<EditorFramePart> {
+    readonly bottom?: ReactNode;
+    // (undocumented)
+    readonly onPropertiesStateChange?: ((state: EditorFramePropertiesState) => void) | undefined;
+    // (undocumented)
+    readonly onToolsStateChange?: ((state: EditorFrameToolsState) => void) | undefined;
+    readonly properties?: ReactNode;
+    readonly propertiesLabel?: string | undefined;
+    readonly propertiesState?: EditorFramePropertiesState | undefined;
+    readonly tabBar?: ReactNode;
+    readonly tools?: ReactNode;
+    readonly toolsLabel?: string | undefined;
+    readonly toolsLayout?: "sidebar" | "dock" | undefined;
+    readonly toolsState?: EditorFrameToolsState | undefined;
+    readonly topBar?: ReactNode;
+}
+
+// @public
+export function EditorFrameToolsButton(input: EditorFrameToolsButtonProps): ReactElement | null;
+
+// @public
+export interface EditorFrameToolsButtonProps extends Omit<HTMLAttributes<HTMLButtonElement>, "className" | "children">, StyleProps<"root" | "icon"> {
+    readonly label?: string | undefined;
+}
+
+// @public
+export type EditorFrameToolsState = "full" | "icons" | "hidden";
+
+// @public
+export const editorPreferenceOptions: {
+    readonly [Name in Exclude<keyof EditorPreferences, "tips">]: readonly EditorPreferences[Name][];
+};
+
+// @public
+export interface EditorPreferences {
+    // (undocumented)
+    readonly density: "comfortable" | "compact";
+    readonly mode: EditorMode;
+    readonly motion: "system" | "full" | "reduced";
+    readonly properties: "shown" | "hidden";
+    readonly theme: "system" | "light" | "dark";
+    readonly tips: boolean;
+    readonly tools: "full" | "icons" | "hidden";
+    readonly toolsLayout: "sidebar" | "dock";
+}
+
+// @public
 export function EllipseIcon(props: IconProps): ReactElement;
+
+// @public
+export function EyedropperIcon(props: IconProps): ReactElement;
 
 // @public
 export function FadeInIcon(props: IconProps): ReactElement;
@@ -203,6 +348,9 @@ export interface FileRejection {
 }
 
 // @public
+export function filterCommandPaletteItems<Item extends CommandPaletteItem>(items: readonly Item[], query: string): Item[];
+
+// @public
 export function FitIcon(props: IconProps): ReactElement;
 
 // @public
@@ -258,7 +406,7 @@ export interface IconButtonProps extends Omit<ButtonProps, "startIcon" | "endIco
 export type IconComponent = (props: IconProps) => ReactElement;
 
 // @public
-export type IconName = "add" | "arrow" | "check" | "chevron-down" | "chevron-left" | "chevron-right" | "close" | "crop" | "delete" | "download" | "duplicate" | "ellipse" | "fade-in" | "fade-out" | "fit" | "flip-horizontal" | "flip-vertical" | "hidden" | "highlighter" | "image" | "info" | "layers" | "loop" | "menu" | "more" | "move-down" | "move-up" | "muted" | "open" | "page-add" | "page-grid" | "page-single" | "pan" | "pause" | "pen" | "play" | "range-end" | "range-start" | "rectangle" | "redact" | "redo" | "remove" | "ripple" | "rotate-left" | "rotate-right" | "search" | "select" | "skip-back" | "skip-forward" | "snap" | "split" | "stop" | "text" | "trim-end" | "trim-start" | "undo" | "upload" | "visible" | "volume" | "warning" | "zoom-in" | "zoom-out";
+export type IconName = "add" | "arrow" | "check" | "chevron-down" | "chevron-left" | "chevron-right" | "close" | "command" | "crop" | "delete" | "download" | "duplicate" | "ellipse" | "eyedropper" | "fade-in" | "fade-out" | "fit" | "flip-horizontal" | "flip-vertical" | "hidden" | "highlighter" | "image" | "info" | "layers" | "loop" | "menu" | "more" | "move-down" | "move-up" | "muted" | "open" | "page-add" | "page-grid" | "page-single" | "pan" | "panel-collapse" | "panel-expand" | "pause" | "pen" | "play" | "properties" | "range-end" | "range-start" | "rectangle" | "redact" | "redo" | "remove" | "ripple" | "rotate-left" | "rotate-right" | "search" | "select" | "settings" | "skip-back" | "skip-forward" | "snap" | "split" | "stop" | "text" | "theme-dark" | "theme-light" | "trim-end" | "trim-start" | "undo" | "upload" | "visible" | "volume" | "warning" | "zoom-in" | "zoom-out";
 
 // @public
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, "children" | "dangerouslySetInnerHTML" | "ref"> {
@@ -279,6 +427,15 @@ export function LoopIcon(props: IconProps): ReactElement;
 
 // @public
 export function MenuIcon(props: IconProps): ReactElement;
+
+// @public
+export const ModeSwitch: ForwardRefExoticComponent<ModeSwitchProps & RefAttributes<HTMLDivElement>>;
+
+// @public
+export interface ModeSwitchProps extends Omit<SegmentedControlProps<EditorMode>, "label" | "options"> {
+    readonly label?: string | undefined;
+    readonly modeLabels?: Partial<Record<EditorMode, string>> | undefined;
+}
 
 // @public
 export function MoreIcon(props: IconProps): ReactElement;
@@ -323,6 +480,12 @@ export function PageGridIcon(props: IconProps): ReactElement;
 export function PageSingleIcon(props: IconProps): ReactElement;
 
 // @public
+export function PanelCollapseIcon(props: IconProps): ReactElement;
+
+// @public
+export function PanelExpandIcon(props: IconProps): ReactElement;
+
+// @public
 export function PanIcon(props: IconProps): ReactElement;
 
 // @public
@@ -349,10 +512,35 @@ export interface ProgressBarProps extends Omit<ProgressHTMLAttributes<HTMLProgre
 }
 
 // @public
+export const ProgressOverlay: ForwardRefExoticComponent<ProgressOverlayProps & RefAttributes<HTMLDivElement>>;
+
+// @public
+export type ProgressOverlayPart = "root" | "content" | "scrim" | "card" | "title" | "bar" | "detail" | "cancel";
+
+// @public
+export interface ProgressOverlayProps extends Omit<HTMLAttributes<HTMLDivElement>, "className" | "title">, StyleProps<ProgressOverlayPart> {
+    readonly cancelLabel?: string | undefined;
+    readonly children?: ReactNode;
+    readonly detail?: ReactNode;
+    readonly max?: number | undefined;
+    readonly onCancel?: (() => void) | undefined;
+    readonly open: boolean;
+    readonly title: string;
+    readonly value?: number | null | undefined;
+    readonly valueText?: string | undefined;
+}
+
+// @public
+export function PropertiesIcon(props: IconProps): ReactElement;
+
+// @public
 export function RangeEndIcon(props: IconProps): ReactElement;
 
 // @public
 export function RangeStartIcon(props: IconProps): ReactElement;
+
+// @public
+export function readEditorPreferences(value: unknown, defaults?: Partial<EditorPreferences>): EditorPreferences;
 
 // @public
 export function RectangleIcon(props: IconProps): ReactElement;
@@ -438,6 +626,29 @@ export interface SegmentedControlProps<Value extends string> extends Omit<HTMLAt
 export function SelectIcon(props: IconProps): ReactElement;
 
 // @public
+export function SettingsIcon(props: IconProps): ReactElement;
+
+// @public
+export const SettingsPanel: ForwardRefExoticComponent<SettingsPanelProps & RefAttributes<HTMLDialogElement>>;
+
+// @public
+export interface SettingsPanelProps extends Omit<SheetProps, "title" | "children"> {
+    readonly children?: ReactNode;
+    readonly onValueChange: (value: EditorPreferences) => void;
+    readonly settings?: readonly (keyof EditorPreferences)[] | undefined;
+    readonly title?: ReactNode;
+    readonly value: EditorPreferences;
+}
+
+// @public
+export const Sheet: ForwardRefExoticComponent<SheetProps & RefAttributes<HTMLDialogElement>>;
+
+// @public
+export interface SheetProps extends Omit<DialogProps, "size"> {
+    readonly placement?: "auto" | "end" | "bottom" | undefined;
+}
+
+// @public
 export function SkipBackIcon(props: IconProps): ReactElement;
 
 // @public
@@ -486,6 +697,32 @@ export interface StyleProps<Part extends string> {
 }
 
 // @public
+export const TabBar: ForwardRefExoticComponent<TabBarProps & RefAttributes<HTMLDivElement>>;
+
+// @public
+export interface TabBarItem {
+    readonly icon: ReactNode;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly label: string;
+}
+
+// @public
+export type TabBarPart = "root" | "item";
+
+// @public
+export interface TabBarProps extends Omit<ToolbarProps, "classNames" | "orientation" | "children">, StyleProps<TabBarPart> {
+    // (undocumented)
+    readonly items: readonly TabBarItem[];
+    readonly max?: number | undefined;
+    readonly moreLabel?: string | undefined;
+    readonly onMore?: (() => void) | undefined;
+    readonly onValueChange: (id: string) => void;
+    readonly value: string | null;
+}
+
+// @public
 export const TextArea: ForwardRefExoticComponent<TextAreaProps & RefAttributes<HTMLTextAreaElement>>;
 
 // @public
@@ -518,6 +755,12 @@ export interface Theme {
     readonly compact: Readonly<Record<string, string>>;
     readonly tokens: Readonly<Record<string, string>>;
 }
+
+// @public
+export function ThemeDarkIcon(props: IconProps): ReactElement;
+
+// @public
+export function ThemeLightIcon(props: IconProps): ReactElement;
 
 // @public
 export interface ThemePair {
@@ -553,6 +796,16 @@ export interface ThemeProviderSingleProps extends ThemeProviderBaseProps {
     readonly mode?: undefined;
     // (undocumented)
     readonly theme: Theme;
+}
+
+// @public
+export const ThemeToggle: ForwardRefExoticComponent<ThemeToggleProps & RefAttributes<HTMLButtonElement>>;
+
+// @public
+export interface ThemeToggleProps extends Omit<IconButtonProps, "label" | "icon" | "pressed" | "onClick"> {
+    readonly label?: string | undefined;
+    readonly onValueChange: (value: "light" | "dark") => void;
+    readonly value: "system" | "light" | "dark";
 }
 
 // @public
@@ -695,6 +948,38 @@ export interface TimelineScale {
 }
 
 // @public
+export interface ToastApi {
+    readonly dismiss: (id: string) => void;
+    readonly show: (options: ToastOptions) => string;
+}
+
+// @public
+export interface ToastOptions {
+    readonly action?: {
+        readonly label: string;
+        readonly onAction: () => void;
+    } | undefined;
+    readonly duration?: number | undefined;
+    readonly message: string;
+    readonly tone?: "neutral" | "success" | "danger" | undefined;
+}
+
+// @public
+export type ToastPart = "root" | "toast" | "message" | "action" | "dismiss";
+
+// @public
+export function ToastProvider(input: ToastProviderProps): ReactElement;
+
+// @public
+export interface ToastProviderProps extends StyleProps<ToastPart> {
+    // (undocumented)
+    readonly children?: ReactNode;
+    readonly dismissLabel?: string | undefined;
+    readonly label?: string | undefined;
+    readonly max?: number | undefined;
+}
+
+// @public
 export const ToggleButton: ForwardRefExoticComponent<ToggleButtonProps & RefAttributes<HTMLButtonElement>>;
 
 // @public
@@ -760,6 +1045,48 @@ export const ToolbarSeparator: ForwardRefExoticComponent<ToolbarSeparatorProps &
 export type ToolbarSeparatorProps = Omit<HTMLAttributes<HTMLHRElement>, "children">;
 
 // @public
+export const ToolList: ForwardRefExoticComponent<ToolListProps & RefAttributes<HTMLDivElement>>;
+
+// @public
+export interface ToolListGroup {
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly items: readonly ToolListItem[];
+    // (undocumented)
+    readonly label: string;
+}
+
+// @public
+export interface ToolListItem {
+    readonly ariaKeyShortcuts?: string | undefined;
+    readonly description?: string | undefined;
+    readonly disabled?: boolean | undefined;
+    readonly icon: ReactNode;
+    // (undocumented)
+    readonly id: string;
+    readonly label: string;
+    readonly pressed?: boolean | undefined;
+    readonly shortcut?: string | undefined;
+}
+
+// @public
+export type ToolListPart = "root" | "group" | "groupLabel" | "item" | "description" | "shortcut";
+
+// @public
+export interface ToolListProps extends Omit<ToolbarProps, "classNames" | "orientation" | "children" | "label">, StyleProps<ToolListPart> {
+    readonly descriptions?: boolean | undefined;
+    readonly display?: "full" | "icons" | undefined;
+    readonly groupLabels?: boolean | undefined;
+    // (undocumented)
+    readonly groups: readonly ToolListGroup[];
+    readonly label: string;
+    readonly onRun: (id: string) => void;
+    readonly orientation?: "horizontal" | "vertical" | undefined;
+    readonly shortcuts?: boolean | undefined;
+}
+
+// @public
 export const Tooltip: ForwardRefExoticComponent<TooltipProps & RefAttributes<HTMLDivElement>>;
 
 // @public
@@ -803,6 +1130,89 @@ export const uiMessages: {
     readonly "timelineClips.notSelected": "{label}, not selected";
     readonly "errors.INVALID_THEME_TOKEN": "The theme setting {token} has a value that can't be used.";
     readonly "errors.INVALID_THEME_SELECTOR": "The theme can't be applied to the selector {selector}.";
+} & {
+    readonly "editorFrame.tools": "Tools";
+    readonly "editorFrame.properties": "Properties";
+    readonly "editorFrame.showTools": "Show tools";
+    readonly "editorFrame.hideTools": "Hide tools";
+    readonly "editorFrame.toolsIcons": "Icons only";
+    readonly "editorFrame.toolsFull": "Show labels";
+    readonly "editorFrame.showProperties": "Show properties";
+    readonly "editorFrame.hideProperties": "Hide properties";
+    readonly "mode.label": "Experience";
+    readonly "mode.easy": "Easy";
+    readonly "mode.advanced": "Advanced";
+    readonly "mode.expert": "Expert";
+    readonly "tabBar.more": "More";
+    readonly "themeToggle.dark": "Dark theme";
+    readonly "settings.title": "Settings";
+    readonly "settings.theme": "Appearance";
+    readonly "settings.theme.system": "System";
+    readonly "settings.theme.light": "Light";
+    readonly "settings.theme.dark": "Dark";
+    readonly "settings.toolsLayout": "Tools layout";
+    readonly "settings.toolsLayout.sidebar": "Sidebar";
+    readonly "settings.toolsLayout.dock": "Floating dock";
+    readonly "settings.tools": "Tools panel";
+    readonly "settings.tools.full": "Full";
+    readonly "settings.tools.icons": "Icons";
+    readonly "settings.tools.hidden": "Hidden";
+    readonly "settings.properties": "Properties panel";
+    readonly "settings.properties.shown": "Shown";
+    readonly "settings.properties.hidden": "Hidden";
+    readonly "settings.density": "Density";
+    readonly "settings.density.comfortable": "Comfortable";
+    readonly "settings.density.compact": "Compact";
+    readonly "settings.motion": "Motion";
+    readonly "settings.motion.system": "System";
+    readonly "settings.motion.full": "Full";
+    readonly "settings.motion.reduced": "Reduced";
+    readonly "settings.tips": "Tips";
+    readonly "settings.tips.on": "On";
+    readonly "settings.tips.off": "Off";
+    readonly "commandPalette.title": "Commands";
+    readonly "commandPalette.label": "Search tools";
+    readonly "commandPalette.placeholder": "Search tools";
+    readonly "commandPalette.empty": "No tools match.";
+    readonly "commandPalette.results": {
+        readonly $plural: "count";
+    } & {
+        readonly one: "{count} result";
+        readonly other: "{count} results";
+    };
+    readonly "toast.region": "Notifications";
+    readonly "toast.dismiss": "Dismiss";
+    readonly "progressOverlay.cancel": "Cancel";
+} & {
+    readonly "colorPicker.saturation": "Saturation";
+    readonly "colorPicker.brightness": "Brightness";
+    readonly "colorPicker.hue": "Hue";
+    readonly "colorPicker.alpha": "Opacity";
+    readonly "colorPicker.hex": "Hex";
+    readonly "colorPicker.eyeDropper": "Pick a colour from the screen";
+    readonly "colorPicker.swatches": "swatches";
+    readonly "colorPicker.recent": "recent colours";
+    readonly "colorPicker.recentColor": "{name}, {hex}";
+    readonly "colorPicker.percent": "{value} %, {name}";
+    readonly "colorPicker.degrees": "{value}°, {name}";
+    readonly "colorPicker.contrastPass": "Contrast {ratio}:1, enough for text";
+    readonly "colorPicker.contrastFail": "Contrast {ratio}:1, too low for text";
+    readonly "colorPicker.name.white": "white";
+    readonly "colorPicker.name.black": "black";
+    readonly "colorPicker.name.grey": "grey";
+    readonly "colorPicker.name.lightGrey": "light grey";
+    readonly "colorPicker.name.darkGrey": "dark grey";
+    readonly "colorPicker.name.light": "light {hue}";
+    readonly "colorPicker.name.dark": "dark {hue}";
+    readonly "colorPicker.name.greyish": "greyish {hue}";
+    readonly "colorPicker.hue.red": "red";
+    readonly "colorPicker.hue.orange": "orange";
+    readonly "colorPicker.hue.yellow": "yellow";
+    readonly "colorPicker.hue.green": "green";
+    readonly "colorPicker.hue.cyan": "cyan";
+    readonly "colorPicker.hue.blue": "blue";
+    readonly "colorPicker.hue.purple": "purple";
+    readonly "colorPicker.hue.pink": "pink";
 };
 
 // @public
@@ -825,6 +1235,9 @@ export function UploadIcon(props: IconProps): ReactElement;
 export function useAnnounce(): Announce;
 
 // @public
+export function useEditorFrame(): EditorFrameControls | null;
+
+// @public
 export function useHeadingLevel(): HeadingLevel;
 
 // @public
@@ -840,6 +1253,9 @@ export function useTimelineLanes(): TimelineLanes;
 
 // @public
 export function useTimelineScale(): TimelineScale;
+
+// @public
+export function useToast(): ToastApi;
 
 // @public
 export function useUiMessages(): UiMessages;

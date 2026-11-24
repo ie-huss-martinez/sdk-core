@@ -1,0 +1,304 @@
+@layer hm.components {
+  /*
+   * Layout, focus, target sizes and the thumbs: kept with unstyled, so the
+   * picker stays usable and accessible. Colours from the value are SVG
+   * attributes (docs/adr/0013); the hex input is a text field.
+   */
+  .hm-color-picker {
+    box-sizing: border-box;
+    display: grid;
+    gap: var(--hm-color-picker-gap, var(--hm-gap-normal));
+    grid-template-columns: minmax(0, 1fr);
+    inline-size: 100%;
+    max-inline-size: var(--hm-color-picker-max-width, var(--hm-surface-width-small));
+  }
+
+  .hm-color-picker-sliders {
+    display: grid;
+    gap: var(--hm-color-picker-gap, var(--hm-gap-normal));
+  }
+
+  .hm-color-picker-area {
+    aspect-ratio: 3 / 2;
+    box-sizing: border-box;
+    cursor: crosshair;
+    position: relative;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .hm-color-picker-area[data-hm-disabled] {
+    cursor: not-allowed;
+  }
+
+  /* The area's inputs are hidden, so the area shows their focus. */
+  .hm-color-picker-area:has(input:focus-visible) {
+    outline: var(--hm-focus-ring);
+    outline-offset: var(--hm-focus-ring-offset);
+  }
+
+  .hm-color-picker-area-svg,
+  .hm-color-picker-strip-svg {
+    block-size: 100%;
+    display: block;
+    inline-size: 100%;
+    inset: 0;
+    overflow: visible;
+    position: absolute;
+  }
+
+  /* Each thumb has two rings, one light and one dark, so it shows on any colour. */
+  .hm-color-picker-thumb,
+  .hm-color-picker-thumb-outline {
+    pointer-events: none;
+    r: calc(var(--hm-color-picker-thumb-size, var(--hm-icon-size)) / 2);
+  }
+
+  /* Reduced motion sets the duration to zero (sdk-core ADR 0067). */
+  .hm-color-picker-thumb {
+    stroke: var(--hm-color-picker-thumb-color, var(--hm-color-surface-raised));
+    stroke-width: var(--hm-focus-ring-width);
+    transition: stroke-width var(--hm-motion-duration-feedback) var(--hm-motion-easing-standard);
+  }
+
+  .hm-color-picker-thumb-outline {
+    fill: none;
+    r: calc(
+      var(--hm-color-picker-thumb-size, var(--hm-icon-size)) /
+      2 +
+      var(--hm-focus-ring-width)
+    );
+    stroke: var(--hm-color-picker-thumb-outline-color, var(--hm-color-text));
+    stroke-width: var(--hm-border-width);
+  }
+
+  /* A line through the thumb, along the axis whose input has focus. */
+  .hm-color-picker-guide {
+    pointer-events: none;
+    stroke: var(--hm-color-picker-thumb-outline-color, var(--hm-color-text));
+    stroke-dasharray: var(--hm-gap-tight);
+    stroke-width: var(--hm-border-width);
+    visibility: hidden;
+  }
+
+  .hm-color-picker-area:has(.hm-color-picker-saturation:focus-visible)
+    .hm-color-picker-guide--saturation,
+  .hm-color-picker-area:has(.hm-color-picker-brightness:focus-visible)
+    .hm-color-picker-guide--brightness {
+    visibility: visible;
+  }
+
+  .hm-color-picker-area:has(input:focus-visible) .hm-color-picker-thumb {
+    stroke-width: calc(var(--hm-focus-ring-width) * 2);
+  }
+
+  .hm-color-picker-strip {
+    block-size: max(
+      var(--hm-color-picker-strip-height, var(--hm-control-height-small)),
+      var(--hm-target-size)
+    );
+    position: relative;
+  }
+
+  /*
+   * The visible hue and opacity sliders lie over their strips, half a thumb
+   * wider at each end: a range input's thumb stops half its width short of
+   * the ends, and this puts its centre over the strip's first and last colour.
+   */
+  .hm-color-picker-slider {
+    appearance: none;
+    background: transparent;
+    block-size: 100%;
+    box-sizing: border-box;
+    cursor: pointer;
+    inline-size: calc(100% + var(--hm-color-picker-thumb-size, var(--hm-icon-size)));
+    inset-block: 0;
+    inset-inline-start: calc(var(--hm-color-picker-thumb-size, var(--hm-icon-size)) / -2);
+    margin: 0;
+    position: absolute;
+  }
+
+  .hm-color-picker-slider:disabled {
+    cursor: not-allowed;
+  }
+
+  .hm-color-picker-slider:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: var(--hm-focus-ring-offset);
+  }
+
+  .hm-color-picker-slider::-webkit-slider-runnable-track {
+    background: transparent;
+    block-size: 100%;
+  }
+
+  .hm-color-picker-slider::-moz-range-track {
+    background: transparent;
+    block-size: 100%;
+  }
+
+  .hm-color-picker-slider::-webkit-slider-thumb {
+    appearance: none;
+    background: transparent;
+    block-size: 100%;
+    border: var(--hm-focus-ring-width) solid
+      var(--hm-color-picker-thumb-color, var(--hm-color-surface-raised));
+    border-radius: var(--hm-radius-round);
+    box-shadow: 0 0 0 var(--hm-border-width)
+      var(--hm-color-picker-thumb-outline-color, var(--hm-color-text));
+    box-sizing: border-box;
+    inline-size: var(--hm-color-picker-thumb-size, var(--hm-icon-size));
+  }
+
+  .hm-color-picker-slider::-moz-range-thumb {
+    background: transparent;
+    block-size: 100%;
+    border: var(--hm-focus-ring-width) solid
+      var(--hm-color-picker-thumb-color, var(--hm-color-surface-raised));
+    border-radius: var(--hm-radius-round);
+    box-shadow: 0 0 0 var(--hm-border-width)
+      var(--hm-color-picker-thumb-outline-color, var(--hm-color-text));
+    box-sizing: border-box;
+    inline-size: var(--hm-color-picker-thumb-size, var(--hm-icon-size));
+  }
+
+  .hm-color-picker-row {
+    align-items: center;
+    display: flex;
+    gap: var(--hm-color-picker-gap, var(--hm-gap-normal));
+  }
+
+  /* Square, as tall as the hex input beside it; an SVG would otherwise be 150 px tall. */
+  .hm-color-picker-preview {
+    block-size: max(var(--hm-text-field-height, var(--hm-control-height)), var(--hm-target-size));
+    box-sizing: border-box;
+    flex: none;
+    inline-size: max(var(--hm-text-field-height, var(--hm-control-height)), var(--hm-target-size));
+  }
+
+  .hm-color-picker-input {
+    flex: 1;
+    min-inline-size: 0;
+  }
+
+  .hm-color-picker-contrast {
+    margin: 0;
+  }
+
+  .hm-color-picker-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--hm-gap-tight);
+  }
+
+  /* The padding keeps the checked ring apart from the colour. */
+  .hm-color-picker-swatch {
+    block-size: max(
+      var(--hm-color-picker-swatch-size, var(--hm-control-height-small)),
+      var(--hm-target-size)
+    );
+    box-sizing: border-box;
+    cursor: pointer;
+    display: inline-flex;
+    inline-size: max(
+      var(--hm-color-picker-swatch-size, var(--hm-control-height-small)),
+      var(--hm-target-size)
+    );
+    padding: var(--hm-focus-ring-offset);
+  }
+
+  .hm-color-picker-swatch:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: var(--hm-focus-ring-offset);
+  }
+
+  .hm-color-picker-swatch:disabled {
+    cursor: not-allowed;
+  }
+
+  .hm-color-picker-swatch-fill {
+    block-size: 100%;
+    box-sizing: border-box;
+    inline-size: 100%;
+  }
+
+  /* The checkerboard under translucent colours shows their opacity. */
+  .hm-color-picker-checker {
+    fill: var(--hm-color-surface-raised);
+  }
+
+  .hm-color-picker-checker-alt {
+    fill: var(--hm-color-border);
+  }
+
+  /*
+   * Visual styles, dropped with unstyled. Every colour has a border, so one
+   * close to the surface's still shows its edge (WCAG 1.4.11).
+   */
+  .hm-color-picker:not([data-hm-unstyled]) .hm-color-picker-area,
+  .hm-color-picker:not([data-hm-unstyled]) .hm-color-picker-strip,
+  .hm-color-picker:not([data-hm-unstyled]) .hm-color-picker-preview,
+  .hm-color-picker:not([data-hm-unstyled]) .hm-color-picker-swatch-fill {
+    border: var(--hm-border-width) solid
+      var(--hm-color-picker-border-color, var(--hm-color-border-strong));
+    border-radius: var(--hm-color-picker-radius, var(--hm-radius-control));
+  }
+
+  .hm-color-picker:not([data-hm-unstyled]) .hm-color-picker-area-svg,
+  .hm-color-picker:not([data-hm-unstyled]) .hm-color-picker-strip-svg {
+    border-radius: var(--hm-color-picker-radius, var(--hm-radius-control));
+  }
+
+  .hm-color-picker:not([data-hm-unstyled]) .hm-color-picker-strip-svg {
+    overflow: hidden;
+  }
+
+  .hm-color-picker:not([data-hm-unstyled]) .hm-color-picker-swatch {
+    background: transparent;
+    border: var(--hm-focus-ring-width) solid transparent;
+    border-radius: var(--hm-color-picker-radius, var(--hm-radius-control));
+  }
+
+  /* The checked swatch has a ring, whatever its colour. */
+  .hm-color-picker:not([data-hm-unstyled]) .hm-color-picker-swatch[aria-checked="true"] {
+    border-color: var(--hm-color-picker-swatch-checked-border-color, var(--hm-color-text));
+  }
+
+  .hm-color-picker:not([data-hm-unstyled]) .hm-color-picker-contrast {
+    color: var(--hm-color-picker-hint-fg, var(--hm-color-text-muted));
+    font-family: var(--hm-font-family);
+    font-size: var(--hm-font-size-small);
+    line-height: var(--hm-line-height-body);
+  }
+
+  .hm-color-picker:not([data-hm-unstyled])[aria-disabled="true"] .hm-color-picker-area,
+  .hm-color-picker:not([data-hm-unstyled])[aria-disabled="true"] .hm-color-picker-strip,
+  .hm-color-picker:not([data-hm-unstyled]) .hm-color-picker-swatch:disabled {
+    opacity: var(--hm-opacity-disabled);
+  }
+
+  /*
+   * A range input runs right to left in right-to-left text, so the hue and
+   * opacity strips mirror with it. By [dir], not :dir(), which hosts'
+   * minifiers lower (docs/adr/0005), as ui's icons do.
+   */
+  [dir="rtl"] .hm-color-picker-strip > .hm-color-picker-strip-svg {
+    transform: scaleX(-1);
+  }
+
+  [dir="ltr"] [dir="rtl"] .hm-color-picker-strip > .hm-color-picker-strip-svg {
+    transform: scaleX(-1);
+  }
+
+  [dir="rtl"] [dir="ltr"] .hm-color-picker-strip > .hm-color-picker-strip-svg {
+    transform: none;
+  }
+
+  [dir="rtl"] [dir="ltr"] [dir="rtl"] .hm-color-picker-strip > .hm-color-picker-strip-svg {
+    transform: scaleX(-1);
+  }
+
+  [dir="ltr"] [dir="rtl"] [dir="ltr"] .hm-color-picker-strip > .hm-color-picker-strip-svg {
+    transform: none;
+  }
+}

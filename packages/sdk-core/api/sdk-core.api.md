@@ -135,6 +135,9 @@ export interface DeserializeErrorOptions {
 }
 
 // @public
+export type EditorMode = ToolLevel;
+
+// @public
 export type ErrorDetails = {
     readonly [key: string]: ErrorDetailValue;
 };
@@ -168,7 +171,7 @@ export interface ExposeWorkerOptions {
 }
 
 // @public
-export type FamilyAction = "undo" | "redo" | "delete" | "select-all" | "zoom-in" | "zoom-out" | "zoom-reset" | "cancel" | "play-pause";
+export type FamilyAction = "undo" | "redo" | "delete" | "select-all" | "zoom-in" | "zoom-out" | "zoom-reset" | "cancel" | "play-pause" | "toggle-tools" | "command-palette";
 
 // @public
 export const familyShortcuts: {
@@ -219,6 +222,11 @@ export interface HistoryStep<C> {
 
 // @public
 export function isSdkError<Code extends string = string>(value: unknown, code?: Code): value is SdkError<Code>;
+
+// @public
+export function isToolInMode(tool: {
+    readonly level?: ToolLevel | undefined;
+}, mode: EditorMode): boolean;
 
 // @public
 export interface KeyboardEventLike {
@@ -527,6 +535,7 @@ export type Tool<State = unknown, Context = unknown, View = unknown> = Readonly<
 
 // @public
 export interface ToolDefinition<State = unknown, Context = unknown, View = unknown> {
+    readonly description?: string;
     readonly group: string;
     readonly icon: string;
     readonly id: string;
@@ -534,11 +543,15 @@ export interface ToolDefinition<State = unknown, Context = unknown, View = unkno
     readonly isAvailable?: (state: State) => boolean;
     readonly isEnabled?: (state: State) => boolean;
     readonly label: string;
+    readonly level?: ToolLevel;
     readonly requires?: readonly string[];
     readonly run: (context: Context) => void | Promise<void>;
     readonly shortcuts?: ShortcutSpec;
     readonly view?: View;
 }
+
+// @public
+export type ToolLevel = "easy" | "advanced" | "expert";
 
 // @public
 export interface ToolRegistry<T extends Tool<never, never, unknown>> {

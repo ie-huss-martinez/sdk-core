@@ -1,0 +1,115 @@
+@layer hm.components {
+  /*
+   * The toasts' region, in the top layer (popover="manual"), centred at the
+   * foot of the viewport. It's as wide as its widest toast, and lets clicks
+   * through around them.
+   */
+  .hm-toast-region {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    box-sizing: border-box;
+    color: inherit;
+    flex-direction: column;
+    gap: var(--hm-gap-normal);
+    inset: auto 0 var(--hm-gap-loose);
+    margin-inline: auto;
+    max-inline-size: calc(100% - var(--hm-gap-loose) * 2);
+    overflow: visible;
+    padding: 0;
+    pointer-events: none;
+    position: fixed;
+    inline-size: fit-content;
+  }
+
+  .hm-toast-region:popover-open {
+    display: flex;
+  }
+
+  .hm-toast {
+    align-items: center;
+    box-sizing: border-box;
+    display: flex;
+    gap: var(--hm-gap-normal);
+    max-inline-size: var(--hm-toast-max-width, var(--hm-surface-width-medium));
+    min-block-size: max(var(--hm-control-height), var(--hm-target-size));
+    padding-block: var(--hm-inset-tight);
+    padding-inline: var(--hm-inset-normal) var(--hm-inset-tight);
+    pointer-events: auto;
+  }
+
+  .hm-toast-indicator {
+    block-size: var(--hm-gap-normal);
+    border-radius: var(--hm-radius-round);
+    flex: none;
+    inline-size: var(--hm-gap-normal);
+  }
+
+  .hm-toast-message {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+  }
+
+  /* Visual styles, dropped with unstyled. */
+  .hm-toast-region:not([data-hm-unstyled]) .hm-toast {
+    backdrop-filter: blur(var(--hm-toast-blur, var(--hm-blur-glass)));
+    background: var(--hm-toast-bg, var(--hm-color-surface-glass));
+    border: var(--hm-border-width) solid var(--hm-color-border);
+    border-radius: var(--hm-toast-radius, var(--hm-radius-round));
+    box-shadow: var(--hm-toast-shadow, var(--hm-shadow-floating));
+    color: var(--hm-toast-fg, var(--hm-color-text));
+    font-family: var(--hm-font-family);
+    font-size: var(--hm-font-size-body);
+    letter-spacing: var(--hm-letter-spacing);
+    line-height: var(--hm-line-height-tight);
+    transition-duration: var(--hm-motion-duration-enter);
+    transition-property: opacity, translate, scale;
+    transition-timing-function: var(--hm-motion-easing-spring);
+  }
+
+  .hm-toast-region:not([data-hm-unstyled]) .hm-toast-indicator {
+    background: var(--hm-color-accent);
+  }
+
+  .hm-toast-region:not([data-hm-unstyled]) .hm-toast[data-hm-tone="success"] .hm-toast-indicator {
+    background: var(--hm-color-success);
+  }
+
+  .hm-toast-region:not([data-hm-unstyled]) .hm-toast[data-hm-tone="danger"] {
+    background: var(--hm-toast-danger-bg, var(--hm-color-danger-subtle));
+    border-color: var(--hm-color-danger-text);
+    color: var(--hm-toast-danger-fg, var(--hm-color-danger-text));
+  }
+
+  .hm-toast-region:not([data-hm-unstyled]) .hm-toast[data-hm-tone="danger"] .hm-toast-indicator {
+    background: var(--hm-color-danger-text);
+  }
+
+  .hm-toast-region:not([data-hm-unstyled]) .hm-toast-action {
+    color: var(--hm-color-accent-text);
+  }
+
+  .hm-toast-region:not([data-hm-unstyled]) .hm-toast[data-hm-tone="danger"] .hm-toast-action,
+  .hm-toast-region:not([data-hm-unstyled]) .hm-toast[data-hm-tone="danger"] .hm-toast-dismiss {
+    color: inherit;
+  }
+
+  /* A toast springs up from below; reduced motion only shows it. */
+  @starting-style {
+    .hm-toast-region:not([data-hm-unstyled]) .hm-toast {
+      opacity: 0;
+      scale: 0.96;
+      translate: 0 var(--hm-gap-loose);
+    }
+  }
+
+  [data-hm-motion="reduced"] .hm-toast-region:not([data-hm-unstyled]) .hm-toast {
+    transition-property: opacity;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hm-toast-region:not([data-hm-unstyled]) .hm-toast {
+      transition-property: opacity;
+    }
+  }
+}

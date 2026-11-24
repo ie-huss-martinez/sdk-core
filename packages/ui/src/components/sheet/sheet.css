@@ -1,0 +1,81 @@
+@layer hm.components {
+  /*
+   * A sheet is a dialog placed at an edge. It's in the top layer, so its
+   * placement follows the viewport (sdk-core ADR 0067).
+   */
+  .hm-dialog.hm-sheet {
+    max-block-size: 100%;
+    max-inline-size: 100%;
+  }
+
+  .hm-sheet--end,
+  .hm-sheet--auto {
+    block-size: 100%;
+    inline-size: var(--hm-sheet-width, var(--hm-surface-width-small));
+    margin-block: 0;
+    margin-inline: auto 0;
+  }
+
+  .hm-sheet--bottom {
+    inline-size: 100%;
+    margin-block: auto 0;
+    margin-inline: 0;
+    max-block-size: calc(100% - var(--hm-bar-height));
+  }
+
+  @media (width < 48rem) {
+    .hm-sheet--auto {
+      block-size: auto;
+      inline-size: 100%;
+      margin-block: auto 0;
+      margin-inline: 0;
+      max-block-size: calc(100% - var(--hm-bar-height));
+    }
+  }
+
+  /* Visual styles, dropped with unstyled. */
+  .hm-sheet--end:not([data-hm-unstyled]),
+  .hm-sheet--auto:not([data-hm-unstyled]) {
+    border-end-end-radius: 0;
+    border-start-end-radius: 0;
+  }
+
+  .hm-sheet--bottom:not([data-hm-unstyled]) {
+    border-end-end-radius: 0;
+    border-end-start-radius: 0;
+  }
+
+  .hm-dialog.hm-sheet:not([data-hm-unstyled]),
+  .hm-dialog.hm-sheet:not([data-hm-unstyled])::backdrop {
+    transition-duration: var(--hm-motion-duration-panel);
+    transition-timing-function: var(--hm-motion-easing-panel);
+  }
+
+  .hm-dialog.hm-sheet--bottom:not([open], [data-hm-unstyled]) {
+    translate: 0 100%;
+  }
+
+  @starting-style {
+    .hm-dialog.hm-sheet--bottom[open]:not([data-hm-unstyled]) {
+      translate: 0 100%;
+    }
+  }
+
+  @media (width < 48rem) {
+    .hm-sheet--auto:not([data-hm-unstyled]) {
+      border-end-end-radius: 0;
+      border-end-start-radius: 0;
+      border-start-end-radius: var(--hm-dialog-radius, var(--hm-radius-surface));
+    }
+
+    .hm-dialog.hm-sheet--auto:not([open], [data-hm-unstyled]) {
+      translate: 0 100%;
+    }
+
+    @starting-style {
+      .hm-dialog.hm-sheet--auto[open]:not([data-hm-unstyled]) {
+        translate: 0 100%;
+      }
+    }
+  }
+}

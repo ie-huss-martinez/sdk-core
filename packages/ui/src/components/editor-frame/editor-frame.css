@@ -1,0 +1,327 @@
+@layer hm.components {
+  /*
+   * Layout, kept with unstyled. The frame is a container, so its regions
+   * follow the frame's width, not the viewport's (sdk-core ADR 0067).
+   */
+  .hm-editor-frame {
+    block-size: 100%;
+    box-sizing: border-box;
+    container: hm-editor-frame / inline-size;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    min-block-size: 0;
+    overflow: hidden;
+  }
+
+  /* The top bar wraps rather than clips when its controls don't fit. */
+  .hm-editor-frame-top {
+    align-items: center;
+    box-sizing: border-box;
+    display: flex;
+    flex-wrap: wrap;
+    padding-block: var(--hm-gap-tight);
+    gap: var(--hm-editor-frame-gap, var(--hm-gap-normal));
+    grid-row: 1;
+    min-block-size: var(--hm-editor-frame-bar-height, var(--hm-bar-height));
+    min-inline-size: 0;
+    padding-inline: var(--hm-editor-frame-inset, var(--hm-inset-normal));
+  }
+
+  .hm-editor-frame-body {
+    display: flex;
+    grid-row: 2;
+    min-block-size: 0;
+    min-inline-size: 0;
+    position: relative;
+  }
+
+  .hm-editor-frame-stage {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-block-size: 0;
+    min-inline-size: 0;
+    position: relative;
+  }
+
+  .hm-editor-frame-bottom {
+    grid-row: 3;
+    min-inline-size: 0;
+  }
+
+  .hm-editor-frame-tab-bar {
+    display: none;
+    grid-row: 4;
+  }
+
+  /* The tools panel. */
+  .hm-editor-frame-tools {
+    box-sizing: border-box;
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    inline-size: var(--hm-editor-frame-sidebar-width, var(--hm-sidebar-width));
+    min-block-size: 0;
+    position: relative;
+  }
+
+  .hm-editor-frame-tools[hidden] {
+    display: none;
+  }
+
+  .hm-editor-frame[data-hm-tools="icons"] .hm-editor-frame-tools {
+    inline-size: var(--hm-editor-frame-rail-width, var(--hm-rail-width));
+  }
+
+  .hm-editor-frame-tools-list {
+    flex: 1 1 auto;
+    min-block-size: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding: var(--hm-inset-tight);
+  }
+
+  .hm-editor-frame-tools-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--hm-gap-tight);
+    justify-content: flex-end;
+    padding: var(--hm-inset-tight);
+  }
+
+  .hm-editor-frame[data-hm-tools="icons"] .hm-editor-frame-tools-foot {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* The properties panel. */
+  .hm-editor-frame-properties {
+    box-sizing: border-box;
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    inline-size: var(--hm-editor-frame-inspector-width, var(--hm-inspector-width));
+    min-block-size: 0;
+  }
+
+  .hm-editor-frame-properties[hidden] {
+    display: none;
+  }
+
+  .hm-editor-frame-properties-head {
+    display: flex;
+    justify-content: flex-end;
+    padding: var(--hm-inset-tight);
+    padding-block-end: 0;
+  }
+
+  .hm-editor-frame-properties-body {
+    flex: 1 1 auto;
+    min-block-size: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding: var(--hm-editor-frame-inset, var(--hm-inset-normal));
+    padding-block-start: 0;
+  }
+
+  /* Edge tabs bring a hidden panel back. */
+  .hm-editor-frame-edge {
+    align-items: center;
+    box-sizing: border-box;
+    cursor: pointer;
+    display: inline-flex;
+    gap: var(--hm-gap-tight);
+    inset-block-start: var(--hm-gap-normal);
+    min-block-size: max(var(--hm-control-height), var(--hm-target-size));
+    padding-inline: var(--hm-control-padding-x);
+    position: absolute;
+    z-index: var(--hm-z-raised);
+  }
+
+  .hm-editor-frame-edge--tools {
+    inset-inline-start: var(--hm-gap-normal);
+  }
+
+  .hm-editor-frame-edge--properties {
+    inset-inline-end: var(--hm-gap-normal);
+  }
+
+  .hm-editor-frame-edge:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: var(--hm-focus-ring-offset);
+  }
+
+  .hm-editor-frame-edge-icon {
+    block-size: var(--hm-icon-size);
+    display: inline-flex;
+    inline-size: var(--hm-icon-size);
+  }
+
+  .hm-editor-frame-edge-icon > svg {
+    block-size: inherit;
+    inline-size: inherit;
+  }
+
+  /* The dock floats the tools as a pill over the foot of the stage. */
+  /* Centred by auto margins between both insets, so it's centred in either direction. */
+  .hm-editor-frame[data-hm-layout="dock"] .hm-editor-frame-tools {
+    block-size: auto;
+    flex-direction: row;
+    inline-size: fit-content;
+    inset-block: auto var(--hm-gap-loose);
+    inset-inline: 0;
+    margin-inline: auto;
+    max-inline-size: calc(100% - 2 * var(--hm-gap-loose));
+    position: absolute;
+    z-index: var(--hm-z-raised);
+  }
+
+  .hm-editor-frame[data-hm-layout="dock"] .hm-editor-frame-tools-list {
+    overflow: auto hidden;
+  }
+
+  .hm-editor-frame[data-hm-layout="dock"] .hm-editor-frame-tools-foot {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: nowrap;
+  }
+
+  /* Below 60 rem, full tools float over the stage and the properties over its end. */
+  @container hm-editor-frame (width < 60rem) {
+    .hm-editor-frame[data-hm-layout="sidebar"][data-hm-tools="full"] .hm-editor-frame-tools,
+    .hm-editor-frame-properties {
+      inset-block: 0;
+      position: absolute;
+      z-index: var(--hm-z-sticky);
+    }
+
+    .hm-editor-frame[data-hm-layout="sidebar"][data-hm-tools="full"] .hm-editor-frame-tools {
+      inset-inline-start: 0;
+    }
+
+    .hm-editor-frame .hm-editor-frame-properties {
+      inset-inline-end: 0;
+    }
+
+    /* The stage keeps the rail's room, so it doesn't jump when the tools open. */
+    .hm-editor-frame[data-hm-layout="sidebar"][data-hm-tools="full"] .hm-editor-frame-stage {
+      margin-inline-start: var(--hm-editor-frame-rail-width, var(--hm-rail-width));
+    }
+  }
+
+  /* Below 45 rem, the tab bar replaces the tools and the properties sit under the stage. */
+  @container hm-editor-frame (width < 45rem) {
+    .hm-editor-frame[data-hm-tab-bar] .hm-editor-frame-tools,
+    .hm-editor-frame[data-hm-tab-bar] .hm-editor-frame-edge--tools {
+      display: none;
+    }
+
+    .hm-editor-frame[data-hm-tab-bar] .hm-editor-frame-stage {
+      margin-inline-start: 0;
+    }
+
+    .hm-editor-frame-tab-bar {
+      display: block;
+    }
+
+    .hm-editor-frame-body {
+      flex-direction: column;
+    }
+
+    .hm-editor-frame-properties {
+      inline-size: auto;
+      inset-block: auto 0;
+      inset-inline: 0;
+      max-block-size: 60%;
+    }
+
+    .hm-editor-frame-top {
+      padding-inline: var(--hm-inset-tight);
+    }
+  }
+
+  /* Visual styles, dropped with unstyled. */
+  .hm-editor-frame:not([data-hm-unstyled]) {
+    background: var(--hm-editor-frame-bg, var(--hm-color-surface-sunken));
+    color: var(--hm-color-text);
+    font-family: var(--hm-font-family);
+    font-size: var(--hm-font-size-body);
+    letter-spacing: var(--hm-letter-spacing);
+    line-height: var(--hm-line-height-body);
+  }
+
+  .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-top,
+  .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-tab-bar {
+    background: var(--hm-editor-frame-bar-bg, var(--hm-color-surface-raised));
+    border-block-end: var(--hm-border-width) solid
+      var(--hm-editor-frame-border-color, var(--hm-color-border));
+    color: var(--hm-editor-frame-bar-fg, var(--hm-color-text));
+  }
+
+  .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-tab-bar {
+    border-block: var(--hm-border-width) solid
+      var(--hm-editor-frame-border-color, var(--hm-color-border));
+  }
+
+  .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-tools,
+  .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-properties {
+    background: var(--hm-editor-frame-panel-bg, var(--hm-color-surface));
+    transition-duration: var(--hm-motion-duration-panel);
+    transition-property: inline-size;
+    transition-timing-function: var(--hm-motion-easing-panel);
+  }
+
+  .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-tools {
+    border-inline-end: var(--hm-border-width) solid
+      var(--hm-editor-frame-border-color, var(--hm-color-border));
+  }
+
+  .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-properties {
+    border-inline-start: var(--hm-border-width) solid
+      var(--hm-editor-frame-border-color, var(--hm-color-border));
+  }
+
+  .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-bottom {
+    background: var(--hm-editor-frame-panel-bg, var(--hm-color-surface));
+    border-block-start: var(--hm-border-width) solid
+      var(--hm-editor-frame-border-color, var(--hm-color-border));
+  }
+
+  .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-edge,
+  .hm-editor-frame:not([data-hm-unstyled])[data-hm-layout="dock"] .hm-editor-frame-tools {
+    backdrop-filter: blur(var(--hm-blur-glass));
+    background: var(--hm-editor-frame-glass-bg, var(--hm-color-surface-glass));
+    border: var(--hm-border-width) solid var(--hm-editor-frame-border-color, var(--hm-color-border));
+    border-radius: var(--hm-radius-round);
+    box-shadow: var(--hm-editor-frame-floating-shadow, var(--hm-shadow-floating));
+    color: var(--hm-color-text);
+    font-family: var(--hm-font-family);
+    font-size: var(--hm-font-size-body);
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-editor-frame:not([data-hm-unstyled])[data-hm-layout="dock"] .hm-editor-frame-tools {
+    border-radius: var(--hm-radius-surface);
+  }
+
+  @media (hover: hover) {
+    .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-edge:hover {
+      background: var(--hm-color-control-hover);
+    }
+  }
+
+  @container hm-editor-frame (width < 60rem) {
+    .hm-editor-frame:not([data-hm-unstyled])[data-hm-layout="sidebar"][data-hm-tools="full"]
+      .hm-editor-frame-tools,
+    .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-properties {
+      box-shadow: var(--hm-editor-frame-floating-shadow, var(--hm-shadow-floating));
+    }
+  }
+
+  @container hm-editor-frame (width < 45rem) {
+    .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-properties {
+      border-inline-start: 0;
+      border-radius: var(--hm-radius-surface) var(--hm-radius-surface) 0 0;
+    }
+  }
+}

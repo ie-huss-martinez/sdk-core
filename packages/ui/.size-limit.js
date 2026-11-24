@@ -107,7 +107,10 @@ export default [
   entryBudget({
     name: "Server-safe entry (.), with the shared code it loads",
     entry: "dist/index.js",
-    // 12 kB. It measures 11.6 kB with the button's component tokens. Each
+    // 14 kB; 13.98 kB with the editor frame (sdk-core ADR 0067): about
+    // 1.2 kB of new text in `uiMessages` and 0.9 kB of token metadata for the
+    // new components' tokens. Before, 12 kB; 11.6 kB with the button's
+    // component tokens. Each
     // module compressed on its own, in kB:
     //   theme/css-value.ts      2.6  the injection allowlist and type grammars
     //   tokens/definitions.ts   2.5  token metadata behind the `tokens` export;
@@ -121,12 +124,14 @@ export default [
     //                                errors, registry, themeToCss
     // An application using only the built-in themes ships none of this: see
     // the ThemeProvider tree-shaking test in build.test.ts.
-    limit: "12 kB",
+    limit: "14 kB",
   }),
   entryBudget({
     name: "React entry (./react), with the shared code it loads",
     entry: "dist/react.js",
-    // 26 kB; 25.53 kB once ReorderableList kept focus on its cells and
+    // 41.5 kB; 41.05 kB with the editor frame's eleven components and the
+    // colour picker (sdk-core ADR 0067, docs/adr/0013), which the two
+    // scenarios at the end measure. Before, 26 kB; 25.53 kB once ReorderableList kept focus on its cells and
     // entered at its Tab stop under NVDA (sdk-core#201, #202), +0.60 kB of it
     // in the ReorderableList import below. Before, 25 kB; 24.71 kB with
     // Heading and HeadingLevelProvider (sdk-core ADR 0058), which only the
@@ -134,17 +139,20 @@ export default [
     // content's headings. Every component counts here, though no
     // application ships them all, so a component's pull request raises it as
     // expected growth; review reads the import scenarios below to judge it.
-    limit: "26 kB",
+    limit: "41.5 kB",
   }),
   entryBudget({
     name: "Stylesheet (./styles.css)",
     entry: "dist/styles.css",
-    // 9.5 kB. It measures 9.05 kB with lanes that let presses through;
+    // 14 kB; 13.71 kB with the editor frame's components, the colour
+    // picker (with its right-to-left strips) and the reduced-motion and
+    // theme blocks of the new tokens.
+    // Before, 9.5 kB; 9.05 kB with lanes that let presses through;
     // the lanes before them took it from 8.5 kB to 9 kB. Raised as the React
     // entry's is: to the measurement, rounded up to the next 0.5 kB. Every
     // application loads the whole stylesheet, so this one is the cost of
     // every component.
-    limit: "9.5 kB",
+    limit: "14 kB",
   }),
   // A floor: 0.6 kB; 0.56 kB, counting only the React names it uses
   // (sdk-config 0.12.1). A leak into every component shows here first.
@@ -167,6 +175,31 @@ export default [
   ),
   // 3.5 kB; 3.00 kB for 62 icons, about 0.05 kB each.
   scenario("every icon", ICONS, "3.5 kB"),
-  // 7.5 kB; 7.17 kB.
+  // 7.5 kB; 7.40 kB.
   scenario("an editor", EDITOR, "7.5 kB"),
+  // 10.5 kB; 10.03 kB, with the palette's and toasts' own live regions for
+  // when a modal dialog makes the page's announcer inert. Everything an SDK
+  // editor renders through (sdk-core ADR
+  // 0067): the frame, its tools, the mode switch, the theme toggle, the tab
+  // bar, the settings, the command palette, toasts and progress. Their text
+  // is its own part of ui's catalogue, so the components above don't ship it.
+  scenario(
+    "the editor frame",
+    [
+      "EditorFrame",
+      "EditorFrameToolsButton",
+      "ToolList",
+      "ModeSwitch",
+      "ThemeToggle",
+      "TabBar",
+      "SettingsPanel",
+      "CommandPalette",
+      "ToastProvider",
+      "useToast",
+      "ProgressOverlay",
+    ],
+    "10.5 kB",
+  ),
+  // 6 kB; 5.86 kB, with its colour names (docs/adr/0013).
+  scenario("ColorPicker", ["ColorPicker", "addRecentColor"], "6 kB"),
 ];

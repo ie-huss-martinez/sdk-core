@@ -1,6 +1,7 @@
 import { createMessages, type Messages, sdkCoreMessages } from "@hussmartinez/sdk-core";
 import { createContext, type ReactElement, type ReactNode, useContext } from "react";
 import { checkSingleCopy } from "../../internal/single-copy.js";
+import { uiCoreText } from "../../messages/core.js";
 import { uiMessages } from "../../messages/en.js";
 
 /**
@@ -13,12 +14,28 @@ export type UiMessages = Messages<typeof uiMessages>;
 
 const UiMessagesContext = /* @__PURE__ */ createContext<UiMessages | undefined>(undefined);
 
-let english: UiMessages | undefined;
+/** English text by the part of the catalogue it holds. */
+type EnglishPart = Readonly<Record<string, unknown>>;
 
-/** English text, created on first use so importing this module does nothing. */
-function defaultMessages(): UiMessages {
-  english ??= createMessages({ ...sdkCoreMessages, ...uiMessages });
-  return english;
+let english: WeakMap<EnglishPart, UiMessages> | undefined;
+
+/**
+ * English text for one part of the catalogue, created on first use so
+ * importing this module does nothing. Without a provider, a component ships
+ * only the part it uses (docs/adr/0012).
+ */
+function defaultMessages(part: EnglishPart): UiMessages {
+  english ??= new WeakMap();
+  let messages = english.get(part);
+  if (!messages) {
+    messages = createMessages({
+      ...sdkCoreMessages,
+      ...uiCoreText,
+      ...part,
+    }) as unknown as UiMessages;
+    english.set(part, messages);
+  }
+  return messages;
 }
 
 /**
@@ -57,14 +74,25 @@ export function UiMessagesProvider({ messages, children }: UiMessagesProviderPro
  */
 export function useUiMessages(): UiMessages {
   checkSingleCopy();
-  return useContext(UiMessagesContext) ?? defaultMessages();
+  return useContext(UiMessagesContext) ?? defaultMessages(uiMessages);
+}
+
+/**
+ * {@link useUiMessages} for ui's own components: without a provider, English
+ * from only the part of the catalogue the component uses.
+ */
+export function useUiMessagesFrom(part: EnglishPart): UiMessages {
+  checkSingleCopy();
+  return useContext(UiMessagesContext) ?? defaultMessages(part);
 }
 
 /** Keys of `uiMessages` whose English text has no placeholders. */
 type PlainMessageKey = {
-  [Key in keyof typeof uiMessages]: (typeof uiMessages)[Key] extends `${string}{${string}`
-    ? never
-    : Key;
+  [Key in keyof typeof uiMessages]: (typeof uiMessages)[Key] extends string
+    ? (typeof uiMessages)[Key] extends `${string}{${string}`
+      ? never
+      : Key
+    : never;
 }[keyof typeof uiMessages];
 
 /**
@@ -73,10 +101,20 @@ type PlainMessageKey = {
  * {@link useUiMessages}, it doesn't create a messages object when there's no
  * provider, so components using only English don't ship the formatter.
  */
-export function useUiText(key: PlainMessageKey): string {
+export function useUiText(key: PlainMessageKey, part: EnglishPart = uiCoreText): string {
   checkSingleCopy();
   const messages = useContext(UiMessagesContext);
-  return messages ? messages.t(key) : uiMessages[key];
+  return messages ? messages.t(key) : (part[key] as string);
+}
+
+/**
+ * Like {@link useUiText}, for a component that looks up many keys, or keys
+ * chosen at render: one hook call, and a function for every key.
+ */
+export function useUiTextLookup(part: EnglishPart = uiCoreText): (key: PlainMessageKey) => string {
+  checkSingleCopy();
+  const messages = useContext(UiMessagesContext);
+  return (key) => (messages ? messages.t(key) : (part[key] as string));
 }
 
 /**

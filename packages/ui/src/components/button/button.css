@@ -69,13 +69,22 @@
      * space, so variants line up, and forced-colours mode draws it.
      */
     border: var(--hm-border-width) solid transparent;
-    border-radius: var(--hm-button-radius, var(--hm-radius-control));
+    border-radius: var(--hm-button-radius, var(--hm-radius-round));
     color: var(--hm-button-fg, var(--hm-color-text));
     font-family: var(--hm-font-family);
     font-size: var(--hm-font-size-body);
     font-weight: var(--hm-button-font-weight, var(--hm-font-weight-strong));
     letter-spacing: var(--hm-letter-spacing);
     line-height: var(--hm-line-height-tight);
+  }
+
+  /*
+   * Only hover and press fade in, as feedback. A change of state, such as a
+   * button becoming available, shows at once: fading from the disabled
+   * colours would leave a button that can be used looking unusable, and
+   * measured at the wrong contrast, for a moment.
+   */
+  .hm-button:not([data-hm-unstyled], :disabled, [aria-disabled="true"]):is(:hover, :active) {
     transition-duration: var(--hm-motion-duration-feedback);
     transition-property: background-color, border-color, color;
     transition-timing-function: var(--hm-motion-easing-standard);
@@ -140,14 +149,22 @@
     background: var(--hm-button-quiet-bg-active, var(--hm-color-control-active));
   }
 
+  /*
+   * Disabled looks disabled in every variant and theme: neutral colours of
+   * its own, never the variant's colours faded, which made a disabled
+   * primary button read as enabled (ADR 0067).
+   */
   .hm-button:not([data-hm-unstyled]):disabled,
   .hm-button[aria-disabled="true"]:not([data-hm-unstyled]) {
-    opacity: var(--hm-opacity-disabled);
+    background: var(--hm-button-disabled-bg, var(--hm-color-control-disabled));
+    border-color: transparent;
+    color: var(--hm-button-disabled-fg, var(--hm-color-text-disabled));
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .hm-button:not([data-hm-unstyled]) {
-      transition-duration: 0s;
-    }
+  .hm-button--quiet:not([data-hm-unstyled]):disabled,
+  .hm-button--quiet[aria-disabled="true"]:not([data-hm-unstyled]) {
+    background: transparent;
   }
+
+  /* Reduced motion needs no rule here: its duration token is zero (sdk-core ADR 0067). */
 }

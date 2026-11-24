@@ -449,8 +449,17 @@ describe("aria-keyshortcuts and labels", () => {
     ["other", "zoom-in", "Plus ="],
     ["other", "play-pause", "Space"],
     ["other", "delete", "Delete Backspace"],
+    ["other", "toggle-tools", "Control+\\"],
+    ["apple", "command-palette", "Meta+K"],
   ] as const)("on %s, gives %s the value %j", (platform, action, value) => {
     expect(family(platform).ariaKeyShortcuts(action)).toBe(value);
+  });
+
+  it("matches the tools panel and command palette shortcuts on the editor's root", () => {
+    const registry = family("other");
+    expect(registry.match(press("\\", { ctrlKey: true }))).toBe("toggle-tools");
+    expect(registry.match(press("k", { ctrlKey: true }))).toBe("command-palette");
+    expect(registry.match(press("k", { ctrlKey: true, target: element("INPUT") }))).toBeUndefined();
   });
 
   it("describes chords as parts with message keys for modifiers and named keys", () => {

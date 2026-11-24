@@ -98,6 +98,8 @@ export type BaseTokenName =
   | "radius-sm"
   | "radius-md"
   | "radius-lg"
+  | "radius-xl"
+  | "radius-2xl"
   | "radius-full"
   | "border-width-1"
   | "border-width-2"
@@ -116,7 +118,9 @@ export type BaseTokenName =
   | "duration-slow"
   | "easing-standard"
   | "easing-decelerate"
-  | "easing-accelerate";
+  | "easing-accelerate"
+  | "easing-emphasized"
+  | "easing-spring";
 
 /**
  * The names of the semantic tokens, which components use.
@@ -138,6 +142,8 @@ export type SemanticTokenName =
   | "color-control"
   | "color-control-hover"
   | "color-control-active"
+  | "color-control-disabled"
+  | "color-surface-glass"
   | "color-accent"
   | "color-accent-hover"
   | "color-accent-active"
@@ -187,18 +193,27 @@ export type SemanticTokenName =
   | "surface-width-medium"
   | "surface-width-large"
   | "track-size"
+  | "sidebar-width"
+  | "rail-width"
+  | "inspector-width"
+  | "bar-height"
   | "radius-control"
   | "radius-surface"
   | "radius-round"
   | "border-width"
   | "shadow-raised"
   | "shadow-overlay"
+  | "shadow-floating"
+  | "blur-glass"
   | "motion-duration-feedback"
   | "motion-duration-enter"
   | "motion-duration-exit"
   | "motion-easing-standard"
   | "motion-easing-enter"
   | "motion-easing-exit"
+  | "motion-duration-panel"
+  | "motion-easing-panel"
+  | "motion-easing-spring"
   | "motion-duration-loop"
   | "motion-easing-loop"
   | "z-raised"
@@ -285,6 +300,8 @@ const semantic = {
     category: "color",
     type: "color",
   },
+  "color-control-disabled": { category: "color", type: "color" },
+  "color-surface-glass": { category: "color", type: "color" },
   "color-accent": {
     category: "color",
     type: "color",
@@ -475,6 +492,10 @@ const semantic = {
   "surface-width-medium": { category: "size", type: "length" },
   "surface-width-large": { category: "size", type: "length" },
   "track-size": { category: "size", type: "length" },
+  "sidebar-width": { category: "size", type: "length" },
+  "rail-width": { category: "size", type: "length" },
+  "inspector-width": { category: "size", type: "length" },
+  "bar-height": { category: "size", type: "length" },
   "radius-control": {
     category: "shape",
     type: "length",
@@ -520,6 +541,11 @@ const semantic = {
     category: "motion",
     type: "easing",
   },
+  "shadow-floating": { category: "shadow", type: "shadow" },
+  "blur-glass": { category: "shadow", type: "length" },
+  "motion-duration-panel": { category: "motion", type: "duration" },
+  "motion-easing-panel": { category: "motion", type: "easing" },
+  "motion-easing-spring": { category: "motion", type: "easing" },
   "motion-duration-loop": { category: "motion", type: "duration" },
   "motion-easing-loop": { category: "motion", type: "easing" },
   "z-raised": {
@@ -584,6 +610,8 @@ export type ComponentTokenName =
   | "button-danger-bg"
   | "button-danger-bg-hover"
   | "button-danger-fg"
+  | "button-disabled-bg"
+  | "button-disabled-fg"
   | "button-pressed-bg"
   | "button-pressed-border-color"
   | "button-pressed-fg"
@@ -703,7 +731,58 @@ export type ComponentTokenName =
   | "color-field-swatch-size"
   | "color-field-swatch-radius"
   | "color-field-swatch-border-color"
-  | "color-field-swatch-checked-border-color";
+  | "color-field-swatch-checked-border-color"
+  | "color-picker-gap"
+  | "color-picker-max-width"
+  | "color-picker-radius"
+  | "color-picker-border-color"
+  | "color-picker-strip-height"
+  | "color-picker-thumb-size"
+  | "color-picker-thumb-color"
+  | "color-picker-thumb-outline-color"
+  | "color-picker-swatch-size"
+  | "color-picker-swatch-checked-border-color"
+  | "color-picker-hint-fg"
+  | "editor-frame-bg"
+  | "editor-frame-gap"
+  | "editor-frame-inset"
+  | "editor-frame-bar-height"
+  | "editor-frame-bar-bg"
+  | "editor-frame-bar-fg"
+  | "editor-frame-border-color"
+  | "editor-frame-panel-bg"
+  | "editor-frame-sidebar-width"
+  | "editor-frame-rail-width"
+  | "editor-frame-inspector-width"
+  | "editor-frame-glass-bg"
+  | "editor-frame-floating-shadow"
+  | "tool-list-group-gap"
+  | "tool-list-group-label-fg"
+  | "tool-list-item-radius"
+  | "tool-list-description-fg"
+  | "command-palette-width"
+  | "command-palette-bg"
+  | "command-palette-radius"
+  | "command-palette-shadow"
+  | "command-palette-backdrop"
+  | "command-palette-option-active-bg"
+  | "toast-bg"
+  | "toast-fg"
+  | "toast-radius"
+  | "toast-shadow"
+  | "toast-blur"
+  | "toast-max-width"
+  | "toast-danger-bg"
+  | "toast-danger-fg"
+  | "progress-overlay-scrim"
+  | "progress-overlay-card-bg"
+  | "progress-overlay-card-radius"
+  | "progress-overlay-card-shadow"
+  | "progress-overlay-card-width"
+  | "tab-bar-item-radius"
+  | "sheet-width"
+  | "settings-panel-gap"
+  | "settings-panel-label-fg";
 
 type ComponentSpec = { readonly fallback: SemanticTokenName };
 
@@ -715,7 +794,7 @@ const component = {
   "button-padding-x": { fallback: "control-padding-x" },
   "button-gap": { fallback: "control-gap" },
   "button-icon-size": { fallback: "icon-size" },
-  "button-radius": { fallback: "radius-control" },
+  "button-radius": { fallback: "radius-round" },
   "button-font-weight": {
     fallback: "font-weight-strong",
   },
@@ -749,6 +828,8 @@ const component = {
     fallback: "color-danger-hover",
   },
   "button-danger-fg": { fallback: "color-on-danger" },
+  "button-disabled-bg": { fallback: "color-control-disabled" },
+  "button-disabled-fg": { fallback: "color-text-disabled" },
   "button-pressed-bg": {
     fallback: "color-accent-subtle",
   },
@@ -769,7 +850,7 @@ const component = {
   "segmented-control-small-height": { fallback: "control-height-small" },
   "segmented-control-padding": { fallback: "gap-tight" },
   "segmented-control-gap": { fallback: "gap-tight" },
-  "segmented-control-radius": { fallback: "radius-control" },
+  "segmented-control-radius": { fallback: "radius-round" },
   "segmented-control-bg": { fallback: "color-surface-sunken" },
   "segmented-control-border-color": { fallback: "color-border-strong" },
   "segmented-control-option-padding-x": { fallback: "control-padding-x" },
@@ -875,6 +956,57 @@ const component = {
   "color-field-swatch-radius": { fallback: "radius-control" },
   "color-field-swatch-border-color": { fallback: "color-border-strong" },
   "color-field-swatch-checked-border-color": { fallback: "color-text" },
+  "color-picker-gap": { fallback: "gap-normal" },
+  "color-picker-max-width": { fallback: "surface-width-small" },
+  "color-picker-radius": { fallback: "radius-control" },
+  "color-picker-border-color": { fallback: "color-border-strong" },
+  "color-picker-strip-height": { fallback: "control-height-small" },
+  "color-picker-thumb-size": { fallback: "icon-size" },
+  "color-picker-thumb-color": { fallback: "color-surface-raised" },
+  "color-picker-thumb-outline-color": { fallback: "color-text" },
+  "color-picker-swatch-size": { fallback: "control-height-small" },
+  "color-picker-swatch-checked-border-color": { fallback: "color-text" },
+  "color-picker-hint-fg": { fallback: "color-text-muted" },
+  "editor-frame-bg": { fallback: "color-surface-sunken" },
+  "editor-frame-gap": { fallback: "gap-normal" },
+  "editor-frame-inset": { fallback: "inset-normal" },
+  "editor-frame-bar-height": { fallback: "bar-height" },
+  "editor-frame-bar-bg": { fallback: "color-surface-raised" },
+  "editor-frame-bar-fg": { fallback: "color-text" },
+  "editor-frame-border-color": { fallback: "color-border" },
+  "editor-frame-panel-bg": { fallback: "color-surface" },
+  "editor-frame-sidebar-width": { fallback: "sidebar-width" },
+  "editor-frame-rail-width": { fallback: "rail-width" },
+  "editor-frame-inspector-width": { fallback: "inspector-width" },
+  "editor-frame-glass-bg": { fallback: "color-surface-glass" },
+  "editor-frame-floating-shadow": { fallback: "shadow-floating" },
+  "tool-list-group-gap": { fallback: "gap-loose" },
+  "tool-list-group-label-fg": { fallback: "color-text-muted" },
+  "tool-list-item-radius": { fallback: "radius-control" },
+  "tool-list-description-fg": { fallback: "color-text-muted" },
+  "command-palette-width": { fallback: "surface-width-medium" },
+  "command-palette-bg": { fallback: "color-surface-raised" },
+  "command-palette-radius": { fallback: "radius-surface" },
+  "command-palette-shadow": { fallback: "shadow-overlay" },
+  "command-palette-backdrop": { fallback: "color-overlay" },
+  "command-palette-option-active-bg": { fallback: "color-accent-subtle" },
+  "toast-bg": { fallback: "color-surface-glass" },
+  "toast-fg": { fallback: "color-text" },
+  "toast-radius": { fallback: "radius-round" },
+  "toast-shadow": { fallback: "shadow-floating" },
+  "toast-blur": { fallback: "blur-glass" },
+  "toast-max-width": { fallback: "surface-width-medium" },
+  "toast-danger-bg": { fallback: "color-danger-subtle" },
+  "toast-danger-fg": { fallback: "color-danger-text" },
+  "progress-overlay-scrim": { fallback: "color-overlay" },
+  "progress-overlay-card-bg": { fallback: "color-surface-raised" },
+  "progress-overlay-card-radius": { fallback: "radius-surface" },
+  "progress-overlay-card-shadow": { fallback: "shadow-overlay" },
+  "progress-overlay-card-width": { fallback: "surface-width-small" },
+  "tab-bar-item-radius": { fallback: "radius-control" },
+  "sheet-width": { fallback: "surface-width-small" },
+  "settings-panel-gap": { fallback: "gap-loose" },
+  "settings-panel-label-fg": { fallback: "color-text" },
 } as const satisfies Record<ComponentTokenName, ComponentSpec>;
 
 function baseDefinitions(): TokenDefinition[] {
@@ -892,7 +1024,7 @@ function baseDefinitions(): TokenDefinition[] {
   for (let step = 1; step <= 12; step++) {
     add(`space-${step}` as BaseTokenName, "space", "length");
   }
-  for (const size of ["none", "sm", "md", "lg", "full"] as const) {
+  for (const size of ["none", "sm", "md", "lg", "xl", "2xl", "full"] as const) {
     add(`radius-${size}`, "shape", "length");
   }
   add("border-width-1", "shape", "length");
@@ -911,7 +1043,7 @@ function baseDefinitions(): TokenDefinition[] {
   for (const speed of ["fast", "normal", "slow"] as const) {
     add(`duration-${speed}`, "motion", "duration");
   }
-  for (const easing of ["standard", "decelerate", "accelerate"] as const) {
+  for (const easing of ["standard", "decelerate", "accelerate", "emphasized", "spring"] as const) {
     add(`easing-${easing}`, "motion", "easing");
   }
   return list;

@@ -23,7 +23,15 @@
     color: var(--hm-pdf-editor-text, var(--hm-color-text));
   }
 
+  /*
+   * The toolbar keeps the control radius rather than ui's larger surface
+   * radius: its rounded end, drawn beside pdf.js's worker-drawn pages,
+   * rasterises differently from one load to the next, which strict
+   * screenshots can't take. It goes when the editor moves onto ui's frame
+   * (sdk-core ADR 0067).
+   */
   .hm-pdf-editor-header {
+    --hm-toolbar-radius: var(--hm-radius-control);
     display: flex;
     flex-direction: column;
     gap: var(--hm-pdf-editor-header-gap, var(--hm-gap-tight));

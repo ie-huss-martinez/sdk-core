@@ -1,0 +1,32 @@
+@layer hm.components {
+  .hm-tab-bar.hm-toolbar {
+    flex-wrap: nowrap;
+    justify-content: space-around;
+  }
+
+  .hm-tab-bar-item.hm-button {
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: var(--hm-gap-tight);
+    min-inline-size: 0;
+    padding-block: var(--hm-inset-tight);
+  }
+
+  .hm-tab-bar-item .hm-button-label {
+    max-inline-size: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .hm-tab-bar:not([data-hm-unstyled]) {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .hm-tab-bar:not([data-hm-unstyled]) .hm-tab-bar-item {
+    border-radius: var(--hm-tab-bar-item-radius, var(--hm-radius-control));
+    font-size: var(--hm-font-size-small);
+    font-weight: var(--hm-font-weight-regular);
+  }
+}

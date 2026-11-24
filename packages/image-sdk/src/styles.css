@@ -162,10 +162,15 @@
     overflow: hidden;
   }
 
+  /*
+   * The control radius, not the surface one: ui's larger surface radius
+   * draws a corner that Chromium rasterises differently with each load of
+   * the worker-drawn canvas beneath it, which strict screenshots can't take.
+   */
   .hm-image-editor--styled .hm-image-stage {
     background: var(--hm-color-surface-sunken);
     border: var(--hm-border-width) solid var(--hm-color-border);
-    border-radius: var(--hm-radius-surface);
+    border-radius: var(--hm-radius-control);
   }
 
   /*

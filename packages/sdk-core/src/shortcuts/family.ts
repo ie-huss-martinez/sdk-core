@@ -27,7 +27,9 @@ export type FamilyAction =
   | "zoom-out"
   | "zoom-reset"
   | "cancel"
-  | "play-pause";
+  | "play-pause"
+  | "toggle-tools"
+  | "command-palette";
 
 /**
  * The family's shortcuts (ADR 0030): the chords for every platform, and those
@@ -59,4 +61,6 @@ export const familyShortcuts: {
   "zoom-reset": { all: [{ keys: "0" }] },
   cancel: { all: [{ keys: "Escape" }] },
   "play-pause": { all: [{ keys: "Space" }] },
+  "toggle-tools": { all: [{ keys: "Mod+\\" }] },
+  "command-palette": { all: [{ keys: "Mod+K" }] },
 };

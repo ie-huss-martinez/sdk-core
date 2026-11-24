@@ -4,10 +4,11 @@
 
 ```ts
 
+import type { EditorMode } from '@hussmartinez/sdk-core';
 import { SdkError } from '@hussmartinez/sdk-core';
 
 // @public
-export type BaseTokenName = `${"gray" | "blue" | "red" | "green" | "amber"}-${50 | 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900 | 950}` | "white" | "black" | `space-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12}` | "radius-none" | "radius-sm" | "radius-md" | "radius-lg" | "radius-full" | "border-width-1" | "border-width-2" | "font-sans" | "font-mono" | `font-size-${1 | 2 | 3 | 4 | 5 | 6 | 7}` | "font-weight-400" | "font-weight-500" | "font-weight-600" | "font-weight-700" | "leading-tight" | "leading-normal" | "leading-relaxed" | "duration-fast" | "duration-normal" | "duration-slow" | "easing-standard" | "easing-decelerate" | "easing-accelerate";
+export type BaseTokenName = `${"gray" | "blue" | "red" | "green" | "amber"}-${50 | 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900 | 950}` | "white" | "black" | `space-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12}` | "radius-none" | "radius-sm" | "radius-md" | "radius-lg" | "radius-xl" | "radius-2xl" | "radius-full" | "border-width-1" | "border-width-2" | "font-sans" | "font-mono" | `font-size-${1 | 2 | 3 | 4 | 5 | 6 | 7}` | "font-weight-400" | "font-weight-500" | "font-weight-600" | "font-weight-700" | "leading-tight" | "leading-normal" | "leading-relaxed" | "duration-fast" | "duration-normal" | "duration-slow" | "easing-standard" | "easing-decelerate" | "easing-accelerate" | "easing-emphasized" | "easing-spring";
 
 // @public
 export function checkContrast(theme: Theme): ContrastReport;
@@ -29,7 +30,7 @@ export type CompleteThemeTokens = ThemeTokens & {
 };
 
 // @public
-export type ComponentTokenName = "button-height" | "button-small-height" | "button-padding-x" | "button-gap" | "button-icon-size" | "button-radius" | "button-font-weight" | "button-bg" | "button-bg-hover" | "button-bg-active" | "button-fg" | "button-border-color" | "button-primary-bg" | "button-primary-bg-hover" | "button-primary-bg-active" | "button-primary-fg" | "button-quiet-bg-hover" | "button-quiet-bg-active" | "button-danger-bg" | "button-danger-bg-hover" | "button-danger-fg" | "button-pressed-bg" | "button-pressed-border-color" | "button-pressed-fg" | "toolbar-bg" | "toolbar-border-color" | "toolbar-radius" | "toolbar-padding" | "toolbar-gap" | "toolbar-group-gap" | "toolbar-separator-color" | "segmented-control-height" | "segmented-control-small-height" | "segmented-control-padding" | "segmented-control-gap" | "segmented-control-radius" | "segmented-control-bg" | "segmented-control-border-color" | "segmented-control-option-padding-x" | "segmented-control-option-fg" | "segmented-control-option-bg-hover" | "segmented-control-option-checked-bg" | "segmented-control-option-checked-fg" | "segmented-control-option-checked-border-color" | "dialog-bg" | "dialog-fg" | "dialog-border-color" | "dialog-radius" | "dialog-shadow" | "dialog-padding" | "dialog-gap" | "dialog-backdrop" | "dialog-title-font-size" | "dialog-small-width" | "dialog-width" | "dialog-large-width" | "heading-font-size" | "spinner-size" | "spinner-thickness" | "spinner-color" | "spinner-track-color" | "spinner-duration" | "progress-height" | "progress-radius" | "progress-track-color" | "progress-fill-color" | "progress-duration" | "slider-track-size" | "slider-track-color" | "slider-radius" | "slider-thumb-size" | "slider-thumb-color" | "slider-thumb-color-hover" | "slider-thumb-color-active" | "field-gap" | "field-label-fg" | "field-label-font-weight" | "field-description-fg" | "field-error-fg" | "field-message-font-size" | "number-field-height" | "number-field-padding-x" | "number-field-radius" | "number-field-bg" | "number-field-fg" | "number-field-border-color" | "number-field-invalid-border-color" | "file-drop-zone-gap" | "file-drop-zone-padding" | "file-drop-zone-radius" | "file-drop-zone-border-color" | "file-drop-zone-dragging-border-color" | "file-drop-zone-dragging-bg" | "file-drop-zone-hint-fg" | "tooltip-bg" | "tooltip-fg" | "tooltip-radius" | "tooltip-padding" | "tooltip-font-size" | "tooltip-shadow" | "tooltip-max-width" | "tooltip-offset" | "text-field-height" | "text-field-padding-x" | "text-field-radius" | "text-field-bg" | "text-field-fg" | "text-field-placeholder-fg" | "text-field-border-color" | "text-field-invalid-border-color" | "text-area-padding-y" | "reorderable-list-gap" | "reorderable-list-row-height" | "reorderable-list-row-padding-x" | "reorderable-list-row-radius" | "reorderable-list-row-fg" | "reorderable-list-row-bg-hover" | "reorderable-list-row-selected-bg" | "reorderable-list-row-selected-border-color" | "timeline-track-bg" | "timeline-track-radius" | "timeline-lane-height" | "timeline-playhead-color" | "timeline-clip-bg" | "timeline-clip-fg" | "timeline-clip-border-color" | "timeline-clip-radius" | "timeline-clip-padding-x" | "timeline-clip-selected-bg" | "timeline-clip-selected-border-color" | "timeline-clip-edge-size" | "timeline-header-max-width" | "timeline-header-bg" | "timeline-lane-border-color" | "timeline-clip-moving-shadow" | "timeline-clip-refused-border-color" | "color-field-gap" | "color-field-swatch-size" | "color-field-swatch-radius" | "color-field-swatch-border-color" | "color-field-swatch-checked-border-color";
+export type ComponentTokenName = "button-height" | "button-small-height" | "button-padding-x" | "button-gap" | "button-icon-size" | "button-radius" | "button-font-weight" | "button-bg" | "button-bg-hover" | "button-bg-active" | "button-fg" | "button-border-color" | "button-primary-bg" | "button-primary-bg-hover" | "button-primary-bg-active" | "button-primary-fg" | "button-quiet-bg-hover" | "button-quiet-bg-active" | "button-danger-bg" | "button-danger-bg-hover" | "button-danger-fg" | "button-disabled-bg" | "button-disabled-fg" | "button-pressed-bg" | "button-pressed-border-color" | "button-pressed-fg" | "toolbar-bg" | "toolbar-border-color" | "toolbar-radius" | "toolbar-padding" | "toolbar-gap" | "toolbar-group-gap" | "toolbar-separator-color" | "segmented-control-height" | "segmented-control-small-height" | "segmented-control-padding" | "segmented-control-gap" | "segmented-control-radius" | "segmented-control-bg" | "segmented-control-border-color" | "segmented-control-option-padding-x" | "segmented-control-option-fg" | "segmented-control-option-bg-hover" | "segmented-control-option-checked-bg" | "segmented-control-option-checked-fg" | "segmented-control-option-checked-border-color" | "dialog-bg" | "dialog-fg" | "dialog-border-color" | "dialog-radius" | "dialog-shadow" | "dialog-padding" | "dialog-gap" | "dialog-backdrop" | "dialog-title-font-size" | "dialog-small-width" | "dialog-width" | "dialog-large-width" | "heading-font-size" | "spinner-size" | "spinner-thickness" | "spinner-color" | "spinner-track-color" | "spinner-duration" | "progress-height" | "progress-radius" | "progress-track-color" | "progress-fill-color" | "progress-duration" | "slider-track-size" | "slider-track-color" | "slider-radius" | "slider-thumb-size" | "slider-thumb-color" | "slider-thumb-color-hover" | "slider-thumb-color-active" | "field-gap" | "field-label-fg" | "field-label-font-weight" | "field-description-fg" | "field-error-fg" | "field-message-font-size" | "number-field-height" | "number-field-padding-x" | "number-field-radius" | "number-field-bg" | "number-field-fg" | "number-field-border-color" | "number-field-invalid-border-color" | "file-drop-zone-gap" | "file-drop-zone-padding" | "file-drop-zone-radius" | "file-drop-zone-border-color" | "file-drop-zone-dragging-border-color" | "file-drop-zone-dragging-bg" | "file-drop-zone-hint-fg" | "tooltip-bg" | "tooltip-fg" | "tooltip-radius" | "tooltip-padding" | "tooltip-font-size" | "tooltip-shadow" | "tooltip-max-width" | "tooltip-offset" | "text-field-height" | "text-field-padding-x" | "text-field-radius" | "text-field-bg" | "text-field-fg" | "text-field-placeholder-fg" | "text-field-border-color" | "text-field-invalid-border-color" | "text-area-padding-y" | "reorderable-list-gap" | "reorderable-list-row-height" | "reorderable-list-row-padding-x" | "reorderable-list-row-radius" | "reorderable-list-row-fg" | "reorderable-list-row-bg-hover" | "reorderable-list-row-selected-bg" | "reorderable-list-row-selected-border-color" | "timeline-track-bg" | "timeline-track-radius" | "timeline-lane-height" | "timeline-playhead-color" | "timeline-clip-bg" | "timeline-clip-fg" | "timeline-clip-border-color" | "timeline-clip-radius" | "timeline-clip-padding-x" | "timeline-clip-selected-bg" | "timeline-clip-selected-border-color" | "timeline-clip-edge-size" | "timeline-header-max-width" | "timeline-header-bg" | "timeline-lane-border-color" | "timeline-clip-moving-shadow" | "timeline-clip-refused-border-color" | "color-field-gap" | "color-field-swatch-size" | "color-field-swatch-radius" | "color-field-swatch-border-color" | "color-field-swatch-checked-border-color" | "color-picker-gap" | "color-picker-max-width" | "color-picker-radius" | "color-picker-border-color" | "color-picker-strip-height" | "color-picker-thumb-size" | "color-picker-thumb-color" | "color-picker-thumb-outline-color" | "color-picker-swatch-size" | "color-picker-swatch-checked-border-color" | "color-picker-hint-fg" | "editor-frame-bg" | "editor-frame-gap" | "editor-frame-inset" | "editor-frame-bar-height" | "editor-frame-bar-bg" | "editor-frame-bar-fg" | "editor-frame-border-color" | "editor-frame-panel-bg" | "editor-frame-sidebar-width" | "editor-frame-rail-width" | "editor-frame-inspector-width" | "editor-frame-glass-bg" | "editor-frame-floating-shadow" | "tool-list-group-gap" | "tool-list-group-label-fg" | "tool-list-item-radius" | "tool-list-description-fg" | "command-palette-width" | "command-palette-bg" | "command-palette-radius" | "command-palette-shadow" | "command-palette-backdrop" | "command-palette-option-active-bg" | "toast-bg" | "toast-fg" | "toast-radius" | "toast-shadow" | "toast-blur" | "toast-max-width" | "toast-danger-bg" | "toast-danger-fg" | "progress-overlay-scrim" | "progress-overlay-card-bg" | "progress-overlay-card-radius" | "progress-overlay-card-shadow" | "progress-overlay-card-width" | "tab-bar-item-radius" | "sheet-width" | "settings-panel-gap" | "settings-panel-label-fg";
 
 // @public
 export interface ComponentTokens {
@@ -68,6 +69,9 @@ export function createTheme(input: ThemeInput): Theme;
 export const darkTheme: Theme;
 
 // @public
+export const defaultEditorPreferences: EditorPreferences;
+
+// @public
 export type Density = "comfortable" | "compact";
 
 // @public
@@ -77,6 +81,24 @@ export type DensityTokenName = "control-height" | "control-height-small" | "cont
 export type DensityTokens = {
     readonly [Name in DensityTokenName]?: string;
 };
+
+// @public
+export const editorPreferenceOptions: {
+    readonly [Name in Exclude<keyof EditorPreferences, "tips">]: readonly EditorPreferences[Name][];
+};
+
+// @public
+export interface EditorPreferences {
+    // (undocumented)
+    readonly density: "comfortable" | "compact";
+    readonly mode: EditorMode;
+    readonly motion: "system" | "full" | "reduced";
+    readonly properties: "shown" | "hidden";
+    readonly theme: "system" | "light" | "dark";
+    readonly tips: boolean;
+    readonly tools: "full" | "icons" | "hidden";
+    readonly toolsLayout: "sidebar" | "dock";
+}
 
 // @public
 export interface ExtendingThemeInput extends ThemeInputBase {
@@ -89,7 +111,7 @@ export interface ExtendingThemeInput extends ThemeInputBase {
 export type HeadingLevel = 2 | 3 | 4 | 5 | 6;
 
 // @public
-export type IconName = "add" | "arrow" | "check" | "chevron-down" | "chevron-left" | "chevron-right" | "close" | "crop" | "delete" | "download" | "duplicate" | "ellipse" | "fade-in" | "fade-out" | "fit" | "flip-horizontal" | "flip-vertical" | "hidden" | "highlighter" | "image" | "info" | "layers" | "loop" | "menu" | "more" | "move-down" | "move-up" | "muted" | "open" | "page-add" | "page-grid" | "page-single" | "pan" | "pause" | "pen" | "play" | "range-end" | "range-start" | "rectangle" | "redact" | "redo" | "remove" | "ripple" | "rotate-left" | "rotate-right" | "search" | "select" | "skip-back" | "skip-forward" | "snap" | "split" | "stop" | "text" | "trim-end" | "trim-start" | "undo" | "upload" | "visible" | "volume" | "warning" | "zoom-in" | "zoom-out";
+export type IconName = "add" | "arrow" | "check" | "chevron-down" | "chevron-left" | "chevron-right" | "close" | "command" | "crop" | "delete" | "download" | "duplicate" | "ellipse" | "eyedropper" | "fade-in" | "fade-out" | "fit" | "flip-horizontal" | "flip-vertical" | "hidden" | "highlighter" | "image" | "info" | "layers" | "loop" | "menu" | "more" | "move-down" | "move-up" | "muted" | "open" | "page-add" | "page-grid" | "page-single" | "pan" | "panel-collapse" | "panel-expand" | "pause" | "pen" | "play" | "properties" | "range-end" | "range-start" | "rectangle" | "redact" | "redo" | "remove" | "ripple" | "rotate-left" | "rotate-right" | "search" | "select" | "settings" | "skip-back" | "skip-forward" | "snap" | "split" | "stop" | "text" | "theme-dark" | "theme-light" | "trim-end" | "trim-start" | "undo" | "upload" | "visible" | "volume" | "warning" | "zoom-in" | "zoom-out";
 
 // @public
 export const lightTheme: Theme;
@@ -98,7 +120,10 @@ export const lightTheme: Theme;
 export function nestedHeadingLevel(level: HeadingLevel, depth?: number): HeadingLevel;
 
 // @public
-export type SemanticTokenName = "color-scheme" | "color-bg" | "color-surface" | "color-surface-raised" | "color-surface-sunken" | "color-overlay" | "color-text" | "color-text-muted" | "color-text-disabled" | "color-border" | "color-border-strong" | "color-control" | "color-control-hover" | "color-control-active" | "color-accent" | "color-accent-hover" | "color-accent-active" | "color-on-accent" | "color-accent-subtle" | "color-accent-text" | "color-danger" | "color-danger-hover" | "color-on-danger" | "color-danger-subtle" | "color-danger-text" | "color-warning" | "color-on-warning" | "color-warning-subtle" | "color-warning-text" | "color-success" | "color-on-success" | "color-success-subtle" | "color-success-text" | "focus-ring-color" | "focus-ring-width" | "focus-ring-offset" | "focus-ring" | "font-family" | "font-family-mono" | "font-size-small" | "font-size-body" | "font-size-title" | "font-weight-regular" | "font-weight-strong" | "line-height-body" | "line-height-tight" | "letter-spacing" | "control-height" | "control-height-small" | "control-padding-x" | "control-gap" | "icon-size" | "target-size" | "gap-tight" | "gap-normal" | "gap-loose" | "inset-tight" | "inset-normal" | "inset-loose" | "surface-width-small" | "surface-width-medium" | "surface-width-large" | "track-size" | "radius-control" | "radius-surface" | "radius-round" | "border-width" | "shadow-raised" | "shadow-overlay" | "motion-duration-feedback" | "motion-duration-enter" | "motion-duration-exit" | "motion-easing-standard" | "motion-easing-enter" | "motion-easing-exit" | "motion-duration-loop" | "motion-easing-loop" | "z-raised" | "z-sticky" | "z-overlay" | "opacity-disabled";
+export function readEditorPreferences(value: unknown, defaults?: Partial<EditorPreferences>): EditorPreferences;
+
+// @public
+export type SemanticTokenName = "color-scheme" | "color-bg" | "color-surface" | "color-surface-raised" | "color-surface-sunken" | "color-overlay" | "color-text" | "color-text-muted" | "color-text-disabled" | "color-border" | "color-border-strong" | "color-control" | "color-control-hover" | "color-control-active" | "color-control-disabled" | "color-surface-glass" | "color-accent" | "color-accent-hover" | "color-accent-active" | "color-on-accent" | "color-accent-subtle" | "color-accent-text" | "color-danger" | "color-danger-hover" | "color-on-danger" | "color-danger-subtle" | "color-danger-text" | "color-warning" | "color-on-warning" | "color-warning-subtle" | "color-warning-text" | "color-success" | "color-on-success" | "color-success-subtle" | "color-success-text" | "focus-ring-color" | "focus-ring-width" | "focus-ring-offset" | "focus-ring" | "font-family" | "font-family-mono" | "font-size-small" | "font-size-body" | "font-size-title" | "font-weight-regular" | "font-weight-strong" | "line-height-body" | "line-height-tight" | "letter-spacing" | "control-height" | "control-height-small" | "control-padding-x" | "control-gap" | "icon-size" | "target-size" | "gap-tight" | "gap-normal" | "gap-loose" | "inset-tight" | "inset-normal" | "inset-loose" | "surface-width-small" | "surface-width-medium" | "surface-width-large" | "track-size" | "sidebar-width" | "rail-width" | "inspector-width" | "bar-height" | "radius-control" | "radius-surface" | "radius-round" | "border-width" | "shadow-raised" | "shadow-overlay" | "shadow-floating" | "blur-glass" | "motion-duration-feedback" | "motion-duration-enter" | "motion-duration-exit" | "motion-easing-standard" | "motion-easing-enter" | "motion-easing-exit" | "motion-duration-panel" | "motion-easing-panel" | "motion-easing-spring" | "motion-duration-loop" | "motion-easing-loop" | "z-raised" | "z-sticky" | "z-overlay" | "opacity-disabled";
 
 // @public
 export interface Theme {
@@ -195,6 +220,89 @@ export const uiMessages: {
     readonly "timelineClips.notSelected": "{label}, not selected";
     readonly "errors.INVALID_THEME_TOKEN": "The theme setting {token} has a value that can't be used.";
     readonly "errors.INVALID_THEME_SELECTOR": "The theme can't be applied to the selector {selector}.";
+} & {
+    readonly "editorFrame.tools": "Tools";
+    readonly "editorFrame.properties": "Properties";
+    readonly "editorFrame.showTools": "Show tools";
+    readonly "editorFrame.hideTools": "Hide tools";
+    readonly "editorFrame.toolsIcons": "Icons only";
+    readonly "editorFrame.toolsFull": "Show labels";
+    readonly "editorFrame.showProperties": "Show properties";
+    readonly "editorFrame.hideProperties": "Hide properties";
+    readonly "mode.label": "Experience";
+    readonly "mode.easy": "Easy";
+    readonly "mode.advanced": "Advanced";
+    readonly "mode.expert": "Expert";
+    readonly "tabBar.more": "More";
+    readonly "themeToggle.dark": "Dark theme";
+    readonly "settings.title": "Settings";
+    readonly "settings.theme": "Appearance";
+    readonly "settings.theme.system": "System";
+    readonly "settings.theme.light": "Light";
+    readonly "settings.theme.dark": "Dark";
+    readonly "settings.toolsLayout": "Tools layout";
+    readonly "settings.toolsLayout.sidebar": "Sidebar";
+    readonly "settings.toolsLayout.dock": "Floating dock";
+    readonly "settings.tools": "Tools panel";
+    readonly "settings.tools.full": "Full";
+    readonly "settings.tools.icons": "Icons";
+    readonly "settings.tools.hidden": "Hidden";
+    readonly "settings.properties": "Properties panel";
+    readonly "settings.properties.shown": "Shown";
+    readonly "settings.properties.hidden": "Hidden";
+    readonly "settings.density": "Density";
+    readonly "settings.density.comfortable": "Comfortable";
+    readonly "settings.density.compact": "Compact";
+    readonly "settings.motion": "Motion";
+    readonly "settings.motion.system": "System";
+    readonly "settings.motion.full": "Full";
+    readonly "settings.motion.reduced": "Reduced";
+    readonly "settings.tips": "Tips";
+    readonly "settings.tips.on": "On";
+    readonly "settings.tips.off": "Off";
+    readonly "commandPalette.title": "Commands";
+    readonly "commandPalette.label": "Search tools";
+    readonly "commandPalette.placeholder": "Search tools";
+    readonly "commandPalette.empty": "No tools match.";
+    readonly "commandPalette.results": {
+        readonly $plural: "count";
+    } & {
+        readonly one: "{count} result";
+        readonly other: "{count} results";
+    };
+    readonly "toast.region": "Notifications";
+    readonly "toast.dismiss": "Dismiss";
+    readonly "progressOverlay.cancel": "Cancel";
+} & {
+    readonly "colorPicker.saturation": "Saturation";
+    readonly "colorPicker.brightness": "Brightness";
+    readonly "colorPicker.hue": "Hue";
+    readonly "colorPicker.alpha": "Opacity";
+    readonly "colorPicker.hex": "Hex";
+    readonly "colorPicker.eyeDropper": "Pick a colour from the screen";
+    readonly "colorPicker.swatches": "swatches";
+    readonly "colorPicker.recent": "recent colours";
+    readonly "colorPicker.recentColor": "{name}, {hex}";
+    readonly "colorPicker.percent": "{value} %, {name}";
+    readonly "colorPicker.degrees": "{value}°, {name}";
+    readonly "colorPicker.contrastPass": "Contrast {ratio}:1, enough for text";
+    readonly "colorPicker.contrastFail": "Contrast {ratio}:1, too low for text";
+    readonly "colorPicker.name.white": "white";
+    readonly "colorPicker.name.black": "black";
+    readonly "colorPicker.name.grey": "grey";
+    readonly "colorPicker.name.lightGrey": "light grey";
+    readonly "colorPicker.name.darkGrey": "dark grey";
+    readonly "colorPicker.name.light": "light {hue}";
+    readonly "colorPicker.name.dark": "dark {hue}";
+    readonly "colorPicker.name.greyish": "greyish {hue}";
+    readonly "colorPicker.hue.red": "red";
+    readonly "colorPicker.hue.orange": "orange";
+    readonly "colorPicker.hue.yellow": "yellow";
+    readonly "colorPicker.hue.green": "green";
+    readonly "colorPicker.hue.cyan": "cyan";
+    readonly "colorPicker.hue.blue": "blue";
+    readonly "colorPicker.hue.purple": "purple";
+    readonly "colorPicker.hue.pink": "pink";
 };
 
 ```

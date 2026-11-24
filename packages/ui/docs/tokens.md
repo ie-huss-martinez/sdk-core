@@ -11,19 +11,21 @@ Density tokens change with `data-hm-density`: the Light and Dark columns hold th
 | Token | Light | Dark | Compact | Description |
 |---|---|---|---|---|
 | `--hm-color-scheme` | `light` | `dark` |  | Whether the theme is light or dark. Native scrollbars and form controls follow it. |
-| `--hm-color-bg` | `var(--hm-white)` | `var(--hm-gray-950)` |  | Background of the page or editor canvas. |
-| `--hm-color-surface` | `var(--hm-gray-50)` | `var(--hm-gray-900)` |  | Background of panels and toolbars. |
-| `--hm-color-surface-raised` | `var(--hm-white)` | `var(--hm-gray-800)` |  | Background of dialogs, menus and popovers. |
-| `--hm-color-surface-sunken` | `var(--hm-gray-100)` | `var(--hm-black)` |  | Background of wells and recessed areas. |
-| `--hm-color-overlay` | `oklch(0.26 0.01 260 / 0.5)` | `oklch(0 0 0 / 0.6)` |  | Backdrop behind modal dialogs. Usually translucent. |
+| `--hm-color-bg` | `var(--hm-white)` | `oklch(0.19 0.008 260)` |  | Background of the page or editor canvas. |
+| `--hm-color-surface` | `var(--hm-gray-50)` | `oklch(0.225 0.009 260)` |  | Background of panels and toolbars. |
+| `--hm-color-surface-raised` | `var(--hm-white)` | `var(--hm-gray-950)` |  | Background of dialogs, menus and popovers. |
+| `--hm-color-surface-sunken` | `var(--hm-gray-100)` | `oklch(0.155 0.007 260)` |  | Background of wells and recessed areas. |
+| `--hm-color-overlay` | `oklch(0.26 0.01 260 / 0.4)` | `oklch(0 0 0 / 0.6)` |  | Backdrop behind modal dialogs. Usually translucent. |
 | `--hm-color-text` | `var(--hm-gray-900)` | `var(--hm-gray-50)` |  | Body text and icons. |
 | `--hm-color-text-muted` | `var(--hm-gray-700)` | `var(--hm-gray-300)` |  | Secondary text, still readable at 4.5:1. |
-| `--hm-color-text-disabled` | `var(--hm-gray-400)` | `var(--hm-gray-600)` |  | Text of disabled controls, which WCAG exempts from contrast. |
-| `--hm-color-border` | `var(--hm-gray-200)` | `var(--hm-gray-800)` |  | Decorative borders and separators. |
+| `--hm-color-text-disabled` | `var(--hm-gray-500)` | `var(--hm-gray-600)` |  | Text of disabled controls, which WCAG exempts from contrast. |
+| `--hm-color-border` | `var(--hm-gray-200)` | `oklch(0.31 0.01 260)` |  | Decorative borders and separators. |
 | `--hm-color-border-strong` | `var(--hm-gray-600)` | `var(--hm-gray-400)` |  | Boundaries of controls, at 3:1 against surfaces. |
-| `--hm-color-control` | `var(--hm-gray-100)` | `var(--hm-gray-800)` |  | Background of neutral controls. |
-| `--hm-color-control-hover` | `var(--hm-gray-200)` | `var(--hm-gray-700)` |  | Background of neutral controls under the pointer. |
-| `--hm-color-control-active` | `var(--hm-gray-300)` | `var(--hm-gray-900)` |  | Background of neutral controls while pressed. |
+| `--hm-color-control` | `var(--hm-gray-100)` | `var(--hm-gray-900)` |  | Background of neutral controls. |
+| `--hm-color-control-hover` | `var(--hm-gray-200)` | `var(--hm-gray-800)` |  | Background of neutral controls under the pointer. |
+| `--hm-color-control-active` | `var(--hm-gray-300)` | `var(--hm-gray-950)` |  | Background of neutral controls while pressed. |
+| `--hm-color-control-disabled` | `var(--hm-gray-100)` | `oklch(0.25 0.008 260)` |  | Background of disabled controls in every variant, so a disabled primary action doesn't look enabled. |
+| `--hm-color-surface-glass` | `oklch(1 0 0 / 0.8)` | `oklch(0.24 0.01 260 / 0.82)` |  | Translucent background of bars that float over content, blurred by blur-glass. |
 | `--hm-color-accent` | `var(--hm-blue-700)` | `var(--hm-blue-400)` |  | Fill of primary actions and selected states. |
 | `--hm-color-accent-hover` | `var(--hm-blue-800)` | `var(--hm-blue-300)` |  | Accent fill under the pointer. |
 | `--hm-color-accent-active` | `var(--hm-blue-900)` | `var(--hm-blue-200)` |  | Accent fill while pressed. |
@@ -84,13 +86,17 @@ Density tokens change with `data-hm-density`: the Light and Dark columns hold th
 | `--hm-surface-width-medium` | `32rem` | `32rem` |  | Width of dialogs and panels. |
 | `--hm-surface-width-large` | `48rem` | `48rem` |  | Width of large dialogs. |
 | `--hm-track-size` | `0.375rem` | `0.375rem` |  | Thickness of progress bars and other tracks. |
+| `--hm-sidebar-width` | `15.5rem` | `15.5rem` |  | Width of an editor's tools panel when it shows labels. |
+| `--hm-rail-width` | `4.25rem` | `4.25rem` |  | Width of an editor's tools panel when it shows icons only. |
+| `--hm-inspector-width` | `18rem` | `18rem` |  | Width of an editor's properties panel. |
+| `--hm-bar-height` | `3.25rem` | `3.25rem` |  | Height of an editor's top bar and of a phone's tab bar. |
 
 ## Shape
 
 | Token | Light | Dark | Compact | Description |
 |---|---|---|---|---|
-| `--hm-radius-control` | `var(--hm-radius-md)` | `var(--hm-radius-md)` |  | Corner radius of controls. |
-| `--hm-radius-surface` | `var(--hm-radius-lg)` | `var(--hm-radius-lg)` |  | Corner radius of panels and dialogs. |
+| `--hm-radius-control` | `var(--hm-radius-lg)` | `var(--hm-radius-lg)` |  | Corner radius of controls. |
+| `--hm-radius-surface` | `var(--hm-radius-2xl)` | `var(--hm-radius-2xl)` |  | Corner radius of panels and dialogs. |
 | `--hm-radius-round` | `var(--hm-radius-full)` | `var(--hm-radius-full)` |  | Radius that makes pills and circles. |
 | `--hm-border-width` | `var(--hm-border-width-1)` | `var(--hm-border-width-1)` |  | Width of borders. |
 
@@ -98,8 +104,10 @@ Density tokens change with `data-hm-density`: the Light and Dark columns hold th
 
 | Token | Light | Dark | Compact | Description |
 |---|---|---|---|---|
-| `--hm-shadow-raised` | `0 1px 2px oklch(0 0 0 / 0.06), 0 4px 12px oklch(0 0 0 / 0.08)` | `0 1px 2px oklch(0 0 0 / 0.4), 0 4px 12px oklch(0 0 0 / 0.4)` |  | Shadow of menus and popovers. |
-| `--hm-shadow-overlay` | `0 8px 24px oklch(0 0 0 / 0.12), 0 24px 48px oklch(0 0 0 / 0.12)` | `0 8px 24px oklch(0 0 0 / 0.5), 0 24px 48px oklch(0 0 0 / 0.5)` |  | Shadow of dialogs. |
+| `--hm-shadow-raised` | `0 1px 2px oklch(0.2 0.02 260 / 0.06), 0 4px 14px oklch(0.2 0.02 260 / 0.08)` | `0 1px 2px oklch(0 0 0 / 0.4), 0 4px 14px oklch(0 0 0 / 0.4)` |  | Shadow of menus and popovers. |
+| `--hm-shadow-overlay` | `0 4px 8px oklch(0.2 0.02 260 / 0.06), 0 24px 56px oklch(0.2 0.02 260 / 0.18)` | `0 4px 8px oklch(0 0 0 / 0.4), 0 24px 56px oklch(0 0 0 / 0.55)` |  | Shadow of dialogs. |
+| `--hm-shadow-floating` | `0 0 0 1px oklch(0 0 0 / 0.05), 0 2px 4px oklch(0 0 0 / 0.06), 0 10px 28px oklch(0 0 0 / 0.12)` | `0 0 0 1px oklch(1 0 0 / 0.06), 0 2px 4px oklch(0 0 0 / 0.3), 0 10px 28px oklch(0 0 0 / 0.45)` |  | Shadow of bars, docks and toasts that float over content. |
+| `--hm-blur-glass` | `20px` | `20px` |  | Blur behind translucent floating bars. |
 
 ## Motion
 
@@ -109,8 +117,11 @@ Density tokens change with `data-hm-density`: the Light and Dark columns hold th
 | `--hm-motion-duration-enter` | `var(--hm-duration-normal)` | `var(--hm-duration-normal)` |  | Duration of elements appearing. |
 | `--hm-motion-duration-exit` | `var(--hm-duration-fast)` | `var(--hm-duration-fast)` |  | Duration of elements disappearing. |
 | `--hm-motion-easing-standard` | `var(--hm-easing-standard)` | `var(--hm-easing-standard)` |  | Easing of movement within the screen. |
-| `--hm-motion-easing-enter` | `var(--hm-easing-decelerate)` | `var(--hm-easing-decelerate)` |  | Easing of elements appearing. |
+| `--hm-motion-easing-enter` | `var(--hm-easing-emphasized)` | `var(--hm-easing-emphasized)` |  | Easing of elements appearing. |
 | `--hm-motion-easing-exit` | `var(--hm-easing-accelerate)` | `var(--hm-easing-accelerate)` |  | Easing of elements disappearing. |
+| `--hm-motion-duration-panel` | `var(--hm-duration-slow)` | `var(--hm-duration-slow)` |  | Duration of panels, sheets and drawers opening or closing. |
+| `--hm-motion-easing-panel` | `var(--hm-easing-emphasized)` | `var(--hm-easing-emphasized)` |  | Easing of panels, sheets and drawers opening or closing. |
+| `--hm-motion-easing-spring` | `var(--hm-easing-spring)` | `var(--hm-easing-spring)` |  | Easing of small things arriving, such as toasts: a little overshoot, settled once. |
 | `--hm-motion-duration-loop` | `1s` | `1s` |  | Duration of one cycle of a continuous animation, such as a spinner. |
 | `--hm-motion-easing-loop` | `linear` | `linear` |  | Easing of continuous animations, such as a spinner's turn. |
 
@@ -148,7 +159,7 @@ Fine-grained overrides for one component. `ui` never declares them: each compone
 | `--hm-button-padding-x` | `--hm-control-padding-x` | Inline padding of buttons. |
 | `--hm-button-gap` | `--hm-control-gap` | Gap between a button's icon and label. |
 | `--hm-button-icon-size` | `--hm-icon-size` | Size of icons in buttons. |
-| `--hm-button-radius` | `--hm-radius-control` | Corner radius of buttons. |
+| `--hm-button-radius` | `--hm-radius-round` | Corner radius of buttons. |
 | `--hm-button-font-weight` | `--hm-font-weight-strong` | Weight of button labels. |
 | `--hm-button-bg` | `--hm-color-control` | Background of secondary buttons. |
 | `--hm-button-bg-hover` | `--hm-color-control-hover` | Background of secondary buttons under the pointer. |
@@ -164,6 +175,8 @@ Fine-grained overrides for one component. `ui` never declares them: each compone
 | `--hm-button-danger-bg` | `--hm-color-danger` | Background of danger buttons. |
 | `--hm-button-danger-bg-hover` | `--hm-color-danger-hover` | Background of danger buttons under the pointer. |
 | `--hm-button-danger-fg` | `--hm-color-on-danger` | Text of danger buttons. |
+| `--hm-button-disabled-bg` | `--hm-color-control-disabled` | Background of disabled buttons, in every variant except quiet. |
+| `--hm-button-disabled-fg` | `--hm-color-text-disabled` | Text and icons of disabled buttons, in every variant. |
 | `--hm-button-pressed-bg` | `--hm-color-accent-subtle` | Background of toggle buttons that are on. |
 | `--hm-button-pressed-border-color` | `--hm-color-accent` | Border of toggle buttons that are on, so the state doesn't rest on colour alone. |
 | `--hm-button-pressed-fg` | `--hm-color-text` | Text of toggle buttons that are on. |
@@ -178,7 +191,7 @@ Fine-grained overrides for one component. `ui` never declares them: each compone
 | `--hm-segmented-control-small-height` | `--hm-control-height-small` | Height of small segmented control options. |
 | `--hm-segmented-control-padding` | `--hm-gap-tight` | Padding around a segmented control's options. |
 | `--hm-segmented-control-gap` | `--hm-gap-tight` | Gap between a segmented control's options. |
-| `--hm-segmented-control-radius` | `--hm-radius-control` | Corner radius of segmented controls. |
+| `--hm-segmented-control-radius` | `--hm-radius-round` | Corner radius of segmented controls. |
 | `--hm-segmented-control-bg` | `--hm-color-surface-sunken` | Background of segmented controls. |
 | `--hm-segmented-control-border-color` | `--hm-color-border-strong` | Border of segmented controls. |
 | `--hm-segmented-control-option-padding-x` | `--hm-control-padding-x` | Inline padding of segmented control options. |
@@ -284,6 +297,57 @@ Fine-grained overrides for one component. `ui` never declares them: each compone
 | `--hm-color-field-swatch-radius` | `--hm-radius-control` | Corner radius of a colour field's preview and swatches. |
 | `--hm-color-field-swatch-border-color` | `--hm-color-border-strong` | Border of a colour field's preview and swatches. It needs 3:1 contrast with the surface. |
 | `--hm-color-field-swatch-checked-border-color` | `--hm-color-text` | Ring of the checked swatch. It needs 3:1 contrast with the surface. |
+| `--hm-color-picker-gap` | `--hm-gap-normal` | Gap between the colour picker's parts. |
+| `--hm-color-picker-max-width` | `--hm-surface-width-small` | Widest a colour picker grows. |
+| `--hm-color-picker-radius` | `--hm-radius-control` | Corner radius of a colour picker's area, strips, preview and swatches. |
+| `--hm-color-picker-border-color` | `--hm-color-border-strong` | Border of a colour picker's area, strips, preview and swatches. |
+| `--hm-color-picker-strip-height` | `--hm-control-height-small` | Height of a colour picker's hue and opacity strips. |
+| `--hm-color-picker-thumb-size` | `--hm-icon-size` | Size of a colour picker's thumbs. |
+| `--hm-color-picker-thumb-color` | `--hm-color-surface-raised` | Inner, light ring of a colour picker's thumbs. |
+| `--hm-color-picker-thumb-outline-color` | `--hm-color-text` | Outer, dark ring of a colour picker's thumbs, and the line along the focused axis. |
+| `--hm-color-picker-swatch-size` | `--hm-control-height-small` | Size of a colour picker's swatches and recent colours. |
+| `--hm-color-picker-swatch-checked-border-color` | `--hm-color-text` | Ring round the checked swatch. |
+| `--hm-color-picker-hint-fg` | `--hm-color-text-muted` | Text of a colour picker's contrast hint. |
+| `--hm-editor-frame-bg` | `--hm-color-surface-sunken` | Background of an editor frame, behind the stage. |
+| `--hm-editor-frame-gap` | `--hm-gap-normal` | Gap between items in an editor frame's top bar. |
+| `--hm-editor-frame-inset` | `--hm-inset-normal` | Padding of an editor frame's top bar and properties panel. |
+| `--hm-editor-frame-bar-height` | `--hm-bar-height` | Least height of an editor frame's top bar. |
+| `--hm-editor-frame-bar-bg` | `--hm-color-surface-raised` | Background of an editor frame's top bar and tab bar. |
+| `--hm-editor-frame-bar-fg` | `--hm-color-text` | Text of an editor frame's top bar and tab bar. |
+| `--hm-editor-frame-border-color` | `--hm-color-border` | Lines between an editor frame's regions. |
+| `--hm-editor-frame-panel-bg` | `--hm-color-surface` | Background of an editor frame's tools, properties and bottom regions. |
+| `--hm-editor-frame-sidebar-width` | `--hm-sidebar-width` | Width of an editor frame's tools panel with labels. |
+| `--hm-editor-frame-rail-width` | `--hm-rail-width` | Width of an editor frame's tools panel with icons only. |
+| `--hm-editor-frame-inspector-width` | `--hm-inspector-width` | Width of an editor frame's properties panel. |
+| `--hm-editor-frame-glass-bg` | `--hm-color-surface-glass` | Background of an editor frame's edge tabs and floating dock. |
+| `--hm-editor-frame-floating-shadow` | `--hm-shadow-floating` | Shadow of an editor frame's edge tabs, dock and floating panels. |
+| `--hm-tool-list-group-gap` | `--hm-gap-loose` | Gap between a tool list's groups. |
+| `--hm-tool-list-group-label-fg` | `--hm-color-text-muted` | Text of a tool list's group labels. |
+| `--hm-tool-list-item-radius` | `--hm-radius-control` | Corner radius of a tool list's rows. |
+| `--hm-tool-list-description-fg` | `--hm-color-text-muted` | Text of a tool's description and shortcut in a tool list. |
+| `--hm-command-palette-width` | `--hm-surface-width-medium` | Width of the command palette. |
+| `--hm-command-palette-bg` | `--hm-color-surface-raised` | Background of the command palette. |
+| `--hm-command-palette-radius` | `--hm-radius-surface` | Corner radius of the command palette. |
+| `--hm-command-palette-shadow` | `--hm-shadow-overlay` | Shadow of the command palette. |
+| `--hm-command-palette-backdrop` | `--hm-color-overlay` | Backdrop behind the command palette. |
+| `--hm-command-palette-option-active-bg` | `--hm-color-accent-subtle` | Background of the command palette's active option. |
+| `--hm-toast-bg` | `--hm-color-surface-glass` | Background of a toast. Translucent, blurred by toast-blur. |
+| `--hm-toast-fg` | `--hm-color-text` | Text of a toast. |
+| `--hm-toast-radius` | `--hm-radius-round` | Corner radius of a toast. |
+| `--hm-toast-shadow` | `--hm-shadow-floating` | Shadow of a toast. |
+| `--hm-toast-blur` | `--hm-blur-glass` | Blur behind a toast. |
+| `--hm-toast-max-width` | `--hm-surface-width-medium` | Widest a toast grows before its text wraps. |
+| `--hm-toast-danger-bg` | `--hm-color-danger-subtle` | Background of an error toast. |
+| `--hm-toast-danger-fg` | `--hm-color-danger-text` | Text of an error toast. It needs 4.5:1 contrast with its background. |
+| `--hm-progress-overlay-scrim` | `--hm-color-overlay` | Scrim over the content while a progress overlay shows. |
+| `--hm-progress-overlay-card-bg` | `--hm-color-surface-raised` | Background of a progress overlay's card. |
+| `--hm-progress-overlay-card-radius` | `--hm-radius-surface` | Corner radius of a progress overlay's card. |
+| `--hm-progress-overlay-card-shadow` | `--hm-shadow-overlay` | Shadow of a progress overlay's card. |
+| `--hm-progress-overlay-card-width` | `--hm-surface-width-small` | Width of a progress overlay's card. |
+| `--hm-tab-bar-item-radius` | `--hm-radius-control` | Corner radius of a tab bar's tabs. |
+| `--hm-sheet-width` | `--hm-surface-width-small` | Width of a sheet that comes from the inline end. |
+| `--hm-settings-panel-gap` | `--hm-gap-loose` | Gap between the settings in a settings panel. |
+| `--hm-settings-panel-label-fg` | `--hm-color-text` | Text of each setting's label in a settings panel. |
 
 ## Base tokens
 
@@ -362,6 +426,8 @@ Fine-grained overrides for one component. `ui` never declares them: each compone
 | `--hm-radius-sm` | `0.25rem` |
 | `--hm-radius-md` | `0.375rem` |
 | `--hm-radius-lg` | `0.5rem` |
+| `--hm-radius-xl` | `0.75rem` |
+| `--hm-radius-2xl` | `1.125rem` |
 | `--hm-radius-full` | `9999px` |
 | `--hm-border-width-1` | `1px` |
 | `--hm-border-width-2` | `2px` |
@@ -381,9 +447,11 @@ Fine-grained overrides for one component. `ui` never declares them: each compone
 | `--hm-leading-tight` | `1.25` |
 | `--hm-leading-normal` | `1.5` |
 | `--hm-leading-relaxed` | `1.75` |
-| `--hm-duration-fast` | `100ms` |
-| `--hm-duration-normal` | `200ms` |
-| `--hm-duration-slow` | `300ms` |
+| `--hm-duration-fast` | `150ms` |
+| `--hm-duration-normal` | `250ms` |
+| `--hm-duration-slow` | `350ms` |
 | `--hm-easing-standard` | `cubic-bezier(0.2, 0, 0, 1)` |
 | `--hm-easing-decelerate` | `cubic-bezier(0, 0, 0, 1)` |
 | `--hm-easing-accelerate` | `cubic-bezier(0.3, 0, 1, 1)` |
+| `--hm-easing-emphasized` | `cubic-bezier(0.2, 0.8, 0.2, 1)` |
+| `--hm-easing-spring` | `cubic-bezier(0.34, 1.4, 0.64, 1)` |

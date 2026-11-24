@@ -1,0 +1,227 @@
+@layer hm.components {
+  /*
+   * Layout. A modal dialog near the top of the viewport, as search boxes
+   * usually are, so the list grows downwards without moving the field.
+   */
+  .hm-command-palette {
+    box-sizing: border-box;
+    inline-size: min(
+      var(--hm-command-palette-width, var(--hm-surface-width-medium)),
+      calc(100% - var(--hm-gap-loose) * 2)
+    );
+    margin-block: calc(var(--hm-bar-height) * 2) auto;
+    max-block-size: calc(100% - var(--hm-bar-height) * 4);
+    padding: 0;
+  }
+
+  .hm-command-palette[open] {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    overscroll-behavior: contain;
+  }
+
+  .hm-command-palette-input {
+    border: 0;
+    box-sizing: border-box;
+    flex: none;
+    font: inherit;
+    inline-size: 100%;
+    min-block-size: max(var(--hm-bar-height), var(--hm-target-size));
+    padding-block: 0;
+    padding-inline: var(--hm-inset-loose);
+  }
+
+  .hm-command-palette-input:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: calc(var(--hm-focus-ring-width) * -1);
+  }
+
+  .hm-command-palette-list {
+    flex: 1 1 auto;
+    list-style: none;
+    margin: 0;
+    min-block-size: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding: var(--hm-inset-tight);
+  }
+
+  .hm-command-palette-list:empty {
+    display: none;
+  }
+
+  .hm-command-palette-option {
+    align-items: center;
+    column-gap: var(--hm-gap-normal);
+    cursor: pointer;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    min-block-size: max(var(--hm-control-height), var(--hm-target-size));
+    padding-block: var(--hm-inset-tight);
+    padding-inline: var(--hm-inset-normal);
+  }
+
+  .hm-command-palette-option[aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
+  /*
+   * The active option, which focus never reaches, is drawn like focus: kept
+   * with unstyled too, so keyboard users always see where they are.
+   */
+  .hm-command-palette-option[aria-selected="true"] {
+    outline: var(--hm-focus-ring);
+    outline-offset: calc(var(--hm-focus-ring-width) * -1);
+  }
+
+  .hm-command-palette-icon {
+    block-size: var(--hm-icon-size);
+    display: inline-flex;
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    inline-size: var(--hm-icon-size);
+  }
+
+  .hm-command-palette-icon > svg {
+    block-size: inherit;
+    inline-size: inherit;
+  }
+
+  .hm-command-palette-label {
+    grid-column: 2;
+  }
+
+  .hm-command-palette-details {
+    align-items: baseline;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--hm-gap-tight) var(--hm-gap-normal);
+    grid-column: 2;
+  }
+
+  .hm-command-palette-shortcut {
+    margin-inline-start: auto;
+    white-space: nowrap;
+  }
+
+  .hm-command-palette-empty {
+    margin: 0;
+    padding: var(--hm-inset-loose);
+  }
+
+  /* Visual styles, dropped with unstyled. */
+  .hm-command-palette:not([data-hm-unstyled]) {
+    background: var(--hm-command-palette-bg, var(--hm-color-surface-raised));
+    border: var(--hm-border-width) solid var(--hm-color-border);
+    border-radius: var(--hm-command-palette-radius, var(--hm-radius-surface));
+    box-shadow: var(--hm-command-palette-shadow, var(--hm-shadow-overlay));
+    color: var(--hm-color-text);
+    font-family: var(--hm-font-family);
+    font-size: var(--hm-font-size-body);
+    letter-spacing: var(--hm-letter-spacing);
+    line-height: var(--hm-line-height-body);
+  }
+
+  .hm-command-palette:not([data-hm-unstyled])::backdrop {
+    background: var(--hm-command-palette-backdrop, var(--hm-color-overlay));
+  }
+
+  .hm-command-palette:not([data-hm-unstyled]) .hm-command-palette-input {
+    background: transparent;
+    border-block-end: var(--hm-border-width) solid var(--hm-color-border);
+    color: inherit;
+  }
+
+  .hm-command-palette:not([data-hm-unstyled]) .hm-command-palette-input::placeholder {
+    color: var(--hm-color-text-muted);
+    opacity: 1;
+  }
+
+  .hm-command-palette:not([data-hm-unstyled]) .hm-command-palette-option {
+    border: var(--hm-border-width) solid transparent;
+    border-radius: var(--hm-radius-control);
+  }
+
+  /* The active option's outline is above; its fill only adds to it. */
+  .hm-command-palette:not([data-hm-unstyled]) .hm-command-palette-option[aria-selected="true"] {
+    background: var(--hm-command-palette-option-active-bg, var(--hm-color-accent-subtle));
+  }
+
+  .hm-command-palette:not([data-hm-unstyled]) .hm-command-palette-option[aria-disabled="true"] {
+    color: var(--hm-color-text-disabled);
+  }
+
+  .hm-command-palette:not([data-hm-unstyled]) .hm-command-palette-label {
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-command-palette:not([data-hm-unstyled]) .hm-command-palette-details,
+  .hm-command-palette:not([data-hm-unstyled]) .hm-command-palette-empty {
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
+  }
+
+  .hm-command-palette:not([data-hm-unstyled])
+    .hm-command-palette-option[aria-disabled="true"]
+    .hm-command-palette-details {
+    color: inherit;
+  }
+
+  .hm-command-palette:not([data-hm-unstyled]) .hm-command-palette-shortcut {
+    font-family: var(--hm-font-family-mono);
+  }
+
+  /* Opening fades and drops in a little; reduced motion only fades. */
+  .hm-command-palette:not([data-hm-unstyled]),
+  .hm-command-palette:not([data-hm-unstyled])::backdrop {
+    transition-behavior: allow-discrete;
+    transition-duration: var(--hm-motion-duration-exit);
+    transition-property: display, overlay, opacity, translate;
+    transition-timing-function: var(--hm-motion-easing-exit);
+  }
+
+  .hm-command-palette[open]:not([data-hm-unstyled]),
+  .hm-command-palette[open]:not([data-hm-unstyled])::backdrop {
+    transition-duration: var(--hm-motion-duration-enter);
+    transition-timing-function: var(--hm-motion-easing-spring);
+  }
+
+  .hm-command-palette:not([open], [data-hm-unstyled]),
+  .hm-command-palette:not([open], [data-hm-unstyled])::backdrop {
+    opacity: 0;
+  }
+
+  .hm-command-palette:not([open], [data-hm-unstyled]) {
+    translate: 0 calc(var(--hm-gap-normal) * -1);
+  }
+
+  @starting-style {
+    .hm-command-palette[open]:not([data-hm-unstyled]),
+    .hm-command-palette[open]:not([data-hm-unstyled])::backdrop {
+      opacity: 0;
+    }
+
+    .hm-command-palette[open]:not([data-hm-unstyled]) {
+      translate: 0 calc(var(--hm-gap-normal) * -1);
+    }
+  }
+
+  [data-hm-motion="reduced"] .hm-command-palette:not([data-hm-unstyled]),
+  .hm-command-palette[data-hm-motion="reduced"]:not([data-hm-unstyled]) {
+    translate: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hm-command-palette:not([data-hm-unstyled]),
+    .hm-command-palette[open]:not([data-hm-unstyled]) {
+      translate: none;
+    }
+
+    @starting-style {
+      .hm-command-palette[open]:not([data-hm-unstyled]) {
+        translate: none;
+      }
+    }
+  }
+}

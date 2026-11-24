@@ -17,7 +17,7 @@ type StoryModule = Parameters<typeof composeStories>[0];
 /** What the test needs from a composed story. */
 type RunnableStory = {
   run: (context: { canvasElement: HTMLElement }) => Promise<void>;
-  parameters?: { visual?: { capture?: string } };
+  parameters?: { visual?: { capture?: string; mask?: readonly string[] } };
 };
 const modules = import.meta.glob<StoryModule>("../src/**/*.stories.tsx", { eager: true });
 const DENSITIES = ["comfortable", "compact"] as const;
@@ -56,6 +56,21 @@ for (const [path, module] of Object.entries(modules)) {
                 .filter((animation) => animation.playState !== "paused")
                 .map((animation) => animation.finished),
             );
+            // Content a story shows from an effect, such as a toast in the
+            // top layer, can start its transition only after the wait above
+            // began; wait again until a frame starts nothing new.
+            for (let round = 0; round < 10; round++) {
+              await new Promise((resolve) =>
+                requestAnimationFrame(() => requestAnimationFrame(resolve)),
+              );
+              const running = document
+                .getAnimations()
+                .filter((animation) => animation.playState === "running");
+              if (running.length === 0) {
+                break;
+              }
+              await Promise.all(running.map((animation) => animation.finished));
+            }
             const slug = `${title}--${name}--${theme}--${density}`
               .toLowerCase()
               .replace(/[^a-z0-9-]+/g, "-");
@@ -66,7 +81,16 @@ for (const [path, module] of Object.entries(modules)) {
             if (!capture) {
               throw new Error(`${name} has no element matching ${selector}`);
             }
-            await expect.element(page.elementLocator(capture)).toMatchScreenshot(slug);
+            // Stories name what renders differently from one CPU to another,
+            // such as dithered gradients, to leave out of the comparison.
+            const mask = (Story.parameters?.["visual"]?.mask ?? []).flatMap((maskSelector) =>
+              [...document.querySelectorAll(maskSelector)].map((element) =>
+                page.elementLocator(element),
+              ),
+            );
+            await expect
+              .element(page.elementLocator(capture))
+              .toMatchScreenshot(slug, { screenshotOptions: { mask } });
           });
         }
       }

@@ -123,6 +123,23 @@ const STATES: Readonly<Record<string, State>> = {
           ),
       )
       .toBe(true);
+    // A thumbnail can draw again once the page it shows settles, such as the
+    // first page after a page is added; wait until what they show stops
+    // changing.
+    await expect
+      .poll(() =>
+        page.locator(".hm-notes-thumbnail-canvas").evaluateAll(async (canvases) => {
+          const drawn = () =>
+            canvases.map((canvas) => (canvas as HTMLCanvasElement).toDataURL()).join();
+          const before = drawn();
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          await new Promise((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(resolve)),
+          );
+          return drawn() === before;
+        }),
+      )
+      .toBe(true);
   },
   selection: async (page) => {
     await written(page);
