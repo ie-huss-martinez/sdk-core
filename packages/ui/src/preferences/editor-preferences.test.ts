@@ -41,4 +41,27 @@ describe("readEditorPreferences", () => {
       defaultEditorPreferences,
     );
   });
+
+  it("never throws, whatever reading the object does", () => {
+    const throwing = {
+      mode: "expert",
+      get theme(): string {
+        throw new Error("unavailable");
+      },
+    };
+    const { proxy, revoke } = Proxy.revocable({}, {});
+    revoke();
+
+    expect(readEditorPreferences(throwing)).toEqual({
+      ...defaultEditorPreferences,
+      mode: "expert",
+    });
+    expect(readEditorPreferences(proxy)).toEqual(defaultEditorPreferences);
+    expect(readEditorPreferences({}, throwing as Partial<typeof defaultEditorPreferences>)).toEqual(
+      {
+        ...defaultEditorPreferences,
+        mode: "expert",
+      },
+    );
+  });
 });

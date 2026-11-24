@@ -38,7 +38,7 @@ export interface TabBarProps
   readonly value: string | null;
   /** Called with a tab's id when it's pressed. */
   readonly onValueChange: (id: string) => void;
-  /** How many tabs fit before "More". Defaults to 5. */
+  /** How many tabs fit before "More". Defaults to 5. Without `onMore`, every tab shows. */
   readonly max?: number | undefined;
   /** Called when "More" is pressed; it opens what the bar leaves out. */
   readonly onMore?: (() => void) | undefined;
@@ -70,7 +70,9 @@ export const TabBar = /* @__PURE__ */ forwardRef(function TabBar(
   ref: ForwardedRef<HTMLDivElement>,
 ): ReactElement {
   const defaultMore = useUiText("tabBar.more", uiEditorText);
-  const shown = items.slice(0, max);
+  // Tabs past `max` move behind "More" only when there's somewhere to show them.
+  const overflows = onMore !== undefined && items.length > max;
+  const shown = overflows ? items.slice(0, max) : items;
   const item = (
     id: string,
     label: string,
@@ -101,9 +103,7 @@ export const TabBar = /* @__PURE__ */ forwardRef(function TabBar(
       {shown.map((tab) =>
         item(tab.id, tab.label, tab.icon, tab.id === value, () => onValueChange(tab.id)),
       )}
-      {items.length > max && onMore
-        ? item("more", moreLabel ?? defaultMore, <MoreIcon />, undefined, onMore)
-        : null}
+      {overflows ? item("more", moreLabel ?? defaultMore, <MoreIcon />, undefined, onMore) : null}
     </Toolbar>
   );
 });

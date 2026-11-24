@@ -27,12 +27,18 @@ const items: CommandPaletteItem[] = [
   { id: "draw", label: "Draw" },
 ];
 
-function Host({ onRun }: { onRun: (id: string) => void }) {
+function Host({
+  onRun,
+  list = items,
+}: {
+  onRun: (id: string) => void;
+  list?: CommandPaletteItem[];
+}) {
   const [open, setOpen] = useState(false);
   return (
     <AnnouncerProvider>
       <Button onClick={() => setOpen(true)}>Open</Button>
-      <CommandPalette open={open} onOpenChange={setOpen} items={items} onRun={onRun} />
+      <CommandPalette open={open} onOpenChange={setOpen} items={list} onRun={onRun} />
     </AnnouncerProvider>
   );
 }
@@ -80,6 +86,37 @@ describe("CommandPalette", () => {
     expect(description?.textContent).toBe("Cut the edges offC");
   });
 
+  it("names each option by its label alone, and says nothing before typing", async () => {
+    const { dialog } = await open();
+    const crop = dialog.querySelector('[role="option"]') as HTMLElement;
+
+    // The details are hidden from the name and read as the description.
+    const details = document.getElementById(crop.getAttribute("aria-describedby") ?? "");
+    expect(details?.getAttribute("aria-hidden")).toBe("true");
+    expect(
+      [...crop.childNodes]
+        .filter((node) => !(node instanceof Element && node.getAttribute("aria-hidden") === "true"))
+        .map((node) => node.textContent)
+        .join(""),
+    ).toBe("Crop");
+    expect(dialog.querySelector('[role="status"]')?.textContent).toBe("");
+  });
+
+  it("speaks the new count when the items change after typing", async () => {
+    const onRun = vi.fn();
+    const { dialog } = await open(onRun);
+    await userEvent.keyboard("rot");
+    await vi.waitFor(() =>
+      expect(dialog.querySelector('[role="status"]')?.textContent).toBe("2 results"),
+    );
+
+    act(() => root?.render(<Host onRun={onRun} list={items.slice(0, 2)} />));
+
+    await vi.waitFor(() =>
+      expect(dialog.querySelector('[role="status"]')?.textContent).toBe("1 result"),
+    );
+  });
+
   it("moves the active option with the arrow keys, Home and End, wrapping round", async () => {
     const { input } = await open();
 
@@ -104,10 +141,9 @@ describe("CommandPalette", () => {
       [...dialog.querySelectorAll(".hm-command-palette-label")].map((e) => e.textContent),
     ).toEqual(["Rotate left", "Rotate right"]);
     expect(activeLabel(input)).toBe("Rotate left");
+    // Spoken from inside the dialog: the page's announcer is inert behind it.
     await vi.waitFor(() =>
-      expect(document.querySelector('.hm-announcer [role="status"]')?.textContent).toBe(
-        "2 results",
-      ),
+      expect(dialog.querySelector('[role="status"]')?.textContent).toBe("2 results"),
     );
 
     await userEvent.keyboard("zzz");

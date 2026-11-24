@@ -129,7 +129,7 @@ export default [
   entryBudget({
     name: "React entry (./react), with the shared code it loads",
     entry: "dist/react.js",
-    // 41 kB; 40.55 kB with the editor frame's eleven components and the
+    // 41.5 kB; 41.05 kB with the editor frame's eleven components and the
     // colour picker (sdk-core ADR 0067, docs/adr/0013), which the two
     // scenarios at the end measure. Before, 26 kB; 25.53 kB once ReorderableList kept focus on its cells and
     // entered at its Tab stop under NVDA (sdk-core#201, #202), +0.60 kB of it
@@ -139,19 +139,20 @@ export default [
     // content's headings. Every component counts here, though no
     // application ships them all, so a component's pull request raises it as
     // expected growth; review reads the import scenarios below to judge it.
-    limit: "41 kB",
+    limit: "41.5 kB",
   }),
   entryBudget({
     name: "Stylesheet (./styles.css)",
     entry: "dist/styles.css",
-    // 13.5 kB; 13.19 kB with the editor frame's components, the colour
-    // picker and the reduced-motion and theme blocks of the new tokens.
+    // 14 kB; 13.71 kB with the editor frame's components, the colour
+    // picker (with its right-to-left strips) and the reduced-motion and
+    // theme blocks of the new tokens.
     // Before, 9.5 kB; 9.05 kB with lanes that let presses through;
     // the lanes before them took it from 8.5 kB to 9 kB. Raised as the React
     // entry's is: to the measurement, rounded up to the next 0.5 kB. Every
     // application loads the whole stylesheet, so this one is the cost of
     // every component.
-    limit: "13.5 kB",
+    limit: "14 kB",
   }),
   // A floor: 0.6 kB; 0.56 kB, counting only the React names it uses
   // (sdk-config 0.12.1). A leak into every component shows here first.
@@ -176,7 +177,9 @@ export default [
   scenario("every icon", ICONS, "3.5 kB"),
   // 7.5 kB; 7.40 kB.
   scenario("an editor", EDITOR, "7.5 kB"),
-  // 10 kB; 9.64 kB. Everything an SDK editor renders through (sdk-core ADR
+  // 10.5 kB; 10.03 kB, with the palette's and toasts' own live regions for
+  // when a modal dialog makes the page's announcer inert. Everything an SDK
+  // editor renders through (sdk-core ADR
   // 0067): the frame, its tools, the mode switch, the theme toggle, the tab
   // bar, the settings, the command palette, toasts and progress. Their text
   // is its own part of ui's catalogue, so the components above don't ship it.
@@ -195,8 +198,8 @@ export default [
       "useToast",
       "ProgressOverlay",
     ],
-    "10 kB",
+    "10.5 kB",
   ),
-  // 6 kB; 5.80 kB, with its colour names (docs/adr/0013).
+  // 6 kB; 5.86 kB, with its colour names (docs/adr/0013).
   scenario("ColorPicker", ["ColorPicker", "addRecentColor"], "6 kB"),
 ];

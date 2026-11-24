@@ -127,6 +127,12 @@ describe("the frame's controls on the server", () => {
     expect(html.match(/hm-tab-bar-item/g)).toHaveLength(4);
     expect(html).toContain(">More<");
     expect(html).not.toContain(">D<");
+    // Without somewhere to show the rest, every tab stays.
+    const all = renderToString(
+      <TabBar label="Tools" items={items} value={null} onValueChange={() => {}} max={3} />,
+    );
+    expect(all).toContain(">D<");
+    expect(all).not.toContain(">More<");
   });
 
   it("renders the settings panel closed, with the settings asked for", () => {

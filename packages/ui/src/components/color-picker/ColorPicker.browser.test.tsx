@@ -249,6 +249,8 @@ describe("ColorPicker", () => {
   });
 
   it("offers the eyedropper only where the browser has one", async () => {
+    // Not left to the cleanup of an earlier test.
+    delete (window as { EyeDropper?: unknown }).EyeDropper;
     expect(render(<Fill />).querySelector(".hm-color-picker-eye-dropper")).toBeNull();
     act(() => root?.unmount());
 
@@ -265,6 +267,113 @@ describe("ColorPicker", () => {
     await userEvent.click(button);
     await vi.waitFor(() => expect(commits).toHaveBeenCalledWith("#12b76a"));
     expect(hex(container).value).toBe("#12b76a");
+  });
+
+  it("ends a drag when it's disabled mid-drag, without committing", () => {
+    const changes = vi.fn();
+    const commits = vi.fn();
+    const container = render(<Fill onValueChange={changes} onValueCommit={commits} />);
+    const area = container.querySelector(".hm-color-picker-area") as HTMLElement;
+    const box = area.getBoundingClientRect();
+    const init = { bubbles: true, cancelable: true, button: 0, pointerId: 7, pointerType: "mouse" };
+    const at = (x: number, y: number) => ({
+      ...init,
+      clientX: box.left + box.width * x,
+      clientY: box.top + box.height * y,
+    });
+
+    act(() => {
+      area.dispatchEvent(new PointerEvent("pointerdown", at(0.25, 0.5)));
+    });
+    act(() => {
+      root?.render(<Fill onValueChange={changes} onValueCommit={commits} disabled />);
+    });
+    act(() => {
+      area.dispatchEvent(new PointerEvent("pointermove", at(0.75, 0.25)));
+    });
+    act(() => {
+      root?.render(<Fill onValueChange={changes} onValueCommit={commits} />);
+    });
+    act(() => {
+      area.dispatchEvent(new PointerEvent("pointermove", at(0.9, 0.1)));
+      area.dispatchEvent(new PointerEvent("pointerup", at(0.9, 0.1)));
+    });
+
+    expect(changes).toHaveBeenCalledOnce();
+    expect(commits).not.toHaveBeenCalled();
+  });
+
+  it("takes the eyedropper's colour with the opacity the picker has when it arrives", async () => {
+    let resolve: (result: { sRGBHex: string }) => void = () => {};
+    (window as { EyeDropper?: unknown }).EyeDropper = class {
+      open() {
+        return new Promise((done) => {
+          resolve = done;
+        });
+      }
+    };
+    const commits = vi.fn();
+    const container = render(<Fill alpha initial="#1570ef80" onValueCommit={commits} />);
+
+    await userEvent.click(
+      container.querySelector(".hm-color-picker-eye-dropper") as HTMLButtonElement,
+    );
+    slider(container, "Opacity").focus();
+    await userEvent.keyboard("{ArrowRight}");
+    await act(async () => {
+      resolve({ sRGBHex: "#12b76a" });
+    });
+
+    await vi.waitFor(() => expect(commits).toHaveBeenLastCalledWith("#12b76a82"));
+    expect(hex(container).value).toBe("#12b76a82");
+  });
+
+  it("keeps an uncontrolled colour's RGB when alpha is turned on and off", () => {
+    const container = render(<ColorPicker label="Fill" defaultValue="#1570ef" />);
+
+    act(() => root?.render(<ColorPicker label="Fill" defaultValue="#1570ef" alpha />));
+    expect(hex(container).value).toBe("#1570efff");
+    act(() => root?.render(<ColorPicker label="Fill" defaultValue="#1570ef" />));
+    expect(hex(container).value).toBe("#1570ef");
+  });
+
+  it("points every url(#…) at an element of its own picker", () => {
+    const container = render(
+      <>
+        <Fill alpha initial="#1570ef80" swatches={[{ value: "#1570ef80", label: "Blue" }]} />
+        <Fill alpha initial="#d92d2080" swatches={[{ value: "#d92d2080", label: "Red" }]} />
+      </>,
+    );
+    const [first, second] = [...container.querySelectorAll(".hm-color-picker")] as [
+      HTMLElement,
+      HTMLElement,
+    ];
+    const references = (picker: HTMLElement) =>
+      [...picker.querySelectorAll("[fill^='url(#']")].map(
+        (element) => /^url\(#(.+)\)$/.exec(element.getAttribute("fill") ?? "")?.[1] as string,
+      );
+
+    for (const picker of [first, second]) {
+      for (const id of references(picker)) {
+        expect(picker.querySelector(`[id="${id}"]`), id).not.toBeNull();
+      }
+    }
+    expect(references(first).filter((id) => references(second).includes(id))).toEqual([]);
+  });
+
+  it("mirrors the hue and opacity strips in right-to-left text", () => {
+    const container = render(
+      <div dir="rtl">
+        <Fill alpha />
+      </div>,
+    );
+
+    for (const strip of container.querySelectorAll(".hm-color-picker-strip-svg")) {
+      expect(getComputedStyle(strip).transform).toBe("matrix(-1, 0, 0, 1, 0, 0)");
+    }
+    expect(
+      getComputedStyle(container.querySelector(".hm-color-picker-area-svg") as Element).transform,
+    ).toBe("none");
   });
 
   it("disables every control", () => {

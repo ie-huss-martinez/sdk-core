@@ -163,15 +163,16 @@
   }
 
   /* The dock floats the tools as a pill over the foot of the stage. */
+  /* Centred by auto margins between both insets, so it's centred in either direction. */
   .hm-editor-frame[data-hm-layout="dock"] .hm-editor-frame-tools {
     block-size: auto;
     flex-direction: row;
-    inline-size: auto;
-    inset-block-end: var(--hm-gap-loose);
-    inset-inline-start: 50%;
+    inline-size: fit-content;
+    inset-block: auto var(--hm-gap-loose);
+    inset-inline: 0;
+    margin-inline: auto;
     max-inline-size: calc(100% - 2 * var(--hm-gap-loose));
     position: absolute;
-    translate: -50% 0;
     z-index: var(--hm-z-raised);
   }
 

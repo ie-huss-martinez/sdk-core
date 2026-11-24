@@ -88,16 +88,32 @@ export function readEditorPreferences(
   value: unknown,
   defaults: Partial<EditorPreferences> = {},
 ): EditorPreferences {
-  const base = { ...defaultEditorPreferences };
-  const source =
-    value !== null && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const result: Record<string, unknown> = {};
-  for (const name of Object.keys(base) as (keyof EditorPreferences)[]) {
-    const fallback = isValid(name, defaults[name]) ? defaults[name] : base[name];
-    const given = Object.hasOwn(source, name) ? source[name] : undefined;
-    result[name] = isValid(name, given) ? given : fallback;
+  for (const name of Object.keys(defaultEditorPreferences) as (keyof EditorPreferences)[]) {
+    const fallback = ownValid(defaults, name) ?? defaultEditorPreferences[name];
+    result[name] = ownValid(value, name) ?? fallback;
   }
   return Object.freeze(result as unknown as EditorPreferences);
+}
+
+/**
+ * The object's own value for a preference when it's valid, and `undefined`
+ * otherwise, including when reading it throws, as a getter or a revoked
+ * proxy can.
+ */
+function ownValid(source: unknown, name: keyof EditorPreferences): unknown {
+  if (source === null || typeof source !== "object") {
+    return undefined;
+  }
+  try {
+    if (!Object.hasOwn(source, name)) {
+      return undefined;
+    }
+    const value: unknown = (source as Record<string, unknown>)[name];
+    return isValid(name, value) ? value : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function isValid(name: keyof EditorPreferences, value: unknown): boolean {

@@ -46,9 +46,5 @@
     opacity: var(--hm-opacity-disabled);
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .hm-number-field:not([data-hm-unstyled]) {
-      transition-duration: 0s;
-    }
-  }
+  /* Reduced motion needs no rule here: its duration token is zero (sdk-core ADR 0067). */
 }

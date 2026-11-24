@@ -57,10 +57,17 @@ export interface ProgressOverlayProps
   readonly children?: ReactNode;
 }
 
+/** The title and, when it's text, the detail line, as one sentence to speak. */
+function spoken(title: string, detail: ReactNode): string {
+  return typeof detail === "string" || typeof detail === "number" ? `${title}. ${detail}` : title;
+}
+
 /**
  * Progress over the stage while long work runs (sdk-core ADR 0067): a card
  * with a title, a progress bar, a line of detail and Cancel, over a scrim.
  *
+ * - **Spoken in words:** the title when it opens and the detail line when it
+ *   changes, politely, never each step of the bar.
  * - **What's behind is `inert`** while it shows, so it can't be clicked,
  *   focused or edited half-way through.
  * - **Focus moves to Cancel,** or to the card, when it opens while focus
@@ -130,10 +137,22 @@ export const ProgressOverlay = /* @__PURE__ */ forwardRef(function ProgressOverl
       ref={ref}
       className={cx("hm-progress-overlay", classNames?.root, className)}
       data-hm-unstyled={unstyledAttribute(unstyled)}
-      aria-busy={open || undefined}
     >
-      <div ref={content} className={cx("hm-progress-overlay-content", classNames?.content)}>
+      <div
+        ref={content}
+        className={cx("hm-progress-overlay-content", classNames?.content)}
+        aria-busy={open || undefined}
+      >
         {children}
+      </div>
+      {/*
+        What changes in words, spoken politely from outside the busy content:
+        the title when it opens and the detail line when it changes, never
+        each step of the bar. It's in the page from the start, as screen
+        readers only announce changes to regions that already exist.
+      */}
+      <div role="status" className="hm-visually-hidden">
+        {open ? spoken(title, detail) : ""}
       </div>
       {open ? (
         <div className={cx("hm-progress-overlay-scrim", classNames?.scrim)}>

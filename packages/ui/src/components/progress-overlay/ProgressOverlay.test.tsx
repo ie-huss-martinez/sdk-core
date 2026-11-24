@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ProgressOverlay } from "./ProgressOverlay.js";
 
 describe("ProgressOverlay on the server", () => {
-  it("renders only its content when closed", () => {
+  it("renders only its content and an empty status when closed", () => {
     expect(
       renderToString(
         <ProgressOverlay open={false} title="Exporting">
@@ -11,7 +11,7 @@ describe("ProgressOverlay on the server", () => {
         </ProgressOverlay>,
       ),
     ).toBe(
-      '<div class="hm-progress-overlay"><div class="hm-progress-overlay-content">Stage</div></div>',
+      '<div class="hm-progress-overlay"><div class="hm-progress-overlay-content">Stage</div><div role="status" class="hm-visually-hidden"></div></div>',
     );
   });
 
@@ -27,7 +27,10 @@ describe("ProgressOverlay on the server", () => {
         Stage
       </ProgressOverlay>,
     );
-    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain('<div class="hm-progress-overlay-content" aria-busy="true">');
+    expect(html).toContain(
+      '<div role="status" class="hm-visually-hidden">Exporting. Encoding on this device</div>',
+    );
     const [, titleId] = /role="group" aria-labelledby="([^"]+)"/.exec(html) ?? [];
     expect(html).toContain(`<p id="${titleId}" class="hm-progress-overlay-title">Exporting</p>`);
     expect(html).toMatch(/<progress[^>]*value="40"[^>]*aria-label="Exporting"/);

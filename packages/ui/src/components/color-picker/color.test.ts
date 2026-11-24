@@ -93,6 +93,18 @@ describe("addRecentColor", () => {
     expect(addRecentColor(list, "#ffffff", 3)).toEqual(["#ffffff", "#000000", "#000001"]);
   });
 
+  it("removes duplicates already in the list before cutting it to max", () => {
+    expect(addRecentColor(["#aaa", "#AAAAAA", "#bbb", "#bbbbbb"], "#ccc", 3)).toEqual([
+      "#cccccc",
+      "#aaaaaa",
+      "#bbbbbb",
+    ]);
+  });
+
+  it("normalises, filters and cuts the list when the new colour isn't one", () => {
+    expect(addRecentColor(["#ABC", "nope", "#aabbcc", "#fff"], "nope", 1)).toEqual(["#aabbcc"]);
+  });
+
   it("ignores text that isn't a colour, in the list too, and returns a frozen copy", () => {
     const list = ["#1570ef", "javascript:alert(1)"];
     const result = addRecentColor(list, "url(x)");

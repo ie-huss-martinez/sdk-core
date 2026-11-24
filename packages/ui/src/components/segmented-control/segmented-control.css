@@ -96,9 +96,5 @@
     opacity: var(--hm-opacity-disabled);
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .hm-segmented-control:not([data-hm-unstyled]) .hm-segmented-control-option {
-      transition-duration: 0s;
-    }
-  }
+  /* Reduced motion needs no rule here: its duration token is zero (sdk-core ADR 0067). */
 }

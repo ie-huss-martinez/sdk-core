@@ -168,8 +168,10 @@ export function nameOf(color: string): ColorName {
 
 /**
  * Adds a colour to a list of recent colours: first, without duplicates
- * (whatever their case), and at most `max` long. Text that isn't a colour
- * leaves the list as it was.
+ * (whatever their case), and at most `max` long. Every colour in the list
+ * is normalised, and text that isn't a colour is dropped, before the
+ * duplicates go and the list is cut to `max`; a new colour that isn't one
+ * isn't added.
  *
  * @example
  * ```ts
@@ -183,17 +185,19 @@ export function nameOf(color: string): ColorName {
  * @public
  */
 export function addRecentColor(list: readonly string[], color: string, max = 8): readonly string[] {
-  const added = parseColor(color, true);
   const normalise = (value: string): string | undefined => {
     const parsed = parseColor(value, true);
     // Opaque colours are kept as #rrggbb, as hosts gave them.
     return parsed?.endsWith("ff") ? parsed.slice(0, 7) : parsed;
   };
-  const kept = list.map(normalise).filter((value): value is string => value !== undefined);
-  if (added === undefined) {
-    return Object.freeze(kept.slice(0, Math.max(0, max)));
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of [color, ...list]) {
+    const normalised = normalise(value);
+    if (normalised !== undefined && !seen.has(normalised)) {
+      seen.add(normalised);
+      result.push(normalised);
+    }
   }
-  const first = normalise(added) as string;
-  const rest = kept.filter((value) => value !== first);
-  return Object.freeze([first, ...rest].slice(0, Math.max(0, max)));
+  return Object.freeze(result.slice(0, Math.max(0, max)));
 }

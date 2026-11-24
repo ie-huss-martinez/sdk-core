@@ -14,7 +14,6 @@ import {
   useState,
 } from "react";
 import { uiEditorText } from "../../messages/editor.js";
-import { useAnnounce } from "../announcer/Announcer.js";
 import { useUiMessagesFrom, useUiText } from "../messages/UiMessagesProvider.js";
 import { useMergedRef } from "../shared/merged-ref.js";
 import { cx, type StyleProps, unstyledAttribute } from "../shared/style-props.js";
@@ -81,7 +80,8 @@ const ANNOUNCE_DELAY = 400;
  *   focus to what opened it.
  * - **Each option is named by its label** and described by its
  *   description, group and shortcut. The number of results is announced
- *   politely as the query changes, through `useAnnounce`.
+ *   politely once typing pauses, from a live region inside the dialog,
+ *   because a modal dialog makes the page's own announcer inert.
  * - **The query starts empty** every time it opens.
  *
  * Matching is {@link filterCommandPaletteItems}'s.
@@ -200,11 +200,12 @@ interface SearchProps {
 
 function Search({ items, onRun, label, placeholder, emptyText, classNames }: SearchProps) {
   const messages = useUiMessagesFrom(uiEditorText);
-  const announce = useAnnounce();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
+  const [status, setStatus] = useState("");
   const list = useRef<HTMLDivElement>(null);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Counts are spoken only once the person has typed, not on opening.
+  const typed = useRef(false);
   const id = useId();
   const listId = `${id}-list`;
   const optionId = (index: number): string => `${id}-option-${index}`;
@@ -212,7 +213,19 @@ function Search({ items, onRun, label, placeholder, emptyText, classNames }: Sea
   const results = useMemo(() => filterCommandPaletteItems(items, query), [items, query]);
   const current = Math.min(active, results.length - 1);
 
-  useEffect(() => () => clearTimeout(timer.current), []);
+  // The number of results is spoken once typing pauses, and again when the
+  // items change, from a live region inside the dialog: a modal dialog makes
+  // everything outside it inert, an announcer in the page included.
+  const count = results.length;
+  useEffect(() => {
+    if (!typed.current) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setStatus(messages.t("commandPalette.results", { count }));
+    }, ANNOUNCE_DELAY);
+    return () => clearTimeout(timer);
+  }, [count, query, items, messages]);
 
   // The active option stays in view as the arrow keys move it.
   useEffect(() => {
@@ -226,13 +239,9 @@ function Search({ items, onRun, label, placeholder, emptyText, classNames }: Sea
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>): void => {
     const next = event.target.value;
+    typed.current = true;
     setQuery(next);
     setActive(0);
-    const count = filterCommandPaletteItems(items, next).length;
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      announce(messages.t("commandPalette.results", { count }));
-    }, ANNOUNCE_DELAY);
   };
 
   const run = (index: number): void => {
@@ -327,12 +336,19 @@ function Search({ items, onRun, label, placeholder, emptyText, classNames }: Sea
                   {item.icon}
                 </span>
               )}
-              <span className={cx("hm-command-palette-label", classNames?.label)}>
+              <span
+                id={`${optionId(index)}-label`}
+                className={cx("hm-command-palette-label", classNames?.label)}
+              >
                 {item.label}
               </span>
               {hasDetails ? (
+                // Hidden from the name, which comes from the label alone, and
+                // still read as the description through aria-describedby. Not
+                // aria-labelledby: axe then requires all visible text in the name.
                 <span
                   id={details}
+                  aria-hidden="true"
                   className={cx("hm-command-palette-details", classNames?.details)}
                 >
                   {item.description ? (
@@ -357,6 +373,9 @@ function Search({ items, onRun, label, placeholder, emptyText, classNames }: Sea
           {emptyText ?? messages.t("commandPalette.empty")}
         </p>
       ) : null}
+      <div role="status" className="hm-visually-hidden">
+        {status}
+      </div>
     </>
   );
 }

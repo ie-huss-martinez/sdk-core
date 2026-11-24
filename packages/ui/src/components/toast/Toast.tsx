@@ -9,9 +9,10 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { warnInDevelopment } from "../../internal/development.js";
 import { uiEditorText } from "../../messages/editor.js";
-import { useAnnounce } from "../announcer/Announcer.js";
+import { type Politeness, useAnnounce } from "../announcer/Announcer.js";
 import { Button } from "../button/Button.js";
 import { IconButton } from "../button/IconButton.js";
 import { CloseIcon } from "../dialog/CloseIcon.js";
@@ -83,6 +84,16 @@ interface ToastRecord {
 
 const DURATION = 2600;
 
+/**
+ * The open modal dialog on top, if any. Everything outside it is inert, so
+ * the toasts move into it while it's open, or their actions couldn't be
+ * used.
+ */
+function topModal(): Element | null {
+  const modals = document.querySelectorAll("dialog:modal");
+  return modals[modals.length - 1] ?? null;
+}
+
 const ToastContext = /* @__PURE__ */ createContext<ToastApi | undefined>(undefined);
 
 function showWithoutProvider(): string {
@@ -105,7 +116,9 @@ const withoutProvider: ToastApi = { show: showWithoutProvider, dismiss: dismissW
  * - **Never takes focus.** Each toast stays for its duration, paused while
  *   the pointer is over the toasts or focus is inside them, then goes.
  * - **Spoken once,** through {@link useAnnounce}: politely, or assertively for
- *   `danger`. The toasts themselves aren't a live region. Render it inside an
+ *   `danger`. While a modal dialog is open, the toasts move into it and
+ *   speak from live regions of their own, because the dialog makes the
+ *   page's announcer inert. The toasts themselves aren't a live region. Render it inside an
  *   `AnnouncerProvider`.
  *
  * @example
@@ -135,17 +148,66 @@ export function ToastProvider({
   // The ids showing, kept beside the state so callbacks can read them.
   const live = useRef(new Set<string>());
   const region = useRef<HTMLElement>(null);
+  const [host, setHost] = useState<Element | null>(null);
+  // Text for the toasts' own live regions, used while they're in a modal
+  // dialog, where the page's announcer is inert.
+  const [spoken, setSpoken] = useState<Readonly<Record<Politeness, string>>>({
+    polite: "",
+    assertive: "",
+  });
+  const queues = useRef<Record<Politeness, string[]>>({ polite: [], assertive: [] });
+  const frames = useRef<Partial<Record<Politeness, number>>>({});
 
-  const dismiss = useCallback((id: string) => {
-    live.current.delete(id);
-    setToasts((list) => list.filter((toast) => toast.id !== id));
-    // A removed toast that held focus doesn't always report losing it.
+  useEffect(
+    () => () => {
+      for (const frame of Object.values(frames.current)) {
+        cancelAnimationFrame(frame);
+      }
+      frames.current = {};
+    },
+    [],
+  );
+
+  /**
+   * Speaks from inside the toasts, as the announcer does: the region is
+   * emptied, then filled on the next frame, so it's a change even when it
+   * has just moved into the dialog or repeats the last message. Messages in
+   * the same frame are said together.
+   */
+  const speakInside = useCallback((message: string, politeness: Politeness) => {
+    const queue = queues.current[politeness];
+    if (!queue.includes(message)) {
+      queue.push(message);
+    }
+    if (frames.current[politeness] !== undefined) {
+      return;
+    }
+    setSpoken((current) => ({ ...current, [politeness]: "" }));
+    frames.current[politeness] = requestAnimationFrame(() => {
+      delete frames.current[politeness];
+      const joined = queue.splice(0).join(" ");
+      setSpoken((current) => ({ ...current, [politeness]: joined }));
+    });
+  }, []);
+
+  // A removed toast that held focus doesn't always report losing it, so
+  // the pause for focus ends unless focus is in a toast that's still shown.
+  const recheckFocus = useCallback(() => {
     requestAnimationFrame(() => {
       if (!region.current?.contains(document.activeElement)) {
         setFocused(false);
       }
     });
   }, []);
+
+  const dismiss = useCallback(
+    (id: string) => {
+      live.current.delete(id);
+      setToasts((list) => list.filter((toast) => toast.id !== id));
+      recheckFocus();
+    },
+    [recheckFocus],
+  );
 
   const show = useCallback(
     (options: ToastOptions): string => {
@@ -165,17 +227,31 @@ export function ToastProvider({
         setFocused(false);
       }
       live.current.add(id);
+      let evicted = false;
       for (const oldest of live.current) {
         if (live.current.size <= Math.max(1, max)) {
           break;
         }
         live.current.delete(oldest);
+        evicted = true;
       }
       setToasts((list) => [...list, record].slice(-Math.max(1, max)));
-      announce(options.message, { politeness: tone === "danger" ? "assertive" : "polite" });
+      if (evicted) {
+        recheckFocus();
+      }
+      const modal = topModal();
+      setHost(modal);
+      const politeness: Politeness = tone === "danger" ? "assertive" : "polite";
+      // Heard once: from inside the dialog while one is open, as everything
+      // outside it is inert, and through the page's announcer otherwise.
+      if (modal) {
+        speakInside(options.message, politeness);
+      } else {
+        announce(options.message, { politeness });
+      }
       return id;
     },
-    [announce, max],
+    [announce, max, recheckFocus, speakInside],
   );
 
   const api = useMemo<ToastApi>(() => ({ show, dismiss }), [show, dismiss]);
@@ -193,40 +269,70 @@ export function ToastProvider({
     } else if (!hasToasts && isOpen) {
       element.hidePopover();
     }
+  }, [hasToasts, host]);
+
+  // While toasts show, follow modal dialogs opening and closing, and dialogs
+  // leaving the page, so the toasts are always where they can be used.
+  useEffect(() => {
+    if (!hasToasts || typeof MutationObserver === "undefined") {
+      return;
+    }
+    const observer = new MutationObserver(() => setHost(topModal()));
+    observer.observe(document.documentElement, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["open"],
+    });
+    return () => observer.disconnect();
   }, [hasToasts]);
 
   const paused = hovered || focused;
 
+  const toastRegion = (
+    <section
+      ref={region}
+      popover="manual"
+      aria-label={label ?? defaultLabel}
+      className={cx("hm-toast-region", classNames?.root, className)}
+      data-hm-unstyled={unstyledAttribute(unstyled)}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setFocused(false);
+        }
+      }}
+    >
+      {host ? (
+        <div className="hm-visually-hidden">
+          <div role="status" aria-live="polite" aria-atomic="true">
+            {spoken.polite}
+          </div>
+          <div role="alert" aria-live="assertive" aria-atomic="true">
+            {spoken.assertive}
+          </div>
+        </div>
+      ) : null}
+      {toasts.map((toast) => (
+        <ToastItem
+          key={toast.id}
+          toast={toast}
+          paused={paused}
+          dismiss={dismiss}
+          dismissLabel={dismissLabel ?? defaultDismiss}
+          classNames={classNames}
+          unstyled={unstyled}
+        />
+      ))}
+    </section>
+  );
+
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <section
-        ref={region}
-        popover="manual"
-        aria-label={label ?? defaultLabel}
-        className={cx("hm-toast-region", classNames?.root, className)}
-        data-hm-unstyled={unstyledAttribute(unstyled)}
-        onPointerEnter={() => setHovered(true)}
-        onPointerLeave={() => setHovered(false)}
-        onFocus={() => setFocused(true)}
-        onBlur={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-            setFocused(false);
-          }
-        }}
-      >
-        {toasts.map((toast) => (
-          <ToastItem
-            key={toast.id}
-            toast={toast}
-            paused={paused}
-            dismiss={dismiss}
-            dismissLabel={dismissLabel ?? defaultDismiss}
-            classNames={classNames}
-            unstyled={unstyled}
-          />
-        ))}
-      </section>
+      {host ? createPortal(toastRegion, host) : toastRegion}
     </ToastContext.Provider>
   );
 }

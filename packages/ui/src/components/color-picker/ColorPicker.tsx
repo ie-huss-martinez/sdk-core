@@ -286,6 +286,12 @@ const hasEyeDropper = (): boolean =>
   typeof (globalThis as { EyeDropper?: unknown }).EyeDropper === "function";
 const onServer = (): boolean => false;
 
+/** A colour in the picker's format: `#rrggbbaa` with alpha, `#rrggbb` without. */
+function inFormat(color: string | undefined, alpha: boolean): string | undefined {
+  const parsed = parseColor(color, true);
+  return parsed === undefined ? undefined : alpha ? parsed : opaquePart(parsed);
+}
+
 const clamp = (value: number): number => Math.min(1, Math.max(0, value));
 
 /**
@@ -351,11 +357,12 @@ export const ColorPicker = /* @__PURE__ */ forwardRef<HTMLDivElement, ColorPicke
     const messages = useUiMessagesFrom(uiColorPickerText);
     const full = variant === "full";
     const [uncontrolled, setUncontrolled] = useState(
-      () => parseColor(defaultValue ?? "", alpha) ?? parseColor("#000000", alpha),
+      () => inFormat(defaultValue, alpha) ?? (inFormat("#000000", alpha) as string),
     );
+    // Both in the current format, so turning alpha on or off keeps the RGB.
     const value =
-      (controlled === undefined ? undefined : parseColor(controlled, alpha)) ??
-      (uncontrolled as string);
+      (controlled === undefined ? undefined : inFormat(controlled, alpha)) ??
+      (inFormat(uncontrolled, alpha) as string);
     // Hue, saturation and brightness as last set, so the hue survives grey
     // and black. They're what's shown while they still give the value.
     const [kept, setKept] = useState<Hsva>(() => toHsva(value));
@@ -374,7 +381,9 @@ export const ColorPicker = /* @__PURE__ */ forwardRef<HTMLDivElement, ColorPicke
     const sliders = useRef<HTMLDivElement>(null);
 
     const generated = useId();
-    const idBase = `hm${generated.replace(/[^A-Za-z0-9_-]/g, "")}`;
+    // A valid fragment for url(#…): every character other than a letter or
+    // digit becomes -<code point>-, so distinct ids never collide.
+    const idBase = `hm${generated.replace(/[^A-Za-z0-9]/g, (char) => `-${char.codePointAt(0)}-`)}`;
     const ownLabelId = `${idBase}-label`;
     const hexLabelId = `${idBase}-hex`;
     const swatchesLabelId = `${idBase}-swatches`;
@@ -457,15 +466,25 @@ export const ColorPicker = /* @__PURE__ */ forwardRef<HTMLDivElement, ColorPicke
       saturationInput.current?.focus({ preventScroll: true });
       fromPoint(event);
     };
+    // A picker disabled mid-drag ends the drag, so nothing more changes or commits.
+    useEffect(() => {
+      if (disabled) {
+        dragging.current = undefined;
+      }
+    }, [disabled]);
     const handleAreaPointerMove = (event: PointerEvent<HTMLDivElement>): void => {
-      if (dragging.current === event.pointerId) {
+      if (disabled) {
+        dragging.current = undefined;
+      } else if (dragging.current === event.pointerId) {
         fromPoint(event);
       }
     };
     const handleAreaPointerUp = (event: PointerEvent<HTMLDivElement>): void => {
       if (dragging.current === event.pointerId) {
         dragging.current = undefined;
-        commit();
+        if (!disabled) {
+          commit();
+        }
       }
     };
 
@@ -498,20 +517,30 @@ export const ColorPicker = /* @__PURE__ */ forwardRef<HTMLDivElement, ColorPicke
       commitDraft();
     };
 
+    // The screen's colour, in the picker's format at the time it arrives,
+    // keeping the opacity it has then. Dropped if the picker was disabled.
+    const pickFromScreen = (sRGBHex: string): void => {
+      const picked = parseColor(sRGBHex);
+      if (disabled || picked === undefined) {
+        return;
+      }
+      pick(alpha ? toHex({ ...toHsva(picked, hsva), a: hsva.a }, true) : picked);
+    };
+    const pickFromScreenLatest = useLatest(pickFromScreen);
     const handleEyeDropper = async (): Promise<void> => {
       const EyeDropper = (window as { EyeDropper?: EyeDropperConstructor }).EyeDropper;
       if (!EyeDropper) {
         return;
       }
+      let sRGBHex: string;
       try {
-        const { sRGBHex } = await new EyeDropper().open();
-        const picked = parseColor(sRGBHex);
-        if (picked !== undefined) {
-          pick(alpha ? toHex({ ...toHsva(picked, hsva), a: hsva.a }, true) : picked);
-        }
+        ({ sRGBHex } = await new EyeDropper().open());
       } catch {
         // Cancelled with Escape, or refused: nothing changes.
+        return;
       }
+      // The picker may have changed while the eyedropper was open.
+      pickFromScreenLatest.current(sRGBHex);
     };
 
     const swatchOptions: SwatchOption[] = [];

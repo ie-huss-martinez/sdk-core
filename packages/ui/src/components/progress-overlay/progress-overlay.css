@@ -7,7 +7,12 @@
     position: relative;
   }
 
+  /*
+   * Its own stacking context, so a stage's positioned children, whatever
+   * their z-index, stay under the scrim.
+   */
   .hm-progress-overlay-content {
+    isolation: isolate;
     min-block-size: 0;
     min-inline-size: 0;
   }

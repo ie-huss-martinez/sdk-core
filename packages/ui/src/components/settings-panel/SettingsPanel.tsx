@@ -60,6 +60,7 @@ export const SettingsPanel = /* @__PURE__ */ forwardRef(function SettingsPanel(
     settings = ALL,
     title,
     className,
+    unstyled,
     children,
     ...props
   }: SettingsPanelProps,
@@ -88,6 +89,7 @@ export const SettingsPanel = /* @__PURE__ */ forwardRef(function SettingsPanel(
         </span>
         <SegmentedControl
           className="hm-settings-panel-control"
+          unstyled={unstyled}
           label={heading}
           value={current}
           onValueChange={set}
@@ -100,6 +102,7 @@ export const SettingsPanel = /* @__PURE__ */ forwardRef(function SettingsPanel(
     <Sheet
       {...props}
       ref={ref}
+      unstyled={unstyled}
       className={cx("hm-settings-panel", className)}
       title={title ?? t("settings.title")}
     >

@@ -159,4 +159,70 @@ describe("ToastProvider", () => {
 
     expect(messages(region)).toEqual(["Two", "Three"]);
   });
+  it("ends the focus pause when the toast holding focus is pushed out", async () => {
+    const { region } = render(1);
+    act(() => {
+      api.show({ message: "One", action: { label: "Undo", onAction: () => {} } });
+    });
+    act(() => (region.querySelector(".hm-toast-action") as HTMLElement).focus());
+
+    act(() => {
+      api.show({ message: "Two", duration: 50 });
+    });
+
+    expect(messages(region)).toEqual(["Two"]);
+    await vi.waitFor(() => expect(messages(region)).toEqual([]));
+  });
+
+  it("moves into an open modal dialog, where its actions can be used, and back out", async () => {
+    const { container } = render();
+    const dialog = mount("<dialog><button type='button'>Inside</button></dialog>").querySelector(
+      "dialog",
+    ) as HTMLDialogElement;
+    dialog.showModal();
+    const onAction = vi.fn();
+
+    act(() => {
+      api.show({ message: "Rotated", duration: 60_000, action: { label: "Undo", onAction } });
+    });
+
+    const inDialog = dialog.querySelector(".hm-toast-region") as HTMLElement;
+    expect(inDialog.matches(":popover-open")).toBe(true);
+    await userEvent.click(inDialog.querySelector(".hm-toast-action") as HTMLElement);
+    expect(onAction).toHaveBeenCalledOnce();
+
+    act(() => {
+      api.show({ message: "Cropped", duration: 60_000 });
+    });
+    dialog.close();
+    await vi.waitFor(() => expect(container.querySelector(".hm-toast-region")).not.toBeNull());
+    const outside = container.querySelector(".hm-toast-region") as HTMLElement;
+    expect(dialog.querySelector(".hm-toast-region")).toBeNull();
+    await vi.waitFor(() => expect(outside.matches(":popover-open")).toBe(true));
+    expect(messages(outside)).toEqual(["Cropped"]);
+  });
+  it("speaks once from inside an open modal dialog, not through the page's announcer", async () => {
+    render();
+    const dialog = mount("<dialog><button type='button'>Inside</button></dialog>").querySelector(
+      "dialog",
+    ) as HTMLDialogElement;
+    dialog.showModal();
+
+    act(() => {
+      api.show({ message: "Rotated", duration: 60_000 });
+      api.show({ message: "Export failed.", tone: "danger", duration: 60_000 });
+    });
+
+    await vi.waitFor(() =>
+      expect(dialog.querySelector('.hm-toast-region [role="status"]')?.textContent).toBe("Rotated"),
+    );
+    await vi.waitFor(() =>
+      expect(dialog.querySelector('.hm-toast-region [role="alert"]')?.textContent).toBe(
+        "Export failed.",
+      ),
+    );
+    expect(document.querySelector('.hm-announcer [role="status"]')?.textContent).toBe("");
+    expect(document.querySelector('.hm-announcer [role="alert"]')?.textContent).toBe("");
+    dialog.close();
+  });
 });
