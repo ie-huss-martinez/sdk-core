@@ -1,5 +1,15 @@
 # @hussmartinez/learn-sdk
 
+## 0.4.3
+
+### Patch Changes
+
+- [#218](https://github.com/ie-huss-martinez/sdk-core/pull/218) [`22cb9c4`](https://github.com/ie-huss-martinez/sdk-core/commit/22cb9c467a9e823a2a54c251cb42c16c1c6072a7) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The player's exercise heading takes focus only when the player moves focus to it, after Next or Previous, and can't take it once focus leaves. Before, it could always take focus, so NVDA's first Tab into the player landed on the heading instead of the first choice, and Enter there did nothing. Focus after Next is unchanged.
+
+- [#214](https://github.com/ie-huss-martinez/sdk-core/pull/214) [`32ce51f`](https://github.com/ie-huss-martinez/sdk-core/commit/32ce51f5cf8d7fcfb3edf0ef42162f81e0fdf067) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The editor's message catalogue has two more keys from ui's `TimelineClips`: `timelineClips.selected` and `timelineClips.notSelected`, "{label}, selected" and "{label}, not selected". They announce a clip added to a timeline's selection or taken out of it. Override them with your other translations.
+- Updated dependencies [[`32ce51f`](https://github.com/ie-huss-martinez/sdk-core/commit/32ce51f5cf8d7fcfb3edf0ef42162f81e0fdf067)]:
+  - @hussmartinez/ui@0.16.7
+
 ## 0.4.2
 
 ### Patch Changes
