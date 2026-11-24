@@ -100,15 +100,20 @@
     position: relative;
   }
 
-  /* The visible hue and opacity sliders lie over their strips. */
+  /*
+   * The visible hue and opacity sliders lie over their strips, half a thumb
+   * wider at each end: a range input's thumb stops half its width short of
+   * the ends, and this puts its centre over the strip's first and last colour.
+   */
   .hm-color-picker-slider {
     appearance: none;
     background: transparent;
     block-size: 100%;
     box-sizing: border-box;
     cursor: pointer;
-    inline-size: 100%;
-    inset: 0;
+    inline-size: calc(100% + var(--hm-color-picker-thumb-size, var(--hm-icon-size)));
+    inset-block: 0;
+    inset-inline-start: calc(var(--hm-color-picker-thumb-size, var(--hm-icon-size)) / -2);
     margin: 0;
     position: absolute;
   }
@@ -163,8 +168,9 @@
     gap: var(--hm-color-picker-gap, var(--hm-gap-normal));
   }
 
+  /* Square, as tall as the hex input beside it; an SVG would otherwise be 150 px tall. */
   .hm-color-picker-preview {
-    align-self: stretch;
+    block-size: max(var(--hm-text-field-height, var(--hm-control-height)), var(--hm-target-size));
     box-sizing: border-box;
     flex: none;
     inline-size: max(var(--hm-text-field-height, var(--hm-control-height)), var(--hm-target-size));

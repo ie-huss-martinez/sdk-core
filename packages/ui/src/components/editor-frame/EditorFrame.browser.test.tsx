@@ -77,7 +77,10 @@ const frameOf = (container: HTMLElement) =>
 const nav = (container: HTMLElement) => container.querySelector("nav") as HTMLElement;
 const button = (container: HTMLElement, name: string) =>
   [...container.querySelectorAll("button")].find(
-    (element) => (element.getAttribute("aria-label") ?? element.textContent) === name,
+    (element) =>
+      (element.getAttribute("aria-label") ??
+        element.querySelector(".hm-tool-list-label")?.textContent ??
+        element.textContent) === name,
   ) as HTMLButtonElement;
 
 describe("EditorFrame", () => {
@@ -152,7 +155,6 @@ describe("ToolList", () => {
     await userEvent.keyboard("{Enter}");
     await userEvent.keyboard("{ArrowDown}{Enter}");
     expect(onRun.mock.calls).toEqual([["rotate"], ["crop"]]);
-    expect(button(container, "Rotate").getAttribute("aria-describedby")).toBeTruthy();
   });
 });
 

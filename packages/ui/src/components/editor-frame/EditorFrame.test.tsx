@@ -72,10 +72,12 @@ describe("ToolList on the server", () => {
     );
     expect(html).toContain('role="toolbar" aria-label="Image tools" aria-orientation="vertical"');
     expect(html).toContain('role="group" aria-label="Orientation"');
-    expect(html).toMatch(/aria-label="Rotate" aria-describedby="[^"]+"/);
-    expect(html).toContain("Turn it a quarter");
+    // Named by what it shows: the label, then the description.
+    expect(html).toContain(
+      '<span class="hm-tool-list-label">Rotate</span> <span class="hm-tool-list-description">Turn it a quarter</span>',
+    );
     expect(html).toContain("<kbd>]</kbd>");
-    expect(html).toContain('aria-label="Flip"');
+    expect(html).toContain(">Flip<");
     expect(html).toContain('aria-disabled="true"');
     expect(html).not.toMatch(/<button[^>]* disabled=""/);
   });

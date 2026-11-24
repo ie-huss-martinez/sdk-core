@@ -1,4 +1,4 @@
-import { type ForwardedRef, forwardRef, type ReactElement, type ReactNode, useId } from "react";
+import { type ForwardedRef, forwardRef, type ReactElement, type ReactNode } from "react";
 import { Button } from "../button/Button.js";
 import { IconButton } from "../button/IconButton.js";
 import { useEditorFrame } from "../editor-frame/EditorFrame.js";
@@ -106,7 +106,6 @@ export const ToolList = /* @__PURE__ */ forwardRef(function ToolList(
   ref: ForwardedRef<HTMLDivElement>,
 ): ReactElement {
   const frame = useEditorFrame();
-  const id = useId();
   const docked = frame?.layout === "dock";
   const shownAs = display ?? (frame?.toolsState === "icons" || docked ? "icons" : "full");
   const direction = orientation ?? (docked ? "horizontal" : "vertical");
@@ -121,8 +120,7 @@ export const ToolList = /* @__PURE__ */ forwardRef(function ToolList(
       unstyled={unstyled}
       className={cx("hm-tool-list", `hm-tool-list--${shownAs}`, classNames?.root, className)}
     >
-      {groups.map((group, groupIndex) => {
-        const groupLabelId = `${id}-g${groupIndex}`;
+      {groups.map((group) => {
         return (
           <ToolbarGroup
             key={group.id}
@@ -131,15 +129,13 @@ export const ToolList = /* @__PURE__ */ forwardRef(function ToolList(
           >
             {showGroupLabels ? (
               <span
-                id={groupLabelId}
                 aria-hidden="true"
                 className={cx("hm-tool-list-group-label", classNames?.groupLabel)}
               >
                 {group.label}
               </span>
             ) : null}
-            {group.items.map((item, itemIndex) => {
-              const descriptionId = `${id}-g${groupIndex}-d${itemIndex}`;
+            {group.items.map((item) => {
               if (shownAs === "icons") {
                 return (
                   <Tooltip
@@ -172,8 +168,6 @@ export const ToolList = /* @__PURE__ */ forwardRef(function ToolList(
                   pressed={item.pressed}
                   disabled={item.disabled}
                   focusableWhenDisabled
-                  aria-label={item.label}
-                  aria-describedby={hasDescription ? descriptionId : undefined}
                   aria-keyshortcuts={item.ariaKeyShortcuts}
                   unstyled={unstyled}
                   className={cx(
@@ -183,13 +177,12 @@ export const ToolList = /* @__PURE__ */ forwardRef(function ToolList(
                   )}
                   onClick={() => onRun(item.id)}
                 >
-                  <span className="hm-tool-list-text" aria-hidden="true">
+                  {/* The name is the label then the description, as they're shown. */}
+                  <span className="hm-tool-list-text">
                     <span className="hm-tool-list-label">{item.label}</span>
+                    {hasDescription ? " " : null}
                     {hasDescription ? (
-                      <span
-                        id={descriptionId}
-                        className={cx("hm-tool-list-description", classNames?.description)}
-                      >
+                      <span className={cx("hm-tool-list-description", classNames?.description)}>
                         {item.description}
                       </span>
                     ) : null}
