@@ -1,5 +1,6 @@
 import { commands } from "vitest/browser";
 import type { PenSample } from "./pen-commands.js";
+import { waitFor } from "./react.js";
 
 export type { PenSample };
 
@@ -13,6 +14,33 @@ export interface DrawOptions {
 let nextPointer = 100;
 
 /**
+ * Resolves once nothing moves the element: no animation runs on it or on
+ * anything around it, and its box holds still from one look to the next.
+ * An open notebook scales in (`hm-notes-open`), and a stroke aimed while it
+ * does lands a pixel or two from where the test meant it.
+ */
+export async function steady(element: Element): Promise<void> {
+  let last: string | undefined;
+  await waitFor(
+    () => {
+      const moving = document.getAnimations().some((animation) => {
+        const target = (animation.effect as KeyframeEffect | null)?.target;
+        return (
+          (animation.pending || animation.playState === "running") &&
+          target instanceof Element &&
+          target.contains(element)
+        );
+      });
+      const box = JSON.stringify(element.getBoundingClientRect());
+      const still = box === last;
+      last = box;
+      if (moving || !still) throw new Error("The element is still moving.");
+    },
+    { timeout: 5_000 },
+  );
+}
+
+/**
  * Draws on an element as a stylus does. In Chromium the samples go through
  * the browser's own input pipeline, as real pen events with pressure. In
  * Firefox and WebKit, which have no such protocol, the same samples are
@@ -24,6 +52,10 @@ export async function draw(
   options: DrawOptions = {},
 ): Promise<void> {
   const pointerType = options.pointerType ?? "pen";
+  const target = document.querySelector(selector);
+  if (!target) throw new Error(`Nothing matches ${selector}`);
+  // Aimed at where the element will stay, not where an animation has it now.
+  await steady(target);
   if (pointerType === "pen") {
     const sent = await commands.penStroke({
       selector,
@@ -32,8 +64,7 @@ export async function draw(
     });
     if (sent) return;
   }
-  const element = document.querySelector(selector);
-  if (!element) throw new Error(`Nothing matches ${selector}`);
+  const element = target;
   const box = element.getBoundingClientRect();
   const pointerId = nextPointer++;
   const held = options.barrel ? 2 : 1;

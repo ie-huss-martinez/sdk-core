@@ -95,6 +95,32 @@ function inkAt(container: HTMLElement, x: number, y: number): number[] {
   ];
 }
 
+/**
+ * The darkest colour of the finished ink within two pixels of a place on the
+ * first page, as `[r, g, b, a]`. A line may fall a pixel to either side of
+ * where it was aimed, and a single pixel on its anti-aliased edge is a light
+ * grey: the darkest one nearby is the line's own colour, whatever the
+ * rasteriser did with its edges.
+ */
+function darkestInkNear(container: HTMLElement, x: number, y: number): number[] {
+  const canvas = container.querySelector<HTMLCanvasElement>(".hm-notes-page-ink");
+  const context = canvas?.getContext("2d");
+  if (!canvas || !context) throw new Error("The page has no ink canvas.");
+  const { data } = context.getImageData(
+    Math.round(x * canvas.width) - 2,
+    Math.round(y * canvas.height) - 2,
+    5,
+    5,
+  );
+  const sum = (index: number) =>
+    (data[index] ?? 0) + (data[index + 1] ?? 0) + (data[index + 2] ?? 0);
+  let darkest = 0;
+  for (let index = 4; index < data.length; index += 4) {
+    if (sum(index) < sum(darkest)) darkest = index;
+  }
+  return [...data.subarray(darkest, darkest + 4)];
+}
+
 describe("NotesEditor", () => {
   it("shows an empty library, and opens a new notebook ready to write", async () => {
     const views: string[] = [];
@@ -134,7 +160,7 @@ describe("NotesEditor", () => {
     expect(points.at(-3)).toBeLessThan(59_500 * 0.72);
 
     // The ink is on the page, and the paper beside it is still white.
-    const [red, green, blue, alpha] = inkAt(mounted.container, 0.45, 0.3);
+    const [red, green, blue, alpha] = darkestInkNear(mounted.container, 0.45, 0.3);
     expect(alpha).toBe(255);
     expect((red ?? 255) + (green ?? 255) + (blue ?? 255)).toBeLessThan(300);
     expect(inkAt(mounted.container, 0.45, 0.6).slice(0, 3)).toEqual([255, 255, 255]);
@@ -719,7 +745,7 @@ describe.runIf(deviceStorage)("NotesEditor on the device's storage", () => {
     expect(await storedItems(second)).toEqual(written);
     // And it's drawn: there's ink where the first stroke was.
     await waitFor(() => {
-      const [red, green, blue] = inkAt(second.container, 0.45, 0.3);
+      const [red, green, blue] = darkestInkNear(second.container, 0.45, 0.3);
       expect((red ?? 255) + (green ?? 255) + (blue ?? 255)).toBeLessThan(300);
     });
   });
