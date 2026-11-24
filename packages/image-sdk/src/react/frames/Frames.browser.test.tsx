@@ -65,7 +65,9 @@ async function opened(bytes: Uint8Array, props: Partial<ImageEditorProps> = {}) 
   host.style.height = "600px";
   document.body.append(host);
   root = createRoot(host);
-  await act(async () => root?.render(<ImageEditor ref={handle} {...props} />));
+  await act(async () =>
+    root?.render(<ImageEditor defaultPreferences={{ mode: "expert" }} ref={handle} {...props} />),
+  );
   await act(async () => handle.current?.open(new Blob([bytes.slice()], { type: "image/gif" })));
   await until(
     () => handle.current?.session.getSnapshot().status === "ready",
@@ -90,7 +92,10 @@ async function key(target: Element | null | undefined, init: KeyboardEventInit) 
 const click = (element: Element | null | undefined) =>
   act(async () => (element as HTMLElement | null | undefined)?.click());
 
-const tool = () => document.querySelector<HTMLButtonElement>('[data-tool="image.frames"]');
+const tool = () =>
+  document.querySelector<HTMLButtonElement>(
+    ':is([data-tool="image.frames"], [data-hm-tool-id="image.frames"])',
+  );
 const panel = () => document.querySelector<HTMLElement>('section[aria-label="Frames"]');
 const list = () => document.querySelector<HTMLElement>(".hm-image-frames-list");
 const items = () => [

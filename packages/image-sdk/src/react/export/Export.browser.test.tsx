@@ -45,7 +45,14 @@ async function opened(props: Partial<ImageEditorProps> = {}) {
   document.body.append(host);
   root = createRoot(host);
   await act(async () =>
-    root?.render(<ImageEditor ref={handle} onChange={(plan) => changes.push(plan)} {...props} />),
+    root?.render(
+      <ImageEditor
+        defaultPreferences={{ mode: "expert" }}
+        ref={handle}
+        onChange={(plan) => changes.push(plan)}
+        {...props}
+      />,
+    ),
   );
   const canvas = new OffscreenCanvas(30, 20);
   canvas.getContext("2d")?.fillRect(0, 0, 30, 20);
@@ -64,7 +71,9 @@ async function opened(props: Partial<ImageEditorProps> = {}) {
 }
 
 const exportButton = () => {
-  const found = document.querySelector<HTMLButtonElement>('button[data-tool="image.export"]');
+  const found = document.querySelector<HTMLButtonElement>(
+    'button:is([data-tool="image.export"], [data-hm-tool-id="image.export"])',
+  );
   if (!found) throw new Error("no export button");
   return found;
 };
@@ -113,7 +122,11 @@ describe("the export dialog (docs/adr/0007)", () => {
 
   it("ends redacting when it's used, with a gesture still running made its step first", async () => {
     const { session } = await opened();
-    await click(document.querySelector('[data-tool="image.redact"]') as HTMLElement);
+    await click(
+      document.querySelector(
+        ':is([data-tool="image.redact"], [data-hm-tool-id="image.redact"])',
+      ) as HTMLElement,
+    );
     await click(
       [...document.querySelectorAll("button")].find(
         (b) => b.textContent === "Add area",
@@ -150,7 +163,11 @@ describe("the export dialog (docs/adr/0007)", () => {
 
   it("ends the layers when it's used, with text still being typed in the export", async () => {
     const { session } = await opened();
-    await click(document.querySelector('[data-tool="image.add-text"]') as HTMLElement);
+    await click(
+      document.querySelector(
+        ':is([data-tool="image.add-text"], [data-hm-tool-id="image.add-text"])',
+      ) as HTMLElement,
+    );
     const field = () =>
       document.querySelector<HTMLTextAreaElement>(".hm-image-layers-text textarea");
     await until(() => document.activeElement === field(), "focus in the text field");
@@ -170,15 +187,21 @@ describe("the export dialog (docs/adr/0007)", () => {
     // Closing it returns to the image, with the layers closed.
     await click(inDialog("Cancel"));
     expect(dialog()).toBeNull();
-    expect(document.querySelector('[data-tool="image.layers"]')?.getAttribute("aria-pressed")).toBe(
-      "false",
-    );
+    expect(
+      document
+        .querySelector(':is([data-tool="image.layers"], [data-hm-tool-id="image.layers"])')
+        ?.getAttribute("aria-pressed"),
+    ).toBe("false");
     expect(document.activeElement).not.toBe(document.body);
   });
 
   it("waits while a crop is unapplied, and says why, on a button the keyboard can reach", async () => {
     const { session } = await opened();
-    await click(document.querySelector('[data-tool="image.crop"]') as HTMLElement);
+    await click(
+      document.querySelector(
+        ':is([data-tool="image.crop"], [data-hm-tool-id="image.crop"])',
+      ) as HTMLElement,
+    );
     await until(() => document.querySelector('[aria-label="Crop area"]') !== null, "cropping");
     const button = exportButton();
     // Disabled for assistive technology, but still focusable, so its reason can be read.

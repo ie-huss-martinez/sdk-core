@@ -21,6 +21,8 @@ function startCrop({ session, editor }: ImageToolContext): void {
 /** Shows the crop frame, which the editor then focuses (docs/adr/0007). */
 export const cropTool: ImageTool = /* @__PURE__ */ defineTool({
   id: "image.crop",
+  level: "easy",
+  description: "tools.crop.description",
   label: "tools.crop",
   icon: "crop",
   group: "crop",
@@ -46,6 +48,8 @@ function flip({ session }: ImageToolContext, axis: "flipX" | "flipY"): void {
 /** Mirrors what's on screen left to right: the plan's flips come after its rotation. */
 export const flipHorizontalTool: ImageTool = /* @__PURE__ */ defineTool({
   id: "image.flip-horizontal",
+  level: "easy",
+  description: "tools.flip-horizontal.description",
   label: "tools.flip-horizontal",
   icon: "flip-horizontal",
   group: "orientation",
@@ -56,6 +60,8 @@ export const flipHorizontalTool: ImageTool = /* @__PURE__ */ defineTool({
 /** Mirrors what's on screen top to bottom. */
 export const flipVerticalTool: ImageTool = /* @__PURE__ */ defineTool({
   id: "image.flip-vertical",
+  level: "advanced",
+  description: "tools.flip-vertical.description",
   label: "tools.flip-vertical",
   icon: "flip-vertical",
   group: "orientation",

@@ -106,10 +106,12 @@ export default [
     // alone ships far less, such as the catalogue's 4.7 kB, not 40.5 kB.
     // Then 54.52 kB, with the state the dialog, the frames panel and the
     // layer fields reset while rendering rather than in effects (#147), and
-    // the subscription for the editor's announcements (#149).
+    // the subscription for the editor's announcements (#149). Then 58.14 kB
+    // with the editor on ui's frame (docs/adr/0016): its tools panel and
+    // palette lists, start cards, preferences, toasts and top bar.
     name: "React (./react), as built",
     entry: "dist/react.js",
-    limit: "55 kB",
+    limit: "58.5 kB",
   }),
   importBudget({
     // The floor: a hook over the provider, which every panel reads. Measured
@@ -196,11 +198,14 @@ export default [
     limit: "20 kB",
   }),
   importBudget({
-    // What a typical application imports: the whole editor.
+    // What a typical application imports: the whole editor. 43.31 kB on
+    // ui's frame (docs/adr/0016): about 2.3 kB of the editor's own code for
+    // the tools panel, palette, start cards, preferences and toasts. ui's
+    // components count in ui's budgets, not here.
     name: "React: ImageEditor",
     entry: "dist/react.js",
     imports: "{ ImageEditor }",
-    limit: "41 kB",
+    limit: "43.5 kB",
   }),
 
   // The element entry (./element), which ships whole.
@@ -208,10 +213,11 @@ export default [
     // The React entry and the element's own mount: measured at 55.1 kB
     // (42.4 kB minified), 0.1 kB over the 55.0 kB before the React entry's
     // parts could be imported apart (sdk-core ADR 0056). The element ships
-    // whole. Then 55.51 kB, with the React entry's changes of #147 and #149.
+    // whole. Then 55.51 kB, with the React entry's changes of #147 and #149,
+    // and 58.48 kB with the editor on ui's frame (docs/adr/0016).
     name: "Element (./element), as built",
     entry: "dist/element.js",
-    limit: "56 kB",
+    limit: "58.5 kB",
   }),
 
   built({ name: "Stylesheet (./styles.css)", path: "dist/styles.css", limit: "10 kB" }),

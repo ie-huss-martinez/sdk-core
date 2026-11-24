@@ -44,6 +44,8 @@ function add(
  */
 export const addTextTool: ImageTool = /* @__PURE__ */ defineTool({
   id: "image.add-text",
+  level: "easy",
+  description: "tools.add-text.description",
   label: "tools.add-text",
   icon: "text",
   group: "add",
@@ -55,6 +57,8 @@ export const addTextTool: ImageTool = /* @__PURE__ */ defineTool({
 /** Adds an outlined rectangle in the middle of the image. */
 export const addRectangleTool: ImageTool = /* @__PURE__ */ defineTool({
   id: "image.add-rectangle",
+  level: "advanced",
+  description: "tools.add-rectangle.description",
   label: "tools.add-rectangle",
   icon: "rectangle",
   group: "add",
@@ -65,6 +69,8 @@ export const addRectangleTool: ImageTool = /* @__PURE__ */ defineTool({
 /** Adds an outlined ellipse in the middle of the image. */
 export const addEllipseTool: ImageTool = /* @__PURE__ */ defineTool({
   id: "image.add-ellipse",
+  level: "advanced",
+  description: "tools.add-ellipse.description",
   label: "tools.add-ellipse",
   icon: "ellipse",
   group: "add",
@@ -80,6 +86,8 @@ export const addEllipseTool: ImageTool = /* @__PURE__ */ defineTool({
  */
 export const addArrowTool: ImageTool = /* @__PURE__ */ defineTool({
   id: "image.add-arrow",
+  level: "advanced",
+  description: "tools.add-arrow.description",
   label: "tools.add-arrow",
   icon: "arrow",
   group: "add",
@@ -93,6 +101,8 @@ export const addArrowTool: ImageTool = /* @__PURE__ */ defineTool({
  */
 export const addImageTool: ImageTool = /* @__PURE__ */ defineTool({
   id: "image.add-image",
+  level: "advanced",
+  description: "tools.add-image.description",
   label: "tools.add-image",
   icon: "add-image",
   group: "add",

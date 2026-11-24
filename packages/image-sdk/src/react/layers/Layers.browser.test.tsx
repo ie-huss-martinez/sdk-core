@@ -1,6 +1,7 @@
 import { act, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { page } from "vitest/browser";
 import { loadStyles } from "../../../test/browser/styles.js";
 import { FIRST_OPEN_TIMEOUT } from "../../../test/browser/timeouts.js";
 import type {
@@ -70,6 +71,9 @@ const LAYERS: readonly ImageBoxedLayer[] = [
 // The editor as hosts lay it out, with ui's stylesheet and the package's.
 let unloadStyles: () => void = () => {};
 beforeAll(async () => {
+  // A desktop viewport, so the editor lays its tools out in a panel, as the
+  // tests of the tools expect; the phone layout has tests of its own.
+  await page.viewport(1280, 900);
   unloadStyles = await loadStyles();
 });
 afterAll(() => unloadStyles());
@@ -77,6 +81,7 @@ afterAll(() => unloadStyles());
 let root: Root | undefined;
 let host: HTMLElement | undefined;
 afterEach(async () => {
+  hostWidth = DESKTOP;
   // A test that holds the clock gives it back even when it fails.
   vi.useRealTimers();
   await act(async () => root?.unmount());
@@ -93,6 +98,14 @@ async function until(condition: () => boolean, what: string, timeout = 5_000) {
   throw new Error(`timed out waiting for ${what}`);
 }
 
+/**
+ * The host's width: wide enough for the frame's desktop layout (sdk-core ADR
+ * 0067), where the tools panel shows the tools, unless a test of the phone
+ * layout narrows it.
+ */
+const DESKTOP = 1000;
+let hostWidth = DESKTOP;
+
 async function opened(
   layers: readonly ImageBoxedLayer[] = LAYERS,
   extra: Partial<ImageEditorProps> = {},
@@ -100,11 +113,13 @@ async function opened(
   const handle = createRef<ImageEditorHandle>();
   host = document.createElement("div");
   // Inside the test page's viewport, so hit tests reach every handle.
-  host.style.width = "400px";
+  host.style.width = `${hostWidth}px`;
   host.style.height = "700px";
   document.body.append(host);
   root = createRoot(host);
-  await act(async () => root?.render(<ImageEditor ref={handle} {...extra} />));
+  await act(async () =>
+    root?.render(<ImageEditor defaultPreferences={{ mode: "expert" }} ref={handle} {...extra} />),
+  );
   await act(async () => handle.current?.open(await photo()));
   await until(
     () => handle.current?.session.getSnapshot().status === "ready",
@@ -161,7 +176,10 @@ const named = (label: string) =>
   document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
 const button = (text: string) =>
   [...document.querySelectorAll("button")].find((b) => b.textContent === text);
-const tool = () => document.querySelector<HTMLButtonElement>('[data-tool="image.layers"]');
+const tool = () =>
+  document.querySelector<HTMLButtonElement>(
+    ':is([data-tool="image.layers"], [data-hm-tool-id="image.layers"])',
+  );
 const panel = () => document.querySelector('section[aria-label="Layers"]');
 const overlay = () => document.querySelector<HTMLElement>(".hm-image-layers-overlay");
 const frames = () => [...document.querySelectorAll<HTMLElement>(".hm-image-layer-frame")];
@@ -1211,6 +1229,7 @@ describe("the layers (docs/adr/0013)", () => {
   });
 
   it("keeps the stage where it is, in a layout with the panel under it", async () => {
+    hostWidth = 400;
     // 400 pixels wide: the inspector sits under the stage and takes its
     // height from its content. If the panel grew, the stage would shrink,
     // and the image would move under the pointer during a drag.
@@ -1280,7 +1299,9 @@ describe("the layers (docs/adr/0013)", () => {
     });
     await until(() => frames().length === 3, "the frames to return");
     // Redacting takes the stage.
-    await click(document.querySelector('[data-tool="image.redact"]'));
+    await click(
+      document.querySelector(':is([data-tool="image.redact"], [data-hm-tool-id="image.redact"])'),
+    );
     await until(() => document.querySelector(".hm-image-redact-overlay") !== null, "redacting");
     expect(frames()).toHaveLength(0);
     expect(tool()?.getAttribute("aria-pressed")).toBe("false");

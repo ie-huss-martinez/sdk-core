@@ -66,7 +66,9 @@ async function opened(bytes: Uint8Array, props: Partial<ImageEditorProps> = {}) 
   host.style.height = "600px";
   document.body.append(host);
   root = createRoot(host);
-  await act(async () => root?.render(<ImageEditor ref={handle} {...props} />));
+  await act(async () =>
+    root?.render(<ImageEditor defaultPreferences={{ mode: "expert" }} ref={handle} {...props} />),
+  );
   await act(async () => handle.current?.open(new Blob([bytes.slice()], { type: "image/gif" })));
   await until(
     () => handle.current?.session.getSnapshot().status === "ready",
@@ -257,7 +259,7 @@ describe("playing an animation in the editor (docs/adr/0011)", () => {
     expect(frameShown()).toBe(3);
     await act(async () => play().click());
     const exportButton = document.querySelector<HTMLButtonElement>(
-      'button[data-tool="image.export"]',
+      'button:is([data-tool="image.export"], [data-hm-tool-id="image.export"])',
     );
     await act(async () => exportButton?.click());
     await until(() => document.querySelector("dialog[open]") !== null, "the dialog");

@@ -48,23 +48,43 @@ export const imageTools: readonly ImageTool[] = [
   playTool,
 ];
 
-/** The toolbar's default groups (docs/adr/0007). */
+/**
+ * The tools' default groups (docs/adr/0016): the bar's first and last, and
+ * the tools panel's between them, each named after its first tool's group.
+ *
+ * @public
+ */
 export const DEFAULT_TOOLBAR: readonly (readonly string[])[] = [
   ["image.open"],
   ["image.undo", "image.redo"],
   ["image.rotate-left", "image.rotate-right", "image.flip-horizontal", "image.flip-vertical"],
-  ["image.crop"],
-  ["image.redact"],
+  ["image.crop", "image.redact"],
   [
     "image.add-text",
+    "image.add-arrow",
     "image.add-rectangle",
     "image.add-ellipse",
-    "image.add-arrow",
     "image.add-image",
+    "image.draw",
   ],
-  ["image.draw"],
-  ["image.layers"],
-  ["image.frames"],
+  ["image.layers", "image.frames"],
   ["image.zoom-in", "image.zoom-out", "image.zoom-fit"],
   ["image.export"],
 ];
+
+/**
+ * Tools the top bar and the stage hold, never the tools panel: they have no
+ * level (sdk-core ADR 0067).
+ *
+ * @internal
+ */
+export const BAR_TOOLS: ReadonlySet<string> = /* @__PURE__ */ new Set([
+  "image.open",
+  "image.undo",
+  "image.redo",
+  "image.zoom-in",
+  "image.zoom-out",
+  "image.zoom-fit",
+  "image.export",
+  "image.play",
+]);

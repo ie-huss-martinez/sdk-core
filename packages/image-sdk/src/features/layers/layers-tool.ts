@@ -10,6 +10,8 @@ import { hasDocument, type ImageTool } from "../tool-types.js";
  */
 export const layersTool: ImageTool = /* @__PURE__ */ defineTool({
   id: "image.layers",
+  level: "expert",
+  description: "tools.layers.description",
   label: "tools.layers",
   icon: "layers",
   group: "layers",

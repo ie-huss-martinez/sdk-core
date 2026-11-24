@@ -8,6 +8,8 @@
     box-sizing: border-box;
     container: hm-editor-frame / inline-size;
     display: grid;
+    /* One column as wide as the frame, never as its widest child, such as a top bar that doesn't fit. */
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr) auto auto;
     min-block-size: 0;
     overflow: hidden;
@@ -228,11 +230,21 @@
       flex-direction: column;
     }
 
-    .hm-editor-frame-properties {
+    /*
+     * The properties sit under the stage, in the flow, so they never cover
+     * what's on it, such as a crop's handles. The stage keeps at least 60%
+     * of the height; the properties take the rest, and scroll.
+     */
+    .hm-editor-frame .hm-editor-frame-properties {
+      flex: 0 1 auto;
       inline-size: auto;
-      inset-block: auto 0;
-      inset-inline: 0;
-      max-block-size: 60%;
+      min-block-size: 0;
+      position: static;
+    }
+
+    .hm-editor-frame[data-hm-layout] .hm-editor-frame-stage {
+      flex: 1 1 0;
+      min-block-size: 60%;
     }
 
     .hm-editor-frame-top {

@@ -29,6 +29,8 @@ function turn({ session }: ImageToolContext, direction: "left" | "right"): void 
 /** Turns the image a quarter turn anticlockwise. */
 export const rotateLeftTool: ImageTool = /* @__PURE__ */ defineTool({
   id: "image.rotate-left",
+  level: "easy",
+  description: "tools.rotate-left.description",
   label: "tools.rotate-left",
   icon: "rotate-left",
   group: "orientation",
@@ -40,6 +42,8 @@ export const rotateLeftTool: ImageTool = /* @__PURE__ */ defineTool({
 /** Turns the image a quarter turn clockwise. */
 export const rotateRightTool: ImageTool = /* @__PURE__ */ defineTool({
   id: "image.rotate-right",
+  level: "easy",
+  description: "tools.rotate-right.description",
   label: "tools.rotate-right",
   icon: "rotate-right",
   group: "orientation",

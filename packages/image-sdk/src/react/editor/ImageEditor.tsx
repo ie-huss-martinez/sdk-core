@@ -1,5 +1,27 @@
 import { createShortcutRegistry, createToolRegistry } from "@hussmartinez/sdk-core";
-import { AnnouncerProvider, useAnnounce, useLatest, usePlatform } from "@hussmartinez/ui/react";
+import type { EditorPreferences } from "@hussmartinez/ui";
+import {
+  AnnouncerProvider,
+  Button,
+  CommandIcon,
+  CommandPalette,
+  EditorFrame,
+  EditorFrameToolsButton,
+  IconButton,
+  ModeSwitch,
+  SettingsIcon,
+  SettingsPanel,
+  Sheet,
+  TabBar,
+  ThemeToggle,
+  ToastProvider,
+  Toolbar,
+  ToolList,
+  Tooltip,
+  useLatest,
+  usePlatform,
+  useToast,
+} from "@hussmartinez/ui/react";
 import {
   type ForwardedRef,
   forwardRef,
@@ -10,11 +32,12 @@ import {
   useInsertionEffect,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import { engineInternals } from "../../adapters/image-engine.js";
 import type { ImageSessionEvent } from "../../core/session/session.js";
 import { NO_TOOL, PAUSED } from "../../features/editor-state.js";
-import type { ImageToolContext } from "../../features/tool-types.js";
+import type { ImageTool, ImageToolContext } from "../../features/tool-types.js";
 import { DEFAULT_TOOLBAR, imageTools } from "../../features/tools.js";
 import { EngineBoundary } from "../EngineBoundary.js";
 import { ImageExportDialog } from "../export/ExportDialog.js";
@@ -23,9 +46,14 @@ import { ImageProvider } from "../ImageEditorProvider.js";
 import { ImageInspector } from "../panels/Inspector.js";
 import { ImageStage } from "../stage/ImageStage.js";
 import { AnimationBar } from "../timeline/AnimationBar.js";
-import { ImageToolbar } from "../toolbar/ImageToolbar.js";
 import { imageIcons } from "../toolbar/icons.js";
+import { useEditorPreferences } from "./preferences.js";
+import { START_CARDS, type StartCard, StartCards } from "./StartCards.js";
+import { toolLists } from "./tool-lists.js";
 import type { ImageEditorHandle, ImageEditorProps } from "./types.js";
+
+/** The command palette's place in the shortcut registry: a family action, not a tool. */
+const PALETTE = "image.command-palette";
 
 const join = (...names: (string | undefined | false)[]) => names.filter(Boolean).join(" ");
 
@@ -44,6 +72,9 @@ interface BodyProps
     | "onExport"
     | "features"
     | "theme"
+    | "preferences"
+    | "defaultPreferences"
+    | "onPreferencesChange"
   > {
   readonly handle: ForwardedRef<ImageEditorHandle>;
   /** Listens to the session's events until the returned function is called. */
@@ -54,7 +85,7 @@ function ImageEditorBody(props: BodyProps): ReactNode {
   const { initialFile, onChange, classNames = {}, unstyled = false, handle, listen } = props;
   const { engine, session, messages, view, editor, opener, inserter } = useImageInternals();
   const snapshot = useImageDocument();
-  const announce = useAnnounce();
+  const toast = useToast();
   const root = useRef<HTMLElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const layerInput = useRef<HTMLInputElement>(null);
@@ -77,7 +108,11 @@ function ImageEditorBody(props: BodyProps): ReactNode {
   // "other" on the server and during hydration, then the device's own keys.
   const platform = usePlatform();
   const shortcuts = useMemo(
-    () => createShortcutRegistry({ platform, tools: registry.tools }),
+    () =>
+      createShortcutRegistry({
+        platform,
+        tools: [...registry.tools, { id: PALETTE, shortcuts: "command-palette" as const }],
+      }),
     [platform, registry],
   );
   const context: ImageToolContext = useMemo(
@@ -133,22 +168,34 @@ function ImageEditorBody(props: BodyProps): ReactNode {
     });
   }, [session, latestOnChange]);
 
-  // Opens, undos and redos reach screen readers, politely.
+  // Every edit, undo and redo shows a toast, which screen readers hear too;
+  // an edit's toast undoes it (sdk-core ADR 0067). An open is said politely.
+  const t = messages.t as (key: string, values?: Record<string, unknown>) => string;
   useEffect(
     () =>
       listen((event) => {
         if (event.outcome !== "done") return;
         const action = event.commands[0];
-        const name = action ? messages.t(`actions.${action}`) : "";
-        if (event.type === "undo") announce(messages.t("editor.undid", { action: name }));
-        if (event.type === "redo") announce(messages.t("editor.redid", { action: name }));
+        const name = action ? t(`actions.${action}`) : "";
+        if (event.type === "execute" && action) {
+          toast.show({
+            message: t("editor.applied", { action: name }),
+            action: { label: t("tools.undo"), onAction: () => session.undo() },
+          });
+        }
+        if (event.type === "undo") toast.show({ message: t("editor.undid", { action: name }) });
+        if (event.type === "redo") toast.show({ message: t("editor.redid", { action: name }) });
+        if (event.type === "download")
+          toast.show({ message: t("editor.downloaded"), tone: "success" });
         if (event.type === "open") {
           const source = session.getSnapshot().source;
           if (source)
-            announce(messages.t("editor.opened", { width: source.width, height: source.height }));
+            toast.show({
+              message: t("editor.opened", { width: source.width, height: source.height }),
+            });
         }
       }),
-    [announce, listen, messages, session],
+    [toast, listen, t, session],
   );
 
   // After an open, focus moves to the first tool it enabled, when focus was
@@ -162,10 +209,12 @@ function ImageEditorBody(props: BodyProps): ReactNode {
     const active = document.activeElement;
     const ours = active === null || active === document.body || root.current?.contains(active);
     if (!ours) return;
-    const buttons = root.current?.querySelectorAll<HTMLButtonElement>(
-      ".hm-image-editor-toolbar button:not([disabled])",
+    // The first tool that's shown: a row of the tools panel, or on a phone,
+    // where the tab bar replaces the panel, the first tab.
+    const candidates = root.current?.querySelectorAll<HTMLButtonElement>(
+      ".hm-image-editor-toolbar button:not([disabled]):not([aria-disabled='true']), .hm-tab-bar button",
     );
-    const next = [...(buttons ?? [])].find((button) => button.dataset["tool"] !== "image.open");
+    const next = [...(candidates ?? [])].find((button) => button.checkVisibility());
     next?.focus();
   }, [snapshot.source?.id]);
 
@@ -206,7 +255,8 @@ function ImageEditorBody(props: BodyProps): ReactNode {
 
   // Focus returns to where it was when a tool took the stage: its button, or
   // whatever had focus when its shortcut was pressed (docs/adr/0007).
-  const [{ tool }] = useImageEditorState();
+  const [editorState] = useImageEditorState();
+  const { tool } = editorState;
   const returnTo = useRef<HTMLElement | null>(null);
   const previousTool = useRef(tool);
   useEffect(
@@ -237,9 +287,56 @@ function ImageEditorBody(props: BodyProps): ReactNode {
     if (was === null || tool !== null) return;
     const target = returnTo.current?.isConnected
       ? returnTo.current
-      : root.current?.querySelector<HTMLElement>(`[data-tool="image.${was}"]`);
+      : root.current?.querySelector<HTMLElement>(`[data-hm-tool-id="image.${was}"]`);
     target?.focus();
   }, [tool]);
+
+  const [preferences, setPreferences] = useEditorPreferences(
+    props.preferences,
+    props.defaultPreferences,
+    props.onPreferencesChange,
+  );
+  // An embedded editor inherits the page's theme until someone chooses one:
+  // the host, through its preferences, or the person, through the toggle or
+  // the settings.
+  const [themePicked, setThemePicked] = useState(false);
+  const themeChosen =
+    themePicked || props.preferences !== undefined || props.defaultPreferences?.theme !== undefined;
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [tab, setTab] = useState<string | null>(null);
+  // Easy mode's start cards show once per image, until one is chosen or skipped.
+  const [startShownFor, setStartShownFor] = useState<string | null>(null);
+  // A start card can show the properties in Easy mode, which otherwise hides them.
+  const [easyProperties, setEasyProperties] = useState(false);
+  const { mode } = preferences;
+  const toolState = { snapshot, editor: editorState };
+  const lists = toolLists(registry, shortcuts, toolState, mode, icons, t);
+
+  const run = (id: string) => {
+    const tool = registry.get(id);
+    if (!tool) return;
+    setStartShownFor(snapshot.source?.id ?? null);
+    if (!(tool.isEnabled?.(toolState) ?? true)) return;
+    void tool.run(context);
+  };
+
+  /** Applies a change of preferences, and says what changed that isn't on screen. */
+  const changePreferences = (next: EditorPreferences) => {
+    if (next.mode !== preferences.mode) toast.show({ message: t(`editor.mode.${next.mode}`) });
+    if (next.theme !== preferences.theme) {
+      setThemePicked(true);
+      toast.show({ message: t(`editor.theme.${next.theme}`) });
+    }
+    if (next.mode !== "easy") setEasyProperties(false);
+    setPreferences(next);
+  };
+
+  const chooseCard = (card: StartCard) => {
+    setStartShownFor(snapshot.source?.id ?? null);
+    if (card.properties) setEasyProperties(true);
+    if (card.tool) run(card.tool);
+  };
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (engineInternals(engine)?.getSnapshot()) return;
@@ -247,6 +344,11 @@ function ImageEditorBody(props: BodyProps): ReactNode {
     // editor, such as export's, stay its own, while a host's dialog holding
     // the whole editor doesn't stop its shortcuts (sdk-core 0.4.2).
     const id = shortcuts.match(event.nativeEvent, { root: event.currentTarget });
+    if (id === PALETTE) {
+      event.preventDefault();
+      setPaletteOpen(true);
+      return;
+    }
     const tool = id ? registry.get(id) : undefined;
     if (!tool) return;
     const state = { snapshot: session.getSnapshot(), editor: editor.getSnapshot() };
@@ -254,6 +356,59 @@ function ImageEditorBody(props: BodyProps): ReactNode {
     event.preventDefault();
     void tool.run(context);
   };
+
+  const animated = snapshot.status === "ready" && Boolean(snapshot.plan?.animation);
+  const startShown = mode === "easy" && sourceId !== undefined && startShownFor !== sourceId;
+  // Easy mode shows the properties only while a tool needs them, or a card asked.
+  const propertiesWanted =
+    snapshot.plan !== null && (mode !== "easy" || editorState.tool !== null || easyProperties);
+  const bar = (id: string) => registry.get(id);
+  const undo = bar("image.undo");
+  const redo = bar("image.redo");
+  const open = bar("image.open");
+  const exportTool = bar("image.export");
+  const zoom = ["image.zoom-out", "image.zoom-fit", "image.zoom-in"]
+    .map(bar)
+    .filter((tool) => tool !== undefined);
+  const barButton = (tool: ImageTool | undefined) => {
+    if (!tool) return null;
+    const Icon = icons[tool.icon];
+    const disabled = !(tool.isEnabled?.(toolState) ?? true);
+    return (
+      <Tooltip key={tool.id} type="label" content={t(tool.label)}>
+        <IconButton
+          variant="quiet"
+          data-tool={tool.id}
+          label={t(tool.label)}
+          icon={Icon ? <Icon /> : null}
+          disabled={disabled}
+          aria-keyshortcuts={shortcuts.ariaKeyShortcuts(tool.id) || undefined}
+          onClick={() => run(tool.id)}
+        />
+      </Tooltip>
+    );
+  };
+  const exportButton = (() => {
+    if (!exportTool) return null;
+    const disabled = !(exportTool.isEnabled?.(toolState) ?? true);
+    const reason = disabled ? exportTool.unavailable?.(toolState) : undefined;
+    const ExportIcon = icons[exportTool.icon];
+    const button = (
+      <Button
+        variant="primary"
+        data-tool={exportTool.id}
+        startIcon={ExportIcon ? <ExportIcon /> : null}
+        disabled={disabled}
+        focusableWhenDisabled={reason !== undefined}
+        aria-keyshortcuts={shortcuts.ariaKeyShortcuts(exportTool.id) || undefined}
+        onClick={() => run(exportTool.id)}
+      >
+        {t(exportTool.label)}
+      </Button>
+    );
+    return reason ? <Tooltip content={t(reason)}>{button}</Tooltip> : button;
+  })();
+  const tabGroup = lists.groups.find((group) => group.id === tab);
 
   return (
     // The root takes the editor's shortcuts while focus is inside it, never
@@ -269,8 +424,10 @@ function ImageEditorBody(props: BodyProps): ReactNode {
       )}
       onKeyDown={onKeyDown}
       aria-label={messages.t("editor.label")}
-      // ui's colour mode for the editor alone; unset, it inherits the page's.
-      {...(props.theme ? { "data-hm-theme": props.theme } : {})}
+      // ui's colour mode, density and motion for the editor alone (sdk-core ADR 0067).
+      data-hm-theme={props.theme ?? (themeChosen ? preferences.theme : undefined)}
+      data-hm-density={preferences.density}
+      data-hm-motion={preferences.motion}
     >
       <EngineBoundary>
         <input
@@ -297,20 +454,156 @@ function ImageEditorBody(props: BodyProps): ReactNode {
             if (file) void inserter.insert(file);
           }}
         />
-        <div className="hm-image-editor-layout">
-          <ImageToolbar
-            registry={registry}
-            shortcuts={shortcuts}
-            context={context}
-            icons={icons}
-            className={join("hm-image-editor-toolbar", classNames.toolbar)}
-          />
+        <EditorFrame
+          className="hm-image-editor-frame"
+          unstyled={unstyled}
+          toolsState={preferences.tools}
+          onToolsStateChange={(tools) => changePreferences({ ...preferences, tools })}
+          propertiesState={preferences.properties}
+          onPropertiesStateChange={(properties) =>
+            changePreferences({ ...preferences, properties })
+          }
+          toolsLayout={preferences.toolsLayout}
+          topBar={
+            <>
+              <EditorFrameToolsButton />
+              <span className="hm-image-editor-title">
+                {messages.t("editor.label")}
+                {snapshot.source ? (
+                  <span className="hm-image-editor-size">
+                    {t("editor.size", {
+                      width: snapshot.source.width,
+                      height: snapshot.source.height,
+                    })}
+                  </span>
+                ) : null}
+              </span>
+              <ModeSwitch
+                className="hm-image-editor-mode"
+                size="small"
+                value={mode}
+                onValueChange={(next) => changePreferences({ ...preferences, mode: next })}
+              />
+              <Toolbar label={t("toolbar.groups.history")} className="hm-image-editor-bar">
+                {barButton(open)}
+                {barButton(undo)}
+                {barButton(redo)}
+                {mode === "expert" ? (
+                  <Tooltip type="label" content={t("editor.commands")}>
+                    <IconButton
+                      variant="quiet"
+                      label={t("editor.commands")}
+                      icon={<CommandIcon />}
+                      aria-keyshortcuts={shortcuts.ariaKeyShortcuts(PALETTE) || undefined}
+                      onClick={() => setPaletteOpen(true)}
+                    />
+                  </Tooltip>
+                ) : null}
+                {props.theme ? null : (
+                  <ThemeToggle
+                    value={preferences.theme}
+                    onValueChange={(theme) => changePreferences({ ...preferences, theme })}
+                  />
+                )}
+                <Tooltip type="label" content={t("editor.settings")}>
+                  <IconButton
+                    variant="quiet"
+                    label={t("editor.settings")}
+                    icon={<SettingsIcon />}
+                    aria-haspopup="dialog"
+                    onClick={() => setSettingsOpen(true)}
+                  />
+                </Tooltip>
+              </Toolbar>
+              {exportButton}
+            </>
+          }
+          tools={
+            <ToolList
+              label={messages.t("toolbar.label")}
+              className={join("hm-image-editor-toolbar", classNames.toolbar)}
+              groups={lists.groups}
+              descriptions={mode === "easy" && preferences.tips}
+              shortcuts={mode === "expert"}
+              onRun={run}
+            />
+          }
+          properties={
+            propertiesWanted ? (
+              <div className={join("hm-image-editor-inspector", classNames.inspector)}>
+                <ImageInspector {...(props.features ? { features: props.features } : {})} />
+              </div>
+            ) : undefined
+          }
+          bottom={animated ? <AnimationBar className="hm-image-editor-timeline" /> : undefined}
+          tabBar={
+            <TabBar
+              label={messages.t("toolbar.label")}
+              items={lists.groups.map((group) => ({
+                id: group.id,
+                label: group.label,
+                icon: group.items[0]?.icon ?? null,
+              }))}
+              value={tab}
+              onValueChange={(id) => setTab(id === tab ? null : id)}
+            />
+          }
+        >
           <ImageStage className={join("hm-image-editor-stage", classNames.stage)} />
-          <AnimationBar className="hm-image-editor-timeline" />
-          <div className={join("hm-image-editor-inspector", classNames.inspector)}>
-            <ImageInspector {...(props.features ? { features: props.features } : {})} />
-          </div>
-        </div>
+          {zoom.length > 0 && snapshot.plan ? (
+            <Toolbar label={t("toolbar.groups.zoom")} className="hm-image-editor-zoom">
+              {zoom.map(barButton)}
+            </Toolbar>
+          ) : null}
+          {startShown ? (
+            <StartCards
+              cards={START_CARDS}
+              icons={icons}
+              onChoose={chooseCard}
+              onSkip={() => setStartShownFor(sourceId ?? null)}
+            />
+          ) : null}
+        </EditorFrame>
+        <Sheet
+          placement="bottom"
+          open={tabGroup !== undefined}
+          onOpenChange={(next) => {
+            if (!next) setTab(null);
+          }}
+          title={tabGroup?.label ?? ""}
+        >
+          {tabGroup ? (
+            <ToolList
+              label={tabGroup.label}
+              groups={[tabGroup]}
+              display="full"
+              orientation="vertical"
+              groupLabels={false}
+              descriptions={preferences.tips}
+              onRun={(id) => {
+                setTab(null);
+                run(id);
+              }}
+            />
+          ) : null}
+        </Sheet>
+        <CommandPalette
+          open={paletteOpen}
+          onOpenChange={setPaletteOpen}
+          items={lists.palette}
+          onRun={run}
+        />
+        <SettingsPanel
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          value={preferences}
+          onValueChange={changePreferences}
+          settings={
+            props.theme
+              ? ["mode", "toolsLayout", "tools", "properties", "density", "motion", "tips"]
+              : undefined
+          }
+        />
         {exportOn ? (
           <ImageExportDialog {...(props.onExport ? { onExport: props.onExport } : {})} />
         ) : null}
@@ -352,6 +645,9 @@ export const ImageEditor = /* @__PURE__ */ forwardRef(function ImageEditor(
     onExport,
     features,
     theme,
+    preferences,
+    defaultPreferences,
+    onPreferencesChange,
     ...provider
   } = props;
   // The editor listens to the session's events for its announcements, and
@@ -381,22 +677,27 @@ export const ImageEditor = /* @__PURE__ */ forwardRef(function ImageEditor(
   return (
     <ImageProvider {...provider} onEvent={onSessionEvent} boundary={false}>
       <AnnouncerProvider>
-        <ImageEditorBody
-          handle={ref}
-          listen={listen}
-          {...(initialFile ? { initialFile } : {})}
-          {...(onChange ? { onChange } : {})}
-          {...(plan ? { plan } : {})}
-          {...(tools ? { tools } : {})}
-          {...(toolbar ? { toolbar } : {})}
-          {...(icons ? { icons } : {})}
-          {...(className ? { className } : {})}
-          {...(classNames ? { classNames } : {})}
-          {...(unstyled === undefined ? {} : { unstyled })}
-          {...(onExport ? { onExport } : {})}
-          {...(features ? { features } : {})}
-          {...(theme ? { theme } : {})}
-        />
+        <ToastProvider>
+          <ImageEditorBody
+            handle={ref}
+            listen={listen}
+            {...(initialFile ? { initialFile } : {})}
+            {...(onChange ? { onChange } : {})}
+            {...(plan ? { plan } : {})}
+            {...(tools ? { tools } : {})}
+            {...(toolbar ? { toolbar } : {})}
+            {...(icons ? { icons } : {})}
+            {...(className ? { className } : {})}
+            {...(classNames ? { classNames } : {})}
+            {...(unstyled === undefined ? {} : { unstyled })}
+            {...(onExport ? { onExport } : {})}
+            {...(features ? { features } : {})}
+            {...(theme ? { theme } : {})}
+            {...(preferences ? { preferences } : {})}
+            {...(defaultPreferences ? { defaultPreferences } : {})}
+            {...(onPreferencesChange ? { onPreferencesChange } : {})}
+          />
+        </ToastProvider>
       </AnnouncerProvider>
     </ImageProvider>
   );

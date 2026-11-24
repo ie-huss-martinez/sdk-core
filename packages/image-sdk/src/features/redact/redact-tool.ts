@@ -12,6 +12,8 @@ export const DEFAULT_REDACTION_COLOUR = "#000000";
  */
 export const redactTool: ImageTool = /* @__PURE__ */ defineTool({
   id: "image.redact",
+  level: "easy",
+  description: "tools.redact.description",
   label: "tools.redact",
   icon: "redact",
   group: "redact",

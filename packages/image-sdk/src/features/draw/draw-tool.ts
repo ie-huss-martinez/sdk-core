@@ -42,6 +42,8 @@ export function drawWidth({ session }: Pick<ImageToolContext, "session">, mode: 
  */
 export const drawTool: ImageTool = /* @__PURE__ */ defineTool({
   id: "image.draw",
+  level: "advanced",
+  description: "tools.draw.description",
   label: "tools.draw",
   icon: "pen",
   group: "draw",

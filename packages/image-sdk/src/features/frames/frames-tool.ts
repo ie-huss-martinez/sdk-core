@@ -15,6 +15,8 @@ const animated = ({ snapshot }: ImageToolState): boolean => snapshot.plan?.anima
  */
 export const framesTool: ImageTool = /* @__PURE__ */ defineTool({
   id: "image.frames",
+  level: "expert",
+  description: "tools.frames.description",
   label: "tools.frames",
   icon: "frames",
   group: "frames",

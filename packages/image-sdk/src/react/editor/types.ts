@@ -1,3 +1,4 @@
+import type { EditorPreferences } from "@hussmartinez/ui";
 import type { IconComponent } from "@hussmartinez/ui/react";
 import type { ImagePlan } from "../../core/model/plan.js";
 import type { ImageCommand } from "../../core/operations/commands.js";
@@ -74,6 +75,21 @@ export interface ImageEditorProps extends Omit<ImageEditorProviderProps, "childr
   readonly features?: ImageEditorFeatures;
   /** The colour mode, set as `data-hm-theme` on the editor's root. Unset, it inherits the page's. */
   readonly theme?: ImageEditorTheme;
+  /**
+   * The person's preferences (sdk-core ADR 0067): mode, theme, the panels,
+   * density, motion and tips. Controlled with `onPreferencesChange`; the
+   * editor never stores them, so the host decides where they're kept, such
+   * as `localStorage`. A `theme` prop wins over the preferences' theme.
+   */
+  readonly preferences?: EditorPreferences;
+  /**
+   * Preferences to start with when `preferences` isn't given. Fields left
+   * out take ui's defaults, except the mode, which is Advanced, so every tool
+   * is listed until the host or the person chooses otherwise.
+   */
+  readonly defaultPreferences?: Partial<EditorPreferences>;
+  /** Called with the whole preferences when the person changes one. */
+  readonly onPreferencesChange?: (preferences: EditorPreferences) => void;
   /**
    * Takes the exported file instead of the export dialog's download button;
    * the dialog closes once it's called.

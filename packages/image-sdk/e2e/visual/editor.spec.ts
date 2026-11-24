@@ -37,6 +37,15 @@ import { FIRST_RENDER_TIMEOUT } from "../timeouts.js";
  * | `rtl-open`, `rtl-crop`, `rtl-redact`, `rtl-layers` | An image, cropping it, redacting it and its layers, in a right-to-left page: the layout mirrors, the image and its frames' handles don't |
  * | `engine-unavailable` | Terminal engine recovery notice after resource loss; stale preview, controls and dialogs removed |
  * | `long-text`, `long-text-export` | A host's longer text, as a translation can be: the panels and the export dialog wrap it |
+ * | `settings` | The settings, in a sheet from the inline end |
+ * | `palette` | The command palette, searched for "rot" |
+ * | `phone` | A 390-pixel window: the tab bar, and the "Rotate and flip" group in a sheet from the bottom |
+ * | `advanced-open` | An image open in the editor as a host embeds it, with no preferences: Advanced mode |
+ * | `easy-start`, `easy-icons` | Easy mode: an image under the start cards; then the tools as icons |
+ *
+ * The editor's states are in Expert mode, where every tool is listed, unless
+ * their name says otherwise. Toasts stay where they are: the page's clock is
+ * fixed, so their timers never run out.
  *
  * No state is masked but the right-to-left ones' Open icon, which the
  * browser draws one of two ways per load (see OPEN_ICON). Every state renders
@@ -250,6 +259,56 @@ const EDITOR: Readonly<Record<string, State>> = {
     await open(new Uint8Array([1, 2, 3, 4]))(page);
     await expect(page.locator(".hm-image-stage-error")).toBeVisible();
   },
+  // The settings, in a sheet from the inline end (sdk-core ADR 0067).
+  settings: async (page) => {
+    await opened(page);
+    await page.getByRole("button", { name: "Settings" }).click();
+    await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+  },
+  // The command palette, searched, with its first result active (sdk-core ADR 0067).
+  palette: async (page) => {
+    await opened(page);
+    await page.getByRole("button", { name: "Rotate left" }).focus();
+    await page.keyboard.press("ControlOrMeta+k");
+    const search = page.getByRole("combobox", { name: "Search tools" });
+    await expect(search).toBeFocused();
+    await search.fill("rot");
+    await expect(page.getByRole("option", { name: "Rotate left" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  },
+  // A phone: the tab bar, and a group of tools open in a sheet from the bottom.
+  phone: async (page) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await opened(page);
+    await page
+      .getByRole("toolbar", { name: "Image tools" })
+      .getByRole("button", {
+        name: "Rotate and flip",
+      })
+      .click();
+    await expect(page.getByRole("dialog", { name: "Rotate and flip" })).toBeVisible();
+  },
+};
+
+/** The editor as a host embeds it, with no preferences: Advanced mode. */
+const ADVANCED: Readonly<Record<string, State>> = {
+  "advanced-open": opened,
+};
+
+/** Easy mode: an image just opened, under the start cards (sdk-core ADR 0067). */
+const EASY: Readonly<Record<string, State>> = {
+  "easy-start": async (page) => {
+    await opened(page);
+    await expect(page.getByRole("heading", { name: "What would you like to do?" })).toBeVisible();
+  },
+  // Tools as icons and the properties hidden, from the frame's own buttons.
+  "easy-icons": async (page) => {
+    await opened(page);
+    await page.getByRole("button", { name: "Just show me the editor" }).click();
+    await page.getByRole("button", { name: "Icons only" }).click();
+  },
 };
 
 /**
@@ -284,7 +343,7 @@ const EDITOR: Readonly<Record<string, State>> = {
  * showed the icon itself draws the same way over 78 loads.
  */
 const OPEN_ICON = '[data-tool="image.open"] svg';
-const RTL_PATH = "/editor.html?dir=rtl";
+const RTL_PATH = "/editor.html?dir=rtl&mode=expert";
 
 /** On the editor page with `?dir=rtl`. */
 const RIGHT_TO_LEFT: Readonly<Record<string, State>> = {
@@ -367,7 +426,9 @@ async function repainted(page: Page): Promise<void> {
 }
 
 for (const [path, states] of [
-  ["/editor.html", EDITOR],
+  ["/editor.html?mode=expert", EDITOR],
+  ["/editor.html", ADVANCED],
+  ["/editor.html?mode=easy", EASY],
   [RTL_PATH, RIGHT_TO_LEFT],
   ["/editor.html?long-text", LONG_TEXT],
   ["/editor.html?failure", ENGINE_UNAVAILABLE],

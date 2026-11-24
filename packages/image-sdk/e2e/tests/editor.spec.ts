@@ -266,7 +266,7 @@ test.describe("the image editor", () => {
   test("shows the layers with no violations, and keeps their keys from the browser", async ({
     page,
   }) => {
-    await page.goto("/editor.html");
+    await page.goto("/editor.html?mode=expert");
     // A page taller than the window, with a history entry to go back to: a
     // key that reached the browser would scroll it or leave it.
     await page.evaluate(() => {
@@ -332,7 +332,7 @@ test.describe("the image editor", () => {
     // Moving focus may scroll its target into view; a key must not scroll further.
     let before = await scrolled();
     const stayed = async (keys: string) => {
-      expect(page.url(), keys).toContain("/editor.html#layers");
+      expect(page.url(), keys).toContain("/editor.html?mode=expert#layers");
       expect(await scrolled(), keys).toEqual(before);
     };
     // The list's keys, with a real key press in each engine: Alt is Option on macOS.
@@ -359,7 +359,7 @@ test.describe("the image editor", () => {
     await page.keyboard.press("Alt+ArrowUp");
     await page.keyboard.press("Alt+ArrowDown");
     await page.keyboard.press("Backspace");
-    expect(page.url()).toContain("/editor.html#layers");
+    expect(page.url()).toContain("/editor.html?mode=expert#layers");
     expect(await order()).toEqual(["a", "b", "c"]);
     await expect(name).toHaveValue("To");
     // Put back, so leaving the field renames nothing.
@@ -395,13 +395,13 @@ test.describe("the image editor", () => {
     // Backspace deletes the layer, and doesn't go back a page: focus is on the next frame.
     // Focus moves to that frame, which the browser may scroll into view.
     await page.keyboard.press("Backspace");
-    expect(page.url()).toContain("/editor.html#layers");
+    expect(page.url()).toContain("/editor.html?mode=expert#layers");
     expect(await order()).toEqual(["a", "b"]);
     await expect(page.getByRole("group", { name: "Layer 1 of 2: Middle" })).toBeFocused();
     // Delete in the list, too.
     await page.getByRole("gridcell", { name: "Middle", exact: true }).focus();
     await page.keyboard.press("Delete");
-    expect(page.url()).toContain("/editor.html#layers");
+    expect(page.url()).toContain("/editor.html?mode=expert#layers");
     expect(await order()).toEqual(["a"]);
     await expect(page.getByRole("gridcell", { name: "Bottom", exact: true })).toBeFocused();
   });
@@ -640,7 +640,7 @@ test.describe("the image editor", () => {
   });
 
   test("edits an animation's frames from the keyboard, with no violations", async ({ page }) => {
-    await page.goto("/editor.html");
+    await page.goto("/editor.html?mode=expert");
     await page.evaluate(
       (bytes) => window.imageEditor.open(new Uint8Array(bytes).buffer),
       Array.from(gifWithBackground("after disposal 2")),

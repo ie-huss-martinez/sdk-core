@@ -33,95 +33,166 @@
   }
 
   /*
-   * The editor (docs/adr/0007): toolbar, then the stage, filling the
-   * editor's box. Sizes follow the editor's own width through a container
-   * query, not the viewport's.
+   * The editor renders through ui's frame (docs/adr/0016, sdk-core ADR 0067):
+   * it fills the editor's box, which the host sizes.
    */
   .hm-image-editor {
     container-type: inline-size;
-    display: grid;
-    /* The layout fills the editor's box and no more: the inspector scrolls. */
-    grid-template-rows: minmax(0, 1fr);
-    /* 24rem: room for the toolbar, a usable stage and the start of the inspector. */
+    display: flex;
+    flex-direction: column;
+    /* 24rem: room for the top bar, a usable stage and the start of a panel. */
     min-block-size: calc(var(--hm-space-12) * 4);
     block-size: 100%;
   }
 
-  /*
-   * The layout, inside the editor so the editor's own width can query it:
-   * toolbar, stage and inspector in one column, the editor fitting its
-   * container however narrow; from 720 pixels, the inspector beside the stage.
-   */
-  .hm-image-editor-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    /* A stage of at least 15rem; the inspector takes what's left, and scrolls. */
-    grid-template-rows: auto minmax(calc(var(--hm-space-12) * 2.5), 1fr) minmax(0, auto);
-    grid-template-areas: "toolbar" "stage" "inspector";
-    gap: var(--hm-gap-normal);
+  .hm-image-editor-frame {
+    flex: 1 1 auto;
     min-block-size: 0;
   }
 
-  .hm-image-editor-toolbar {
-    grid-area: toolbar;
+  /* On a phone the image shrinks to fit the stage's share of the height. */
+  @container hm-editor-frame (width < 45rem) {
+    .hm-image-editor-frame .hm-image-editor-stage {
+      min-block-size: 0;
+    }
+  }
+
+  .hm-image-editor-title {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: baseline;
+    gap: var(--hm-gap-normal);
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .hm-image-editor-bar.hm-toolbar {
+    flex-wrap: nowrap;
+    padding: 0;
   }
 
   .hm-image-editor-stage {
-    grid-area: stage;
+    flex: 1 1 auto;
+    margin: var(--hm-inset-normal);
   }
 
   /*
-   * The inspector keeps to its column: its content wraps rather than widening
-   * it, and it scrolls up and down, with room kept for the scrollbar so it
-   * never covers the values.
+   * Zoom sits under the stage, at its end: a pill in the stage's own room,
+   * never over the image, where a crop's or a layer's handle can be.
+   */
+  .hm-image-editor-zoom.hm-toolbar {
+    align-self: flex-end;
+    flex: none;
+    flex-wrap: nowrap;
+    margin: 0 var(--hm-inset-normal) var(--hm-inset-normal);
+  }
+
+  /*
+   * The inspector, in the frame's properties panel: its content wraps rather
+   * than widening it.
    */
   .hm-image-editor-inspector {
-    grid-area: inspector;
     display: grid;
     align-content: start;
     gap: var(--hm-gap-normal);
-    min-block-size: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
-    scrollbar-gutter: stable;
   }
 
   .hm-image-editor-inspector > * {
     min-inline-size: 0;
   }
 
-  /* A choice of more options than fit, such as the filter presets, wraps. */
+  /*
+   * A choice of more options than fit, such as the filter presets, wraps,
+   * with the control's corners rather than a pill's, which would be an oval.
+   */
   .hm-image-editor-inspector .hm-segmented-control {
+    --hm-segmented-control-radius: var(--hm-radius-control);
     flex-wrap: wrap;
     max-inline-size: 100%;
   }
 
-  @container (width >= 720px) {
-    .hm-image-editor-layout {
-      grid-template-columns: minmax(0, 1fr) calc(var(--hm-space-12) * 3);
-      grid-template-rows: auto minmax(0, 1fr);
-      grid-template-areas: "toolbar toolbar" "stage inspector";
+  /* On a phone, the mode and the image's size leave the top bar; Settings keeps the mode. */
+  @container hm-editor-frame (width < 45rem) {
+    .hm-image-editor-mode,
+    .hm-image-editor-size {
+      display: none;
     }
   }
 
   /*
-   * An animation's bar sits under the stage (docs/adr/0011). The rows change
-   * only when it's there, so a still's layout is the same as without it.
+   * Easy mode's start cards, over the stage (sdk-core ADR 0067): a heading,
+   * the steps, and the cards in a grid that wraps.
    */
-  .hm-image-editor-layout:has(> .hm-image-editor-timeline) {
-    grid-template-rows: auto minmax(calc(var(--hm-space-12) * 2.5), 1fr) auto minmax(0, auto);
-    grid-template-areas: "toolbar" "stage" "timeline" "inspector";
+  .hm-image-start {
+    align-content: center;
+    box-sizing: border-box;
+    display: grid;
+    gap: var(--hm-gap-loose);
+    inset: 0;
+    justify-items: center;
+    overflow: auto;
+    padding: var(--hm-inset-loose);
+    position: absolute;
+    z-index: var(--hm-z-raised);
   }
 
-  @container (width >= 720px) {
-    .hm-image-editor-layout:has(> .hm-image-editor-timeline) {
-      grid-template-rows: auto minmax(0, 1fr) auto;
-      grid-template-areas: "toolbar toolbar" "stage inspector" "timeline inspector";
-    }
+  .hm-image-start-steps {
+    display: flex;
+    gap: var(--hm-gap-normal);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .hm-image-start-title {
+    margin: 0;
+    text-align: center;
+  }
+
+  .hm-image-start-cards {
+    display: grid;
+    gap: var(--hm-gap-normal);
+    grid-template-columns: repeat(auto-fit, minmax(calc(var(--hm-space-12) * 2), 1fr));
+    inline-size: min(100%, calc(var(--hm-space-12) * 7));
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .hm-image-start-card {
+    align-content: start;
+    block-size: 100%;
+    box-sizing: border-box;
+    cursor: pointer;
+    display: grid;
+    gap: var(--hm-gap-tight);
+    inline-size: 100%;
+    justify-items: start;
+    min-block-size: var(--hm-target-size);
+    padding: var(--hm-inset-normal);
+    text-align: start;
+  }
+
+  .hm-image-start-card:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: var(--hm-focus-ring-offset);
+  }
+
+  .hm-image-start-card-icon {
+    block-size: var(--hm-icon-size);
+    display: inline-flex;
+    inline-size: var(--hm-icon-size);
+  }
+
+  .hm-image-start-card-icon > svg {
+    block-size: inherit;
+    inline-size: inherit;
   }
 
   .hm-image-editor-timeline {
-    grid-area: timeline;
+    padding: var(--hm-inset-tight) var(--hm-inset-normal);
   }
 
   /* Play, the scrubber taking the room, and where it is, on one line that wraps when narrow. */
@@ -146,9 +217,68 @@
     color: var(--hm-color-text);
   }
 
-  /* In a narrow editor, the toolbar's groups wrap onto more rows. */
-  .hm-image-editor-toolbar {
-    flex-wrap: wrap;
+  .hm-image-editor--styled .hm-image-editor-title {
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-image-editor--styled .hm-image-editor-size {
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--hm-font-weight-regular);
+  }
+
+  .hm-image-editor--styled .hm-image-editor-bar.hm-toolbar {
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .hm-image-editor--styled .hm-image-editor-zoom.hm-toolbar {
+    backdrop-filter: blur(var(--hm-blur-glass));
+    background: var(--hm-color-surface-glass);
+    border-radius: var(--hm-radius-round);
+    box-shadow: var(--hm-shadow-floating);
+  }
+
+  .hm-image-editor--styled .hm-image-start {
+    background: color-mix(in oklch, var(--hm-color-bg) 88%, transparent);
+  }
+
+  .hm-image-editor--styled .hm-image-start-steps {
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
+  }
+
+  .hm-image-editor--styled .hm-image-start-step[aria-current="step"] {
+    color: var(--hm-color-accent-text);
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-image-editor--styled .hm-image-start-card {
+    background: var(--hm-color-surface-raised);
+    border: var(--hm-border-width) solid var(--hm-color-border);
+    border-radius: var(--hm-radius-surface);
+    box-shadow: var(--hm-shadow-raised);
+    color: var(--hm-color-text);
+    font: inherit;
+    transition-duration: var(--hm-motion-duration-feedback);
+    transition-property: border-color, translate;
+    transition-timing-function: var(--hm-motion-easing-spring);
+  }
+
+  .hm-image-editor--styled .hm-image-start-card-title {
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-image-editor--styled .hm-image-start-card-description {
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
+  }
+
+  @media (hover: hover) {
+    .hm-image-editor--styled .hm-image-start-card:hover {
+      border-color: var(--hm-color-accent);
+    }
   }
 
   /*
@@ -665,8 +795,10 @@
    * controls under it leave, so they're always in view.
    */
   @container (width >= 720px) {
+    /* The inspector fills the properties panel's body, so the list can take what's left. */
     .hm-image-editor-inspector:has(> .hm-image-frames-panel) {
       align-content: stretch;
+      block-size: 100%;
     }
 
     .hm-image-frames-panel {

@@ -4,6 +4,7 @@
 
 ```ts
 
+import type { EditorPreferences } from '@hussmartinez/ui';
 import { FilePolicy } from '@hussmartinez/sdk-core';
 import { FilePolicyOverrides } from '@hussmartinez/sdk-core';
 import { ForwardRefExoticComponent } from 'react';
@@ -85,13 +86,16 @@ export type ImageEditorPart = "root" | "toolbar" | "stage" | "inspector";
 export interface ImageEditorProps extends Omit<ImageEditorProviderProps, "children"> {
     readonly className?: string;
     readonly classNames?: Readonly<Partial<Record<ImageEditorPart, string>>>;
+    readonly defaultPreferences?: Partial<EditorPreferences>;
     readonly features?: ImageEditorFeatures;
     readonly icons?: Readonly<Record<string, IconComponent>>;
     readonly initialFile?: Blob;
     readonly onChange?: (plan: ImagePlan) => void;
     readonly onExport?: (blob: Blob, details: ImageSessionExport) => void;
+    readonly onPreferencesChange?: (preferences: EditorPreferences) => void;
     // Warning: (ae-forgotten-export) The symbol "ImagePlan" needs to be exported by the entry point react.d.ts
     readonly plan?: ImagePlan;
+    readonly preferences?: EditorPreferences;
     readonly theme?: ImageEditorTheme;
     readonly toolbar?: readonly (readonly string[])[];
     readonly tools?: readonly string[];
