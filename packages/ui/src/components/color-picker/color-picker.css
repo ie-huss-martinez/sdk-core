@@ -282,23 +282,23 @@
    * opacity strips mirror with it. By [dir], not :dir(), which hosts'
    * minifiers lower (docs/adr/0005), as ui's icons do.
    */
-  [dir="rtl"] .hm-color-picker .hm-color-picker-strip-svg {
+  [dir="rtl"] .hm-color-picker-strip > .hm-color-picker-strip-svg {
     transform: scaleX(-1);
   }
 
-  [dir="ltr"] [dir="rtl"] .hm-color-picker .hm-color-picker-strip-svg {
+  [dir="ltr"] [dir="rtl"] .hm-color-picker-strip > .hm-color-picker-strip-svg {
     transform: scaleX(-1);
   }
 
-  [dir="rtl"] [dir="ltr"] .hm-color-picker .hm-color-picker-strip-svg {
+  [dir="rtl"] [dir="ltr"] .hm-color-picker-strip > .hm-color-picker-strip-svg {
     transform: none;
   }
 
-  [dir="rtl"] [dir="ltr"] [dir="rtl"] .hm-color-picker .hm-color-picker-strip-svg {
+  [dir="rtl"] [dir="ltr"] [dir="rtl"] .hm-color-picker-strip > .hm-color-picker-strip-svg {
     transform: scaleX(-1);
   }
 
-  [dir="ltr"] [dir="rtl"] [dir="ltr"] .hm-color-picker .hm-color-picker-strip-svg {
+  [dir="ltr"] [dir="rtl"] [dir="ltr"] .hm-color-picker-strip > .hm-color-picker-strip-svg {
     transform: none;
   }
 }

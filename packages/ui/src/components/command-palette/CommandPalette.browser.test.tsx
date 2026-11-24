@@ -102,6 +102,22 @@ describe("CommandPalette", () => {
     expect(dialog.querySelector('[role="status"]')?.textContent).toBe("");
   });
 
+  it("speaks the count again after another search with the same count", async () => {
+    const { dialog } = await open();
+    const status = dialog.querySelector('[role="status"]') as HTMLElement;
+    await userEvent.keyboard("rot");
+    await vi.waitFor(() => expect(status.textContent).toBe("2 results"));
+    const seen: string[] = [];
+    const observer = new MutationObserver(() => seen.push(status.textContent ?? ""));
+    observer.observe(status, { childList: true, characterData: true, subtree: true });
+
+    await userEvent.keyboard("{Control>}a{/Control}orientation");
+
+    await vi.waitFor(() => expect(seen.at(-1)).toBe("2 results"));
+    observer.disconnect();
+    expect(seen).toContain("");
+  });
+
   it("speaks the new count when the items change after typing", async () => {
     const onRun = vi.fn();
     const { dialog } = await open(onRun);

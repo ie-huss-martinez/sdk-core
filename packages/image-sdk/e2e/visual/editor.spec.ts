@@ -337,6 +337,35 @@ const ELEMENT: Readonly<Record<string, State>> = {
   },
 };
 
+/**
+ * Draws the whole page again, from nothing, just before the screenshot. The
+ * toolbar and panels share the page's layer with the stage, whose canvas the
+ * render worker draws at a different moment on each load, and Chromium
+ * rasterises that layer's anti-aliased edges a level or two apart depending
+ * on what was invalidated when (see the Open icon in the right-to-left
+ * states). Changing the root's background invalidates every tile, so each
+ * capture is of the page drawn in one go, after the canvas has its frame.
+ * The comparison stays as strict as it was (sdk-core ADR 0054). The same
+ * technique steadies notes-sdk's sidebar.
+ */
+async function repainted(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        const frames = (then: () => void) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => then()));
+        const root = document.documentElement;
+        const before = root.style.backgroundColor;
+        // A colour no theme uses, so the change always invalidates.
+        root.style.backgroundColor = "rgb(1, 2, 3)";
+        frames(() => {
+          root.style.backgroundColor = before;
+          frames(resolve);
+        });
+      }),
+  );
+}
+
 for (const [path, states] of [
   ["/editor.html", EDITOR],
   [RTL_PATH, RIGHT_TO_LEFT],
@@ -360,6 +389,7 @@ for (const [path, states] of [
         await reach(page);
         // The pointer rests outside the editor, so no hover styles show.
         await page.mouse.move(0, 0);
+        await repainted(page);
         await expect(page).toHaveScreenshot(`${state}-${variant.name}.png`, {
           mask: path === RTL_PATH ? [page.locator(OPEN_ICON)] : [],
         });

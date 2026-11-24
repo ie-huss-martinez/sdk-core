@@ -376,6 +376,23 @@ describe("ColorPicker", () => {
     ).toBe("none");
   });
 
+  it.each([
+    ["dir on the picker itself", <Fill key="root" alpha dir="rtl" />, "matrix(-1, 0, 0, 1, 0, 0)"],
+    [
+      "a left-to-right picker inside right-to-left text",
+      <div key="nested" dir="rtl">
+        <Fill alpha dir="ltr" />
+      </div>,
+      "none",
+    ],
+  ])("follows the closest direction for the strips: %s", (_, element, transform) => {
+    const container = render(element);
+
+    for (const strip of container.querySelectorAll(".hm-color-picker-strip-svg")) {
+      expect(getComputedStyle(strip).transform).toBe(transform);
+    }
+  });
+
   it("disables every control", () => {
     const container = render(<Fill disabled swatches={swatches} />);
 

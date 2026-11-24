@@ -221,10 +221,21 @@ function Search({ items, onRun, label, placeholder, emptyText, classNames }: Sea
     if (!typed.current) {
       return;
     }
+    // Emptied first, then filled on the next frame, so the same count after
+    // another search is still a change, and spoken again.
+    let frame: number | undefined;
     const timer = setTimeout(() => {
-      setStatus(messages.t("commandPalette.results", { count }));
+      setStatus("");
+      frame = requestAnimationFrame(() => {
+        setStatus(messages.t("commandPalette.results", { count }));
+      });
     }, ANNOUNCE_DELAY);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (frame !== undefined) {
+        cancelAnimationFrame(frame);
+      }
+    };
   }, [count, query, items, messages]);
 
   // The active option stays in view as the arrow keys move it.

@@ -85,13 +85,20 @@ interface ToastRecord {
 const DURATION = 2600;
 
 /**
- * The open modal dialog on top, if any. Everything outside it is inert, so
- * the toasts move into it while it's open, or their actions couldn't be
- * used.
+ * The open modal dialog on top, if any: the one opened last, from the
+ * order the provider saw them open, and otherwise the last in the
+ * document. Everything outside it is inert, so the toasts move into it
+ * while it's open, or their actions couldn't be used.
  */
-function topModal(): Element | null {
-  const modals = document.querySelectorAll("dialog:modal");
-  return modals[modals.length - 1] ?? null;
+function topModal(opened: readonly Element[]): Element | null {
+  const modals = [...document.querySelectorAll("dialog:modal")];
+  const seen = opened.filter((dialog) => modals.includes(dialog));
+  return seen.at(-1) ?? modals.at(-1) ?? null;
+}
+
+/** Whether an element is still a modal dialog in the page. */
+function isOpenModal(element: Element | null): boolean {
+  return element?.isConnected === true && element.matches("dialog:modal");
 }
 
 const ToastContext = /* @__PURE__ */ createContext<ToastApi | undefined>(undefined);
@@ -156,6 +163,8 @@ export function ToastProvider({
     assertive: "",
   });
   const queues = useRef<Record<Politeness, string[]>>({ polite: [], assertive: [] });
+  // Modal dialogs in the order they opened, the latest last.
+  const opened = useRef<Element[]>([]);
   const frames = useRef<Partial<Record<Politeness, number>>>({});
 
   useEffect(
@@ -174,21 +183,30 @@ export function ToastProvider({
    * has just moved into the dialog or repeats the last message. Messages in
    * the same frame are said together.
    */
-  const speakInside = useCallback((message: string, politeness: Politeness) => {
-    const queue = queues.current[politeness];
-    if (!queue.includes(message)) {
-      queue.push(message);
-    }
-    if (frames.current[politeness] !== undefined) {
-      return;
-    }
-    setSpoken((current) => ({ ...current, [politeness]: "" }));
-    frames.current[politeness] = requestAnimationFrame(() => {
-      delete frames.current[politeness];
-      const joined = queue.splice(0).join(" ");
-      setSpoken((current) => ({ ...current, [politeness]: joined }));
-    });
-  }, []);
+  const speakInside = useCallback(
+    (message: string, politeness: Politeness) => {
+      const queue = queues.current[politeness];
+      if (!queue.includes(message)) {
+        queue.push(message);
+      }
+      if (frames.current[politeness] !== undefined) {
+        return;
+      }
+      setSpoken((current) => ({ ...current, [politeness]: "" }));
+      frames.current[politeness] = requestAnimationFrame(() => {
+        delete frames.current[politeness];
+        const joined = queue.splice(0).join(" ");
+        // The dialog may have closed meanwhile, taking these regions with it;
+        // then the page's announcer is live again.
+        if (isOpenModal(region.current?.closest("dialog") ?? null)) {
+          setSpoken((current) => ({ ...current, [politeness]: joined }));
+        } else {
+          announce(joined, { politeness });
+        }
+      });
+    },
+    [announce],
+  );
 
   // A removed toast that held focus doesn't always report losing it, so
   // the pause for focus ends unless focus is in a toast that's still shown.
@@ -239,7 +257,7 @@ export function ToastProvider({
       if (evicted) {
         recheckFocus();
       }
-      const modal = topModal();
+      const modal = topModal(opened.current);
       setHost(modal);
       const politeness: Politeness = tone === "danger" ? "assertive" : "polite";
       // Heard once: from inside the dialog while one is open, as everything
@@ -265,25 +283,57 @@ export function ToastProvider({
     }
     const isOpen = element.matches(":popover-open");
     if (hasToasts && !isOpen) {
+      // A host that has closed or left the page since it was chosen would
+      // hide the toasts or keep them inert: choose again first.
+      if (!element.isConnected || (host !== null && !isOpenModal(host))) {
+        queueMicrotask(() => setHost(topModal(opened.current)));
+        return;
+      }
       element.showPopover();
     } else if (!hasToasts && isOpen) {
       element.hidePopover();
     }
   }, [hasToasts, host]);
 
-  // While toasts show, follow modal dialogs opening and closing, and dialogs
-  // leaving the page, so the toasts are always where they can be used.
+  // Follows modal dialogs opening and closing, in the order they do, so the
+  // toasts are always in the one on top.
+  useEffect(() => {
+    if (typeof MutationObserver === "undefined") {
+      return;
+    }
+    const observer = new MutationObserver((records) => {
+      for (const { target } of records) {
+        if (!(target instanceof HTMLDialogElement)) {
+          continue;
+        }
+        opened.current = opened.current.filter((dialog) => dialog !== target);
+        if (target.matches(":modal")) {
+          opened.current.push(target);
+        }
+      }
+      // Without toasts there's nothing to move; showing one chooses again.
+      if (live.current.size > 0) {
+        setHost(topModal(opened.current));
+      }
+    });
+    observer.observe(document.documentElement, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["open"],
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  // While toasts show, also follow dialogs leaving the page.
   useEffect(() => {
     if (!hasToasts || typeof MutationObserver === "undefined") {
       return;
     }
-    const observer = new MutationObserver(() => setHost(topModal()));
-    observer.observe(document.documentElement, {
-      subtree: true,
-      childList: true,
-      attributes: true,
-      attributeFilter: ["open"],
+    const observer = new MutationObserver(() => {
+      opened.current = opened.current.filter((dialog) => dialog.isConnected);
+      setHost(topModal(opened.current));
     });
+    observer.observe(document.documentElement, { subtree: true, childList: true });
     return () => observer.disconnect();
   }, [hasToasts]);
 

@@ -225,4 +225,43 @@ describe("ToastProvider", () => {
     expect(document.querySelector('.hm-announcer [role="alert"]')?.textContent).toBe("");
     dialog.close();
   });
+  it("moves into the modal opened last, not the last in the document", async () => {
+    render();
+    const dialogs = mount(
+      "<dialog id='a'><button type='button'>A</button></dialog><dialog id='b'><button type='button'>B</button></dialog>",
+    );
+    const a = dialogs.querySelector("#a") as HTMLDialogElement;
+    const b = dialogs.querySelector("#b") as HTMLDialogElement;
+    b.showModal();
+    a.showModal();
+    // Let the provider see them open.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    act(() => {
+      api.show({ message: "Rotated", duration: 60_000 });
+    });
+
+    expect(a.querySelector(".hm-toast-region")).not.toBeNull();
+    expect(b.querySelector(".hm-toast-region")).toBeNull();
+    a.close();
+    await vi.waitFor(() => expect(b.querySelector(".hm-toast-region")).not.toBeNull());
+    b.close();
+  });
+
+  it("falls back to the page's announcer when the modal closes before the toast is spoken", async () => {
+    render();
+    const dialog = mount("<dialog><button type='button'>Inside</button></dialog>").querySelector(
+      "dialog",
+    ) as HTMLDialogElement;
+    dialog.showModal();
+
+    act(() => {
+      api.show({ message: "Rotated", duration: 60_000 });
+      dialog.close();
+    });
+
+    await vi.waitFor(() =>
+      expect(document.querySelector('.hm-announcer [role="status"]')?.textContent).toBe("Rotated"),
+    );
+  });
 });
