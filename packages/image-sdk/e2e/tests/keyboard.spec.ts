@@ -141,9 +141,11 @@ test("edits and exports with the keyboard alone, with focus where it belongs", a
   await page.keyboard.press(process.platform === "darwin" ? "Meta+Shift+z" : "Control+Shift+z");
   expect((await plan(page)).redactions[0]).toMatchObject({ x: 14, width: 13 });
 
-  // Export: the top bar's primary button, then the dialog's summary.
+  // Export: the top bar's primary button, back from the panel, since the bar
+  // comes first; forwards, Firefox leaves the page for its own toolbar
+  // rather than wrapping. Then the dialog's summary.
   const exportTool = page.getByRole("button", { name: "Export", exact: true });
-  await tabTo(page, exportTool);
+  await tabTo(page, exportTool, true);
   await expect(exportTool).toBeFocused();
   await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: "Export image" });
