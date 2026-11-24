@@ -317,7 +317,11 @@ function ImageEditorBody(props: BodyProps): ReactNode {
   // Easy mode's start cards show once per image, until one is chosen or skipped.
   const [startShownFor, setStartShownFor] = useState<string | null>(null);
   // A start card can show the properties in Easy mode, which otherwise hides them.
-  const [easyProperties, setEasyProperties] = useState(false);
+  // It's for the image the card was chosen on: another image starts without it.
+  const [easyPropertiesFor, setEasyPropertiesFor] = useState<string | null>(null);
+  const easyProperties = easyPropertiesFor !== null && easyPropertiesFor === snapshot.source?.id;
+  const setEasyProperties = (on: boolean) =>
+    setEasyPropertiesFor(on ? (snapshot.source?.id ?? null) : null);
   const { mode } = preferences;
   const toolState = { snapshot, editor: editorState };
   const lists = toolLists(registry, shortcuts, toolState, mode, icons, t);

@@ -244,9 +244,13 @@ describe("Easy mode's start cards (sdk-core ADR 0067)", () => {
     });
     await open(await photo());
     await click(named("Make it look better Brightness, colour and one-tap filters."));
-    const properties = document.querySelector<HTMLElement>(".hm-editor-frame-properties");
-    expect(properties?.hidden).toBe(false);
+    const properties = () => document.querySelector<HTMLElement>(".hm-editor-frame-properties");
+    expect(properties()?.hidden).toBe(false);
     expect(onPreferencesChange).not.toHaveBeenCalled();
+    // Another image starts without the card's reveal.
+    await open(await photo("#c03080"));
+    await click(named("Just show me the editor"));
+    expect(properties()?.hidden ?? true).toBe(true);
   });
 
   it("never shows the cards in Advanced or Expert mode", async () => {
