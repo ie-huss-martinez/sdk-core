@@ -107,6 +107,31 @@ export async function pen(
   { barrel = false }: { readonly barrel?: boolean } = {},
 ): Promise<void> {
   const target = page.locator(selector).first();
+  // Aimed at where the target will stay, not where an animation has it now:
+  // an open notebook scales in (`hm-notes-open`), and even with reduced
+  // motion that takes a frame or more, which put a stroke 3 px off.
+  let last = "";
+  await expect
+    .poll(
+      async () => {
+        const { moving, box } = await target.evaluate((element) => ({
+          moving: document.getAnimations().some((animation) => {
+            const animated = (animation.effect as KeyframeEffect | null)?.target;
+            return (
+              (animation.pending || animation.playState === "running") &&
+              animated instanceof Element &&
+              animated.contains(element)
+            );
+          }),
+          box: JSON.stringify(element.getBoundingClientRect()),
+        }));
+        const still = box === last;
+        last = box;
+        return !moving && still;
+      },
+      { intervals: [50] },
+    )
+    .toBe(true);
   const box = await target.boundingBox();
   if (!box) throw new Error(`Nothing to draw on: ${selector}`);
   if (page.context().browser()?.browserType().name() === "chromium") {
