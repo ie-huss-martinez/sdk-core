@@ -1,0 +1,76 @@
+@layer hm.components {
+  /* Layout, kept with unstyled. */
+  .hm-tool-list.hm-toolbar {
+    gap: var(--hm-tool-list-group-gap, var(--hm-gap-loose));
+  }
+
+  .hm-tool-list-group-label {
+    padding-inline: var(--hm-control-padding-x);
+  }
+
+  .hm-tool-list--full .hm-tool-list-item.hm-button {
+    justify-content: flex-start;
+    text-align: start;
+    white-space: normal;
+  }
+
+  .hm-tool-list-item--described.hm-button {
+    padding-block: var(--hm-inset-tight);
+  }
+
+  .hm-tool-list-text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-inline-size: 0;
+  }
+
+  .hm-tool-list-item .hm-button-label {
+    align-items: center;
+    display: flex;
+    flex: 1 1 auto;
+    gap: var(--hm-gap-normal);
+    min-inline-size: 0;
+  }
+
+  .hm-tool-list-shortcut {
+    flex: none;
+  }
+
+  /* Visual styles, dropped with unstyled. */
+  .hm-tool-list:not([data-hm-unstyled]) {
+    background: transparent;
+    border: 0;
+  }
+
+  .hm-tool-list:not([data-hm-unstyled]) .hm-tool-list-group-label {
+    color: var(--hm-tool-list-group-label-fg, var(--hm-color-text-muted));
+    font-size: var(--hm-font-size-small);
+    font-weight: var(--hm-font-weight-strong);
+    line-height: var(--hm-line-height-tight);
+  }
+
+  .hm-tool-list:not([data-hm-unstyled]) .hm-tool-list-item {
+    border-radius: var(--hm-tool-list-item-radius, var(--hm-radius-control));
+    font-weight: var(--hm-font-weight-regular);
+  }
+
+  .hm-tool-list:not([data-hm-unstyled]) .hm-tool-list-description {
+    color: var(--hm-tool-list-description-fg, var(--hm-color-text-muted));
+    font-size: var(--hm-font-size-small);
+    line-height: var(--hm-line-height-tight);
+  }
+
+  .hm-tool-list:not([data-hm-unstyled]) .hm-tool-list-item:disabled .hm-tool-list-description,
+  .hm-tool-list:not([data-hm-unstyled])
+    .hm-tool-list-item[aria-disabled="true"]
+    .hm-tool-list-description {
+    color: inherit;
+  }
+
+  .hm-tool-list:not([data-hm-unstyled]) .hm-tool-list-shortcut kbd {
+    color: var(--hm-tool-list-description-fg, var(--hm-color-text-muted));
+    font-family: var(--hm-font-family);
+    font-size: var(--hm-font-size-small);
+  }
+}

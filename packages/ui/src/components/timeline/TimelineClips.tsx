@@ -15,8 +15,9 @@ import {
   useState,
 } from "react";
 import { warnInDevelopment } from "../../internal/development.js";
+import { uiCoreText } from "../../messages/core.js";
 import { useAnnounce } from "../announcer/Announcer.js";
-import { useUiMessages } from "../messages/UiMessagesProvider.js";
+import { useUiMessagesFrom } from "../messages/UiMessagesProvider.js";
 import { cx, type StyleProps, unstyledAttribute } from "../shared/style-props.js";
 import { setStyle } from "./set-style.js";
 import { type LaneClips, TimelineLaneContext, useTimelineContext } from "./Timeline.js";
@@ -319,7 +320,7 @@ export const TimelineClips = /* @__PURE__ */ forwardRef<TimelineClipsHandle, Tim
     const timelineLength = context?.scale.length ?? Number.POSITIVE_INFINITY;
     const multiple = selectionMode === "multiple";
     const announce = useAnnounce();
-    const messages = useUiMessages();
+    const messages = useUiMessagesFrom(uiCoreText);
 
     // A clip has a whole, positive length (sdk-core ADR 0042); others are left out.
     const clips = useMemo(() => {

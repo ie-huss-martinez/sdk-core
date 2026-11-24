@@ -731,7 +731,58 @@ export type ComponentTokenName =
   | "color-field-swatch-size"
   | "color-field-swatch-radius"
   | "color-field-swatch-border-color"
-  | "color-field-swatch-checked-border-color";
+  | "color-field-swatch-checked-border-color"
+  | "color-picker-gap"
+  | "color-picker-max-width"
+  | "color-picker-radius"
+  | "color-picker-border-color"
+  | "color-picker-strip-height"
+  | "color-picker-thumb-size"
+  | "color-picker-thumb-color"
+  | "color-picker-thumb-outline-color"
+  | "color-picker-swatch-size"
+  | "color-picker-swatch-checked-border-color"
+  | "color-picker-hint-fg"
+  | "editor-frame-bg"
+  | "editor-frame-gap"
+  | "editor-frame-inset"
+  | "editor-frame-bar-height"
+  | "editor-frame-bar-bg"
+  | "editor-frame-bar-fg"
+  | "editor-frame-border-color"
+  | "editor-frame-panel-bg"
+  | "editor-frame-sidebar-width"
+  | "editor-frame-rail-width"
+  | "editor-frame-inspector-width"
+  | "editor-frame-glass-bg"
+  | "editor-frame-floating-shadow"
+  | "tool-list-group-gap"
+  | "tool-list-group-label-fg"
+  | "tool-list-item-radius"
+  | "tool-list-description-fg"
+  | "command-palette-width"
+  | "command-palette-bg"
+  | "command-palette-radius"
+  | "command-palette-shadow"
+  | "command-palette-backdrop"
+  | "command-palette-option-active-bg"
+  | "toast-bg"
+  | "toast-fg"
+  | "toast-radius"
+  | "toast-shadow"
+  | "toast-blur"
+  | "toast-max-width"
+  | "toast-danger-bg"
+  | "toast-danger-fg"
+  | "progress-overlay-scrim"
+  | "progress-overlay-card-bg"
+  | "progress-overlay-card-radius"
+  | "progress-overlay-card-shadow"
+  | "progress-overlay-card-width"
+  | "tab-bar-item-radius"
+  | "sheet-width"
+  | "settings-panel-gap"
+  | "settings-panel-label-fg";
 
 type ComponentSpec = { readonly fallback: SemanticTokenName };
 
@@ -905,6 +956,57 @@ const component = {
   "color-field-swatch-radius": { fallback: "radius-control" },
   "color-field-swatch-border-color": { fallback: "color-border-strong" },
   "color-field-swatch-checked-border-color": { fallback: "color-text" },
+  "color-picker-gap": { fallback: "gap-normal" },
+  "color-picker-max-width": { fallback: "surface-width-small" },
+  "color-picker-radius": { fallback: "radius-control" },
+  "color-picker-border-color": { fallback: "color-border-strong" },
+  "color-picker-strip-height": { fallback: "control-height-small" },
+  "color-picker-thumb-size": { fallback: "icon-size" },
+  "color-picker-thumb-color": { fallback: "color-surface-raised" },
+  "color-picker-thumb-outline-color": { fallback: "color-text" },
+  "color-picker-swatch-size": { fallback: "control-height-small" },
+  "color-picker-swatch-checked-border-color": { fallback: "color-text" },
+  "color-picker-hint-fg": { fallback: "color-text-muted" },
+  "editor-frame-bg": { fallback: "color-surface-sunken" },
+  "editor-frame-gap": { fallback: "gap-normal" },
+  "editor-frame-inset": { fallback: "inset-normal" },
+  "editor-frame-bar-height": { fallback: "bar-height" },
+  "editor-frame-bar-bg": { fallback: "color-surface-raised" },
+  "editor-frame-bar-fg": { fallback: "color-text" },
+  "editor-frame-border-color": { fallback: "color-border" },
+  "editor-frame-panel-bg": { fallback: "color-surface" },
+  "editor-frame-sidebar-width": { fallback: "sidebar-width" },
+  "editor-frame-rail-width": { fallback: "rail-width" },
+  "editor-frame-inspector-width": { fallback: "inspector-width" },
+  "editor-frame-glass-bg": { fallback: "color-surface-glass" },
+  "editor-frame-floating-shadow": { fallback: "shadow-floating" },
+  "tool-list-group-gap": { fallback: "gap-loose" },
+  "tool-list-group-label-fg": { fallback: "color-text-muted" },
+  "tool-list-item-radius": { fallback: "radius-control" },
+  "tool-list-description-fg": { fallback: "color-text-muted" },
+  "command-palette-width": { fallback: "surface-width-medium" },
+  "command-palette-bg": { fallback: "color-surface-raised" },
+  "command-palette-radius": { fallback: "radius-surface" },
+  "command-palette-shadow": { fallback: "shadow-overlay" },
+  "command-palette-backdrop": { fallback: "color-overlay" },
+  "command-palette-option-active-bg": { fallback: "color-accent-subtle" },
+  "toast-bg": { fallback: "color-surface-glass" },
+  "toast-fg": { fallback: "color-text" },
+  "toast-radius": { fallback: "radius-round" },
+  "toast-shadow": { fallback: "shadow-floating" },
+  "toast-blur": { fallback: "blur-glass" },
+  "toast-max-width": { fallback: "surface-width-medium" },
+  "toast-danger-bg": { fallback: "color-danger-subtle" },
+  "toast-danger-fg": { fallback: "color-danger-text" },
+  "progress-overlay-scrim": { fallback: "color-overlay" },
+  "progress-overlay-card-bg": { fallback: "color-surface-raised" },
+  "progress-overlay-card-radius": { fallback: "radius-surface" },
+  "progress-overlay-card-shadow": { fallback: "shadow-overlay" },
+  "progress-overlay-card-width": { fallback: "surface-width-small" },
+  "tab-bar-item-radius": { fallback: "radius-control" },
+  "sheet-width": { fallback: "surface-width-small" },
+  "settings-panel-gap": { fallback: "gap-loose" },
+  "settings-panel-label-fg": { fallback: "color-text" },
 } as const satisfies Record<ComponentTokenName, ComponentSpec>;
 
 function baseDefinitions(): TokenDefinition[] {

@@ -10,9 +10,10 @@ import {
   useEffect,
   useRef,
 } from "react";
+import { uiCoreText } from "../../messages/core.js";
 import { useLatest } from "../../react/use-latest.js";
 import { useAnnounce } from "../announcer/Announcer.js";
-import { useUiMessages } from "../messages/UiMessagesProvider.js";
+import { useUiMessagesFrom } from "../messages/UiMessagesProvider.js";
 import { cx, type StyleProps, unstyledAttribute } from "../shared/style-props.js";
 import { items as focusableItems } from "../toolbar/roving-focus.js";
 
@@ -356,7 +357,7 @@ export const ReorderableList = /* @__PURE__ */ forwardRef<HTMLDivElement, Reorde
     const endPress = useRef<(() => void) | undefined>(undefined);
     useEffect(() => () => endPress.current?.(), []);
     const announce = useAnnounce();
-    const messages = useUiMessages();
+    const messages = useUiMessagesFrom(uiCoreText);
     // How a control cell names its control's state, in the current messages.
     // Read only in effects, the observer's included, which run after it updates.
     const words = useLatest<ControlWords>((state, controlLabel) =>

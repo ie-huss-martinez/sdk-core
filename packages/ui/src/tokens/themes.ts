@@ -98,7 +98,7 @@ export const lightValues: Readonly<Record<SchemeTokenName, string>> = /* @__PURE
   "shadow-raised": "0 1px 2px oklch(0.2 0.02 260 / 0.06), 0 4px 14px oklch(0.2 0.02 260 / 0.08)",
   "shadow-overlay": "0 4px 8px oklch(0.2 0.02 260 / 0.06), 0 24px 56px oklch(0.2 0.02 260 / 0.18)",
   "shadow-floating":
-    "0 0 0 1px oklch(0.2 0.02 260 / 0.06), 0 2px 4px oklch(0.2 0.02 260 / 0.06), 0 10px 28px oklch(0.2 0.02 260 / 0.14)",
+    "0 0 0 1px oklch(0 0 0 / 0.05), 0 2px 4px oklch(0 0 0 / 0.06), 0 10px 28px oklch(0 0 0 / 0.12)",
 });
 
 /** Semantic values of the built-in dark theme. */

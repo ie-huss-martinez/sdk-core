@@ -15,6 +15,12 @@ export { nestedHeadingLevel, toHeadingLevel } from "./heading/heading-level.js";
 // Types only: headless tool definitions name their icons (sdk-core ADR 0030).
 export type { IconName } from "./icons/icon-name.generated.js";
 export { uiMessages } from "./messages/en.js";
+export type { EditorPreferences } from "./preferences/editor-preferences.js";
+export {
+  defaultEditorPreferences,
+  editorPreferenceOptions,
+  readEditorPreferences,
+} from "./preferences/editor-preferences.js";
 export type { ContrastReport } from "./theme/contrast-check.js";
 export { checkContrast } from "./theme/contrast-check.js";
 export { createTheme, darkTheme, lightTheme } from "./theme/create-theme.js";

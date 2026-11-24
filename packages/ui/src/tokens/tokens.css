@@ -187,8 +187,7 @@
     --hm-motion-easing-enter: var(--hm-easing-emphasized);
     --hm-motion-easing-exit: var(--hm-easing-accelerate);
     --hm-shadow-floating:
-      0 0 0 1px oklch(0.2 0.02 260 / 0.06), 0 2px 4px oklch(0.2 0.02 260 / 0.06),
-      0 10px 28px oklch(0.2 0.02 260 / 0.14);
+      0 0 0 1px oklch(0 0 0 / 0.05), 0 2px 4px oklch(0 0 0 / 0.06), 0 10px 28px oklch(0 0 0 / 0.12);
     --hm-blur-glass: 20px;
     --hm-motion-duration-panel: var(--hm-duration-slow);
     --hm-motion-easing-panel: var(--hm-easing-emphasized);
@@ -361,8 +360,7 @@
     --hm-motion-easing-enter: var(--hm-easing-emphasized);
     --hm-motion-easing-exit: var(--hm-easing-accelerate);
     --hm-shadow-floating:
-      0 0 0 1px oklch(0.2 0.02 260 / 0.06), 0 2px 4px oklch(0.2 0.02 260 / 0.06),
-      0 10px 28px oklch(0.2 0.02 260 / 0.14);
+      0 0 0 1px oklch(0 0 0 / 0.05), 0 2px 4px oklch(0 0 0 / 0.06), 0 10px 28px oklch(0 0 0 / 0.12);
     --hm-blur-glass: 20px;
     --hm-motion-duration-panel: var(--hm-duration-slow);
     --hm-motion-easing-panel: var(--hm-easing-emphasized);

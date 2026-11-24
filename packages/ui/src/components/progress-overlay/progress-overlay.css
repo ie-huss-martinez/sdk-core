@@ -1,0 +1,102 @@
+@layer hm.components {
+  /* Layout: the content fills the root, and the scrim covers it. */
+  .hm-progress-overlay {
+    display: grid;
+    min-block-size: 0;
+    min-inline-size: 0;
+    position: relative;
+  }
+
+  .hm-progress-overlay-content {
+    min-block-size: 0;
+    min-inline-size: 0;
+  }
+
+  .hm-progress-overlay-scrim {
+    align-items: center;
+    box-sizing: border-box;
+    display: flex;
+    inset: 0;
+    justify-content: center;
+    padding: var(--hm-inset-normal);
+    position: absolute;
+  }
+
+  .hm-progress-overlay-card {
+    box-sizing: border-box;
+    display: grid;
+    gap: var(--hm-gap-normal);
+    inline-size: min(var(--hm-progress-overlay-card-width, var(--hm-surface-width-small)), 100%);
+    padding: var(--hm-inset-loose);
+  }
+
+  .hm-progress-overlay-card:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: var(--hm-focus-ring-offset);
+  }
+
+  .hm-progress-overlay-bar {
+    inline-size: 100%;
+  }
+
+  .hm-progress-overlay-title,
+  .hm-progress-overlay-detail {
+    margin: 0;
+  }
+
+  .hm-progress-overlay-cancel {
+    justify-self: end;
+  }
+
+  /* Visual styles, dropped with unstyled. */
+  .hm-progress-overlay:not([data-hm-unstyled]) .hm-progress-overlay-scrim {
+    background: var(--hm-progress-overlay-scrim, var(--hm-color-overlay));
+    transition: opacity var(--hm-motion-duration-enter) var(--hm-motion-easing-enter);
+  }
+
+  .hm-progress-overlay:not([data-hm-unstyled]) .hm-progress-overlay-card {
+    background: var(--hm-progress-overlay-card-bg, var(--hm-color-surface-raised));
+    border: var(--hm-border-width) solid var(--hm-color-border);
+    border-radius: var(--hm-progress-overlay-card-radius, var(--hm-radius-surface));
+    box-shadow: var(--hm-progress-overlay-card-shadow, var(--hm-shadow-overlay));
+    color: var(--hm-color-text);
+    font-family: var(--hm-font-family);
+    font-size: var(--hm-font-size-body);
+    letter-spacing: var(--hm-letter-spacing);
+    line-height: var(--hm-line-height-body);
+    transition:
+      opacity var(--hm-motion-duration-enter) var(--hm-motion-easing-spring),
+      scale var(--hm-motion-duration-enter) var(--hm-motion-easing-spring);
+  }
+
+  .hm-progress-overlay:not([data-hm-unstyled]) .hm-progress-overlay-title {
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-progress-overlay:not([data-hm-unstyled]) .hm-progress-overlay-detail {
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
+  }
+
+  @starting-style {
+    .hm-progress-overlay:not([data-hm-unstyled]) .hm-progress-overlay-scrim {
+      opacity: 0;
+    }
+
+    .hm-progress-overlay:not([data-hm-unstyled]) .hm-progress-overlay-card {
+      opacity: 0;
+      scale: 0.96;
+    }
+  }
+
+  [data-hm-motion="reduced"] .hm-progress-overlay:not([data-hm-unstyled]) .hm-progress-overlay-card,
+  .hm-progress-overlay[data-hm-motion="reduced"]:not([data-hm-unstyled]) .hm-progress-overlay-card {
+    transition-property: opacity;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hm-progress-overlay:not([data-hm-unstyled]) .hm-progress-overlay-card {
+      transition-property: opacity;
+    }
+  }
+}

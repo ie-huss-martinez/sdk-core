@@ -43,7 +43,7 @@ Three constraints shape how this is built:
 
 - **States.** The tools region is `full`, `icons` or `hidden`, and the properties region `shown` or `hidden`. A hidden region leaves an edge tab that brings it back. Both are controlled props of `EditorFrame`, with change callbacks.
 - **Tools layout.** `sidebar` puts the tools at the inline start; `dock` floats them as a pill over the foot of the stage, the look notes-sdk uses.
-- **Sizes are container queries,** not viewport queries (`STANDARDS.md`), because an editor can be embedded in a column. Below 64 rem the full tools float over the stage instead of pushing it; below 48 rem the tools move into the `TabBar` and the properties into a sheet at the foot of the stage. A `Sheet` is in the top layer, outside any container, so it alone follows the viewport.
+- **Sizes are container queries,** not viewport queries (`STANDARDS.md`), because an editor can be embedded in a column. Below 60 rem the full tools float over the stage instead of pushing it; below 45 rem the tools move into the `TabBar` and the properties sit at the foot of the stage. The breakpoints sit below the viewport widths in the mock-ups (1024 and 768 px), because an app's frame shares the viewport with its own chrome, such as an ad column. A `Sheet` is in the top layer, outside any container, so it alone follows the viewport.
 - **Landmarks.** The top bar is a `header` holding a `toolbar`; the tools are a `nav` named "Tools"; the stage stays in the SDK's `main` or region; the properties panel is a `complementary` region named "Properties".
 
 ### Every tool has a level, and modes only change what's shown

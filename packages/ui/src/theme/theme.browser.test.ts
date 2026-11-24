@@ -2,13 +2,15 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { commands } from "vitest/browser";
 import { addStyle, cleanUp, loadStyles, mount, token } from "../test/dom.js";
 import { baseValues } from "../tokens/base.js";
+import { darkValues } from "../tokens/themes.js";
 import { resolveColor } from "./color.js";
 import { createTheme, darkTheme, lightTheme } from "./create-theme.js";
 import { themeToCss } from "./theme-to-css.js";
 
 // Computed custom properties have their var() references substituted.
 const LIGHT_BG = baseValues.white;
-const DARK_BG = baseValues["gray-950"];
+// The dark background is its own value, darker than the base scale's 950.
+const DARK_BG = darkValues["color-bg"];
 
 beforeEach(async () => {
   await commands.setColorScheme("light");

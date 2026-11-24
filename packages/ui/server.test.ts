@@ -184,7 +184,59 @@ describe("the built package on a server", () => {
       ProgressBar: { value: 40 },
       NumberField: { label: "Copies", locale: "de", defaultValue: 1234.5, name: "copies" },
       Slider: { label: "Volume", defaultValue: 40 },
+      EditorFrame: {
+        topBar: createElement(component("EditorFrameToolsButton")),
+        tools: "Tools",
+        properties: "Properties",
+        bottom: "Timeline",
+        children: "Stage",
+      },
+      // Outside a frame it renders nothing; the frame above renders it.
+      EditorFrameToolsButton: {},
+      ToolList: {
+        label: "Tools",
+        onRun: noop,
+        groups: [{ id: "g", label: "Group", items: [{ id: "a", label: "A", icon }] }],
+      },
+      ModeSwitch: { value: "easy", onValueChange: noop },
+      ThemeToggle: { value: "system", onValueChange: noop },
+      TabBar: {
+        label: "Tools",
+        value: null,
+        onValueChange: noop,
+        items: [{ id: "a", label: "A", icon }],
+      },
+      Sheet: { open: true, onOpenChange: noop, title: "Title", children: "Body" },
+      SettingsPanel: {
+        open: true,
+        onOpenChange: noop,
+        value: react["defaultEditorPreferences"],
+        onValueChange: noop,
+      },
     };
+    rendered["ColorPicker"] = {
+      label: "Fill",
+      defaultValue: "#1570ef",
+      alpha: true,
+      swatches: [{ value: "#d92d20", label: "Red" }],
+      recentColors: ["#12b76a"],
+      contrastWith: "#ffffff",
+    };
+    rendered["CommandPalette"] = {
+      open: true,
+      onOpenChange: noop,
+      onRun: noop,
+      items: [{ id: "a", label: "Rotate", description: "A quarter turn", shortcut: "]" }],
+    };
+    rendered["ToastProvider"] = { children: "Content" };
+    rendered["ProgressOverlay"] = {
+      open: true,
+      title: "Exporting",
+      value: 0.4,
+      onCancel: noop,
+      children: "Stage",
+    };
+    const emptyAlone = new Set(["EditorFrameToolsButton"]);
     // Icons take no required props, so each renders on its own (docs/adr/0005).
     const icons = Object.keys(react).filter((name) => /^[A-Z]\w*Icon$/.test(name));
     expect(icons.length).toBeGreaterThan(0);
@@ -194,7 +246,9 @@ describe("the built package on a server", () => {
     const exportedComponents = Object.keys(react).filter((name) => /^[A-Z]/.test(name));
     expect(exportedComponents.sort()).toEqual(Object.keys(rendered).sort());
     for (const [name, props] of Object.entries(rendered)) {
-      expect(renderToString(createElement(component(name), props)), name).not.toBe("");
+      if (!emptyAlone.has(name)) {
+        expect(renderToString(createElement(component(name), props)), name).not.toBe("");
+      }
     }
     expect(touched).toEqual([]);
   });

@@ -106,7 +106,7 @@ Density tokens change with `data-hm-density`: the Light and Dark columns hold th
 |---|---|---|---|---|
 | `--hm-shadow-raised` | `0 1px 2px oklch(0.2 0.02 260 / 0.06), 0 4px 14px oklch(0.2 0.02 260 / 0.08)` | `0 1px 2px oklch(0 0 0 / 0.4), 0 4px 14px oklch(0 0 0 / 0.4)` |  | Shadow of menus and popovers. |
 | `--hm-shadow-overlay` | `0 4px 8px oklch(0.2 0.02 260 / 0.06), 0 24px 56px oklch(0.2 0.02 260 / 0.18)` | `0 4px 8px oklch(0 0 0 / 0.4), 0 24px 56px oklch(0 0 0 / 0.55)` |  | Shadow of dialogs. |
-| `--hm-shadow-floating` | `0 0 0 1px oklch(0.2 0.02 260 / 0.06), 0 2px 4px oklch(0.2 0.02 260 / 0.06), 0 10px 28px oklch(0.2 0.02 260 / 0.14)` | `0 0 0 1px oklch(1 0 0 / 0.06), 0 2px 4px oklch(0 0 0 / 0.3), 0 10px 28px oklch(0 0 0 / 0.45)` |  | Shadow of bars, docks and toasts that float over content. |
+| `--hm-shadow-floating` | `0 0 0 1px oklch(0 0 0 / 0.05), 0 2px 4px oklch(0 0 0 / 0.06), 0 10px 28px oklch(0 0 0 / 0.12)` | `0 0 0 1px oklch(1 0 0 / 0.06), 0 2px 4px oklch(0 0 0 / 0.3), 0 10px 28px oklch(0 0 0 / 0.45)` |  | Shadow of bars, docks and toasts that float over content. |
 | `--hm-blur-glass` | `20px` | `20px` |  | Blur behind translucent floating bars. |
 
 ## Motion
@@ -297,6 +297,57 @@ Fine-grained overrides for one component. `ui` never declares them: each compone
 | `--hm-color-field-swatch-radius` | `--hm-radius-control` | Corner radius of a colour field's preview and swatches. |
 | `--hm-color-field-swatch-border-color` | `--hm-color-border-strong` | Border of a colour field's preview and swatches. It needs 3:1 contrast with the surface. |
 | `--hm-color-field-swatch-checked-border-color` | `--hm-color-text` | Ring of the checked swatch. It needs 3:1 contrast with the surface. |
+| `--hm-color-picker-gap` | `--hm-gap-normal` | Gap between the colour picker's parts. |
+| `--hm-color-picker-max-width` | `--hm-surface-width-small` | Widest a colour picker grows. |
+| `--hm-color-picker-radius` | `--hm-radius-control` | Corner radius of a colour picker's area, strips, preview and swatches. |
+| `--hm-color-picker-border-color` | `--hm-color-border-strong` | Border of a colour picker's area, strips, preview and swatches. |
+| `--hm-color-picker-strip-height` | `--hm-control-height-small` | Height of a colour picker's hue and opacity strips. |
+| `--hm-color-picker-thumb-size` | `--hm-icon-size` | Size of a colour picker's thumbs. |
+| `--hm-color-picker-thumb-color` | `--hm-color-surface-raised` | Inner, light ring of a colour picker's thumbs. |
+| `--hm-color-picker-thumb-outline-color` | `--hm-color-text` | Outer, dark ring of a colour picker's thumbs, and the line along the focused axis. |
+| `--hm-color-picker-swatch-size` | `--hm-control-height-small` | Size of a colour picker's swatches and recent colours. |
+| `--hm-color-picker-swatch-checked-border-color` | `--hm-color-text` | Ring round the checked swatch. |
+| `--hm-color-picker-hint-fg` | `--hm-color-text-muted` | Text of a colour picker's contrast hint. |
+| `--hm-editor-frame-bg` | `--hm-color-surface-sunken` | Background of an editor frame, behind the stage. |
+| `--hm-editor-frame-gap` | `--hm-gap-normal` | Gap between items in an editor frame's top bar. |
+| `--hm-editor-frame-inset` | `--hm-inset-normal` | Padding of an editor frame's top bar and properties panel. |
+| `--hm-editor-frame-bar-height` | `--hm-bar-height` | Least height of an editor frame's top bar. |
+| `--hm-editor-frame-bar-bg` | `--hm-color-surface-raised` | Background of an editor frame's top bar and tab bar. |
+| `--hm-editor-frame-bar-fg` | `--hm-color-text` | Text of an editor frame's top bar and tab bar. |
+| `--hm-editor-frame-border-color` | `--hm-color-border` | Lines between an editor frame's regions. |
+| `--hm-editor-frame-panel-bg` | `--hm-color-surface` | Background of an editor frame's tools, properties and bottom regions. |
+| `--hm-editor-frame-sidebar-width` | `--hm-sidebar-width` | Width of an editor frame's tools panel with labels. |
+| `--hm-editor-frame-rail-width` | `--hm-rail-width` | Width of an editor frame's tools panel with icons only. |
+| `--hm-editor-frame-inspector-width` | `--hm-inspector-width` | Width of an editor frame's properties panel. |
+| `--hm-editor-frame-glass-bg` | `--hm-color-surface-glass` | Background of an editor frame's edge tabs and floating dock. |
+| `--hm-editor-frame-floating-shadow` | `--hm-shadow-floating` | Shadow of an editor frame's edge tabs, dock and floating panels. |
+| `--hm-tool-list-group-gap` | `--hm-gap-loose` | Gap between a tool list's groups. |
+| `--hm-tool-list-group-label-fg` | `--hm-color-text-muted` | Text of a tool list's group labels. |
+| `--hm-tool-list-item-radius` | `--hm-radius-control` | Corner radius of a tool list's rows. |
+| `--hm-tool-list-description-fg` | `--hm-color-text-muted` | Text of a tool's description and shortcut in a tool list. |
+| `--hm-command-palette-width` | `--hm-surface-width-medium` | Width of the command palette. |
+| `--hm-command-palette-bg` | `--hm-color-surface-raised` | Background of the command palette. |
+| `--hm-command-palette-radius` | `--hm-radius-surface` | Corner radius of the command palette. |
+| `--hm-command-palette-shadow` | `--hm-shadow-overlay` | Shadow of the command palette. |
+| `--hm-command-palette-backdrop` | `--hm-color-overlay` | Backdrop behind the command palette. |
+| `--hm-command-palette-option-active-bg` | `--hm-color-accent-subtle` | Background of the command palette's active option. |
+| `--hm-toast-bg` | `--hm-color-surface-glass` | Background of a toast. Translucent, blurred by toast-blur. |
+| `--hm-toast-fg` | `--hm-color-text` | Text of a toast. |
+| `--hm-toast-radius` | `--hm-radius-round` | Corner radius of a toast. |
+| `--hm-toast-shadow` | `--hm-shadow-floating` | Shadow of a toast. |
+| `--hm-toast-blur` | `--hm-blur-glass` | Blur behind a toast. |
+| `--hm-toast-max-width` | `--hm-surface-width-medium` | Widest a toast grows before its text wraps. |
+| `--hm-toast-danger-bg` | `--hm-color-danger-subtle` | Background of an error toast. |
+| `--hm-toast-danger-fg` | `--hm-color-danger-text` | Text of an error toast. It needs 4.5:1 contrast with its background. |
+| `--hm-progress-overlay-scrim` | `--hm-color-overlay` | Scrim over the content while a progress overlay shows. |
+| `--hm-progress-overlay-card-bg` | `--hm-color-surface-raised` | Background of a progress overlay's card. |
+| `--hm-progress-overlay-card-radius` | `--hm-radius-surface` | Corner radius of a progress overlay's card. |
+| `--hm-progress-overlay-card-shadow` | `--hm-shadow-overlay` | Shadow of a progress overlay's card. |
+| `--hm-progress-overlay-card-width` | `--hm-surface-width-small` | Width of a progress overlay's card. |
+| `--hm-tab-bar-item-radius` | `--hm-radius-control` | Corner radius of a tab bar's tabs. |
+| `--hm-sheet-width` | `--hm-surface-width-small` | Width of a sheet that comes from the inline end. |
+| `--hm-settings-panel-gap` | `--hm-gap-loose` | Gap between the settings in a settings panel. |
+| `--hm-settings-panel-label-fg` | `--hm-color-text` | Text of each setting's label in a settings panel. |
 
 ## Base tokens
 
