@@ -177,7 +177,7 @@ export default [
   scenario("every icon", ICONS, "3.5 kB"),
   // 7.5 kB; 7.40 kB.
   scenario("an editor", EDITOR, "7.5 kB"),
-  // 10.5 kB; 10.03 kB, with the palette's and toasts' own live regions for
+  // 10.5 kB; 10.35 kB, with the frame's own panel toggles and their tooltips, and the palette's and toasts' own live regions for
   // when a modal dialog makes the page's announcer inert. Everything an SDK
   // editor renders through (sdk-core ADR
   // 0067): the frame, its tools, the mode switch, the theme toggle, the tab
@@ -187,7 +187,6 @@ export default [
     "the editor frame",
     [
       "EditorFrame",
-      "EditorFrameToolsButton",
       "ToolList",
       "ModeSwitch",
       "ThemeToggle",
