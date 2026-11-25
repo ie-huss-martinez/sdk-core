@@ -51,12 +51,12 @@ test("edits and exports with the keyboard alone, with focus where it belongs", a
   const rotateLeft = page.getByRole("button", { name: "Rotate left" });
   await expect(rotateLeft).toBeFocused();
 
-  // Rotate with its key, flip from the toolbar, and undo both.
+  // Rotate with its key, flip from the tools panel, and undo both.
   await page.keyboard.press("]");
   await expect(preview("32 × 48")).toBeVisible();
   await expect(rotateLeft).toBeFocused();
-  await page.keyboard.press("ArrowRight");
-  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
   const flip = page.getByRole("button", { name: "Flip horizontally" });
   await expect(flip).toBeFocused();
   await page.keyboard.press("Enter");
@@ -141,9 +141,11 @@ test("edits and exports with the keyboard alone, with focus where it belongs", a
   await page.keyboard.press(process.platform === "darwin" ? "Meta+Shift+z" : "Control+Shift+z");
   expect((await plan(page)).redactions[0]).toMatchObject({ x: 14, width: 13 });
 
-  // Export: along the toolbar to its last tool, then the dialog's summary.
-  await page.keyboard.press("End");
+  // Export: the top bar's primary button, back from the panel, since the bar
+  // comes first; forwards, Firefox leaves the page for its own toolbar
+  // rather than wrapping. Then the dialog's summary.
   const exportTool = page.getByRole("button", { name: "Export", exact: true });
+  await tabTo(page, exportTool, true);
   await expect(exportTool).toBeFocused();
   await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: "Export image" });

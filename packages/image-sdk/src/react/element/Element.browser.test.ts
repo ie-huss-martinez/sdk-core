@@ -59,7 +59,9 @@ function record(editor: HTMLElement) {
 }
 
 const button = (editor: HTMLElement, tool: string) =>
-  editor.querySelector<HTMLButtonElement>(`button[data-tool="${tool}"]`);
+  editor.querySelector<HTMLButtonElement>(
+    `button:is([data-tool="${tool}"], [data-hm-tool-id="${tool}"])`,
+  );
 const preview = (editor: HTMLElement) =>
   editor.querySelector("canvas")?.getAttribute("aria-label") ?? "";
 

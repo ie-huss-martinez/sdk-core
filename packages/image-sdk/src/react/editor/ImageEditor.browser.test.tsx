@@ -3,9 +3,11 @@ import { act, createRef, StrictMode } from "react";
 import { createRoot, hydrateRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { page } from "vitest/browser";
 import { loadStyles } from "../../../test/browser/styles.js";
 import { FIRST_OPEN_TIMEOUT } from "../../../test/browser/timeouts.js";
 import type { ImagePlan } from "../../core/model/plan.js";
+import { imageEditorText } from "../../messages/editor-en.js";
 import { ImageEditorProvider } from "../ImageEditorProvider.js";
 import { ImageEditor } from "./ImageEditor.js";
 import type { ImageEditorHandle } from "./types.js";
@@ -23,6 +25,7 @@ async function photo(): Promise<Blob> {
 // The editor as hosts lay it out, with ui's stylesheet and the package's.
 let unloadStyles: () => void = () => {};
 beforeAll(async () => {
+  await page.viewport(1280, 900);
   unloadStyles = await loadStyles();
 });
 afterAll(() => unloadStyles());
@@ -43,7 +46,9 @@ afterEach(async () => {
 
 async function mount(element: Parameters<Root["render"]>[0]) {
   host = document.createElement("div");
-  host.style.width = "640px";
+  // Wide enough for the frame's desktop layout (sdk-core ADR 0067), where the
+  // tools panel shows the tools.
+  host.style.width = "1000px";
   host.style.height = "480px";
   document.body.append(host);
   root = createRoot(host);
@@ -62,20 +67,26 @@ async function until(condition: () => boolean, what: string, timeout = 5_000) {
   throw new Error(`timed out waiting for ${what}`);
 }
 
+/** The export dialog's title, from the editor's messages. */
+const EXPORT_TITLE = imageEditorText["export.title"];
+
 const button = (container: HTMLElement, tool: string) => {
-  const found = container.querySelector<HTMLButtonElement>(`button[data-tool="${tool}"]`);
+  const found = container.querySelector<HTMLButtonElement>(
+    `button:is([data-tool="${tool}"], [data-hm-tool-id="${tool}"])`,
+  );
   if (!found) throw new Error(`no ${tool} button`);
   return found;
 };
 
 describe("ImageEditor (docs/adr/0007)", () => {
   it("starts empty, with a button to choose an image, and no named canvas", async () => {
-    const container = await mount(<ImageEditor />);
+    const container = await mount(<ImageEditor defaultPreferences={{ mode: "expert" }} />);
     expect(container.querySelector("section")?.getAttribute("aria-label")).toBe("Image editor");
     expect(container.textContent).toContain("Choose an image");
     const canvas = container.querySelector("canvas");
     expect(canvas?.hidden).toBe(true);
-    expect(button(container, "image.rotate-left").disabled).toBe(true);
+    // Disabled, and still in the keyboard's order, as the tools panel keeps them.
+    expect(button(container, "image.rotate-left").getAttribute("aria-disabled")).toBe("true");
   });
 
   it("leaves the buttons of each stage state under the pointer, with nothing over them", async () => {
@@ -86,7 +97,9 @@ describe("ImageEditor (docs/adr/0007)", () => {
       return hit !== null && element.contains(hit);
     };
     const handle = createRef<ImageEditorHandle>();
-    const container = await mount(<ImageEditor ref={handle} />);
+    const container = await mount(
+      <ImageEditor defaultPreferences={{ mode: "expert" }} ref={handle} />,
+    );
 
     // Empty: the drop zone's button, and the zone itself around it.
     const choose = [...container.querySelectorAll("button")].find(
@@ -129,7 +142,9 @@ describe("ImageEditor (docs/adr/0007)", () => {
 
   it("opens an image into a named, unfocusable canvas, and moves focus to the first tool", async () => {
     const handle = createRef<ImageEditorHandle>();
-    const container = await mount(<ImageEditor ref={handle} />);
+    const container = await mount(
+      <ImageEditor defaultPreferences={{ mode: "expert" }} ref={handle} />,
+    );
     await act(async () => handle.current?.open(await photo()));
     await until(
       () => handle.current?.session.getSnapshot().status === "ready",
@@ -149,7 +164,11 @@ describe("ImageEditor (docs/adr/0007)", () => {
     const handle = createRef<ImageEditorHandle>();
     const changes: ImagePlan[] = [];
     const container = await mount(
-      <ImageEditor ref={handle} onChange={(plan) => changes.push(plan)} />,
+      <ImageEditor
+        defaultPreferences={{ mode: "expert" }}
+        ref={handle}
+        onChange={(plan) => changes.push(plan)}
+      />,
     );
     await act(async () => handle.current?.open(await photo()));
     await until(
@@ -174,7 +193,9 @@ describe("ImageEditor (docs/adr/0007)", () => {
 
   it("flips from the toolbar, and crops from its button, which shows it's active", async () => {
     const handle = createRef<ImageEditorHandle>();
-    const container = await mount(<ImageEditor ref={handle} />);
+    const container = await mount(
+      <ImageEditor defaultPreferences={{ mode: "expert" }} ref={handle} />,
+    );
     await act(async () => handle.current?.open(await photo()));
     await until(
       () => handle.current?.session.getSnapshot().status === "ready",
@@ -200,7 +221,9 @@ describe("ImageEditor (docs/adr/0007)", () => {
 
   it("takes shortcuts while focus is inside it, and not from outside", async () => {
     const handle = createRef<ImageEditorHandle>();
-    const container = await mount(<ImageEditor ref={handle} />);
+    const container = await mount(
+      <ImageEditor defaultPreferences={{ mode: "expert" }} ref={handle} />,
+    );
     await act(async () => handle.current?.open(await photo()));
     await until(
       () => handle.current?.session.getSnapshot().status === "ready",
@@ -225,7 +248,7 @@ describe("ImageEditor (docs/adr/0007)", () => {
     const handle = createRef<ImageEditorHandle>();
     const container = await mount(
       <StrictMode>
-        <ImageEditor ref={handle} />
+        <ImageEditor defaultPreferences={{ mode: "expert" }} ref={handle} />
       </StrictMode>,
     );
     await act(async () => handle.current?.open(await photo()));
@@ -242,7 +265,9 @@ describe("ImageEditor (docs/adr/0007)", () => {
 
   it("fits a narrow container, wrapping its toolbar rather than overflowing", async () => {
     const handle = createRef<ImageEditorHandle>();
-    const container = await mount(<ImageEditor ref={handle} />);
+    const container = await mount(
+      <ImageEditor defaultPreferences={{ mode: "expert" }} ref={handle} />,
+    );
     container.style.width = "320px";
     await act(async () => handle.current?.open(await photo()));
     await until(
@@ -266,7 +291,9 @@ describe("ImageEditor (docs/adr/0007)", () => {
     dialog.showModal();
     try {
       root = createRoot(host);
-      await act(async () => root?.render(<ImageEditor ref={handle} />));
+      await act(async () =>
+        root?.render(<ImageEditor defaultPreferences={{ mode: "expert" }} ref={handle} />),
+      );
       await act(async () => handle.current?.open(await photo()));
       await until(
         () => handle.current?.session.getSnapshot().status === "ready",
@@ -308,13 +335,13 @@ describe("ImageEditor (docs/adr/0007)", () => {
     const recoverable: unknown[] = [];
     try {
       host = document.createElement("div");
-      host.innerHTML = renderToString(<ImageEditor />);
+      host.innerHTML = renderToString(<ImageEditor defaultPreferences={{ mode: "expert" }} />);
       document.body.append(host);
       const undo = () => button(host as HTMLElement, "image.undo");
       expect(undo().getAttribute("aria-keyshortcuts")).toContain("Control+Z");
       const target = host;
       await act(async () => {
-        root = hydrateRoot(target, <ImageEditor />, {
+        root = hydrateRoot(target, <ImageEditor defaultPreferences={{ mode: "expert" }} />, {
           onRecoverableError: (error) => recoverable.push(error),
         });
       });
@@ -327,7 +354,9 @@ describe("ImageEditor (docs/adr/0007)", () => {
 
   it("shows a failed first open inside the drop zone, and a later one over the image", async () => {
     const handle = createRef<ImageEditorHandle>();
-    const container = await mount(<ImageEditor ref={handle} />);
+    const container = await mount(
+      <ImageEditor defaultPreferences={{ mode: "expert" }} ref={handle} />,
+    );
     const broken = new Blob([new Uint8Array([1, 2, 3, 4])]);
     await act(async () => handle.current?.open(broken));
     await until(() => container.querySelector(".hm-image-stage-error") !== null, "the error");
@@ -357,24 +386,51 @@ describe("ImageEditor (docs/adr/0007)", () => {
     expect(container.querySelector(".hm-image-stage-error")?.getAttribute("role")).toBe("alert");
   });
 
-  it("sets its theme on its root, and inherits the page's without one", async () => {
-    const container = await mount(<ImageEditor theme="dark" />);
-    expect(container.querySelector("section")?.getAttribute("data-hm-theme")).toBe("dark");
+  it("sets its theme on its root from the theme prop or the preferences, and inherits the page's without either", async () => {
+    const container = await mount(
+      <ImageEditor defaultPreferences={{ mode: "expert", theme: "light" }} theme="dark" />,
+    );
+    const theme = () => container.querySelector("section")?.getAttribute("data-hm-theme");
+    // The prop wins over the preferences.
+    expect(theme()).toBe("dark");
+    await act(async () => root?.unmount());
+    root = createRoot(container);
+    await act(async () => root?.render(<ImageEditor defaultPreferences={{ theme: "light" }} />));
+    expect(theme()).toBe("light");
+    await act(async () => root?.unmount());
+    root = createRoot(container);
+    // Without either, it inherits the page's, as an embedded editor did before
+    // the frame (docs/adr/0016).
     await act(async () => root?.render(<ImageEditor />));
-    expect(container.querySelector("section")?.hasAttribute("data-hm-theme")).toBe(false);
+    expect(theme()).toBeNull();
   });
 
   it("offers no export with export off, and its handle still exports", async () => {
     const handle = createRef<ImageEditorHandle>();
-    const container = await mount(<ImageEditor ref={handle} features={{ export: false }} />);
+    const container = await mount(
+      <ImageEditor
+        defaultPreferences={{ mode: "expert" }}
+        ref={handle}
+        features={{ export: false }}
+      />,
+    );
     await act(async () => handle.current?.open(await photo()));
     await until(
       () => handle.current?.session.getSnapshot().status === "ready",
       "the open",
       FIRST_OPEN_TIMEOUT,
     );
-    expect(container.querySelector('button[data-tool="image.export"]')).toBeNull();
-    expect(container.querySelector("dialog")).toBeNull();
+    expect(
+      container.querySelector(
+        'button:is([data-tool="image.export"], [data-hm-tool-id="image.export"])',
+      ),
+    ).toBeNull();
+    // No export dialog; the frame's own sheets and palette are other dialogs.
+    expect(
+      [...container.querySelectorAll("dialog")].map(
+        (dialog) => dialog.querySelector("h2")?.textContent,
+      ),
+    ).not.toContain(EXPORT_TITLE);
     const exported = await handle.current?.export({ type: "png" });
     expect(exported?.blob.type).toBe("image/png");
   });
@@ -382,7 +438,11 @@ describe("ImageEditor (docs/adr/0007)", () => {
   it("shows only the panels that are on, without a choice when one is left", async () => {
     const handle = createRef<ImageEditorHandle>();
     const container = await mount(
-      <ImageEditor ref={handle} features={{ adjust: false, filters: false }} />,
+      <ImageEditor
+        defaultPreferences={{ mode: "expert" }}
+        ref={handle}
+        features={{ adjust: false, filters: false }}
+      />,
     );
     await act(async () => handle.current?.open(await photo()));
     await until(
@@ -397,7 +457,11 @@ describe("ImageEditor (docs/adr/0007)", () => {
     // With every panel off, only cropping shows a panel.
     await act(async () =>
       root?.render(
-        <ImageEditor ref={handle} features={{ adjust: false, filters: false, info: false }} />,
+        <ImageEditor
+          defaultPreferences={{ mode: "expert" }}
+          ref={handle}
+          features={{ adjust: false, filters: false, info: false }}
+        />,
       ),
     );
     expect(inspector?.childElementCount).toBe(0);
@@ -406,7 +470,7 @@ describe("ImageEditor (docs/adr/0007)", () => {
   });
 
   it("renders its empty state on a server, with no canvas", () => {
-    const html = renderToString(<ImageEditor />);
+    const html = renderToString(<ImageEditor defaultPreferences={{ mode: "expert" }} />);
     expect(html).toContain("Choose an image");
     expect(html).not.toContain("<canvas");
   });

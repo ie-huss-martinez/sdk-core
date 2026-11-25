@@ -1,6 +1,7 @@
 import { act, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { page } from "vitest/browser";
 import { loadStyles } from "../../../test/browser/styles.js";
 import { FIRST_OPEN_TIMEOUT } from "../../../test/browser/timeouts.js";
 import { writeGif } from "../../../test/fixtures/gif-writer.js";
@@ -10,6 +11,8 @@ import type { ImageEditorHandle, ImageEditorProps } from "../editor/types.js";
 
 let unloadStyles: () => void = () => {};
 beforeAll(async () => {
+  // A viewport that holds the editor, so hit tests reach what they measure.
+  await page.viewport(1280, 900);
   unloadStyles = await loadStyles();
 });
 afterAll(() => unloadStyles());
@@ -50,11 +53,14 @@ async function photo(profile = false): Promise<File> {
 async function mounted(props: Partial<ImageEditorProps> = {}) {
   const handle = createRef<ImageEditorHandle>();
   host = document.createElement("div");
-  host.style.width = "900px";
+  // The frame's desktop layout (sdk-core ADR 0067): the properties beside the stage, not over it.
+  host.style.width = "1000px";
   host.style.height = "600px";
   document.body.append(host);
   root = createRoot(host);
-  await act(async () => root?.render(<ImageEditor ref={handle} {...props} />));
+  await act(async () =>
+    root?.render(<ImageEditor defaultPreferences={{ mode: "expert" }} ref={handle} {...props} />),
+  );
   const open = async (file: File) => {
     const before = handle.current?.session.getSnapshot().source?.id;
     await act(async () => handle.current?.open(file));

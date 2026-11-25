@@ -1,6 +1,7 @@
 import { act, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { page } from "vitest/browser";
 import { loadStyles } from "../../../test/browser/styles.js";
 import { FIRST_OPEN_TIMEOUT } from "../../../test/browser/timeouts.js";
 import type { ImagePlan, ImageRedaction } from "../../core/model/plan.js";
@@ -21,6 +22,9 @@ async function photo(): Promise<Blob> {
 // The editor as hosts lay it out, with ui's stylesheet and the package's.
 let unloadStyles: () => void = () => {};
 beforeAll(async () => {
+  // A desktop viewport, so the editor lays its tools out in a panel, as the
+  // tests of the tools expect; the phone layout has tests of its own.
+  await page.viewport(1280, 900);
   unloadStyles = await loadStyles();
 });
 afterAll(() => unloadStyles());
@@ -28,6 +32,7 @@ afterAll(() => unloadStyles());
 let root: Root | undefined;
 let host: HTMLElement | undefined;
 afterEach(async () => {
+  hostWidth = DESKTOP;
   await act(async () => root?.unmount());
   host?.remove();
 });
@@ -42,15 +47,25 @@ async function until(condition: () => boolean, what: string, timeout = 5_000) {
   throw new Error(`timed out waiting for ${what}`);
 }
 
+/**
+ * The host's width: wide enough for the frame's desktop layout (sdk-core ADR
+ * 0067), where the tools panel shows the tools, unless a test of the phone
+ * layout narrows it.
+ */
+const DESKTOP = 1000;
+let hostWidth = DESKTOP;
+
 async function opened(extra: { onChange?: (plan: ImagePlan) => void } = {}) {
   const handle = createRef<ImageEditorHandle>();
   host = document.createElement("div");
   // Inside the test page's viewport, so hit tests reach every handle.
-  host.style.width = "400px";
+  host.style.width = `${hostWidth}px`;
   host.style.height = "700px";
   document.body.append(host);
   root = createRoot(host);
-  await act(async () => root?.render(<ImageEditor ref={handle} {...extra} />));
+  await act(async () =>
+    root?.render(<ImageEditor defaultPreferences={{ mode: "expert" }} ref={handle} {...extra} />),
+  );
   await act(async () => handle.current?.open(await photo()));
   await until(
     () => handle.current?.session.getSnapshot().status === "ready",
@@ -97,7 +112,10 @@ const afterKeys = () =>
 
 const button = (text: string) =>
   [...document.querySelectorAll("button")].find((b) => b.textContent === text);
-const tool = () => document.querySelector<HTMLButtonElement>('[data-tool="image.redact"]');
+const tool = () =>
+  document.querySelector<HTMLButtonElement>(
+    ':is([data-tool="image.redact"], [data-hm-tool-id="image.redact"])',
+  );
 const panel = () => document.querySelector('section[aria-label="Redact"]');
 const frames = () => [...document.querySelectorAll<HTMLElement>(".hm-image-redact-frame")];
 const overlay = () => document.querySelector<HTMLElement>(".hm-image-redact-overlay");
@@ -169,7 +187,8 @@ async function screenOf(redactions: () => readonly ImageRedaction[]) {
 describe("redacting (docs/adr/0010)", () => {
   it("starts from the toolbar or R, on the button that adds an area, with solid black chosen", async () => {
     await opened();
-    expect(tool()?.getAttribute("aria-label")).toBe("Redact");
+    // A row of the tools panel, named by its visible label (sdk-core ADR 0067).
+    expect(tool()?.querySelector(".hm-tool-list-label")?.textContent).toBe("Redact");
     expect(tool()?.getAttribute("aria-pressed")).toBe("false");
     await key(document.activeElement, { key: "r" });
     await until(() => panel() !== null, "the panel");
@@ -384,6 +403,7 @@ describe("redacting (docs/adr/0010)", () => {
   });
 
   it("keeps the stage where it is while redacting, in a layout with the panel under it", async () => {
+    hostWidth = 400;
     // 400 pixels wide: the inspector sits under the stage and takes its
     // height from its content. If the panel grew, the stage would shrink,
     // and the image would move under the pointer while an area is placed.
@@ -658,7 +678,9 @@ describe("redacting (docs/adr/0010)", () => {
       session().redo();
     });
     await until(() => frames().length === 1, "the frame to return");
-    await click(document.querySelector('[data-tool="image.crop"]'));
+    await click(
+      document.querySelector(':is([data-tool="image.crop"], [data-hm-tool-id="image.crop"])'),
+    );
     await until(() => document.querySelector('[aria-label="Crop area"]') !== null, "cropping");
     expect(frames()).toHaveLength(0);
     expect(tool()?.getAttribute("aria-pressed")).toBe("false");
@@ -671,7 +693,10 @@ describe("redacting (docs/adr/0010)", () => {
         ? { key, mode, x: 1, y: 1, width: 5, height: 5, colour: "#000000" }
         : { key, mode, x: 10, y: 10, width: 5, height: 5 };
     const summary = () => document.querySelector(".hm-image-export-summary")?.textContent ?? "";
-    const exportTool = () => document.querySelector<HTMLElement>('[data-tool="image.export"]');
+    const exportTool = () =>
+      document.querySelector<HTMLElement>(
+        ':is([data-tool="image.export"], [data-hm-tool-id="image.export"])',
+      );
     await click(exportTool());
     await until(() => summary() !== "", "the summary");
     expect(summary()).not.toContain("redacted");

@@ -6,6 +6,8 @@ import {
   type ImageEditorHandle,
   type ImageEditorProps,
 } from "@hussmartinez/image-sdk/react";
+import { type EditorPreferences, readEditorPreferences } from "@hussmartinez/ui";
+import { useState } from "react";
 import { createRoot } from "react-dom/client";
 
 /** The editor, as a host renders it: ui's stylesheet first, then the SDK's (sdk-core ADR 0036). */
@@ -77,14 +79,61 @@ window.imageEditor = {
 };
 
 const element = document.querySelector("#editor");
+/**
+ * `?app` makes the page behave as the family's apps do (sdk-core ADR 0067):
+ * the editor fills the window, opens a first visit in Easy mode, and the
+ * page keeps the person's preferences in `localStorage`, never a cookie.
+ * Without it, the editor is embedded with its own defaults, as the tests
+ * expect.
+ */
+const APP = params.has("app");
+/** `?mode=easy|advanced|expert` starts the embedded editor in that mode. */
+const MODE = (["easy", "advanced", "expert"] as const).find((mode) => params.get("mode") === mode);
+const PREFERENCES = "editor-prefs:image-example";
+
+function readStored(): EditorPreferences {
+  let stored: unknown = null;
+  try {
+    stored = JSON.parse(localStorage.getItem(PREFERENCES) ?? "null");
+  } catch {
+    stored = null;
+  }
+  return readEditorPreferences(stored, { mode: "easy" });
+}
+
+function App() {
+  const [preferences, setPreferences] = useState(readStored);
+  return (
+    <ImageEditor
+      ref={attach}
+      preferences={preferences}
+      onPreferencesChange={(next) => {
+        setPreferences(next);
+        try {
+          localStorage.setItem(PREFERENCES, JSON.stringify(next));
+        } catch {
+          // Storage full or blocked: the preferences last until the page closes.
+        }
+      }}
+      {...(messages ? { messages, locale: "de" } : {})}
+    />
+  );
+}
+
 if (element) {
+  if (APP) document.body.classList.add("app");
   createRoot(element).render(
-    <div style={{ height: "70vh" }}>
-      <ImageEditor
-        ref={attach}
-        {...(messages ? { messages, locale: "de" } : {})}
-        {...(params.has("failure") ? { assetsUrl: "/image-sdk-failure/" } : {})}
-      />
+    <div style={{ height: APP ? "100dvh" : "70vh" }}>
+      {APP ? (
+        <App />
+      ) : (
+        <ImageEditor
+          ref={attach}
+          {...(messages ? { messages, locale: "de" } : {})}
+          {...(params.has("failure") ? { assetsUrl: "/image-sdk-failure/" } : {})}
+          {...(MODE ? { defaultPreferences: { mode: MODE } } : {})}
+        />
+      )}
     </div>,
   );
 }

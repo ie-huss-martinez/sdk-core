@@ -1,4 +1,4 @@
-import { createShortcutRegistry } from "@hussmartinez/sdk-core";
+import { createShortcutRegistry, type ShortcutPart } from "@hussmartinez/sdk-core";
 import {
   createContext,
   type ForwardedRef,
@@ -25,10 +25,10 @@ import { usePlatform } from "../../react/use-platform.js";
 import { IconButton } from "../button/IconButton.js";
 import { useUiText } from "../messages/UiMessagesProvider.js";
 import { cx, type StyleProps, unstyledAttribute } from "../shared/style-props.js";
+import { Tooltip } from "../tooltip/Tooltip.js";
 
 /**
- * The tools panel's state: labels, icons only, or hidden behind an edge tab
- * (sdk-core ADR 0067).
+ * The tools panel's state: labels, icons only, or hidden (sdk-core ADR 0067).
  *
  * @public
  */
@@ -65,7 +65,10 @@ export type EditorFramePart =
 export interface EditorFrameProps
   extends Omit<HTMLAttributes<HTMLDivElement>, "className">,
     StyleProps<EditorFramePart> {
-  /** The top bar's content, such as a {@link Toolbar} with the file's name, undo and Export. */
+  /**
+   * The top bar's content, such as a {@link Toolbar} with the file's name,
+   * undo and Export. The frame adds each panel's toggle around it.
+   */
   readonly topBar?: ReactNode;
   /** The tools, usually a {@link ToolList}. Without them there's no tools panel. */
   readonly tools?: ReactNode;
@@ -129,9 +132,11 @@ const TOGGLE_TOOLS = [{ id: "toggle-tools", shortcuts: "toggle-tools" as const }
  * a tools panel, the stage, a properties panel and a bottom region.
  *
  * - **Panels:** the tools are full, icons only or hidden, and the properties
- *   shown or hidden, both controlled. A hidden panel leaves an edge tab that
- *   brings it back, and `Mod+\` hides or shows the tools while focus is in
- *   the frame.
+ *   shown or hidden, both controlled. With a top bar, the frame puts one
+ *   toggle for each panel in it: ☰ at its start for the tools, and one at
+ *   its end for the properties, each with `aria-expanded`. Without a top bar,
+ *   a hidden panel leaves an edge tab instead. `Mod+\` hides or shows the
+ *   tools while focus is in the frame (sdk-core ADR 0067, amended).
  * - **Sizes are container queries:** below 60 rem full tools float over the
  *   stage instead of pushing it, and below 45 rem the {@link TabBar} replaces
  *   the tools and the properties sit under the stage.
@@ -248,7 +253,35 @@ export const EditorFrame = /* @__PURE__ */ forwardRef(function EditorFrame(
         onKeyDown={handleKeyDown}
       >
         {topBar == null ? null : (
-          <header className={cx("hm-editor-frame-top", classNames?.top)}>{topBar}</header>
+          <header className={cx("hm-editor-frame-top", classNames?.top)}>
+            {hasTools ? (
+              <PanelToggle
+                className="hm-editor-frame-tools-button"
+                label={toolsState === "hidden" ? text.showTools : text.hideTools}
+                icon={<MenuIcon />}
+                controls={toolsId}
+                expanded={toolsState !== "hidden"}
+                shortcut={shortcuts.describe("toggle-tools")[0]}
+                ariaKeyShortcuts={shortcuts.ariaKeyShortcuts("toggle-tools")}
+                unstyled={unstyled}
+                onClick={toggleTools}
+              />
+            ) : null}
+            {topBar}
+            {hasProperties ? (
+              <PanelToggle
+                className="hm-editor-frame-properties-button"
+                label={propertiesState === "hidden" ? text.showProperties : text.hideProperties}
+                icon={<PropertiesIcon />}
+                controls={propertiesId}
+                expanded={propertiesState !== "hidden"}
+                unstyled={unstyled}
+                onClick={() =>
+                  setPropertiesState(propertiesState === "hidden" ? "shown" : "hidden")
+                }
+              />
+            ) : null}
+          </header>
         )}
         <div className={cx("hm-editor-frame-body", classNames?.body)}>
           {hasTools ? (
@@ -268,19 +301,22 @@ export const EditorFrame = /* @__PURE__ */ forwardRef(function EditorFrame(
                   unstyled={unstyled}
                   onClick={() => setToolsState(toolsState === "full" ? "icons" : "full")}
                 />
-                <IconButton
-                  variant="quiet"
-                  size="small"
-                  label={text.hideTools}
-                  icon={<CloseIcon />}
-                  aria-controls={toolsId}
-                  unstyled={unstyled}
-                  onClick={() => setToolsState("hidden")}
-                />
+                {/* With a top bar, its ☰ is the one control that hides the tools. */}
+                {topBar == null ? (
+                  <IconButton
+                    variant="quiet"
+                    size="small"
+                    label={text.hideTools}
+                    icon={<CloseIcon />}
+                    aria-controls={toolsId}
+                    unstyled={unstyled}
+                    onClick={() => setToolsState("hidden")}
+                  />
+                ) : null}
               </div>
             </nav>
           ) : null}
-          {hasTools && toolsState === "hidden" ? (
+          {hasTools && toolsState === "hidden" && topBar == null ? (
             <button
               type="button"
               className={cx(
@@ -306,21 +342,24 @@ export const EditorFrame = /* @__PURE__ */ forwardRef(function EditorFrame(
               className={cx("hm-editor-frame-properties", classNames?.properties)}
               hidden={propertiesState === "hidden"}
             >
-              <div className="hm-editor-frame-properties-head">
-                <IconButton
-                  variant="quiet"
-                  size="small"
-                  label={text.hideProperties}
-                  icon={<CloseIcon />}
-                  aria-controls={propertiesId}
-                  unstyled={unstyled}
-                  onClick={() => setPropertiesState("hidden")}
-                />
-              </div>
+              {/* With a top bar, its toggle is the one control that hides the properties. */}
+              {topBar == null ? (
+                <div className="hm-editor-frame-properties-head">
+                  <IconButton
+                    variant="quiet"
+                    size="small"
+                    label={text.hideProperties}
+                    icon={<CloseIcon />}
+                    aria-controls={propertiesId}
+                    unstyled={unstyled}
+                    onClick={() => setPropertiesState("hidden")}
+                  />
+                </div>
+              ) : null}
               <div className="hm-editor-frame-properties-body">{properties}</div>
             </aside>
           ) : null}
-          {hasProperties && propertiesState === "hidden" ? (
+          {hasProperties && propertiesState === "hidden" && topBar == null ? (
             <button
               type="button"
               className={cx(
@@ -351,43 +390,34 @@ export const EditorFrame = /* @__PURE__ */ forwardRef(function EditorFrame(
 });
 
 /**
- * Props of {@link EditorFrameToolsButton}.
- *
- * @public
+ * The top bar's toggle for one panel: one control for one action, always in
+ * the same place, with its state as `aria-expanded` and its name saying
+ * what pressing it does (sdk-core ADR 0067, amended).
  */
-export interface EditorFrameToolsButtonProps
-  extends Omit<HTMLAttributes<HTMLButtonElement>, "className" | "children">,
-    StyleProps<"root" | "icon"> {
-  /** Defaults to `editorFrame.showTools` or `editorFrame.hideTools`. */
-  readonly label?: string | undefined;
-}
-
-/**
- * The top bar's ☰ button: shows or hides the frame's tools panel, with
- * `aria-expanded`. Renders nothing outside an {@link EditorFrame}.
- *
- * @public
- */
-export function EditorFrameToolsButton({
-  label,
-  ...props
-}: EditorFrameToolsButtonProps): ReactElement | null {
-  const frame = useEditorFrame();
-  const show = useUiText("editorFrame.showTools", uiEditorText);
-  const hide = useUiText("editorFrame.hideTools", uiEditorText);
-  if (!frame) {
-    return null;
-  }
-  const shown = frame.toolsState !== "hidden";
+function PanelToggle(props: {
+  readonly className: string;
+  readonly label: string;
+  readonly icon: ReactNode;
+  readonly controls: string;
+  readonly expanded: boolean;
+  readonly shortcut?: readonly ShortcutPart[] | undefined;
+  readonly ariaKeyShortcuts?: string | undefined;
+  readonly unstyled: boolean | undefined;
+  readonly onClick: () => void;
+}): ReactElement {
   return (
-    <IconButton
-      {...props}
-      variant="quiet"
-      label={label ?? (shown ? hide : show)}
-      icon={<MenuIcon />}
-      aria-controls={frame.toolsId}
-      aria-expanded={shown}
-      onClick={frame.toggleTools}
-    />
+    <Tooltip type="label" content={props.label} shortcut={props.shortcut}>
+      <IconButton
+        variant="quiet"
+        className={props.className}
+        label={props.label}
+        icon={props.icon}
+        aria-controls={props.controls}
+        aria-expanded={props.expanded}
+        aria-keyshortcuts={props.ariaKeyShortcuts || undefined}
+        unstyled={props.unstyled}
+        onClick={props.onClick}
+      />
+    </Tooltip>
   );
 }

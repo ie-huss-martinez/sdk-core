@@ -39,7 +39,13 @@ async function opened(width = 380, height = 900) {
   document.body.append(host);
   root = createRoot(host);
   await act(async () =>
-    root?.render(<ImageEditor ref={handle} onChange={(plan) => changes.push(plan)} />),
+    root?.render(
+      <ImageEditor
+        defaultPreferences={{ mode: "expert" }}
+        ref={handle}
+        onChange={(plan) => changes.push(plan)}
+      />,
+    ),
   );
   const canvas = new OffscreenCanvas(30, 20);
   canvas.getContext("2d")?.fillRect(0, 0, 30, 20);
@@ -248,7 +254,11 @@ describe("the inspector's place (docs/adr/0007)", () => {
           expect(box?.right, name).toBeLessThanOrEqual(column.right);
         }
         await act(async () =>
-          document.querySelector<HTMLButtonElement>('button[data-tool="image.crop"]')?.click(),
+          document
+            .querySelector<HTMLButtonElement>(
+              'button:is([data-tool="image.crop"], [data-hm-tool-id="image.crop"])',
+            )
+            ?.click(),
         );
         fits("Crop");
       } finally {
@@ -263,17 +273,21 @@ describe("the inspector's place (docs/adr/0007)", () => {
     return found;
   };
 
+  // The frame's breakpoints (sdk-core ADR 0067): from 60rem the properties
+  // sit beside the stage, and below 45rem under it; between them they float
+  // over its end, as a panel that can be hidden.
   it.each([
-    [900, "beside"],
+    [1000, "beside"],
     [380, "under"],
   ] as const)(
-    "at %ipx, puts the inspector %s the stage, overlapping nothing",
+    "at %ipx, puts the properties %s the stage, overlapping nothing",
     async (width, place) => {
       // Short, so the inspector's sliders can't fit and must scroll.
       await opened(width, 480);
       const stage = box(".hm-image-editor-stage");
-      const inspector = box(".hm-image-editor-inspector");
-      const toolbar = box(".hm-image-editor-toolbar");
+      // The panel that scrolls is the frame's properties region.
+      const inspector = box(".hm-editor-frame-properties");
+      const toolbar = box(".hm-editor-frame-top");
       if (place === "beside") {
         expect(inspector.left).toBeGreaterThanOrEqual(stage.right);
         expect(inspector.top).toBeGreaterThanOrEqual(toolbar.bottom);

@@ -185,14 +185,12 @@ describe("the built package on a server", () => {
       NumberField: { label: "Copies", locale: "de", defaultValue: 1234.5, name: "copies" },
       Slider: { label: "Volume", defaultValue: 40 },
       EditorFrame: {
-        topBar: createElement(component("EditorFrameToolsButton")),
+        topBar: "Image editor",
         tools: "Tools",
         properties: "Properties",
         bottom: "Timeline",
         children: "Stage",
       },
-      // Outside a frame it renders nothing; the frame above renders it.
-      EditorFrameToolsButton: {},
       ToolList: {
         label: "Tools",
         onRun: noop,
@@ -236,7 +234,7 @@ describe("the built package on a server", () => {
       onCancel: noop,
       children: "Stage",
     };
-    const emptyAlone = new Set(["EditorFrameToolsButton"]);
+    const emptyAlone = new Set<string>();
     // Icons take no required props, so each renders on its own (docs/adr/0005).
     const icons = Object.keys(react).filter((name) => /^[A-Z]\w*Icon$/.test(name));
     expect(icons.length).toBeGreaterThan(0);

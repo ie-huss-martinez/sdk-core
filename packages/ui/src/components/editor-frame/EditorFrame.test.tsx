@@ -6,7 +6,7 @@ import { SettingsPanel } from "../settings-panel/SettingsPanel.js";
 import { TabBar } from "../tab-bar/TabBar.js";
 import { ThemeToggle } from "../theme-toggle/ThemeToggle.js";
 import { ToolList } from "../tool-list/ToolList.js";
-import { EditorFrame, EditorFrameToolsButton } from "./EditorFrame.js";
+import { EditorFrame } from "./EditorFrame.js";
 
 const groups = [
   {
@@ -29,7 +29,7 @@ describe("EditorFrame on the server", () => {
   it("renders the landmarks, states and edge tabs", () => {
     const html = renderToString(
       <EditorFrame
-        topBar={<EditorFrameToolsButton />}
+        topBar="Image editor"
         tools={<ToolList label="Image tools" groups={groups} onRun={() => {}} />}
         properties={<p>Props</p>}
         bottom={<p>Timeline</p>}
@@ -49,11 +49,31 @@ describe("EditorFrame on the server", () => {
     expect(html).toMatch(
       /<aside id="[^"]+" aria-label="Properties" class="hm-editor-frame-properties">/,
     );
-    // The edge tab and the top bar's button both say the tools are collapsed.
+    // One control per panel, in the top bar, saying what pressing it does:
+    // no edge tab beside it (sdk-core ADR 0067, amended).
+    const button = (part: string) =>
+      html.match(new RegExp(`<button[^>]*${part}"[^>]*>`))?.[0] ?? "";
+    expect(button("hm-editor-frame-tools-button")).toMatch(/aria-label="Show tools"/);
+    expect(button("hm-editor-frame-tools-button")).toMatch(
+      /aria-controls="[^"]+" aria-expanded="false"/,
+    );
+    expect(button("hm-editor-frame-tools-button")).toMatch(/aria-keyshortcuts="Control\+\\"/);
+    expect(button("hm-editor-frame-properties-button")).toMatch(/aria-label="Hide properties"/);
+    expect(button("hm-editor-frame-properties-button")).toMatch(/aria-expanded="true"/);
+    expect(html).not.toContain("hm-editor-frame-edge");
+    expect(html).not.toContain('aria-label="Hide tools"');
+  });
+
+  it("leaves an edge tab for a hidden panel only without a top bar", () => {
+    const html = renderToString(
+      <EditorFrame tools="Tools" properties="Props" toolsState="hidden" propertiesState="hidden">
+        Stage
+      </EditorFrame>,
+    );
     expect(html).toMatch(
       /class="hm-editor-frame-edge hm-editor-frame-edge--tools" aria-controls="[^"]+" aria-expanded="false"/,
     );
-    expect(html).toContain('aria-label="Show tools"');
+    expect(html).toContain("hm-editor-frame-edge--properties");
   });
 
   it("leaves out panels it has no content for", () => {
@@ -61,7 +81,6 @@ describe("EditorFrame on the server", () => {
     expect(html).not.toContain("<nav");
     expect(html).not.toContain("<aside");
     expect(html).not.toContain("data-hm-tools");
-    expect(renderToString(<EditorFrameToolsButton />)).toBe("");
   });
 });
 

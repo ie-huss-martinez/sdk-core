@@ -98,7 +98,12 @@ async function mountEditor(value = engine(), props = {}) {
   await act(async () =>
     root?.render(
       <StrictMode>
-        <ImageEditor ref={handle} engine={value.engine} {...props} />
+        <ImageEditor
+          defaultPreferences={{ mode: "expert" }}
+          ref={handle}
+          engine={value.engine}
+          {...props}
+        />
       </StrictMode>,
     ),
   );
@@ -115,7 +120,7 @@ describe("terminal editor surface (ADR 0008)", () => {
         messages: { "editor.engineUnavailable": "Processing stopped: reopen this editor." },
       });
       const button = value.container.querySelector<HTMLButtonElement>(
-        `button[data-tool="image.${mode}"]`,
+        `button:is([data-tool="image.${mode}"], [data-hm-tool-id="image.${mode}"])`,
       );
       if (!button) throw new Error("no tool");
       await act(async () => {
@@ -166,7 +171,11 @@ describe("terminal editor surface (ADR 0008)", () => {
     const fresh = engine();
     const handle = createRef<ImageEditorHandle>();
     root = createRoot(value.container);
-    await act(async () => root?.render(<ImageEditor ref={handle} engine={fresh.engine} />));
+    await act(async () =>
+      root?.render(
+        <ImageEditor defaultPreferences={{ mode: "expert" }} ref={handle} engine={fresh.engine} />,
+      ),
+    );
     await act(async () => handle.current?.open(await photo()));
     await until(() => fresh.rendered.size === 1);
     expect(value.container.querySelector("canvas")).not.toBe(before);
@@ -250,7 +259,7 @@ it("does not hand a failed export to the host or retain its download dialog", as
   const onExport = vi.fn();
   const value = await mountEditor(engine(), { onExport });
   const exportButton = value.container.querySelector<HTMLButtonElement>(
-    'button[data-tool="image.export"]',
+    'button:is([data-tool="image.export"], [data-hm-tool-id="image.export"])',
   );
   await act(async () => exportButton?.click());
   await until(() => !!value.container.querySelector("dialog[open]"));
@@ -288,8 +297,8 @@ it("unsubscribes one shared-engine consumer without destroying or notifying anot
   await act(async () =>
     root?.render(
       <StrictMode>
-        <ImageEditor key="first" engine={value.engine} />
-        <ImageEditor key="second" engine={value.engine} />
+        <ImageEditor defaultPreferences={{ mode: "expert" }} key="first" engine={value.engine} />
+        <ImageEditor defaultPreferences={{ mode: "expert" }} key="second" engine={value.engine} />
       </StrictMode>,
     ),
   );
@@ -297,7 +306,7 @@ it("unsubscribes one shared-engine consumer without destroying or notifying anot
   await act(async () =>
     root?.render(
       <StrictMode>
-        <ImageEditor key="second" engine={value.engine} />
+        <ImageEditor defaultPreferences={{ mode: "expert" }} key="second" engine={value.engine} />
       </StrictMode>,
     ),
   );
@@ -316,7 +325,11 @@ it("draws after an explicit open retries a pre-resource handshake failure", asyn
   const container = host();
   root = createRoot(container);
   const handle = createRef<ImageEditorHandle>();
-  await act(async () => root?.render(<ImageEditor ref={handle} engine={value.engine} />));
+  await act(async () =>
+    root?.render(
+      <ImageEditor defaultPreferences={{ mode: "expert" }} ref={handle} engine={value.engine} />,
+    ),
+  );
   await until(() => value.failures[0]?.terminated === 1);
   expect(engineInternals(value.engine)?.getSnapshot()).toBe(false);
   await act(async () => handle.current?.open(await photo()));

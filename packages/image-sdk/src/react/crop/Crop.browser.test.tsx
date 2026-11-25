@@ -51,7 +51,9 @@ async function opened(
   host.style.height = "480px";
   document.body.append(host);
   root = createRoot(host);
-  await act(async () => root?.render(<ImageEditor ref={handle} {...extra} />));
+  await act(async () =>
+    root?.render(<ImageEditor defaultPreferences={{ mode: "expert" }} ref={handle} {...extra} />),
+  );
   await act(async () => handle.current?.open(await photo()));
   await until(
     () => handle.current?.session.getSnapshot().status === "ready",
@@ -288,7 +290,14 @@ const hosted = { handle: createRef<ImageEditorHandle>(), setPlan: (_plan: ImageP
 function Host() {
   const [plan, set] = useState<ImagePlan>();
   hosted.setPlan = set;
-  return <ImageEditor ref={hosted.handle} {...(plan ? { plan } : {})} onChange={set} />;
+  return (
+    <ImageEditor
+      defaultPreferences={{ mode: "expert" }}
+      ref={hosted.handle}
+      {...(plan ? { plan } : {})}
+      onChange={set}
+    />
+  );
 }
 
 describe("the controlled plan (docs/adr/0007)", () => {

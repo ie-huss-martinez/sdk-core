@@ -10,6 +10,8 @@ import { withPlaying } from "./playback.js";
  */
 export const playTool: ImageTool = /* @__PURE__ */ defineTool({
   id: "image.play",
+  level: "expert",
+  description: "tools.play.description",
   label: "tools.play",
   icon: "play",
   group: "playback",

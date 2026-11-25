@@ -1,6 +1,7 @@
 import { act, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { page } from "vitest/browser";
 import { loadStyles } from "../../../test/browser/styles.js";
 import { FIRST_OPEN_TIMEOUT } from "../../../test/browser/timeouts.js";
 import type { ImageLayer, ImagePlan } from "../../core/model/plan.js";
@@ -21,6 +22,9 @@ async function photo(width = 60, height = 40, colour = "#3080c0"): Promise<Blob>
 // The editor as hosts lay it out, with ui's stylesheet and the package's.
 let unloadStyles: () => void = () => {};
 beforeAll(async () => {
+  // A desktop viewport, so the editor lays its tools out in a panel, as the
+  // tests of the tools expect; the phone layout has tests of its own.
+  await page.viewport(1280, 900);
   unloadStyles = await loadStyles();
 });
 afterAll(() => unloadStyles());
@@ -28,6 +32,7 @@ afterAll(() => unloadStyles());
 let root: Root | undefined;
 let host: HTMLElement | undefined;
 afterEach(async () => {
+  hostWidth = DESKTOP;
   await act(async () => root?.unmount());
   host?.remove();
 });
@@ -42,14 +47,24 @@ async function until(condition: () => boolean, what: string, timeout = 5_000) {
   throw new Error(`timed out waiting for ${what}`);
 }
 
+/**
+ * The host's width: wide enough for the frame's desktop layout (sdk-core ADR
+ * 0067), where the tools panel shows the tools, unless a test of the phone
+ * layout narrows it.
+ */
+const DESKTOP = 1000;
+let hostWidth = DESKTOP;
+
 async function opened(extra: Partial<ImageEditorProps> = {}) {
   const handle = createRef<ImageEditorHandle>();
   host = document.createElement("div");
-  host.style.width = "400px";
+  host.style.width = `${hostWidth}px`;
   host.style.height = "900px";
   document.body.append(host);
   root = createRoot(host);
-  await act(async () => root?.render(<ImageEditor ref={handle} {...extra} />));
+  await act(async () =>
+    root?.render(<ImageEditor defaultPreferences={{ mode: "expert" }} ref={handle} {...extra} />),
+  );
   await act(async () => handle.current?.open(await photo()));
   await until(
     () => handle.current?.session.getSnapshot().status === "ready",
@@ -97,7 +112,10 @@ const rendered = () =>
       }),
   );
 
-const tool = (id: string) => document.querySelector<HTMLButtonElement>(`[data-tool="image.${id}"]`);
+const tool = (id: string) =>
+  document.querySelector<HTMLButtonElement>(
+    `:is([data-tool="image.${id}"], [data-hm-tool-id="image.${id}"])`,
+  );
 const panel = () => document.querySelector('section[aria-label="Layers"]');
 const frames = () => [...document.querySelectorAll<HTMLElement>(".hm-image-layer-frame")];
 const names = () =>
@@ -165,11 +183,21 @@ describe("adding layers (docs/adr/0013)", () => {
     host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
-    await act(async () => root?.render(<ImageEditor />));
-    const group = document.querySelector('[role="group"][aria-label="Add"]');
+    await act(async () => root?.render(<ImageEditor defaultPreferences={{ mode: "expert" }} />));
+    // The tools panel's group, each row named by its visible label (sdk-core ADR 0067).
+    const group = document.querySelector('[role="group"][aria-label="Add and draw"]');
     expect(
-      [...(group?.querySelectorAll("button") ?? [])].map((b) => b.getAttribute("aria-label")),
-    ).toEqual(["Add text", "Add a rectangle", "Add an ellipse", "Add an arrow", "Add an image"]);
+      [...(group?.querySelectorAll("button") ?? [])].map(
+        (b) => b.querySelector(".hm-tool-list-label")?.textContent,
+      ),
+    ).toEqual([
+      "Add text",
+      "Add an arrow",
+      "Add a rectangle",
+      "Add an ellipse",
+      "Add an image",
+      "Draw",
+    ]);
     expect(
       [...(group?.querySelectorAll("button") ?? [])].every(
         (b) => b.disabled || b.getAttribute("aria-disabled") === "true",

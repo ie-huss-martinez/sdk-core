@@ -59,7 +59,7 @@ export interface ToolListProps
   /** The list's accessible name, such as "Image tools". */
   readonly label: string;
   readonly groups: readonly ToolListGroup[];
-  /** Called with a tool's id when it's chosen. */
+  /** Called with a tool's id when it's chosen. Each row carries it as `data-hm-tool-id`, to find it again, such as to return focus. */
   readonly onRun: (id: string) => void;
   /**
    * `full` rows with labels, or `icons` only, named by tooltips. Inside an
@@ -153,6 +153,7 @@ export const ToolList = /* @__PURE__ */ forwardRef(function ToolList(
                       focusableWhenDisabled
                       aria-keyshortcuts={item.ariaKeyShortcuts}
                       unstyled={unstyled}
+                      data-hm-tool-id={item.id}
                       className={cx("hm-tool-list-item", classNames?.item)}
                       onClick={() => onRun(item.id)}
                     />
@@ -170,6 +171,7 @@ export const ToolList = /* @__PURE__ */ forwardRef(function ToolList(
                   focusableWhenDisabled
                   aria-keyshortcuts={item.ariaKeyShortcuts}
                   unstyled={unstyled}
+                  data-hm-tool-id={item.id}
                   className={cx(
                     "hm-tool-list-item",
                     hasDescription && "hm-tool-list-item--described",

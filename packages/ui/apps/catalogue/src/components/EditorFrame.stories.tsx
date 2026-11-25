@@ -4,7 +4,6 @@ import {
   DownloadIcon,
   EditorFrame,
   type EditorFramePropertiesState,
-  EditorFrameToolsButton,
   type EditorFrameToolsState,
   FlipHorizontalIcon,
   IconButton,
@@ -28,9 +27,11 @@ import { useState } from "react";
 /**
  * The layout every editor renders through: a top bar, a tools panel that's
  * full, icons only or hidden, the stage, a properties panel and a bottom
- * region. Its sizes follow the frame's own width, so a narrow frame floats
- * its tools, and a phone-sized one swaps them for a tab bar. `Ctrl+\` hides
- * and shows the tools while focus is in the frame.
+ * region. The top bar starts with the tools' toggle and ends with the
+ * properties' toggle, one control for each panel. Its sizes follow the
+ * frame's own width, so a narrow frame floats its tools, and a phone-sized
+ * one swaps them for a tab bar. `Ctrl+\` hides and shows the tools while
+ * focus is in the frame.
  */
 const meta = {
   title: "Layout/EditorFrame",
@@ -94,7 +95,6 @@ function TopBar() {
   const [theme, setTheme] = useState<"system" | "light" | "dark">("system");
   return (
     <>
-      <EditorFrameToolsButton />
       <strong>holiday.jpg</strong>
       <span style={{ flex: "1 1 auto" }} />
       <ModeSwitch value={mode} onValueChange={setMode} size="small" />
