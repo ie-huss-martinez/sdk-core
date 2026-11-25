@@ -52,12 +52,10 @@ export type {
   EditorFramePart,
   EditorFramePropertiesState,
   EditorFrameProps,
-  EditorFrameToolsButtonProps,
   EditorFrameToolsState,
 } from "./components/editor-frame/EditorFrame.js";
 export {
   EditorFrame,
-  EditorFrameToolsButton,
   useEditorFrame,
 } from "./components/editor-frame/EditorFrame.js";
 export type { FieldPart, FieldProps } from "./components/field/Field.js";

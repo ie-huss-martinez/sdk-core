@@ -6,7 +6,6 @@ import {
   CommandIcon,
   CommandPalette,
   EditorFrame,
-  EditorFrameToolsButton,
   IconButton,
   ModeSwitch,
   SettingsIcon,
@@ -490,7 +489,6 @@ function ImageEditorBody(props: BodyProps): ReactNode {
           toolsLayout={preferences.toolsLayout}
           topBar={
             <>
-              <EditorFrameToolsButton />
               <span className="hm-image-editor-title">
                 {messages.t("editor.label")}
                 {snapshot.source ? (

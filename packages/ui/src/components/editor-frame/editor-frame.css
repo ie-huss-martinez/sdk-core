@@ -110,6 +110,11 @@
     display: none;
   }
 
+  /* The properties' toggle ends the top bar. */
+  .hm-editor-frame-properties-button {
+    margin-inline-start: auto;
+  }
+
   .hm-editor-frame-properties-head {
     display: flex;
     justify-content: flex-end;
@@ -123,6 +128,10 @@
     overflow: auto;
     overscroll-behavior: contain;
     padding: var(--hm-editor-frame-inset, var(--hm-inset-normal));
+  }
+
+  /* Under the hide button, which only a frame without a top bar has. */
+  .hm-editor-frame-properties-head + .hm-editor-frame-properties-body {
     padding-block-start: 0;
   }
 
@@ -213,8 +222,10 @@
 
   /* Below 45 rem, the tab bar replaces the tools and the properties sit under the stage. */
   @container hm-editor-frame (width < 45rem) {
+    /* The tab bar holds the tools, so the tools panel and its toggle go. */
     .hm-editor-frame[data-hm-tab-bar] .hm-editor-frame-tools,
-    .hm-editor-frame[data-hm-tab-bar] .hm-editor-frame-edge--tools {
+    .hm-editor-frame[data-hm-tab-bar] .hm-editor-frame-edge--tools,
+    .hm-editor-frame[data-hm-tab-bar] .hm-editor-frame-tools-button {
       display: none;
     }
 

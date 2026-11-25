@@ -256,14 +256,6 @@ export interface EditorFrameProps extends Omit<HTMLAttributes<HTMLDivElement>, "
 }
 
 // @public
-export function EditorFrameToolsButton(input: EditorFrameToolsButtonProps): ReactElement | null;
-
-// @public
-export interface EditorFrameToolsButtonProps extends Omit<HTMLAttributes<HTMLButtonElement>, "className" | "children">, StyleProps<"root" | "icon"> {
-    readonly label?: string | undefined;
-}
-
-// @public
 export type EditorFrameToolsState = "full" | "icons" | "hidden";
 
 // @public

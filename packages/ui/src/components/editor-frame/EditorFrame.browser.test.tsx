@@ -12,7 +12,6 @@ import { ToolList } from "../tool-list/ToolList.js";
 import {
   EditorFrame,
   type EditorFramePropertiesState,
-  EditorFrameToolsButton,
   type EditorFrameToolsState,
 } from "./EditorFrame.js";
 
@@ -53,12 +52,12 @@ const groups = [
   },
 ];
 
-function Frame({ tabBar = false }: { tabBar?: boolean }) {
+function Frame({ tabBar = false, topBar = true }: { tabBar?: boolean; topBar?: boolean }) {
   const [tools, setTools] = useState<EditorFrameToolsState>("full");
   const [properties, setProperties] = useState<EditorFramePropertiesState>("shown");
   return (
     <EditorFrame
-      topBar={<EditorFrameToolsButton />}
+      topBar={topBar ? "Image editor" : undefined}
       tools={<ToolList label="Image tools" groups={groups} onRun={onRun} descriptions />}
       properties={<p>Brightness</p>}
       tabBar={tabBar ? <p>Tabs</p> : undefined}
@@ -84,7 +83,7 @@ const button = (container: HTMLElement, name: string) =>
   ) as HTMLButtonElement;
 
 describe("EditorFrame", () => {
-  it("collapses the tools to icons, hides them, and brings them back from the edge tab", async () => {
+  it("collapses the tools to icons, and hides and shows them from the top bar's one control", async () => {
     const container = render(<Frame />);
     const wide = nav(container).getBoundingClientRect().width;
     await userEvent.click(button(container, "Icons only"));
@@ -93,39 +92,54 @@ describe("EditorFrame", () => {
     await Promise.all(document.getAnimations().map((animation) => animation.finished));
     expect(nav(container).getBoundingClientRect().width).toBeLessThan(wide);
 
-    await userEvent.click(button(container, "Hide tools"));
+    // One control hides and shows the tools, named by what it does, with its state.
+    const toggle = () => container.querySelector(".hm-editor-frame-tools-button") as HTMLElement;
+    expect(toggle().getAttribute("aria-label")).toBe("Hide tools");
+    expect(toggle().getAttribute("aria-expanded")).toBe("true");
+    await userEvent.click(toggle());
     expect(nav(container).hidden).toBe(true);
-    const edge = button(container, "Tools");
-    expect(edge.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle().getAttribute("aria-label")).toBe("Show tools");
+    expect(toggle().getAttribute("aria-expanded")).toBe("false");
+    // Nothing else does the same: no edge tab, and no hide button in the panel.
+    expect(container.querySelector(".hm-editor-frame-edge")).toBeNull();
+    expect(button(container, "Hide tools")).toBeUndefined();
 
-    await userEvent.click(edge);
-    // It comes back as it was: icons.
+    // The keyboard reaches it with the tools hidden, and it brings them back as they were.
+    toggle().focus();
+    await userEvent.keyboard("{Enter}");
     expect(frameOf(container).dataset["hmTools"]).toBe("icons");
   });
 
-  it("hides and shows the tools with Mod+\\ while focus is inside, and from the top bar's button", async () => {
+  it("hides and shows the tools with Mod+\\ while focus is inside", async () => {
     const container = render(<Frame />);
     button(container, "Stage").focus();
     await userEvent.keyboard("{Control>}\\{/Control}");
     expect(nav(container).hidden).toBe(true);
     await userEvent.keyboard("{Control>}\\{/Control}");
     expect(nav(container).hidden).toBe(false);
-
-    const menu = button(container, "Hide tools");
-    expect(menu.getAttribute("aria-expanded")).toBe("true");
-    await userEvent.click(container.querySelector(".hm-editor-frame-top button") as HTMLElement);
-    expect(nav(container).hidden).toBe(true);
-    expect(
-      (container.querySelector(".hm-editor-frame-top button") as HTMLElement).getAttribute(
-        "aria-expanded",
-      ),
-    ).toBe("false");
   });
 
-  it("hides the properties to an edge tab", async () => {
+  it("hides and shows the properties from the top bar's toggle", async () => {
     const container = render(<Frame />);
-    await userEvent.click(button(container, "Hide properties"));
+    const toggle = () =>
+      container.querySelector(".hm-editor-frame-properties-button") as HTMLElement;
+    expect(toggle().getAttribute("aria-label")).toBe("Hide properties");
+    await userEvent.click(toggle());
     expect((container.querySelector("aside") as HTMLElement).hidden).toBe(true);
+    expect(toggle().getAttribute("aria-expanded")).toBe("false");
+    expect(container.querySelector(".hm-editor-frame-edge")).toBeNull();
+    await userEvent.click(toggle());
+    expect((container.querySelector("aside") as HTMLElement).hidden).toBe(false);
+  });
+
+  it("brings hidden panels back from edge tabs when there's no top bar", async () => {
+    const container = render(<Frame topBar={false} />);
+    await userEvent.click(button(container, "Hide tools"));
+    await userEvent.click(button(container, "Hide properties"));
+    const edge = button(container, "Tools");
+    expect(edge.getAttribute("aria-expanded")).toBe("false");
+    await userEvent.click(edge);
+    expect(nav(container).hidden).toBe(false);
     await userEvent.click(button(container, "Properties"));
     expect((container.querySelector("aside") as HTMLElement).hidden).toBe(false);
   });
@@ -139,6 +153,10 @@ describe("EditorFrame", () => {
     act(() => root?.unmount());
     const narrow = render(<Frame tabBar />, "30rem");
     expect(getComputedStyle(nav(narrow)).display).toBe("none");
+    // The tab bar holds the tools, so the top bar's toggle for them goes too.
+    expect(
+      getComputedStyle(narrow.querySelector(".hm-editor-frame-tools-button") as Element).display,
+    ).toBe("none");
     expect(
       getComputedStyle(narrow.querySelector(".hm-editor-frame-tab-bar") as Element).display,
     ).toBe("block");

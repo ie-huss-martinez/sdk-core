@@ -11,7 +11,7 @@ sdk-core ADR 0067 gives every SDK editor one frame, three modes and preferences 
 ## Decision
 
 - **The editor renders through `EditorFrame`.**
-  - The top bar holds the ☰ tools button, the editor's name and the image's size, the mode switch, Open, Undo and Redo, the command palette's button in Expert mode, the theme toggle, Settings, and Export as the one primary button.
+  - The top bar holds the editor's name and the image's size, the mode switch, Open, Undo and Redo, the command palette's button in Expert mode, the theme toggle, Settings, and Export as the one primary button. The frame adds its own toggles around them: ☰ for the tools at the start, and the properties' toggle at the end (sdk-core ADR 0067, amended).
   - The tools panel is a `ToolList`, and the stage is unchanged.
   - The properties panel holds the inspector.
   - The bottom region holds the animation bar, for an animation only.

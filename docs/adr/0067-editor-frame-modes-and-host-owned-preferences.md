@@ -3,12 +3,13 @@
 - **Status:** Accepted
 - **Date:** 2026-11-24
 - **Refines:** [ADR 0006](0006-design-tokens-and-theming.md), with motion and surface tokens and a `data-hm-motion` attribute; [ADR 0030](0030-tools-and-keyboard-shortcuts.md), with a level on every tool and two family shortcuts
+- **Amended:** 2026-11-25: each panel has one control in the top bar, and edge tabs only where there's no top bar. The maintainer saw the first preview with the tools hidden, showing a ☰ in the top bar and a "☰ Tools" tab over the stage, two identical controls for one action, and found it confusing. See "States"
 
 ## Context
 
 The four media editors and notes-sdk each lay themselves out their own way: a toolbar across the top, panels where they fit, and feedback that ranges from an `aria-live` line to nothing. They look and behave like four products. The maintainer decided on 2026-11-22 to give them one layout and one way of working, after comparing four clickable mock-ups:
 
-- **Layout:** a tools sidebar on desktop that collapses from full to icons to hidden, and comes back from an edge tab, a ☰ button in the top bar or `Ctrl+\`. A properties panel that hides to an edge tab. Bottom tabs and a sheet on phones.
+- **Layout:** a tools sidebar on desktop that collapses from full to icons to hidden, and comes back from an edge tab, a ☰ button in the top bar or `Ctrl+\`. A properties panel that hides to an edge tab. Bottom tabs and a sheet on phones. (The edge tabs were later kept only for a frame without a top bar: see the amendment.)
 - **Modes:** Easy, Advanced and Expert. Easy opens on "What would you like to do?" task cards, which are shortcuts into the editor, not a locked wizard. Expert adds a command palette on `Ctrl+K` and gives the canvas more room.
 - **Feedback:** a toast with Undo after each edit, a status line ("Edited · not exported yet") tied to the host's leave guard, export progress, and a "safe to leave" state after the download.
 - **A settings panel:** theme, mode, tools layout, density, motion, tips and the panels' states, saved on the device and never in a cookie.
@@ -41,7 +42,12 @@ Three constraints shape how this is built:
 | `ProgressOverlay` | Progress over the stage: a title, a bar, a line of detail and Cancel |
 | `ColorPicker` | A full colour picker, recorded in `ui`'s [ADR 0013](../../packages/ui/docs/adr/0013-colour-picker.md) |
 
-- **States.** The tools region is `full`, `icons` or `hidden`, and the properties region `shown` or `hidden`. A hidden region leaves an edge tab that brings it back. Both are controlled props of `EditorFrame`, with change callbacks.
+- **States.** The tools region is `full`, `icons` or `hidden`, and the properties region `shown` or `hidden`. Both are controlled props of `EditorFrame`, with change callbacks.
+- **One control for each panel** (amended 2026-11-25).
+  - With a top bar, the frame puts a toggle for each panel in it: ☰ at its start for the tools, and one at its end for the properties.
+  - Each toggle stays in the same place, says what pressing it does ("Show tools", "Hide tools") and carries its state as `aria-expanded`. The tools' toggle hides and shows them, as `Mod+\` does.
+  - Nothing else does the same thing: no edge tab, and no hide button inside the panel. Only a frame without a top bar leaves an edge tab for a hidden panel.
+  - On a phone the tab bar holds the tools, so their toggle goes too.
 - **Tools layout.** `sidebar` puts the tools at the inline start; `dock` floats them as a pill over the foot of the stage, the look notes-sdk uses.
 - **Sizes are container queries,** not viewport queries (`STANDARDS.md`), because an editor can be embedded in a column. Below 60 rem the full tools float over the stage instead of pushing it; below 45 rem the tools move into the `TabBar` and the properties sit at the foot of the stage. The breakpoints sit below the viewport widths in the mock-ups (1024 and 768 px), because an app's frame shares the viewport with its own chrome, such as an ad column. A `Sheet` is in the top layer, outside any container, so it alone follows the viewport.
 - **Landmarks.** The top bar is a `header` holding a `toolbar`; the tools are a `nav` named "Tools"; the stage stays in the SDK's `main` or region; the properties panel is a `complementary` region named "Properties".
