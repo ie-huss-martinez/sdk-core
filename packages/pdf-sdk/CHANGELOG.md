@@ -1,5 +1,13 @@
 # @hussmartinez/pdf-sdk
 
+## 0.8.1
+
+### Patch Changes
+
+- [#248](https://github.com/ie-huss-martinez/sdk-core/pull/248) [`0ba282b`](https://github.com/ie-huss-martinez/sdk-core/commit/0ba282b8f128846edc5e29b7457f18f300ea316f) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `propertiesFooter`: host content in the properties column, such as an app's ad slot. `PdfEditor` has no properties panel, so on a frame 60 rem wide or more the footer has a column of its own at the inline end, at its foot, beside the stage, while it fits the column's height. Narrower, it hides.
+- Updated dependencies [[`0ba282b`](https://github.com/ie-huss-martinez/sdk-core/commit/0ba282b8f128846edc5e29b7457f18f300ea316f), [`0ba282b`](https://github.com/ie-huss-martinez/sdk-core/commit/0ba282b8f128846edc5e29b7457f18f300ea316f), [`9117d83`](https://github.com/ie-huss-martinez/sdk-core/commit/9117d83decaab57a7b0500a4d23e6f245b2097b7)]:
+  - @hussmartinez/ui@0.17.1
+
 ## 0.8.0
 
 ### Minor Changes
