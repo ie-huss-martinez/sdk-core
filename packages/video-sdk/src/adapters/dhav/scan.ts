@@ -3,7 +3,7 @@ import { VideoError } from "../../core/errors/video-error.js";
 import type { VideoFilePolicy } from "../../core/errors/video-limits.js";
 import { malformed, refused } from "../front-check/errors.js";
 import { overPacketCap, packetCaps } from "../packets.js";
-import { streamHeader } from "./bitstream.js";
+import { leadingParameterSets, type StreamHeader, streamHeader } from "./bitstream.js";
 import {
   audioCodecOf,
   FRAME,
@@ -45,6 +45,13 @@ export interface DhavIndex {
   readonly video: PacketIndex & {
     /** 1 for each key packet, 0 for the others. The first is always a key packet. */
     readonly keys: Uint8Array;
+    /** Which codec the stream's parameter set read as. */
+    readonly kind: "h264" | "hevc";
+    /**
+     * The first key picture's parameter sets, as Annex B. A decode that
+     * starts at a key picture without its own is given these first.
+     */
+    readonly parameterSets: Uint8Array;
     /** The codec, as a WebCodecs codec string, from the stream's own parameter set. */
     readonly codec: string;
     readonly width: number;
@@ -66,7 +73,10 @@ export interface DhavIndex {
     | null;
   /** Every stream in the file, of each kind and channel, including those not used. */
   readonly tracks: number;
-  /** The bytes this index holds, which `maxIndexSize` bounds. */
+  /**
+   * The bytes this index holds, which `maxIndexSize` bounds. While the walk
+   * collects them, its columns may reserve up to twice as much.
+   */
   readonly size: number;
 }
 
@@ -117,10 +127,11 @@ class Columns {
   finish(): PacketIndex & { readonly keys: Uint8Array } {
     return {
       count: this.count,
-      offsets: this.offsets.subarray(0, this.count),
-      sizes: this.sizes.subarray(0, this.count),
-      times: this.times.subarray(0, this.count),
-      keys: this.keys.subarray(0, this.count),
+      // Copies of the part in use, so that the room the columns grew into is released.
+      offsets: this.offsets.slice(0, this.count),
+      sizes: this.sizes.slice(0, this.count),
+      times: this.times.slice(0, this.count),
+      keys: this.keys.slice(0, this.count),
     };
   }
 }
@@ -179,7 +190,7 @@ export async function scanDhav(
   const maxIndexSize = policy.limits.maxIndexSize.maximum;
   const videoPackets = new Columns();
   const audioPackets = new Columns();
-  let video: { codec: string; width: number; height: number } | undefined;
+  let video: (StreamHeader & { parameterSets: Uint8Array }) | undefined;
   let videoChannel = -1;
   let audio:
     | {
@@ -215,7 +226,10 @@ export async function scanDhav(
     return time;
   };
   const checkIndex = () => {
-    const size = videoPackets.count * VIDEO_ENTRY + audioPackets.count * AUDIO_ENTRY;
+    const size =
+      videoPackets.count * VIDEO_ENTRY +
+      audioPackets.count * AUDIO_ENTRY +
+      (video?.parameterSets.length ?? 0);
     if (size > maxIndexSize) policy.check("maxIndexSize", size);
   };
 
@@ -267,12 +281,12 @@ export async function scanDhav(
             details: { container: CONTAINER, codec: unread, track: "video" },
           });
         }
-        const stream = streamHeader(
-          await reader.bytes(payload, Math.min(size, HEADER_SEARCH)),
-          declaredCodec === HEVC_CODEC ? "hevc" : "h264",
-        );
+        const start = await reader.bytes(payload, Math.min(size, HEADER_SEARCH));
+        const stream = streamHeader(start, declaredCodec === HEVC_CODEC ? "hevc" : "h264");
         if (!stream) throw malformed(CONTAINER, "parameter-sets");
-        video = stream;
+        // A copy: the walk's window is let go, and these stay with the index.
+        const parameterSets = leadingParameterSets(start, stream.kind).sets.slice();
+        video = { ...stream, parameterSets };
         videoChannel = header.channel;
       }
       let time = place(header);
@@ -329,6 +343,9 @@ export async function scanDhav(
         }
       : null,
     tracks: streams.size,
-    size: videoPackets.count * VIDEO_ENTRY + audioPackets.count * AUDIO_ENTRY,
+    size:
+      videoPackets.count * VIDEO_ENTRY +
+      audioPackets.count * AUDIO_ENTRY +
+      video.parameterSets.length,
   };
 }

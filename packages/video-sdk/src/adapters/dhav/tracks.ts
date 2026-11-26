@@ -9,6 +9,7 @@ import type {
   VideoPackets,
 } from "../packets.js";
 import { peakPerSecond } from "../packets.js";
+import { leadingParameterSets } from "./bitstream.js";
 import type { DhavIndex, PacketIndex } from "./scan.js";
 
 /** One packet of a DHAV file: its place in the index, and its payload. */
@@ -17,7 +18,8 @@ class DhavPacket implements VideoPacket, AudioPacket {
   readonly type: "key" | "delta";
   readonly microsecondTimestamp: number;
   private readonly duration: number;
-  private readonly data: Uint8Array;
+  /** The payload, as it goes to the decoder. */
+  readonly data: Uint8Array;
 
   constructor(
     index: number,
@@ -75,6 +77,8 @@ function packetReader(
   track: PacketIndex,
   type: (index: number) => "key" | "delta",
   duration: (index: number) => number,
+  /** What a packet's payload is given to the decoder as; the payload itself by default. */
+  prepare: (index: number, data: Uint8Array) => Uint8Array = (_, data) => data,
 ) {
   const reader = createWindowReader(file);
   const read = async (index: number): Promise<DhavPacket | null> => {
@@ -86,11 +90,22 @@ function packetReader(
         details: { container: "dav", reason: "truncated" },
       });
     }
-    return new DhavPacket(index, type(index), track.times[index] as number, duration(index), data);
+    return new DhavPacket(
+      index,
+      type(index),
+      track.times[index] as number,
+      duration(index),
+      prepare(index, data),
+    );
   };
   return {
     read,
-    at: (seconds: number) => indexAt(track.times, seconds * 1_000_000),
+    /** The first of the packets with the last time at or before `seconds`, or -1. */
+    at: (seconds: number) => {
+      let at = indexAt(track.times, seconds * 1_000_000);
+      while (at > 0 && track.times[at - 1] === track.times[at]) at -= 1;
+      return at;
+    },
     next: (packet: VideoPacket | AudioPacket) =>
       packet instanceof DhavPacket ? read(packet.index + 1) : Promise.resolve(null),
   };
@@ -111,12 +126,25 @@ export function openDhavTracks(file: Blob, index: DhavIndex): OpenTracks {
     at + 1 < video.count
       ? (video.times[at + 1] as number) - (video.times[at] as number)
       : video.period;
+  /**
+   * A decode may start at any key picture, with a new decoder that knows no
+   * parameter sets. A key picture that doesn't carry its own is given the
+   * first key picture's, ahead of it.
+   */
+  const withParameterSets = (at: number, data: Uint8Array): Uint8Array => {
+    if (video.keys[at] !== 1 || leadingParameterSets(data, video.kind).complete) return data;
+    const joined = new Uint8Array(video.parameterSets.length + data.length);
+    joined.set(video.parameterSets);
+    joined.set(data, video.parameterSets.length);
+    return joined;
+  };
   const videoPackets = (): VideoPackets => {
     const reader = packetReader(
       file,
       video,
       (at) => (video.keys[at] === 1 ? "key" : "delta"),
       pictureLength,
+      withParameterSets,
     );
     return {
       getFirstPacket: () => reader.read(0),

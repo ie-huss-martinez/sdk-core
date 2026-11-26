@@ -6,6 +6,7 @@ import {
   MAX_STALLED_DECODE_QUEUE,
 } from "../../src/adapters/mediabunny/video-decoder.js";
 import { isVideoError, VideoError } from "../../src/index.js";
+import { concat, joinNals, splitNals } from "../builders/dhav.js";
 import landscapeVp8 from "../fixtures/video/landscape-vp8.webm?url";
 import numberedDav from "../fixtures/video/numbered.dav?url";
 import type { DecodeContract, DecodeRequest } from "./decode.worker.js";
@@ -59,6 +60,48 @@ describe("decoding video frames in a worker", () => {
     // From 1.5 s, which is decoded from the key picture at 1 s.
     const range = await decode({ from: 1_500_000, to: 2_100_000 }, numberedDav);
     expect(range.timestamps).toEqual(Array.from({ length: 15 }, (_, n) => 1_520_000 + n * 40_000));
+  });
+
+  // A recorder may send its parameter sets once. A decode that starts at a
+  // later key picture is a new decoder, so the reader gives it the first
+  // key picture's sets (docs/adr/0009).
+  it("decodes from a later key picture of a DAV recording that carries no parameter sets", async () => {
+    const bytes = new Uint8Array(await (await fetch(numberedDav)).arrayBuffer());
+    const view = new DataView(bytes.buffer);
+    const frames: Uint8Array[] = [];
+    let keys = 0;
+    for (let at = 0; at < bytes.length; ) {
+      const length = view.getUint32(at + 12, true);
+      const payload = at + 24 + (bytes[at + 22] as number);
+      const frame = bytes.slice(at, at + length);
+      at += length;
+      if (frame[4] !== 0xfd) {
+        frames.push(frame);
+        continue;
+      }
+      keys += 1;
+      if (keys === 1) {
+        frames.push(frame);
+        continue;
+      }
+      // The same frame without its sequence and picture parameter sets.
+      const slices = splitNals(bytes.subarray(payload, at - 8)).filter(
+        (nal) => ((nal[0] as number) & 0x1f) !== 7 && ((nal[0] as number) & 0x1f) !== 8,
+      );
+      const stripped = concat(
+        frame.subarray(0, payload - (at - length)),
+        joinNals(slices),
+        frame.subarray(length - 8),
+      );
+      new DataView(stripped.buffer).setUint32(12, stripped.length, true);
+      frames.push(stripped);
+    }
+    expect(keys).toBe(3);
+    const file = new Blob([new Uint8Array(concat(...frames))]);
+    const range = await client.call("decode", { file, from: 1_500_000, to: 2_100_000 });
+    expect(range.timestamps).toEqual(Array.from({ length: 15 }, (_, n) => 1_520_000 + n * 40_000));
+    const all = await client.call("decode", { file });
+    expect(all.timestamps).toHaveLength(75);
   });
 
   it("delivers only the frames of a range, starting from the key packet before it", async () => {

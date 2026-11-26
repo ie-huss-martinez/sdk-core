@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { joinNals } from "../../../test/builders/dhav.js";
-import { nalUnits, streamHeader } from "./bitstream.js";
+import { leadingParameterSets, nalUnits, streamHeader } from "./bitstream.js";
 
 const fixture = async (name: string) =>
   new Uint8Array(await readFile(`test/fixtures/video/${name}`));
@@ -59,6 +59,7 @@ describe("reading a stream's parameter set", () => {
     // 720 lines are 45 macroblocks, coded as 46 with 16 lines cropped.
     const sps = avcSps(await fixture("landscape.mp4"));
     expect(streamHeader(joinNals([sps]), "h264")).toEqual({
+      kind: "h264",
       codec: "avc1.64001f",
       width: 1280,
       height: 720,
@@ -68,6 +69,7 @@ describe("reading a stream's parameter set", () => {
   it("reads HEVC's profile, tier, level and cropped size", async () => {
     const sps = hevcSps(await fixture("hevc.mp4"));
     expect(streamHeader(joinNals([sps]), "hevc")).toEqual({
+      kind: "hevc",
       codec: "hev1.1.6.L60.90",
       width: 320,
       height: 180,
@@ -101,5 +103,60 @@ describe("reading a stream's parameter set", () => {
     // run of more than 32 zeros where the width is.
     const endless = Uint8Array.of(0x67, 66, 0, 30, 0xf8, 0, 0, 0, 0, 0, 0xff);
     expect(streamHeader(joinNals([endless]), "h264")).toBeNull();
+  });
+});
+
+describe("the parameter sets at the start of a picture", () => {
+  const SPS = Uint8Array.of(0x67, 1, 2);
+  const PPS = Uint8Array.of(0x68, 3);
+  const SEI = Uint8Array.of(0x06, 9, 9);
+  const SLICE = Uint8Array.of(0x65, 4, 5, 6);
+
+  it("are the sets before the first slice, each after a four-byte start code", () => {
+    // A three-byte start code before the second set, and other units between.
+    const stream = Uint8Array.of(
+      0,
+      0,
+      0,
+      1,
+      ...SPS,
+      0,
+      0,
+      1,
+      ...PPS,
+      0,
+      0,
+      0,
+      1,
+      ...SEI,
+      0,
+      0,
+      1,
+      ...SLICE,
+    );
+    const { sets, complete } = leadingParameterSets(stream, "h264");
+    expect([...sets]).toEqual([...joinNals([SPS, PPS])]);
+    expect(complete).toBe(true);
+  });
+
+  it("aren't complete without both, and never include what follows a slice", () => {
+    const late = joinNals([SPS, SLICE, PPS]);
+    expect(leadingParameterSets(late, "h264")).toEqual({ sets: joinNals([SPS]), complete: false });
+    expect(leadingParameterSets(joinNals([SLICE]), "h264")).toEqual({
+      sets: new Uint8Array(0),
+      complete: false,
+    });
+    expect(leadingParameterSets(new Uint8Array(0), "h264").complete).toBe(false);
+  });
+
+  it("need a video parameter set too for HEVC", () => {
+    const vps = Uint8Array.of(0x40, 1, 7);
+    const sps = Uint8Array.of(0x42, 1, 8);
+    const pps = Uint8Array.of(0x44, 1, 9);
+    const slice = Uint8Array.of(0x26, 1, 5);
+    expect(leadingParameterSets(joinNals([sps, pps, slice]), "hevc").complete).toBe(false);
+    const all = leadingParameterSets(joinNals([vps, sps, pps, slice]), "hevc");
+    expect(all.complete).toBe(true);
+    expect([...all.sets]).toEqual([...joinNals([vps, sps, pps])]);
   });
 });

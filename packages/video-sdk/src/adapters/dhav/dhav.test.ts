@@ -96,8 +96,12 @@ describe("probing the generated DAV fixtures", () => {
       packets: 75,
     });
     expect(probed.audio).toEqual({ codec: "alaw", sampleRate: 8_000, channels: 1 });
-    // 75 pictures of 21 bytes and 75 sound frames of 20, in the index.
-    expect(probed.indexSize).toBe(75 * 21 + 75 * 20);
+    // 75 pictures of 21 bytes and 75 sound frames of 20, and the parameter sets.
+    const { front } = await index(await fixture("numbered.dav"));
+    if (front.family !== "dhav") throw new Error("not a DHAV file");
+    const sets = front.index.video.parameterSets.length;
+    expect(sets).toBeGreaterThan(0);
+    expect(probed.indexSize).toBe(75 * 21 + 75 * 20 + sets);
     expect(probed.peakBitrate).toBeGreaterThan(0);
     expect(probed.maxPacketSize).toBeGreaterThan(320);
     expect(checkProbe(videoLimits.resolve(), probed)).toEqual([]);
@@ -224,8 +228,16 @@ describe("a DHAV file's limits", () => {
 
   it("stops once the index is larger than maxIndexSize", async () => {
     const bytes = await file(key(0), picture(40), picture(80));
-    expect((await probe(bytes, { maxIndexSize: 63 })).indexSize).toBe(63);
-    expect(await failure(bytes, { maxIndexSize: 62 })).toMatchObject({ code: "INDEX_TOO_LARGE" });
+    // Three pictures of 21 bytes, and the parameter sets kept from the first.
+    const { front } = await index(bytes);
+    if (front.family !== "dhav") throw new Error("not a DHAV file");
+    const size = 63 + front.index.video.parameterSets.length;
+    expect((await probe(bytes, { maxIndexSize: size })).indexSize).toBe(size);
+    expect(await failure(bytes, { maxIndexSize: size - 1 })).toMatchObject({
+      code: "INDEX_TOO_LARGE",
+    });
+    // The index holds what it reports, not the room its columns grew into.
+    expect(front.index.video.times.buffer.byteLength).toBe(3 * 8);
   });
 
   it("stops after as many frames as the limits allow packets, plus the margin", async () => {
@@ -382,6 +394,49 @@ describe("reading a DHAV file's packets", () => {
     const last = await packets?.getPacket(99);
     expect(last?.microsecondTimestamp).toBe(2_960_000);
     expect(last && (await packets?.getNextPacket(last))).toBeNull();
+  });
+
+  it("gives a key picture without parameter sets the first key picture's, ahead of it", async () => {
+    // A key picture that is one coded slice, as a recorder that sends its
+    // parameter sets once would write the later ones.
+    const bare = Uint8Array.of(0, 0, 0, 1, 0x65, 0x88, 0x84, 0x00);
+    const bytes = await file(key(0), picture(40), key(80, { payload: bare }), picture(120));
+    const { front } = await index(bytes);
+    if (front.family !== "dhav") throw new Error("not a DHAV file");
+    const sets = front.index.video.parameterSets;
+    const packets = openDhavTracks(blob(bytes), front.index).video.packets();
+    const payload = async (seconds: number) =>
+      ((await packets.getKeyPacket(seconds)) as unknown as { data: Uint8Array }).data;
+    // The first carries its own, and goes to the decoder as it is.
+    expect([...(await payload(0))]).toEqual([...(await keyPayload)]);
+    // The later one starts a decode too: it gets the sets, then its slice.
+    expect([...(await payload(0.08))]).toEqual([...sets, ...bare]);
+    // H.264's two sets, each after a start code.
+    expect([...sets.subarray(0, 5)]).toEqual([0, 0, 0, 1, 0x67]);
+    const first = await packets.getFirstPacket();
+    const delta =
+      first && ((await packets.getNextPacket(first)) as unknown as { data: Uint8Array });
+    expect([...(delta?.data ?? [])]).toEqual([...DELTA]);
+  });
+
+  it("starts from the first of several sound frames that share a time", async () => {
+    const bytes = await file(
+      key(0),
+      sound(0, { payload: new Uint8Array(320).fill(1) }),
+      sound(0, { payload: new Uint8Array(320).fill(2) }),
+      sound(40, { payload: new Uint8Array(320).fill(3) }),
+    );
+    const { front, audio } = await index(bytes);
+    if (front.family !== "dhav") throw new Error("not a DHAV file");
+    expect(audio).toEqual([0, 0, 40]);
+    const packets = openDhavTracks(blob(bytes), front.index).audio?.packets();
+    const data = (packet: unknown) => (packet as { data: Uint8Array }).data[0];
+    // A decode from the start asks for the packet at 0: none is skipped.
+    const first = await packets?.getPacket(0);
+    expect(data(first)).toBe(1);
+    const second = first && (await packets?.getNextPacket(first));
+    expect(data(second)).toBe(2);
+    expect(data(await packets?.getPacket(0.04))).toBe(3);
   });
 
   it("fails with INVALID_VIDEO when the file is shorter than when it was indexed", async () => {
