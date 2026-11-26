@@ -126,22 +126,32 @@ export const Tabs = /* @__PURE__ */ forwardRef(function Tabs(
   // An id that names no tab, or none at all, selects the first.
   const selected = tabs.find((tab) => tab.id === wanted)?.id ?? tabs[0]?.id;
 
-  // A row that scrolls shows its selected tab, at first and when the owner
-  // changes it. Only the row moves, never the page, as scrollIntoView would.
+  // A row that scrolls shows its selected tab: at first, when the owner
+  // changes it, and when the row gets its size, which it has none of while an
+  // ancestor is hidden. Only the row moves, never the page, as scrollIntoView
+  // would.
   const list = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const row = list.current;
-    const tab = row?.querySelector<HTMLElement>('[aria-selected="true"]');
-    if (!ready || !row || !tab || selected === undefined) {
+    if (!ready || !row || selected === undefined) {
       return;
     }
-    const visible = row.getBoundingClientRect();
-    const box = tab.getBoundingClientRect();
-    if (box.left < visible.left) {
-      row.scrollLeft += box.left - visible.left;
-    } else if (box.right > visible.right) {
-      row.scrollLeft += box.right - visible.right;
-    }
+    // An observer reports once when it starts, then on every change of size.
+    const observer = new ResizeObserver(() => {
+      const tab = row.querySelector<HTMLElement>('[aria-selected="true"]');
+      if (!tab) {
+        return;
+      }
+      const visible = row.getBoundingClientRect();
+      const box = tab.getBoundingClientRect();
+      if (box.left < visible.left) {
+        row.scrollLeft += box.left - visible.left;
+      } else if (box.right > visible.right) {
+        row.scrollLeft += box.right - visible.right;
+      }
+    });
+    observer.observe(row);
+    return () => observer.disconnect();
   }, [ready, selected]);
 
   const select = (next: string): void => {

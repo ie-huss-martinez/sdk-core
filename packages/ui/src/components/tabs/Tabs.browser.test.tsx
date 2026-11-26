@@ -55,6 +55,24 @@ const shownPanels = (container: HTMLElement) =>
 const style = (element: Element | null | undefined): CSSStyleDeclaration =>
   getComputedStyle(element as Element);
 
+const manyTabs = Array.from({ length: 12 }, (_, index) => ({
+  id: `tab-${index}`,
+  label: `Implementation ${index + 1}`,
+  content: <p>Panel {index + 1}</p>,
+}));
+
+/** Waits for a row that scrolls to bring its selected tab into view, and checks that it's there. */
+async function expectSelectedInView(container: HTMLElement): Promise<void> {
+  const list = container.querySelector('[role="tablist"]') as HTMLElement;
+  // The row is moved when its size is first reported, a frame after it renders.
+  await expect.poll(() => list.scrollLeft).toBeGreaterThan(0);
+  const row = list.getBoundingClientRect();
+  const box = (list.querySelector('[aria-selected="true"]') as HTMLElement).getBoundingClientRect();
+  // Within a pixel: a row scrolls by whole pixels, and its tabs' widths aren't whole.
+  expect(box.left).toBeGreaterThanOrEqual(row.left - 1);
+  expect(box.right).toBeLessThanOrEqual(row.right + 1);
+}
+
 /** Tabs whose owner holds the value, and follows the user or doesn't. */
 function Controlled({ follow, onAsk }: { follow: boolean; onAsk: (id: string) => void }) {
   const [value, setValue] = useState("astro");
@@ -209,12 +227,31 @@ describe("Tabs", () => {
     expect(selectedOf(container)).toBe("Next.js");
   });
 
-  it("marks the selected tab with a line, not with colour alone", () => {
+  it("marks the selected tab with a line that only it has, and that moves nothing", () => {
     const container = render(stack());
     const [selected, other] = tabsOf(container);
-    expect(style(selected).borderBottomColor).not.toBe(style(other).borderBottomColor);
-    expect(style(selected).borderBottomWidth).toBe(style(other).borderBottomWidth);
     expect(Number.parseFloat(style(selected).borderBottomWidth)).toBeGreaterThanOrEqual(2);
+    // No border at all on the others, not a transparent one: forced-colours
+    // mode draws every border, and would underline every tab.
+    expect(style(other).borderBottomWidth).toBe("0px");
+    expect(selected.getBoundingClientRect().height).toBe(other.getBoundingClientRect().height);
+    const label = (tab: HTMLElement) =>
+      (tab.querySelector(".hm-tabs-label") as HTMLElement).getBoundingClientRect().top;
+    expect(label(selected)).toBe(label(other));
+  });
+
+  it("keeps unstyled for tabs inside a styled tab's panel", () => {
+    const container = render(
+      <Tabs
+        label="Outer"
+        tabs={[{ id: "a", label: "Outer tab", content: stack({ unstyled: true }) }]}
+      />,
+    );
+    const [outer, inner] = tabsOf(container);
+    expect(Number.parseFloat(style(outer).borderBottomWidth)).toBeGreaterThanOrEqual(2);
+    // The inner tab is the browser's own button, not a styled tab.
+    expect(style(inner).borderBottomColor).not.toBe(style(outer).borderBottomColor);
+    expect(style(inner).fontWeight).not.toBe(style(outer).fontWeight);
   });
 
   it("meets the 24 px target size", () => {
@@ -253,26 +290,26 @@ describe("Tabs", () => {
     expect(box.right).toBeLessThanOrEqual(row.right + 1);
   });
 
-  it("shows the selected tab in a row that scrolls, without moving the page", () => {
-    const many = Array.from({ length: 12 }, (_, index) => ({
-      id: `tab-${index}`,
-      label: `Implementation ${index + 1}`,
-      content: <p>Panel {index + 1}</p>,
-    }));
+  it("shows the selected tab in a row that scrolls, without moving the page", async () => {
     // Below the fold, so anything that scrolled the page to it would show.
     const container = render(
       <div style={{ inlineSize: "320px", marginBlockStart: "200vh" }}>
-        <Tabs label="Implementations" tabs={many} defaultValue="tab-9" />
+        <Tabs label="Implementations" tabs={manyTabs} defaultValue="tab-9" />
       </div>,
     );
-    const list = container.querySelector('[role="tablist"]') as HTMLElement;
-    const row = list.getBoundingClientRect();
-    const box = (
-      list.querySelector('[aria-selected="true"]') as HTMLElement
-    ).getBoundingClientRect();
-    expect(box.left).toBeGreaterThanOrEqual(row.left - 1);
-    expect(box.right).toBeLessThanOrEqual(row.right + 1);
+    await expectSelectedInView(container);
     expect(document.scrollingElement?.scrollTop).toBe(0);
+  });
+
+  it("shows the selected tab once a row that began hidden appears", async () => {
+    // As inside a closed dialog or another tab's panel: no size to measure yet.
+    const container = render(
+      <div hidden style={{ inlineSize: "320px" }}>
+        <Tabs label="Implementations" tabs={manyTabs} defaultValue="tab-9" />
+      </div>,
+    );
+    (container.firstElementChild as HTMLElement).hidden = false;
+    await expectSelectedInView(container);
   });
 
   it("drops visual styles but keeps layout, target size and focus with unstyled", async () => {

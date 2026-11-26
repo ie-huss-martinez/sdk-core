@@ -61,21 +61,19 @@
     margin-block-end: var(--hm-gap-normal);
   }
 
-  /* Visual styles, dropped with unstyled. */
-  .hm-tabs:not([data-hm-unstyled]) .hm-tabs-list {
+  /*
+   * Visual styles, dropped with unstyled. Each rule reaches its part through
+   * its own root, child by child, so tabs inside another's panel keep their
+   * own unstyled.
+   */
+  .hm-tabs:not([data-hm-unstyled]) > .hm-tabs-list {
     border-block-end: var(--hm-border-width) solid
       var(--hm-tabs-list-border-color, var(--hm-color-border));
   }
 
-  .hm-tabs:not([data-hm-unstyled]) .hm-tabs-tab {
+  .hm-tabs:not([data-hm-unstyled]) > .hm-tabs-list > .hm-tabs-tab {
     background: transparent;
     border: 0;
-    /*
-     * The line under the selected tab. It's there on every tab, transparent,
-     * so selecting one moves nothing, and it says which is selected without
-     * colour alone, in forced colours too.
-     */
-    border-block-end: var(--hm-tabs-indicator-size, var(--hm-focus-ring-width)) solid transparent;
     border-start-end-radius: var(--hm-tabs-tab-radius, var(--hm-radius-control));
     border-start-start-radius: var(--hm-tabs-tab-radius, var(--hm-radius-control));
     color: var(--hm-tabs-tab-fg, var(--hm-color-text-muted));
@@ -84,16 +82,25 @@
     font-weight: var(--hm-font-weight-strong);
     letter-spacing: var(--hm-letter-spacing);
     line-height: var(--hm-line-height-tight);
+    /*
+     * Room for the line under the selected tab, so selecting one moves
+     * nothing. It's padding, not a transparent border: forced-colours mode
+     * draws every border, and would underline every tab.
+     */
+    padding-block-end: var(--hm-tabs-indicator-size, var(--hm-focus-ring-width));
   }
 
-  .hm-tabs:not([data-hm-unstyled]) .hm-tabs-tab[aria-selected="true"] {
-    border-block-end-color: var(--hm-tabs-indicator-color, var(--hm-color-accent));
+  /* The line says which tab is selected without colour alone, in forced colours too. */
+  .hm-tabs:not([data-hm-unstyled]) > .hm-tabs-list > .hm-tabs-tab[aria-selected="true"] {
+    border-block-end: var(--hm-tabs-indicator-size, var(--hm-focus-ring-width)) solid
+      var(--hm-tabs-indicator-color, var(--hm-color-accent));
     color: var(--hm-tabs-tab-selected-fg, var(--hm-color-text));
+    padding-block-end: 0;
   }
 
   /* Hover only where there's a real pointer, so touch doesn't leave it stuck. */
   @media (hover: hover) {
-    .hm-tabs:not([data-hm-unstyled]) .hm-tabs-tab:hover {
+    .hm-tabs:not([data-hm-unstyled]) > .hm-tabs-list > .hm-tabs-tab:hover {
       background: var(--hm-tabs-tab-bg-hover, var(--hm-color-control-hover));
       color: var(--hm-tabs-tab-selected-fg, var(--hm-color-text));
       transition-duration: var(--hm-motion-duration-feedback);

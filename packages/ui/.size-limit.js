@@ -132,7 +132,7 @@ export default [
   entryBudget({
     name: "React entry (./react), with the shared code it loads",
     entry: "dist/react.js",
-    // 44.5 kB; 44.44 kB with Tabs (docs/adr/0016), 1.32 kB to an application
+    // 44.5 kB; 44.44 kB with Tabs (docs/adr/0016), 1.35 kB to an application
     // that imports it, with the heading it shows before it's ready.
     // Before, 44 kB; 43.81 kB with Tag, TagList and ButtonLink (docs/adr/0015) and
     // 14 icons for pages (docs/adr/0005, amended), which the every-icon
@@ -157,7 +157,8 @@ export default [
   entryBudget({
     name: "Stylesheet (./styles.css)",
     entry: "dist/styles.css",
-    // 15.5 kB; 15.07 kB with the tag's and the tag list's rules, five tones
+    // 16 kB; 15.59 kB with the tabs' rules (docs/adr/0016).
+    // Before, 15.5 kB; 15.07 kB with the tag's and the tag list's rules, five tones
     // among them, and a link's one (docs/adr/0015).
     // Before, 15 kB; 14.66 kB with the card and the morph's rules (docs/adr/0014).
     // Before, 14 kB; 13.71 kB with the editor frame's components, the colour
@@ -168,7 +169,7 @@ export default [
     // entry's is: to the measurement, rounded up to the next 0.5 kB. Every
     // application loads the whole stylesheet, so this one is the cost of
     // every component.
-    limit: "15.5 kB",
+    limit: "16 kB",
   }),
   // A floor: 0.6 kB; 0.56 kB, counting only the React names it uses
   // (sdk-config 0.12.1). A leak into every component shows here first.
