@@ -80,7 +80,7 @@ It searches tools only, by their labels and descriptions. Actions such as "Expor
 
 - **`ui` defines the preferences** as `EditorPreferences`: `theme` (`system`, `light`, `dark`), `mode`, `toolsLayout` (`sidebar`, `dock`), `tools` (`full`, `icons`, `hidden`), `properties` (`shown`, `hidden`), `density` (`comfortable`, `compact`), `motion` (`system`, `full`, `reduced`) and `tips` (on or off). Its server-safe entry exports the defaults and `readEditorPreferences(value)`, which takes any parsed JSON and returns valid preferences: a field that's missing, unknown or of the wrong value gets its default, and unknown fields are dropped. Preferences are a person's choices, not a document, so a reader that falls back field by field fits them better than the strict readers of [ADR 0045](0045-portable-formats-and-conformance-vectors.md).
 - **SDK editors take them as controlled props,** `preferences` and `onPreferencesChange`, with uncontrolled defaults when the host passes neither. An editor never reads or writes `localStorage`, cookies or any other storage itself.
-- **The host decides where they're kept.** The family's apps keep them in `localStorage`, one key per app, and never in a cookie. Sharing a theme across the apps' subdomains would need a cookie on the parent domain, so for now each app keeps its own (see "Open questions").
+- **The host decides where they're kept.** The family's apps keep them in `localStorage`, one key per app, and never in a cookie. Sharing a theme across the apps' subdomains would need a cookie on the parent domain, so each app keeps its own (decided 2026-11-26: see "Questions decided after acceptance").
 - **Theme and motion apply to the editor's root,** through `ThemeProvider` and `data-hm-motion`. The host applies its own page's theme before first paint, which is the app's concern, not the SDK's.
 
 ### Feedback
@@ -124,18 +124,12 @@ It searches tools only, by their labels and descriptions. Actions such as "Expor
 - The new look changes the screenshots of every package that renders `ui`, so the pull request that changes the tokens retakes every baseline, and `ui`'s release is a minor one.
 - SDKs move onto the frame one at a time: image-sdk first as the pilot, then pdf, video, audio and notes. Until an SDK moves, it keeps its own layout on the new tokens.
 - Hosts that want persistence write a few lines: read with `readEditorPreferences`, pass `preferences`, and save in `onPreferencesChange`. The family's apps do it in their shared shell.
-- The ad slot and the properties panel both want the inline end on wide screens. That's the apps' layout, decided in editor-apps (see "Open questions").
+- The ad slot and the properties panel both want the inline end on wide screens. That's the apps' layout, decided in editor-apps (decided 2026-11-26: see "Questions decided after acceptance").
 - Analytics of mode changes, if any, are an app's anonymous event under its own consent rules, not an SDK event.
 
-## Open questions
+## Questions decided after acceptance
 
-These are the maintainer's to decide. Until he does, the defaults below hold. Neither changes what an SDK does: both are decisions for the family's apps, in editor-apps.
+Both were the maintainer's to decide, and he did on 2026-11-26. Neither changes what an SDK does: both are decisions for the family's apps, built in editor-apps.
 
-- **One theme per app, or one for all four?** The default is one per app: each app keeps its own light or dark choice in its own `localStorage`. The apps live on different subdomains, so sharing one choice would need a cookie on the parent domain, which editor-apps ADR 0002 rules out. Sharing would mean changing that rule there. The default follows from the rule; the maintainer hasn't chosen it for its own sake.
-- **The ad slot or the properties panel on the inline end?** On wide screens both want the edge at the inline end, and editor-apps ADR 0007 requires the slot never to move or resize once shown. The draft spec offers three options:
-  - the slot outside the frame, hidden while the panel is open, which breaks ADR 0007;
-  - the slot under the panel, in its column;
-  - the slot only in Easy mode, if the SDKs choose to show no properties panel there. The frame doesn't enforce that: `mode` and `properties` are separate preferences. Like the first option, it breaks ADR 0007, because switching to another mode would hide a slot that's shown.
-
-  It recommends the slot under the panel. The choice belongs in editor-apps, before the image app moves onto the frame.
-
+- **One theme per app.** Each app keeps its own light or dark choice in its own `localStorage`. There's no shared cookie: editor-apps ADR 0002's no-cookie rule stands, and the apps on their different subdomains don't share the choice.
+- **The ad slot goes under the properties panel, in the same column.** The panel is on top, and the 160 × 600 slot sits below it when there's height for both. The editor keeps its width. When the panel needs the room, the slot hides rather than moving or shrinking. editor-apps records how this fits its ADR 0007, which requires that a shown slot never moves or resizes.
