@@ -199,7 +199,14 @@ export function useCommittedText(
       // The final text, which some browsers send only with compositionend.
       pending.current = event.currentTarget.value;
       setTyped(event.currentTarget.value);
-      if (pausedWhileComposing.current) flush();
+      // A pause that ended mid-composition commits now; otherwise the final
+      // text, which may arrive with no input event, gets the usual pause.
+      if (pausedWhileComposing.current) {
+        flush();
+      } else {
+        clearTimer();
+        timer.current = setTimeout(() => flush(), COMMIT_PAUSE_MS);
+      }
     },
   };
 }

@@ -412,6 +412,74 @@ describe("LearnEditor", () => {
     expect([field(element, "Word 3").value, invalid("Word 3")]).toEqual(["น้ำ", null]);
   });
 
+  it("keeps focus in the editor when the last exercise is removed", async () => {
+    const element = render({ initialContent: one });
+    await userEvent.click(button(element, "Remove exercise"));
+    expect(element.querySelectorAll("[role=row]")).toHaveLength(0);
+    expect(element.contains(document.activeElement)).toBe(true);
+  });
+
+  it("moves focus to the outline when an undo takes the focused field away", async () => {
+    const ref = createRef<LearnEditorHandle>();
+    const element = render({}, ref);
+    await userEvent.click(button(element, "Add multiple choice"));
+    expect(document.activeElement).toBe(field(element, "Title"));
+    act(() => ref.current?.undo());
+    expect(element.querySelectorAll("[role=row]")).toHaveLength(2);
+    expect(element.querySelector("[role=grid]")?.contains(document.activeElement)).toBe(true);
+  });
+
+  it("commits a composition's final text after a flush interrupted it", async () => {
+    const onChange = vi.fn();
+    const ref = createRef<LearnEditorHandle>();
+    const element = render({ onChange }, ref);
+    const prompt = field(element, "Question") as HTMLTextAreaElement;
+    prompt.focus();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const setValue = (value: string) =>
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(
+        prompt,
+        value,
+      );
+    act(() => {
+      prompt.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+      setValue("ข");
+      prompt.dispatchEvent(new InputEvent("input", { bubbles: true, isComposing: true }));
+    });
+    // A host flushes mid-composition: what's there is committed.
+    act(() => ref.current?.flush());
+    expect(onChange).toHaveBeenCalledTimes(1);
+    // The final text arrives with compositionend alone, and gets the usual pause.
+    act(() => {
+      setValue("ข้าว");
+      prompt.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "ข้าว" }));
+    });
+    act(() => vi.advanceTimersByTime(COMMIT_PAUSE_MS + 100));
+    expect(onChange).toHaveBeenCalledTimes(2);
+    const draft = onChange.mock.calls[1]?.[0] as typeof content | undefined;
+    expect(draft?.exercises[0]?.payload).toMatchObject({ questions: [{ prompt: "ข้าว" }] });
+  });
+
+  it("lists a payload's problems when its type has no editor block", async () => {
+    const element = render({ initialContent: undefined });
+    await userEvent.click(button(element, "Add multiple choice"));
+    // The block goes away without a remount: its fields go, their problems stay listed.
+    act(() =>
+      root?.render(
+        <LearnEditor
+          initialContent={undefined}
+          profile={thai}
+          defaultPreferences={{ mode: "advanced" }}
+          blocks={{ "multiple-choice": undefined as never }}
+        />,
+      ),
+    );
+    expect(element.querySelector(".hm-learn-editor-unsupported")).not.toBeNull();
+    expect(element.querySelector(".hm-learn-editor-issues")?.textContent).toContain(
+      "This can't be empty.",
+    );
+  });
+
   it("lets a removal's toast undo only that removal", async () => {
     const element = render();
     await userEvent.click(button(element, "Remove exercise"));

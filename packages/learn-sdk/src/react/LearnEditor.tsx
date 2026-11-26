@@ -127,7 +127,10 @@ export interface LearnEditorProps {
    * once, like `initialContent`: give the editor a new `key` to change it.
    */
   readonly single?: boolean | undefined;
-  /** The exercise types content may use. Defaults to the built-in ones. */
+  /**
+   * The exercise types content may use. Defaults to the built-in ones. Read
+   * once, like `initialContent`: give the editor a new `key` to change them.
+   */
   readonly types?: ExerciseTypes | undefined;
   /** An editor block per host type, by type name, beside the built-in ones. */
   readonly blocks?: Readonly<Record<string, EditorBlock>> | undefined;
@@ -279,7 +282,7 @@ function Editor({
   // selected, so a move's position is the moved exercise's, not the selection's.
   const movedRef = useRef<string | null>(null);
   const root = useRef<HTMLElement>(null);
-  const focusWanted = useRef<"title" | "outline" | null>(null);
+  const focusWanted = useRef<"title" | "outline" | "restore" | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [tab, setTab] = useState<string | null>(null);
   const [startSkipped, setStartSkipped] = useState(false);
@@ -301,7 +304,7 @@ function Editor({
   // The tools: structural ones only with an outline, and an add tool per type with a block.
   const registry = useMemo(() => {
     const adds = [...types.keys()]
-      .filter((type) => Object.hasOwn(blocks, type))
+      .filter((type) => Object.hasOwn(blocks, type) && blocks[type] !== undefined)
       .map((type) => addExerciseTool(type, (blocks[type] as EditorBlock).create));
     // With `single`, adding is only for the empty document's start cards, and
     // nothing removes or moves the one exercise (ADR 0008).
@@ -384,6 +387,14 @@ function Editor({
   // Toasts for structural edits, undo and redo (ADR 0008), straight from the
   // session's events: a toast is shown, not rendered from the snapshot.
   const onEditorEvent = useLatest((event: LearnEditorEvent) => {
+    // Undo and redo can take away the focused element, such as a new
+    // exercise's title: focus then goes to the outline (ADR 0008).
+    if (
+      (event.type === "edit_undone" || event.type === "edit_redone") &&
+      root.current?.contains(document.activeElement)
+    ) {
+      focusWanted.current ??= "restore";
+    }
     const history = steps.current;
     let step: number | undefined;
     if (event.type === "content_edited") {
@@ -444,24 +455,32 @@ function Editor({
     );
   }, [problemCount, announce, t]);
 
-  // Focus after adding (the new exercise's title) or removing (the outline).
+  // Focus after adding (the new exercise's title), removing (the outline), or
+  // an undo or redo that took the focused element away (the outline). Focus
+  // is never lost: without a row to take it, the tools or the editor do.
   useEffect(() => {
     const wanted = focusWanted.current;
     if (!wanted) return;
     focusWanted.current = null;
     const scope = root.current;
     if (!scope) return;
+    if (wanted === "restore" && scope.contains(document.activeElement)) return;
     if (wanted === "title") {
       scope
         .querySelector<HTMLElement>(".hm-learn-editor-stage input, .hm-learn-editor-stage textarea")
         ?.focus();
+      return;
+    }
+    const target =
+      scope.querySelector<HTMLElement>(".hm-learn-editor-outline [role=gridcell][tabindex='0']") ??
+      scope.querySelector<HTMLElement>(".hm-learn-editor-outline [role=gridcell]") ??
+      scope.querySelector<HTMLElement>(".hm-learn-editor-stage button, [data-hm-tool-id]");
+    if (target) {
+      target.focus();
     } else {
-      // The selected row's tab stop, and only without one the first row.
-      (
-        scope.querySelector<HTMLElement>(
-          ".hm-learn-editor-outline [role=gridcell][tabindex='0']",
-        ) ?? scope.querySelector<HTMLElement>(".hm-learn-editor-outline [role=gridcell]")
-      )?.focus();
+      scope.tabIndex = -1;
+      scope.addEventListener("blur", () => scope.removeAttribute("tabindex"), { once: true });
+      scope.focus();
     }
   });
 
@@ -819,11 +838,12 @@ function ExerciseForm({
       <Heading className="hm-learn-editor-heading">
         {exercise.title ?? t.t("editor.untitled")}
       </Heading>
+      {/* Without a block, the payload's problems have no field: they're listed too. */}
       <IssueList
-        issues={unclaimed(
-          issues.filter((issue) => issue.path[0] !== "payload"),
-          [["title"], ["instructions"]],
-        )}
+        issues={unclaimed(block ? issues.filter((issue) => issue.path[0] !== "payload") : issues, [
+          ["title"],
+          ["instructions"],
+        ])}
         messages={t}
       />
       <EditorField
@@ -874,8 +894,15 @@ function ExerciseForm({
  * import { LearnEditor, type LearnEditorHandle } from "@hussmartinez/learn-sdk/react";
  *
  * const editor = useRef<LearnEditorHandle>(null);
- * // It opens valid content only, so Save starts on; onChange reports each edit after.
- * const [canSave, setCanSave] = useState(true);
+ * // Save starts off, and turns on once the content opened: onChange reports
+ * // edits, not the opening, and content the editor refused never opens.
+ * const [canSave, setCanSave] = useState(false);
+ * useEffect(() => {
+ *   try {
+ *     editor.current?.getContent();
+ *     setCanSave(true);
+ *   } catch {} // the editor shows why it couldn't open the content
+ * }, []);
  * <LearnEditor ref={editor} initialContent={content} profile={thai} onChange={(_, { valid }) => setCanSave(valid)} />
  *
  * async function onSave() {
@@ -894,7 +921,8 @@ function ExerciseForm({
  */
 export const LearnEditor = /* @__PURE__ */ forwardRef<LearnEditorHandle, LearnEditorProps>(
   function LearnEditor(props, ref): ReactNode {
-    const types = props.types ?? builtInTypes;
+    // Read once, like the content: the session was opened with these types.
+    const [types] = useState(() => props.types ?? builtInTypes);
     const messages = useMemo(
       () =>
         createMessages(learnEditorMessages, {
@@ -907,6 +935,10 @@ export const LearnEditor = /* @__PURE__ */ forwardRef<LearnEditorHandle, LearnEd
     const latest = useLatest(props);
     const [pendingText] = useState(createPendingText);
     const [events] = useState((): EditorEvents => new Set());
+    // The session reports a draft, then the event that made it. The host's
+    // onChange waits for the editor's own listeners to see that event, so a
+    // host that undoes from onChange can't run ahead of the toasts' history.
+    const [deferredChange] = useState(() => ({ call: null as (() => void) | null }));
     // The session is made once, from the first render's content (ADR 0008).
     const [opened] = useState((): { editor: LearnEditorSession | null; error: unknown } => {
       try {
@@ -915,10 +947,13 @@ export const LearnEditor = /* @__PURE__ */ forwardRef<LearnEditorHandle, LearnEd
           types,
           (draft, { issues }) => {
             const valid = issues.length === 0 && editor.getSnapshot().error === null;
-            hostCallback(() => latest.current.onChange?.(draft, { issues, valid }));
+            deferredChange.call = () => latest.current.onChange?.(draft, { issues, valid });
           },
           (event) => {
             for (const listener of events) listener(event);
+            const change = deferredChange.call;
+            deferredChange.call = null;
+            if (change) hostCallback(change);
             hostCallback(() => latest.current.onEvent?.(event));
           },
         );
