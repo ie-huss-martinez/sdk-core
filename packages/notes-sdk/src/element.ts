@@ -30,10 +30,10 @@ const words = (value: string): readonly string[] => value.split(/\s+/).filter(Bo
  * Registers `<hm-notes-editor>`, or the tag you name, and returns its class
  * (sdk-core ADR 0040): the attributes `theme`, `locale`, `tools` and
  * `heading-level` (also the property `headingLevel`); the properties
- * `store`, `pdfEngine`, `recorder`, `assetsUrl`, `filePolicy` and
- * `messages`; the methods `open` and `close`; and the events
- * `hm-notes-editor-view`, `-settings` and `-event`. Calling it again returns
- * the same class.
+ * `store`, `pdfEngine`, `recorder`, `assetsUrl`, `filePolicy`, `messages`,
+ * `preferences` and `defaultPreferences`; the methods `open` and `close`;
+ * and the events `hm-notes-editor-view`, `-settings`, `-preferences` and
+ * `-event`. Calling it again returns the same class.
  *
  * @example
  * ```ts
@@ -59,8 +59,17 @@ export const defineNotesEditorElement = /* @__PURE__ */ createEditorElement<
     // As text: anything but 2 to 6 is the default, 2 (sdk-core ADR 0058).
     "heading-level": { property: "headingLevel", parse: toHeadingLevel },
   },
-  properties: ["store", "pdfEngine", "recorder", "assetsUrl", "filePolicy", "messages"],
+  properties: [
+    "store",
+    "pdfEngine",
+    "recorder",
+    "assetsUrl",
+    "filePolicy",
+    "messages",
+    "preferences",
+    "defaultPreferences",
+  ],
   methods: ["open", "close"],
-  events: ["view", "settings", "event"],
+  events: ["view", "settings", "preferences", "event"],
   mount: mountNotesEditor,
 });

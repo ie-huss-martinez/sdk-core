@@ -19,8 +19,10 @@ import {
 const url = "http://localhost:4350/";
 const origin = new URL(url).origin;
 
-// Tall enough to show a whole page under the toolbar, so a test can write anywhere on it.
-test.use({ viewport: { width: 900, height: 1500 } });
+// Tall enough to show a whole page under the top bar, so a test can write
+// anywhere on it, and wide enough for ui's frame to lay out as on a desktop,
+// with the tool's options beside the pages (docs/adr/0008).
+test.use({ viewport: { width: 1100, height: 1500 } });
 
 /** Nothing went wrong: no error, no warning, no foreign request, no policy violation. */
 async function expectClean(page: Page, problems: ReturnType<typeof watch>): Promise<void> {
@@ -195,7 +197,7 @@ test.describe("the notes editor", () => {
     await expectClean(page, problems);
   });
 
-  test("passes axe in the library, in a dialog, and in an open notebook with its sidebar", async ({
+  test("passes axe in the library, in a dialog, in an open notebook with its sidebar, and in its settings", async ({
     page,
   }) => {
     await openEditor(page, url);
@@ -217,18 +219,27 @@ test.describe("the notes editor", () => {
     await expect(page.getByRole("complementary", { name: "Notebook sidebar" })).toBeVisible();
     expect(await check()).toEqual([]);
 
+    // ui's frame: the settings, in a sheet (sdk-core ADR 0067).
+    await page.getByRole("button", { name: "Settings" }).click();
+    await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+    expect(await check("dialog[open]")).toEqual([]);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Settings" })).toBeHidden();
+
     await page.getByRole("button", { name: "Back to the library" }).click();
     await expect(page.getByRole("button", { name: /^Untitled notebook/ })).toBeVisible();
     expect(await check()).toEqual([]);
   });
 
-  test("works from the keyboard: one tab stop for the toolbar, tool keys, and pages", async ({
+  test("works from the keyboard: one tab stop for the tools, tool keys, the palette, and pages", async ({
     page,
   }) => {
     await openEditor(page, url);
     await newNotebook(page);
-    // The toolbar is one tab stop; arrow keys move within it.
-    await expect(page.locator('[role="toolbar"] [tabindex="0"]')).toHaveCount(1);
+    // The tools are one tab stop; arrow keys move within them.
+    await expect(
+      page.getByRole("toolbar", { name: "Notebook tools" }).locator('[tabindex="0"]'),
+    ).toHaveCount(1);
     await page.getByRole("region", { name: "Pages" }).focus();
     await page.keyboard.press("e");
     await expect(page.getByRole("button", { name: "Eraser", exact: true })).toHaveAttribute(
@@ -240,8 +251,17 @@ test.describe("the notes editor", () => {
       "aria-pressed",
       "true",
     );
-    await page.getByRole("button", { name: "Add a page" }).click();
+    // Adding a page is an Expert tool, out of the panel in Advanced mode, and
+    // in the command palette in every mode (sdk-core ADR 0067).
+    await expect(page.getByRole("button", { name: "Add a page" })).toHaveCount(0);
+    await page.keyboard.press("ControlOrMeta+k");
+    const search = page.getByRole("combobox", { name: "Search tools" });
+    await expect(search).toBeFocused();
+    await search.fill("add a page");
+    await page.keyboard.press("Enter");
     await expect(page.locator(".hm-notes-notebook-position")).toHaveText("Page 2 of 2");
+    // The edit says what it did, with Undo.
+    await expect(page.locator(".hm-toast")).toContainText("Applied new page.");
     // The events a host hears name no title, and say which view shows.
     const reported = await page.evaluate(() => ({
       events: window.notesSdk.events.map((event) => event.type),

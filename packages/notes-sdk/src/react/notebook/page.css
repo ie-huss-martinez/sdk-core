@@ -57,7 +57,7 @@
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-page {
     background: var(--hm-notes-paper);
     box-shadow: var(--hm-notes-shadow-page);
-    animation: hm-notes-fade-in var(--hm-notes-time-slow) var(--hm-notes-ease-out) both;
+    animation: hm-notes-fade-in var(--hm-motion-duration-panel) var(--hm-motion-easing-enter) both;
   }
 
   .hm-notes-page-canvas {
@@ -186,14 +186,14 @@
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-selection-bar {
-    background: var(--hm-notes-glass-strong);
-    border: var(--hm-notes-hairline) solid var(--hm-notes-line);
-    border-radius: var(--hm-notes-radius-pill);
-    box-shadow: var(--hm-notes-shadow-lg);
-    backdrop-filter: blur(var(--hm-notes-glass-blur));
-    animation: hm-notes-float-in var(--hm-notes-time-base) var(--hm-notes-ease-spring) both;
+    background: var(--hm-color-surface-glass);
+    border: var(--hm-border-width) solid var(--hm-color-border);
+    border-radius: var(--hm-radius-round);
+    box-shadow: var(--hm-shadow-overlay);
+    backdrop-filter: blur(var(--hm-blur-glass));
+    animation: hm-notes-float-in var(--hm-motion-duration-enter) var(--hm-motion-easing-spring) both;
 
-    --hm-button-radius: var(--hm-notes-radius-pill);
+    --hm-button-radius: var(--hm-radius-round);
   }
 
   /* The field a text box is typed in: the box's own font, size and colour, set from the item. */

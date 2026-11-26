@@ -45,3 +45,7 @@ export type { NotesToolbarProps } from "./react/notebook/NotebookToolbar.js";
 export { NotesToolbar } from "./react/notebook/NotebookToolbar.js";
 export type { NotesNotebookHandle, NotesNotebookProps } from "./react/notebook/NotesNotebook.js";
 export { NotesNotebook } from "./react/notebook/NotesNotebook.js";
+export type {
+  NotesEditorTheme,
+  NotesPreferenceProps,
+} from "./react/notebook/notebook-frame.js";

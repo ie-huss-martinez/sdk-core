@@ -38,7 +38,9 @@ The editor shows the library, and an open notebook once one is chosen. It has no
 | `onSaveFile` | Receives an exported PDF or a backup, in place of a browser download |
 | `onEvent` | Anonymous usage events. They never carry titles, text, ink or file names |
 | `initialSettings`, `onSettingsChange` | The tool in hand, colours and sizes, to start with and to keep |
-| `tools`, `toolbar` | Which notebook tools exist, and how the toolbar groups them |
+| `tools`, `toolbar` | Which notebook tools exist, and how they're grouped and placed |
+| `preferences`, `defaultPreferences`, `onPreferencesChange` | The person's mode, theme, tools layout, panels, density, motion and tips, as ui's `EditorPreferences`. The editor never stores them: keep them where you like. Without them it starts in Advanced mode, with the tools in a dock |
+| `theme` | `"light"`, `"dark"` or `"system"`, over the preferences' theme. Unset, the editor inherits the page's |
 | `headingLevel` | The level of the editor's heading, 2 to 6, and 2 by default |
 | `messages`, `locale`, `icons` | Text overrides, the formatting locale, and icon components by name |
 | `className`, `classNames`, `unstyled` | Extra classes on the root and each part, or no visual styles |
@@ -55,6 +57,10 @@ A ref gives `NotesEditorHandle`: its `library`, `open(notebookId)` and `close()`
 - **Undo and redo** cover every edit, 500 steps deep.
 
 How the engine reads the pen is in [ADR 0002](docs/adr/0002-the-ink-engine.md).
+
+### The notebook's frame
+
+An open notebook renders through ui's editor frame ([ADR 0008](docs/adr/0008-the-notebook-on-ui-s-frame.md)): the blue top bar, the tools in a dock over the foot of the pages or in a sidebar, the tool's options in the properties panel, and the recording's transport at the foot. Easy, Advanced and Expert modes decide which tools are listed; the command palette (`Ctrl+K`, `⌘K`) reaches every one in every mode. In Easy mode, an empty notebook opens on start cards. Edits show a toast with Undo.
 
 ### Tools, the toolbar and shortcuts
 
@@ -75,7 +81,7 @@ The notebook's tools are in `notesTools`. Shortcuts work while focus is inside t
 | `notes.export-pdf` | none | Exports the notebook as a PDF |
 | `notes.select-all`, `notes.delete-selection` | `Ctrl+A` (`⌘A`), `Delete` or `Backspace` | Select everything on the page; delete the selection |
 
-Pass a subset's ids as `tools`, and arrange them with `toolbar`. An unknown id throws when the editor renders.
+Pass a subset's ids as `tools`, and arrange them with `toolbar`: back to the library, undo, redo, the sidebar, search, the zoom and Export as PDF go in the top bar and over the pages, and the rest in the tools panel. An unknown id throws when the editor renders.
 
 ## Where notes are kept
 
@@ -127,9 +133,9 @@ defineNotesEditorElement();
 ```
 
 - **Attributes:** `theme`, `locale`, `tools` (ids separated by spaces) and `heading-level`.
-- **Properties:** `store`, `pdfEngine`, `recorder`, `assetsUrl`, `filePolicy` and `messages`.
+- **Properties:** `store`, `pdfEngine`, `recorder`, `assetsUrl`, `filePolicy`, `messages`, `preferences` and `defaultPreferences`.
 - **Methods:** `open(notebookId)` and `close()`.
-- **Events:** `hm-notes-editor-view`, `hm-notes-editor-settings` and `hm-notes-editor-event`, each with its value as `detail`.
+- **Events:** `hm-notes-editor-view`, `hm-notes-editor-settings`, `hm-notes-editor-preferences` and `hm-notes-editor-event`, each with its value as `detail`.
 
 It renders into the light DOM, so React and React DOM must be installed.
 
@@ -184,9 +190,9 @@ Change them with `filePolicy`. A violation is a `NotesError` whose `details` nam
 
 ## Accessibility
 
-- **The keyboard reaches everything but handwriting itself:** the library, dialogs, the toolbar as one tab stop, tool keys, pages, the outline, search, text boxes, and moving or deleting a selection.
+- **The keyboard reaches everything but handwriting itself:** the library, dialogs, the tools as one tab stop, tool keys, the command palette, pages, the outline, search, text boxes, and moving or deleting a selection.
 - **Pages are labelled regions.** Canvases are hidden from assistive technology, and a page's typed text is repeated as text.
-- **Results are announced:** undo and redo, pages added and deleted, selections, exports and backups.
+- **Results are announced:** a notebook's edits, undo and redo, exports and recordings as toasts, through ui's announcer; selections, and the library's backups, as before.
 
 ## Browsers
 

@@ -1,16 +1,16 @@
 import { browserInstances } from "@hussmartinez/sdk-config/testing/browser-instances";
+import { testBrowsers } from "@hussmartinez/sdk-config/testing/browsers";
 import { browserTimeouts, unitTimeouts } from "@hussmartinez/sdk-config/testing/timeouts";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 import { penCommands } from "./test/pen-commands.js";
 
-const ALL_BROWSERS = ["chromium", "firefox", "webkit"] as const;
-
 // Browser tests run on Chromium locally, and on all three engines in CI or
 // with --mode all-browsers (sdk-core ADR 0015).
 export default defineConfig(({ mode }) => {
-  const browsers =
-    process.env["CI"] || mode === "all-browsers" ? ALL_BROWSERS : (["chromium"] as const);
+  // The rule is sdk-config's testBrowsers: on a draft pull request, CI
+  // narrows it to Chromium (sdk-core ADR 0068).
+  const browsers = testBrowsers({ all: mode === "all-browsers" });
   return {
     test: {
       projects: [
