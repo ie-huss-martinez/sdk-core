@@ -2,6 +2,7 @@ import axe from "axe-core";
 import { act, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
+import { violations } from "../../test/editor.js";
 import { wavFile } from "../../test/fixtures/pcm-files.js";
 import { cleanUp, mount, waitFor } from "../../test/react.js";
 import { sessionEvents } from "../../test/session-events.js";
@@ -63,7 +64,7 @@ describe("the timeline", () => {
     ]);
     // A clip shows its recording's name, which starts its accessible name.
     expect(container.querySelector('[role="option"]')?.textContent).toContain("voice.wav");
-    expect((await axe.run(container)).violations.map((each) => each.id)).toEqual([]);
+    expect(await violations(container)).toEqual([]);
   });
 
   it("names a track that's muted, or left out by a solo, and the gain of a clip", async () => {

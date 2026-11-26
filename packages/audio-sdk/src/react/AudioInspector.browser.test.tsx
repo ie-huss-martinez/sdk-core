@@ -1,7 +1,6 @@
-import axe from "axe-core";
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
-import { editor, editorSized, recording, step } from "../../test/editor.js";
+import { editor, editorSized, recording, step, violations } from "../../test/editor.js";
 import { cleanUp, waitFor } from "../../test/react.js";
 
 afterEach(async () => {
@@ -72,7 +71,7 @@ describe("the inspector, with no clip selected", () => {
     expect(artist.value).toBe("");
     await step(() => artist.blur());
     expect(plan().metadata.artist).toBe("");
-    expect((await axe.run(container)).violations.map((each) => each.id)).toEqual([]);
+    expect(await violations(container)).toEqual([]);
   });
 });
 
@@ -145,6 +144,6 @@ describe("the inspector, with a clip selected", () => {
     await waitFor(() =>
       expect(plan().tracks[0]?.clips[0]?.fadeIn).toEqual({ frames: 2_000, curve: "equalPower" }),
     );
-    expect((await axe.run(container)).violations.map((each) => each.id)).toEqual([]);
+    expect(await violations(container)).toEqual([]);
   });
 });

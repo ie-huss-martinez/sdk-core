@@ -1,7 +1,6 @@
-import axe from "axe-core";
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
-import { disabled, editor, recording, step } from "../../test/editor.js";
+import { disabled, editor, recording, step, violations } from "../../test/editor.js";
 import { cleanUp, waitFor } from "../../test/react.js";
 
 afterEach(async () => {
@@ -47,7 +46,7 @@ describe("the clip tools", () => {
     expect(disabled(tool("audio.move-earlier"))).toBe(true);
     expect(disabled(tool("audio.move-later"))).toBe(false);
     expect(disabled(tool("audio.move-to-track-below"))).toBe(true);
-    expect((await axe.run(container)).violations.map((each) => each.id)).toEqual([]);
+    expect(await violations(container)).toEqual([]);
   });
 
   it("splits at the playhead with S, focusing the part after it", async () => {

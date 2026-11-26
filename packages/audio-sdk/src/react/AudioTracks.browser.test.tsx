@@ -1,7 +1,6 @@
-import axe from "axe-core";
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
-import { disabled, editor, recording, step } from "../../test/editor.js";
+import { disabled, editor, recording, step, violations } from "../../test/editor.js";
 import { cleanUp, waitFor } from "../../test/react.js";
 
 afterEach(async () => {
@@ -29,7 +28,7 @@ describe("the tools (docs/adr/0007)", () => {
     expect(disabled(tool("audio.undo"))).toBe(true);
     expect(disabled(tool("audio.remove-track"))).toBe(true);
     expect(disabled(tool("audio.add-track"))).toBe(false);
-    expect((await axe.run(container)).violations.map((each) => each.id)).toEqual([]);
+    expect(await violations(container)).toEqual([]);
   });
 
   it("adds a track, focusing its name, and removes one, focusing the one that took its place", async () => {
@@ -91,7 +90,7 @@ describe("a track's header", () => {
     await waitFor(() => expect(plan().tracks[0]?.soloed).toBe(true));
     // The announcer updates on a timer: let it, inside act(), before axe runs.
     await waitFor(() => expect(document.body.textContent).toContain("Track 1 soloed."));
-    expect((await axe.run(container)).violations.map((each) => each.id)).toEqual([]);
+    expect(await violations(container)).toEqual([]);
   });
 
   it("renames its track in a dialog, and gives focus back to the name", async () => {

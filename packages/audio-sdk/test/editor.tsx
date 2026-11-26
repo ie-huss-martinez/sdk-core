@@ -1,3 +1,4 @@
+import axe from "axe-core";
 import { act, createRef } from "react";
 import type { AudioPlan } from "../src/core/model/plan.js";
 import { AudioEditor, type AudioEditorHandle } from "../src/react/AudioEditor.js";
@@ -16,6 +17,23 @@ export async function step(run: () => unknown): Promise<void> {
   await act(async () => {
     await run();
   });
+}
+
+/**
+ * The ids of axe's violations in an element, once the page's finite
+ * animations and transitions have finished: a control caught mid-fade
+ * fails color-contrast. Endless ones, such as a spinner, aren't waited on.
+ */
+export async function violations(element: Element): Promise<string[]> {
+  await step(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((each) => Number.isFinite(each.effect?.getComputedTiming().endTime))
+        .map((each) => each.finished.catch(() => undefined)),
+    ),
+  );
+  return (await axe.run(element)).violations.map((each) => each.id);
 }
 
 /** Whether a control is disabled as ui's focusable-when-disabled controls are. */
