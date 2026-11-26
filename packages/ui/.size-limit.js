@@ -210,7 +210,7 @@ export default [
   scenario("ColorPicker", ["ColorPicker", "addRecentColor"], "6 kB"),
   // 1 kB; 0.61 kB, with the heading level's context (docs/adr/0014).
   scenario("Card", ["Card"], "1 kB"),
-  // 2.5 kB; 2.43 kB: a card, its dialog and the view transition between them.
+  // 2.5 kB; 2.48 kB: a card, its dialog and the view transition between them.
   scenario(
     "a Card that morphs into a Dialog",
     ["Card", "Dialog", "startMorphTransition"],
