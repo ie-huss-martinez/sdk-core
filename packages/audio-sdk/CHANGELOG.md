@@ -1,5 +1,44 @@
 # @hussmartinez/audio-sdk
 
+## 0.12.0
+
+### Minor Changes
+
+- [#232](https://github.com/ie-huss-martinez/sdk-core/pull/232) [`6ae8e71`](https://github.com/ie-huss-martinez/sdk-core/commit/6ae8e71d37714cc7d68747f92f1adb9b0f5aa601) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `AudioEditor` renders through ui's editor frame (sdk-core ADR 0067, docs/adr/0007):
+  
+  - **The top bar** holds the mode switch, Open, Undo, Redo, the theme toggle, Settings and Export.
+  - **A tools panel** lists the editing tools in five groups, Cut, Fade, Clip, Selection and Tracks. It shows full, as icons or hidden, with `Ctrl+\` to toggle it.
+  - **The timeline** stays the stage, with the notices above it; **the inspector** is the properties panel, beside it on a wide editor and under it on a phone.
+  - **The transport and the zoom** run across the editor's foot.
+  - **On phones,** a tab bar opens each group of tools in a sheet.
+  
+  New:
+  
+  - **Levels and descriptions:** trimming, splitting, deleting, fading and playing are Easy tools; adding recordings and tracks, muting, moving clips and the selection's tools are Advanced; Ripple, moving clips between tracks, moving tracks and going to the start or end are Expert. Each has a one-line description. Easy, Advanced and Expert modes decide what the tools panel lists, and what the transport shows: the start and end buttons are Expert's. The command palette (`Mod+K`) reaches every tool in every mode.
+  - **Start cards:** in Easy mode, each recording opens on four cards: Cut the start or end, Remove a part, Fade in or out and Combine recordings.
+  - **Toasts:** edits, undo, redo, refusals, opening and adding a recording show a toast with the text the editor announced before, the timeline's drags and keys included. An edit's toast offers Undo.
+  - **Preferences:** new props `preferences`, `defaultPreferences` and `onPreferencesChange` take ui's `EditorPreferences`. The editor never stores them; keep them where you like, such as `localStorage`. Without them, the editor starts in Advanced mode, which leaves the Expert tools (moving tracks up and down, moving clips to the track above or below, Ripple, and going to the start or end) out of the tools panel and the transport: they stay in the command palette and on their shortcuts, and `defaultPreferences={{ mode: "expert" }}` lists them. The `theme` prop still wins, and then the top bar has no theme toggle.
+  - **Messages:** new keys `tools.*.description`, `toolbar.cut`, `toolbar.fade`, `toolbar.bar`, `editor.mode.*`, `editor.theme.*`, `editor.commands`, `editor.settings` and `start.*`.
+  
+  **Migrating:**
+  
+  - **Finding tools in the DOM:** rows in the tools panel carry `data-hm-tool-id`, and the frame's buttons `data-tool`. The editor no longer sets `data-hm-tool`.
+  - **`toolbar`:** its groups now place tools: Open, Undo, Redo and Export in the top bar, the zoom by the transport, and the rest in the tools panel. `toolbar={[]}` still shows no tool, and keeps the shortcuts and the palette.
+  - **Tool groups:** splitting, deleting and trimming now have the `group` `cut`, the fades `fade`, and adding a recording `tracks`.
+  - **The inspector's place** follows the frame's widths, 60 and 45 rem of the editor, rather than 1080 px.
+  - **`unstyled`** still leaves out the editor's look, and ui's `hm-text`, but the root keeps its column layout, which the frame needs.
+  - **Theme, density and motion:** unchanged unless you opt in: without the `theme` prop, preferences or a default for the field, the editor inherits the page's until the person picks one in the settings, or the theme with the toggle, which shows the inherited theme.
+  - **`AudioToolbar`:** it's still exported, but the editor no longer uses it.
+
+### Patch Changes
+
+- [#242](https://github.com/ie-huss-martinez/sdk-core/pull/242) [`bc27473`](https://github.com/ie-huss-martinez/sdk-core/commit/bc274734e86cfb7951b468ee6cd81dc27a00035d) Thanks [@hussmartinez](https://github.com/hussmartinez)! - **ui:** new `useEditorPreferences` hook in `@hussmartinez/ui/react`, for editors built on `EditorFrame` (sdk-core ADR 0067). It takes the editor's `preferences`, `defaultPreferences` and `onPreferencesChange` props, an `onChange` for the editor's own response to a change, such as a toast, and an optional host `theme`. It returns the preferences and everything around them: which inherited fields (theme, density, motion) have been chosen, `change(next)`, the root's `data-hm-*` attributes, the `ThemeToggle`'s value, and `openSettings(root)` with props to spread on `SettingsPanel`. Without preferences, the editor starts in Advanced mode and inherits its page's theme, density and motion until the host or the person chooses them. New types: `UseEditorPreferencesOptions`, `EditorPreferencesControls`, `EditorPreferencesChange` and `InheritedEditorPreference`.
+  
+  **image-sdk, pdf-sdk, video-sdk and audio-sdk:** the editor uses ui's shared editor preferences; no change in behaviour.
+- Updated dependencies [[`1dd7dc7`](https://github.com/ie-huss-martinez/sdk-core/commit/1dd7dc70b724452d766d4013c9d8f6f318020aaa), [`6883c62`](https://github.com/ie-huss-martinez/sdk-core/commit/6883c623af809908c033952615f5af06979a782c), [`42cf2be`](https://github.com/ie-huss-martinez/sdk-core/commit/42cf2be5f2c4af78df6f0e787a0cb44cd3b1cf9b), [`6883c62`](https://github.com/ie-huss-martinez/sdk-core/commit/6883c623af809908c033952615f5af06979a782c), [`bc27473`](https://github.com/ie-huss-martinez/sdk-core/commit/bc274734e86cfb7951b468ee6cd81dc27a00035d), [`f545758`](https://github.com/ie-huss-martinez/sdk-core/commit/f54575877f29c5558031020c04e9bee78f4b13a9), [`1dd7dc7`](https://github.com/ie-huss-martinez/sdk-core/commit/1dd7dc70b724452d766d4013c9d8f6f318020aaa), [`562e33d`](https://github.com/ie-huss-martinez/sdk-core/commit/562e33d49cf54f796b393a33adcee8ed26aceb11), [`cd6a92e`](https://github.com/ie-huss-martinez/sdk-core/commit/cd6a92e868dcb90240eb7ae4c14b6911a3c683c9), [`b732a7d`](https://github.com/ie-huss-martinez/sdk-core/commit/b732a7df11a1307d550f4ad8ff881328efe6e513)]:
+  - @hussmartinez/sdk-core@0.4.9
+  - @hussmartinez/ui@0.17.0
+
 ## 0.11.2
 
 ### Patch Changes
