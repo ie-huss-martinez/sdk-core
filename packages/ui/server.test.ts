@@ -107,6 +107,7 @@ describe("the built package on a server", () => {
       ToggleButton: { label: "Loop", icon, defaultPressed: true },
       TextField: { label: "File name", defaultValue: "report" },
       TextArea: { label: "Caption", defaultValue: "One\nTwo" },
+      SearchField: { label: "Search guides", defaultValue: "cors", end: "3 results" },
       ReorderableList: {
         label: "Layers",
         selectedId: "title",

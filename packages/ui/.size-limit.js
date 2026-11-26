@@ -159,7 +159,9 @@ export default [
   entryBudget({
     name: "React entry (./react), with the shared code it loads",
     entry: "dist/react.js",
-    // 44.5 kB; 44.49 kB with Tabs (docs/adr/0016), 1.43 kB to an application
+    // 45 kB; 44.83 kB with SearchField (docs/adr/0017), 1.64 kB to an
+    // application that imports it, with the icon button that clears it.
+    // Before, 44.5 kB; 44.49 kB with Tabs (docs/adr/0016), 1.43 kB to an application
     // that imports it, with the heading it shows before it's ready.
     // Before, 44 kB; 43.81 kB with Tag, TagList and ButtonLink (docs/adr/0015) and
     // 14 icons for pages (docs/adr/0005, amended), which the every-icon
@@ -179,7 +181,7 @@ export default [
     // content's headings. Every component counts here, though no
     // application ships them all, so a component's pull request raises it as
     // expected growth; review reads the import scenarios below to judge it.
-    limit: "44.5 kB",
+    limit: "45 kB",
   }),
   entryBudget({
     name: "Stylesheet (./styles.css)",

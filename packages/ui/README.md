@@ -236,6 +236,7 @@ Every component follows one contract ([ADR 0003](https://github.com/ie-huss-mart
 | `Field` | A visible `label`, an optional `description` and an optional `error`, wired to one control: the label names it, the description and error describe it, and an error marks it `aria-invalid`. `Slider`, `NumberField`, `TextField`, `TextArea` and `ColorField` connect themselves; for a native `<input>` or `<select>`, pass a function and spread the props it receives |
 | `NumberField` | A number typed as text, exposed as a spin button. Typing is committed on blur or Enter and kept within `min` and `max`; text that isn't a number goes back to the last value, so `onValueChange` never receives `NaN`. Arrow Up and Down step by `step`, Page Up and Down by `largeStep`, and Escape throws the typing away. `parse` and `format` default to the `locale`, or `UiMessagesProvider`'s, digits and separators included; replace them for units or a timecode. With `name`, forms receive the number |
 | `TextField` | Single-line text: `text`, `search`, `email`, `url`, `tel` or `password`. Native input props pass through, plus `onValueChange(value)`. In a `Field`, it takes the field's label, description and error, and shows the error with its border |
+| `SearchField` | A search box: a native `<input type="search">` in a box styled like `TextField` and with its tokens, a search icon before it and, while it holds text, a button that clears it and returns focus to the field. `label` names it, and a placeholder never does. Controlled with `value` and `onValueChange`, or uncontrolled from `defaultValue`; native input props and the ref go to the input, and `className` to the box. `icon` replaces the search icon; `end` shows something after the input, such as a shortcut hint; `clearLabel` names the clear button, which is "Clear search" otherwise. In a `Field`, it takes the field's label, description and error. It only holds the text: put it in a `<search>` element or a `<form role="search">`, and announce how many results there are. Before it hydrates, the browser's own clear button stays ([ADR 0017](https://github.com/ie-huss-martinez/sdk-core/blob/main/packages/ui/docs/adr/0017-search-field-and-filter-chips.md)) |
 | `TextArea` | Multi-line text, styled like `TextField` and with its tokens. `rows` sets its height, three by default, and the user can drag it taller. Native textarea props pass through, plus `onValueChange(value)`; the value separates lines with `\n`. In a `Field`, it takes the field's label, description and error |
 | `ColorField` | A colour: a hex input (`#rrggbb` or `#rgb`, with or without the `#`) beside a preview, and optional `swatches` to pick from, each `{ value, label }`. Controlled with `value` and `onValueChange`, or uncontrolled from `defaultValue`; the value is always lowercase `#rrggbb`. Typing commits on Enter or blur, text that isn't a colour goes back to the last value, and Escape throws the typing away. The swatches are a radio group with one Tab stop, named after the field. It doesn't use the browser's own colour picker. In a `Field`, it takes the field's label, description and error |
 | `Slider` | A value in a range, such as volume or zoom, on the native `<input type="range">`: `value` or `defaultValue`, `onValueChange`, `min`, `max`, `step` and `largeStep`. `formatValue` gives screen readers the value as text, such as "−6 dB". Arrow keys, Page Up and Down, Home and End work the same in every browser, mirrored in right-to-left text. In a `Toolbar`, it keeps the arrow keys, so put it last. `onValueCommit(value)` is called once when a gesture that changed the value ends: the pointer let go, the last key let go, however long it repeated, or focus leaving first. Use it for an undo step, and `onValueChange` for what follows the value as it moves |
@@ -258,6 +259,25 @@ import { Button, DownloadIcon, IconButton, RotateLeftIcon } from "@hussmartinez/
 Pass ui's icons, below, or any element that draws with `currentColor`. Each component costs a few hundred bytes minified and compressed, and a bundler drops the ones you don't import.
 
 **On a static page,** such as an Astro component without a `client:` directive, `Tag`, `TagList` and `ButtonLink` are complete as rendered: they have no state and no handlers, so nothing needs hydrating. Your own unlayered CSS beats every `hm` layer, whatever its specificity, so a bare `a { color: … }` or `a { text-decoration: … }` rule restyles a `ButtonLink`. Scope such a rule to your own links, `a:not(.hm-button)`, or put it in a layer below `hm`.
+
+**Filter chips** are `ToggleButton`s in a named group, not a component of their own ([ADR 0017](https://github.com/ie-huss-martinez/sdk-core/blob/main/packages/ui/docs/adr/0017-search-field-and-filter-chips.md)):
+
+```tsx
+<div role="group" aria-label={messages.t("library.filterByCategory")} className="filters">
+  {categories.map((category) => (
+    <ToggleButton
+      key={category}
+      size="small"
+      pressed={selected.has(category)}
+      onPressedChange={(on) => toggle(category, on)}
+    >
+      {category}
+    </ToggleButton>
+  ))}
+</div>
+```
+
+Each chip says whether it's pressed, and the group's name says what they filter. Lay the group out yourself, such as `display: flex; flex-wrap: wrap; gap: var(--hm-gap-normal)`. When one filter applies at a time, press "All" when none does, as the catalogue's story shows; for a few choices of which exactly one always applies, `SegmentedControl` says so. Announce the number of results after each change, with `useAnnounce` or a `role="status"` element.
 
 **`Tabs` on a static page** is every panel under its heading, which is complete but isn't tabs. To get tabs, hydrate it: in Astro, put it in a `.tsx` component and give that a `client:` directive, such as `client:load`. The panels collapse to one when it hydrates, so hydrate early what's high on the page.
 

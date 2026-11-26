@@ -14,6 +14,7 @@ import {
   IconButton,
   NumberField,
   ProgressBar,
+  SearchField,
   Slider,
   Spinner,
   Tabs,
@@ -89,6 +90,7 @@ export default function Page() {
         <Field label="File name">
           <TextField defaultValue="report" />
         </Field>
+        <SearchField label="Search pages" defaultValue="invoice" />
         <Field label="Caption">
           <TextArea defaultValue="A page" />
         </Field>

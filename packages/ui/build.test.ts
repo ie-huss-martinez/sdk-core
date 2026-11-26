@@ -255,6 +255,14 @@ describe("what applications ship", () => {
         excludes: ["hm-button", "hm-heading", "hm-visually-hidden", "dialog.close", ROVING_FOCUS],
       },
     );
+    // A search field brings its icons and its clear button, and only its own text.
+    await expectShipped(
+      'import { SearchField } from "./react.js"; export const app = SearchField;',
+      {
+        includes: ["hm-search-field", "searchField.clear", "hm-icon-button"],
+        excludes: ["hm-text-field", "hm-tabs", "dialog.close", "buttonLink.newTab", ROVING_FOCUS],
+      },
+    );
     // Tabs bring the heading they show before they're ready, and nothing else.
     await expectShipped('import { Tabs } from "./react.js"; export const app = Tabs;', {
       includes: ["hm-tabs", "tablist", "hm-heading"],
@@ -284,6 +292,7 @@ describe("what applications ship", () => {
 const WARNINGS = [
   "IconButton needs a label",
   "ButtonLink refused a javascript: URL",
+  "SearchField needs an accessible name",
   "below WCAG 2.2 AA contrast",
   "copies of @hussmartinez/ui",
   "isn't a heading level",
@@ -292,7 +301,7 @@ const WARNINGS = [
 
 describe("development warnings", () => {
   const app =
-    'import { ButtonLink, Heading, IconButton, ThemeProvider } from "./react.js"; import { createTheme, toHeadingLevel } from "./index.js"; export const app = [ButtonLink, Heading, IconButton, ThemeProvider, createTheme, toHeadingLevel];';
+    'import { ButtonLink, Heading, IconButton, SearchField, ThemeProvider } from "./react.js"; import { createTheme, toHeadingLevel } from "./index.js"; export const app = [ButtonLink, Heading, IconButton, SearchField, ThemeProvider, createTheme, toHeadingLevel];';
 
   it("stay in development bundles", async () => {
     await expectShipped(app, { includes: WARNINGS, excludes: [] }, "development");
