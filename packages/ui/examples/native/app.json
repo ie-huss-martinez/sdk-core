@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "name": "ui native example",
+    "slug": "hm-ui-example-native",
+    "version": "1.0.0",
+    "platforms": ["android", "ios"],
+    "userInterfaceStyle": "automatic"
+  }
+}

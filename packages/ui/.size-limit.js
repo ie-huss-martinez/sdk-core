@@ -103,6 +103,33 @@ function scenario(name, names, limit) {
   });
 }
 
+/** The native entry's exports, read from its build, as the React entry's are. */
+const NATIVE_EXPORTS = exportNames("dist/native.js");
+
+/** Every icon's data: `zoom-in` is `zoomInIcon`. */
+const NATIVE_ICONS = ICONS.map((name) => `${name[0].toLowerCase()}${name.slice(1)}`);
+
+/**
+ * One import from the native entry, as {@link scenario} measures the React
+ * entry's, with the host's `react-native` and `react-native-svg` left out
+ * beside React and the family's packages.
+ */
+function nativeScenario(name, names, limit) {
+  const missing = names.filter((exported) => !NATIVE_EXPORTS.includes(exported));
+  if (missing.length > 0) {
+    throw new Error(
+      `Size scenario "${name}": dist/native.js doesn't export ${missing.join(", ")}.`,
+    );
+  }
+  return importBudget({
+    name: `Native import: ${name}`,
+    entry: "dist/native.js",
+    imports: `{ ${names.join(", ")} }`,
+    ignore: ["react-native", "react-native/*", "react-native-svg"],
+    limit,
+  });
+}
+
 export default [
   entryBudget({
     name: "Server-safe entry (.), with the shared code it loads",
@@ -215,5 +242,46 @@ export default [
     "a Card that morphs into a Dialog",
     ["Card", "Dialog", "startMorphTransition"],
     "2.5 kB",
+  ),
+  // The React Native entry (sdk-core ADR 0069), built on its own, so nothing
+  // above moved when it was added.
+  entryBudget({
+    name: "React Native entry (./native)",
+    entry: "dist/native.js",
+    // 9 kB; 8.94 kB. Each part compressed with the rest, in kB:
+    //   the icons' shapes        2.9  70 icons, about 0.04 kB each
+    //   the two themes           1.1  every token, resolved, twice
+    //   the components           2.6  provider, Text, Button, ChoiceList, Icon, Dir
+    //   the rest                 2.3  createNativeTheme, preferences, direction
+    // Metro ships the whole file unless the application turns tree shaking
+    // on, so this one is what most native applications pay.
+    limit: "9 kB",
+  }),
+  // A floor: 0.4 kB; 0.34 kB, the lists of right-to-left languages and
+  // scripts. The cheapest import a native application makes.
+  nativeScenario("the floor, isRTL", ["isRTL"], "0.4 kB"),
+  // 1.5 kB; 1.09 kB.
+  nativeScenario("the native themes", ["lightNativeTheme", "darkNativeTheme"], "1.5 kB"),
+  // 3 kB; 2.90 kB for 70 icons.
+  nativeScenario("every icon's data", NATIVE_ICONS, "3 kB"),
+  // 5 kB; 4.66 kB: what an application with a themed, right-to-left
+  // multiple-choice screen imports.
+  nativeScenario(
+    "a native screen",
+    [
+      "NativeUiProvider",
+      "Dir",
+      "Text",
+      "Button",
+      "ChoiceList",
+      "Icon",
+      "announce",
+      "useReducedMotion",
+      "readNativePreferences",
+      "createNativeTheme",
+      "undoIcon",
+      "chevronRightIcon",
+    ],
+    "5 kB",
   ),
 ];

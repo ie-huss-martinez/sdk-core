@@ -25,6 +25,10 @@
       "types": "./dist/react.d.ts",
       "default": "./dist/react.js"
     },
+    "./native": {
+      "types": "./dist/native.d.ts",
+      "default": "./dist/native.js"
+    },
     "./styles.css": "./dist/styles.css",
     "./package.json": "./package.json"
   },
@@ -34,14 +38,14 @@
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
-    "build": "vite build && pnpm check:api",
+    "build": "vite build && vite build --config vite.native.config.ts && pnpm check:api",
     "test": "vitest run --project unit",
     "test:browser": "hm-in-image vitest run --project browser",
     "test:browser:all": "hm-in-image vitest run --project browser --mode all-browsers",
     "check:size": "size-limit",
-    "check:api": "tsc -p tsconfig.build.json && api-extractor run && api-extractor run -c api-extractor.react.json && hm-check-api-reports --main api/ui.api.md --types dist/index.d.ts api/ui-react.api.md",
+    "check:api": "tsc -p tsconfig.build.json && api-extractor run && api-extractor run -c api-extractor.react.json && api-extractor run -c api-extractor.native.json && hm-check-api-reports --main api/ui.api.md --types dist/index.d.ts api/ui-react.api.md api/ui-native.api.md",
     "check:package": "publint run --pack pnpm --strict && attw --pack . --profile esm-only --exclude-entrypoints ./styles.css && node scripts/check-packed-types.ts",
-    "api:update": "tsc -p tsconfig.build.json && api-extractor run --local && api-extractor run -c api-extractor.react.json --local && hm-check-api-reports --main api/ui.api.md --types dist/index.d.ts api/ui-react.api.md",
+    "api:update": "tsc -p tsconfig.build.json && api-extractor run --local && api-extractor run -c api-extractor.react.json --local && api-extractor run -c api-extractor.native.json --local && hm-check-api-reports --main api/ui.api.md --types dist/index.d.ts api/ui-react.api.md api/ui-native.api.md",
     "tokens": "node scripts/generate-tokens.ts",
     "icons": "node scripts/generate-icons.ts",
     "size:table": "node scripts/size-table.ts",
@@ -53,7 +57,7 @@
     "test:e2e": "pnpm --filter @hussmartinez/ui-e2e test:e2e",
     "verify": "pnpm lint:css && pnpm lint:react && pnpm typecheck && pnpm lint:deps && pnpm build && pnpm test && pnpm test:browser && pnpm build:examples && pnpm test:catalogue && pnpm test:visual && pnpm test:e2e && pnpm check:size && pnpm check:package",
     "verify:fast": "pnpm typecheck && pnpm test && pnpm lint:deps && pnpm check:api",
-    "build:examples": "pnpm --filter @hussmartinez/ui-catalogue --filter @hussmartinez/ui-example-vite --filter @hussmartinez/ui-example-next build",
+    "build:examples": "pnpm --filter @hussmartinez/ui-catalogue --filter @hussmartinez/ui-example-vite --filter @hussmartinez/ui-example-next --filter @hussmartinez/ui-example-native build",
     "test:catalogue": "pnpm --filter @hussmartinez/ui-catalogue test:browser"
   },
   "dependencies": {
@@ -61,13 +65,21 @@
   },
   "peerDependencies": {
     "react": ">=18.3",
-    "react-dom": ">=18.3"
+    "react-dom": ">=18.3",
+    "react-native": ">=0.79",
+    "react-native-svg": ">=15"
   },
   "peerDependenciesMeta": {
     "react": {
       "optional": true
     },
     "react-dom": {
+      "optional": true
+    },
+    "react-native": {
+      "optional": true
+    },
+    "react-native-svg": {
       "optional": true
     }
   },
@@ -94,6 +106,8 @@
     "react-18": "catalog:",
     "react-dom": "catalog:",
     "react-dom-18": "catalog:",
+    "react-native": "catalog:",
+    "react-native-svg": "catalog:",
     "secretlint": "catalog:",
     "size-limit": "catalog:",
     "stylelint": "catalog:",

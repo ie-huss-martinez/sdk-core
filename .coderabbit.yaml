@@ -27,6 +27,7 @@ reviews:
     - "!packages/ui/src/tokens/tokens.css"
     - "!packages/ui/docs/tokens.md"
     - "!packages/ui/src/icons/*.generated.*"
+    - "!packages/ui/src/native/*.generated.*"
     - "!**/api/*.api.md"
     - "!**/*.snap"
     - "!pnpm-lock.yaml"

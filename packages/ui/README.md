@@ -14,6 +14,8 @@ npm install @hussmartinez/ui
 
 For the React components, your application also needs `react` and `react-dom` 18.3 or later. They're optional peer dependencies, so the tokens and theme helpers work without them.
 
+A React Native application needs `react-native` 0.79 or later, and `react-native-svg` 15 or later for the icons, and imports [`@hussmartinez/ui/native`](#react-native) instead of the React entry and the stylesheet.
+
 ## Quick start
 
 Import the stylesheet once, at the root of your application, and use the components:
@@ -42,6 +44,7 @@ The package is ESM only ([ADR 0004](https://github.com/ie-huss-martinez/sdk-core
 | `@hussmartinez/ui` | Tokens, `createTheme`, `themeToCss`, the built-in themes and their types. No React and no DOM access on import, so it's safe in Server Components and build scripts |
 | `@hussmartinez/ui/react` | `ThemeProvider`, `UiMessagesProvider` and the components. Starts with `"use client"`. React and React DOM `>=18.3` are optional peer dependencies |
 | `@hussmartinez/ui/styles.css` | All styles: the built-in tokens and base styles, in the cascade layers `hm.tokens` and `hm.base`. Import it once in your application |
+| `@hussmartinez/ui/native` | For React Native: the themes as native values, the icons as data with `Icon`, `Text`, `Button`, `ChoiceList`, and helpers for direction, preferences and announcements. No DOM and no stylesheet. `react-native` `>=0.79` and `react-native-svg` `>=15` are optional peer dependencies. See [React Native](#react-native) |
 
 JavaScript never imports CSS, so your application decides where the stylesheet loads. Your own unlayered CSS overrides every `hm` layer without `!important` ([ADR 0005](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0005-plain-css-with-cascade-layers.md)).
 
@@ -123,6 +126,59 @@ const scoped = themeToCss(brandLight, ".marketing"); // only inside .marketing
 ```
 
 Custom themes always beat the built-in ones, whatever order stylesheets load in. Themes can nest; the closest one wins. Invalid selectors throw `UiError` with the code `INVALID_THEME_SELECTOR`.
+
+## React Native
+
+`@hussmartinez/ui/native` is `ui` for React Native ([ADR 0069 in sdk-core](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0069-react-native-entry-points.md)). It shares the web's tokens and icons, not its components: there's no DOM and no CSS on a device.
+
+```tsx
+import {
+  announce,
+  Button,
+  ChoiceList,
+  Dir,
+  NativeUiProvider,
+  Text,
+} from "@hussmartinez/ui/native";
+
+export function Question({ locale, preferences, question, choices, answer, t, next }) {
+  return (
+    <NativeUiProvider colorMode={preferences.theme} textScale={preferences.textScale}>
+      <Dir locale={locale} style={{ flex: 1 }}>
+        <Text variant="title">{question}</Text>
+        <ChoiceList
+          accessibilityLabel={question}
+          choices={choices}
+          correctKey={answer.key}
+          feedbackLabels={{ correct: t("correct"), hint: t("yourAnswer") }}
+          onValueChange={(key) =>
+            announce(key === answer.key ? t("right") : t("itWas", { answer: answer.label }))
+          }
+        />
+        <Button variant="primary" size="large" onPress={next}>
+          {t("next")}
+        </Button>
+      </Dir>
+    </NativeUiProvider>
+  );
+}
+```
+
+- **Themes:** `lightNativeTheme` and `darkNativeTheme` hold every semantic token under the web's name, such as `theme.tokens["color-accent"]`, resolved when `ui` is built: colours as `#rrggbb` or `#rrggbbaa`, lengths in density-independent pixels at 16 to a `rem`, durations in milliseconds, curves as four numbers for `Easing.bezier`. Targets are 44 dp, as on any touch screen. Tokens that describe CSS itself, such as font stacks and shadow lists, are left out.
+  - `createNativeTheme({ extends, tokens })` changes the tokens you give, with native values, and throws `UiError` with the code `INVALID_THEME_TOKEN` for an unknown name or a value of the wrong kind. It doesn't check contrast: check a custom palette against the pairs in `contrastPairs` yourself.
+  - **Four tokens are native only:** `color-hint`, `color-hint-subtle` and `color-hint-text`, a gentle tone for "not this one, look again", and `control-height-large`, 64 dp.
+- **`NativeUiProvider`** gives components a theme, or a light and dark pair chosen by `colorMode` (`system` follows the device), a `textScale` from 1 to 2, and a `motion` preference. `useNativeTheme()` and `useTextScale()` read them for your own views. Without a provider, components use the light theme.
+- **`Text`:** `variant` is `body`, `small` or `title`; `tone` is `default`, `muted`, `accent`, `success`, `hint`, `warning` or `danger`. Its size follows the text scale, on top of the device's own font size setting.
+- **`Button`,** on `Pressable`: `variant` is `primary`, `secondary`, `quiet`, `selected`, `success` or `hint`; `size` is `medium`, a 44 dp target, or `large`, 64 dp, and both grow with the text scale. `icon` takes one of `ui`'s icons or any element. It shows focus, and tells screen readers it's a button and whether it's disabled.
+- **`ChoiceList`:** a radio group with large targets. With `correctKey`, it's an errorless question: once a choice is picked, the right one is shown in the success colours with a check, a pick that wasn't right in the hint colours, never as an error, and the rest are dimmed. It has no text of its own: `feedbackLabels` is what a screen reader adds to those two choices' names. `choiceState(key, picked, correctKey)` is the same decision as a function, for a layout of your own.
+- **Icons:** every icon of `ui`'s set is a plain object, such as `undoIcon`, and `<Icon icon={undoIcon} />` draws it with `react-native-svg` in the theme's text colour. Icons that point along the reading direction are mirrored inside right-to-left content. With `label`, the icon is an image with that name; without, it's hidden from screen readers.
+- **Direction:** `isRTL("ar-EG")` reads a locale without `Intl`. `<Dir locale="ar">` lays out its subtree in that language's direction with the `direction` style, which takes effect at once, unlike `I18nManager.forceRTL`. `<NoFlip>` keeps a physical layout, such as a map or a grid, as it is. `useDirection()` returns the closest one's.
+- **Preferences** are the application's to keep: `readNativePreferences(value)` reads `{ theme, textScale, motion }` from anything, such as JSON from storage, and never throws; `nativePreferenceOptions` lists what a settings screen offers. `useReducedMotion()` follows the `motion` preference and the device's setting, and answers `true` until the device's is known.
+- **`announce(message)`** has the screen reader say a result, through `AccessibilityInfo`.
+
+`ui`'s own checks build against Expo SDK 58, with React Native 0.88 and `react-native-svg` 15.16. Earlier versions inside the peer ranges, from React Native 0.79, are accepted but not built here.
+
+Text is yours: the native components take every visible string and accessible name as a prop. Nothing renders on a device in `ui`'s own tests, so check a screen with VoiceOver and TalkBack when you first use a component.
 
 ## Server rendering and frameworks
 

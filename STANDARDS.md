@@ -41,9 +41,11 @@ Everything that reaches the page starts with `hm-`. States use ARIA attributes, 
 | `./element` | `define<Kind>EditorElement()`, built with `sdk-core/element`'s `createEditorElement`. Registers nothing on import, and renders into the light DOM ([ADR 0040](docs/adr/0040-editor-element-base.md)) |
 | `./styles.css` | All styles. Imported once by the application |
 | `./standalone` | Self-contained script for plain HTML pages. Adopts one shared copy of `ui`'s styles per `ui` minor ([ADR 0040](docs/adr/0040-editor-element-base.md)) |
+| `./native` | Optional. What only React Native can use: components on its views, hooks over its APIs, adapters to its storage. No DOM entry, no stylesheet, and no text of its own ([ADR 0069](docs/adr/0069-react-native-entry-points.md)) |
 
 - **Module format:** ESM only, with `"type": "module"`, `types` first in every `exports` condition, and `"sideEffects": ["**/*.css"]`.
-- **Peer dependencies:** `react` and `react-dom` are optional, `>=18.3`.
+- **Peer dependencies:** `react` and `react-dom` are optional, `>=18.3`. A package with a `./native` entry adds `react-native`, `>=0.79`, and `react-native-svg`, `>=15`, if it draws vectors, both optional.
+- **A `./native` entry never changes the web entries:** it's built on its own, into one file, with its own API report and size budgets, and the web entries' budgets don't move in the pull request that adds it ([ADR 0069](docs/adr/0069-react-native-entry-points.md)).
 - **`@hussmartinez/ui`:** a regular dependency of every SDK, on the current minor (`^0.N.0` during `0.x`), imported only by `features/`, `react/` and `element/`. Applications that use `ui` themselves depend on the same minor, so there's one copy; `ui` warns in development when there are two.
 - **No CSS from JavaScript:** library code never imports CSS.
 
@@ -175,11 +177,14 @@ Programmatic control goes through a ref handle, such as `open(file)`, `export()`
   - trusted publishing with provenance;
   - `SECURITY.md` in every repository.
 
-## Platform ([ADR 0013](docs/adr/0013-browser-and-react-support.md))
+## Platform ([ADR 0013](docs/adr/0013-browser-and-react-support.md), [ADR 0069](docs/adr/0069-react-native-entry-points.md))
 
 - **Browsers:** the last two major versions of Chrome, Edge, Firefox and Safari, on desktop and mobile. Builds target ES2022 and ship no polyfills.
 - **Feature detection:** missing platform features fail with `UNSUPPORTED_ENVIRONMENT`, naming the feature.
 - **React:** `>=18.3`, avoiding React 19-only APIs.
+- **React Native,** through `./native` entries, on Hermes:
+  - every package's `.` entry stays safe to import and run there. Nothing it reaches calls `String.prototype.normalize`, `Intl`, `Blob`, `File`, `TextEncoder`, `URL`, `localStorage` or another DOM global without checking for it first, and what needs one fails with `UNSUPPORTED_ENVIRONMENT`, or uses a pure fallback its documentation names. A package meets this in the pull request that adds its `./native` entry, and a package another's native entry reaches meets it first;
+  - native code keeps its decisions in pure functions with unit tests; a test runs the built `.` and `./native` entries in a realm with no `Intl`, no `normalize` and no DOM; and an Expo application in `examples/native` uses every export, and `pnpm verify` builds it with `expo export`. Nothing renders on a device in CI: the first application to use an entry checks how it looks and reads, by hand, before the package's next release.
 
 ## Accessibility and text ([ADR 0014](docs/adr/0014-accessibility-and-translatable-text.md))
 
