@@ -91,3 +91,20 @@ describe("cleanFileName (ADR 0051)", () => {
     );
   });
 });
+
+describe("cleanFileName on an engine without String.prototype.normalize (ADR 0069)", () => {
+  it("still cleans the name, and leaves it in the form it came in", () => {
+    const normalize = String.prototype.normalize;
+    // biome-ignore lint/suspicious/noExplicitAny: removing a built-in method is the case.
+    delete (String.prototype as any).normalize;
+    try {
+      // "e" and a combining acute accent stay two code points; the path,
+      // the bidirectional override and the refused character still go.
+      expect(cleanFileName("C:\\docs\\re\u0301sume\u202E?.pdf")).toBe("re\u0301sume.pdf");
+      expect(cleanFileName("../..")).toBeUndefined();
+    } finally {
+      String.prototype.normalize = normalize;
+    }
+    expect(cleanFileName("re\u0301sume.pdf")).toBe("r\u00E9sume.pdf");
+  });
+});

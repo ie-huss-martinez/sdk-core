@@ -260,7 +260,7 @@ export default [
   entryBudget({
     name: "React Native entry (./native)",
     entry: "dist/native.js",
-    // 10 kB; 9.71 kB. Each part compressed with the rest, in kB:
+    // 10 kB; 9.73 kB. Each part compressed with the rest, in kB:
     //   the icons' shapes        3.6  84 icons, about 0.04 kB each; it grows
     //                                 with every icon the set gains
     //   the two themes           1.1  every token, resolved, twice
@@ -277,7 +277,7 @@ export default [
   nativeScenario("the native themes", ["lightNativeTheme", "darkNativeTheme"], "1.5 kB"),
   // 4 kB; 3.58 kB for 84 icons.
   nativeScenario("every icon's data", NATIVE_ICONS, "4 kB"),
-  // 5 kB; 4.70 kB: what an application with a themed, right-to-left
+  // 5 kB; 4.72 kB: what an application with a themed, right-to-left
   // multiple-choice screen imports.
   nativeScenario(
     "a native screen",
