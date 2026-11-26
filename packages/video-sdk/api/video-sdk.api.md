@@ -377,7 +377,7 @@ export type VideoCommand = InsertClipsCommand | RemoveClipsCommand | RestoreClip
 export type VideoCommandRejection = VideoClipProblem | VideoOutputProblem | "malformed-command" | "unknown-command" | "no-clips" | "duplicate-key" | "key-taken" | "unknown-clip" | "not-a-boundary" | "empty-range" | "frame-outside-plan" | "not-inside-clip" | "new-key-required" | "unexpected-key" | "invalid-index" | "invalid-order" | "invalid-edge" | "unknown-metadata-field" | "metadata-too-long" | "no-plan" | "empty-plan";
 
 // @public
-export type VideoContainer = "mp4" | "mov" | "webm" | "mkv";
+export type VideoContainer = "mp4" | "mov" | "webm" | "mkv" | "dav";
 
 // @public
 export interface VideoCrop {

@@ -2,41 +2,15 @@ import { type EncodedPacket, EncodedPacketSink, type InputTrack } from "mediabun
 import { throwIfAborted } from "../../core/errors/error-helpers.js";
 import { isVideoError, VideoError } from "../../core/errors/video-error.js";
 import type { VideoFilePolicy } from "../../core/errors/video-limits.js";
-import type { AudioTrackProbe, VideoRotation, VideoTrackProbe } from "../../core/model/source.js";
-import { packetCaps } from "../front-check/front-check.js";
-import type { FrontCheck } from "../front-check/types.js";
+import type { VideoRotation } from "../../core/model/source.js";
+import type { MediabunnyFrontCheck } from "../front-check/types.js";
+import { overPacketCap, type PacketWalk, packetCaps, peakPerSecond } from "../packets.js";
 import { codecOf, openInput, pickTracks } from "./tracks.js";
+
+export type { PacketWalk } from "../packets.js";
 
 /** How many packets between checks of the abort signal. */
 const ABORT_EVERY = 1_024;
-
-/**
- * What walking every packet of the tracks the SDK uses found (ADR 0001).
- *
- * @internal
- */
-export interface PacketWalk {
-  /** The video track's earliest presentation timestamp, in microseconds. */
-  readonly start: number;
-  /** The length in microseconds from `start`: the larger of the header's and the walk's. */
-  readonly duration: number;
-  readonly peakBitrate: number;
-  readonly maxPacketSize: number;
-  readonly video: VideoTrackProbe;
-  readonly audio: AudioTrackProbe | null;
-}
-
-/** The most timestamps, in microseconds, within any window of one second. */
-function peakPerSecond(timestamps: Float64Array): number {
-  timestamps.sort();
-  let peak = 0;
-  let first = 0;
-  for (let last = 0; last < timestamps.length; last += 1) {
-    while ((timestamps[last] as number) - (timestamps[first] as number) >= 1_000_000) first += 1;
-    peak = Math.max(peak, last - first + 1);
-  }
-  return peak;
-}
 
 /**
  * Opens a front-checked file with mediabunny, restricted to its family's
@@ -55,7 +29,7 @@ function peakPerSecond(timestamps: Float64Array): number {
  */
 export async function walkPackets(
   file: Blob,
-  front: FrontCheck,
+  front: MediabunnyFrontCheck,
   policy: VideoFilePolicy,
   signal?: AbortSignal,
 ): Promise<PacketWalk> {
@@ -65,7 +39,6 @@ export async function walkPackets(
     const { video, videoCodec, audio } = await pickTracks(input, container);
 
     const caps = packetCaps(policy);
-    const seconds = policy.limits.maxDuration.maximum / 1_000;
     let start = Number.POSITIVE_INFINITY;
     let end = Number.NEGATIVE_INFINITY;
     let maxPacketSize = 0;
@@ -80,22 +53,7 @@ export async function walkPackets(
       const sink = new EncodedPacketSink(track);
       for await (const packet of sink.packets(undefined, undefined, { metadataOnly: true })) {
         count += 1;
-        if (count > cap) {
-          const isVideo = track === video;
-          const limit = isVideo ? "maxFrameRate" : "maxDuration";
-          throw new VideoError(
-            isVideo ? "FRAME_RATE_TOO_HIGH" : "DURATION_TOO_LONG",
-            `The ${isVideo ? "video" : "audio"} track has more packets than the limits allow.`,
-            {
-              details: {
-                limit,
-                maximum: policy.limits[limit].maximum,
-                actual: isVideo ? count / seconds : policy.limits.maxDuration.maximum + 1,
-                unit: isVideo ? "hertz" : "milliseconds",
-              },
-            },
-          );
-        }
+        if (count > cap) throw overPacketCap(track === video ? "video" : "audio", count, policy);
         if (count % ABORT_EVERY === 0) throwIfAborted(signal);
         // Whole microseconds, so that rounding can't move a packet across a second.
         const time = packet.microsecondTimestamp;

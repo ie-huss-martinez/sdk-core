@@ -8,6 +8,7 @@ import {
 import { isVideoError, VideoError } from "../../src/index.js";
 import landscapeMp4 from "../fixtures/video/landscape.mp4?url";
 import landscapeVp8 from "../fixtures/video/landscape-vp8.webm?url";
+import numberedDav from "../fixtures/video/numbered.dav?url";
 import type { AudioDecodeContract, AudioDecodeRequest } from "./audio-decode.worker.js";
 
 // Decoding audio in a worker (docs/adr/0002), on Opus, which every engine
@@ -42,6 +43,18 @@ describe("decoding audio in a worker", () => {
     const { frames } = await decode({});
     // Opus's pre-skip and padding can shift the count by a frame either way.
     expect(Math.abs(frames - 96_000)).toBeLessThanOrEqual(5_760);
+  });
+
+  // G.711 as a recorder writes it, plain samples, from the SDK's own DHAV
+  // reader (docs/adr/0009).
+  it("decodes a DAV recording's A-law: three seconds at 8 kHz, end to end", async () => {
+    const { frames, first, firstPacket, placed } = await decode({}, numberedDav);
+    expect(frames).toBe(24_000);
+    expect(first).toBe(0);
+    expect(firstPacket).toBe(0);
+    expect(placed).toEqual(Array.from({ length: 75 }, (_, n) => [n * 40_000, 40_000]));
+    const part = await decode({ from: 1_000_000, to: 2_000_000 }, numberedDav);
+    expect(part.frames).toBe(8_000);
   });
 
   it.for([

@@ -15,6 +15,10 @@ export type FrontCheckReason =
   | "too-many-elements"
   | "no-index"
   | "no-tracks"
+  | "no-video"
+  | "frame-size"
+  | "frame-trailer"
+  | "parameter-sets"
   | "edit-list"
   | "encryption";
 

@@ -3,7 +3,7 @@
  *
  * @public
  */
-export type VideoContainer = "mp4" | "mov" | "webm" | "mkv";
+export type VideoContainer = "mp4" | "mov" | "webm" | "mkv" | "dav";
 
 /**
  * A quarter turn, in degrees clockwise.

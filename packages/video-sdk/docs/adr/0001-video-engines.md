@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-12
-- **Amended:** 2026-11-18, with [ADR 0008](0008-audio-editing.md): sound the browser can't decode no longer refuses a file, and an export needs an audio encoder only for sound. Earlier, 2026-11-12, when decoding was built: a decoded frame's visible picture must fit the probe exactly, and its coded size may carry the decoder's alignment padding. Then, before export was built: what the encoding order gives in each engine, as measured, and how a configuration is chosen and proved. Then, when export's tests read audio back: decoded audio is placed by the stream, encoded audio is stamped by the stream, and AAC's priming is measured and trimmed. Then: two timing limits, measured and accepted.
+- **Amended:** 2026-11-26, with [ADR 0009](0009-dhav-reader.md): DAV recordings (`DHAV`) are a third container, read by the SDK's own reader rather than mediabunny, whose walk is their front check; the decode loops take packets from either reader. Earlier, 2026-11-18, with [ADR 0008](0008-audio-editing.md): sound the browser can't decode no longer refuses a file, and an export needs an audio encoder only for sound. Earlier, 2026-11-12, when decoding was built: a decoded frame's visible picture must fit the probe exactly, and its coded size may carry the decoder's alignment padding. Then, before export was built: what the encoding order gives in each engine, as measured, and how a configuration is chosen and proved. Then, when export's tests read audio back: decoded audio is placed by the stream, encoded audio is stamped by the stream, and AAC's priming is measured and trimmed. Then: two timing limits, measured and accepted.
 
 ## Context
 
@@ -61,7 +61,8 @@ mediabunny 1.65.2 caps box and element nesting at 64. It doesn't cap the size of
 
 - **Format by signature,** never by file name or MIME type:
   - **ISOBMFF or QuickTime:** a leading `ftyp` box, or QuickTime's leading `moov`, `mdat`, `wide` or `free`;
-  - **Matroska or WebM:** an EBML header whose `DocType` is `matroska` or `webm`.
+  - **Matroska or WebM:** an EBML header whose `DocType` is `matroska` or `webm`;
+  - **DHAV:** a first frame's `DHAV`, or the `DAHUA` file header before it ([ADR 0009](0009-dhav-reader.md)).
 
   Anything else fails with `UNSUPPORTED_FORMAT` and never reaches mediabunny.
 - **Structure:** the check walks only the top-level boxes or elements, and the few children named below, with a fixed depth limit. Every size is checked against the bytes that remain.
@@ -181,5 +182,5 @@ Only then does the worker open the file with mediabunny.
 - **Size:** mediabunny's whole minified bundle is about 187 kB gzipped. The worker chunks hold only the MP4 and Matroska demuxers and muxers. Their size budgets are measured and set with the first worker. None of it is in the main entries.
 - **No WebAssembly:** the CSP needs no `'wasm-unsafe-eval'` ([ADR 0002](0002-workers-and-assets.md)).
 - **Support depends on the browser** for each codec. The end-to-end capability matrix records which codecs decode and encode in Chromium, Firefox and WebKit, and every browser claim in these records is checked there before code relies on it.
-- **Some files are refused:** files with several edits, encrypted files, and containers other than ISOBMFF and Matroska. The error says why.
+- **Some files are refused:** files with several edits, encrypted files, and containers other than ISOBMFF, Matroska and DHAV. The error says why.
 - **Every export re-encodes.** It's slower than copying packets and loses a little quality, but nothing the user cut or didn't choose can leak.

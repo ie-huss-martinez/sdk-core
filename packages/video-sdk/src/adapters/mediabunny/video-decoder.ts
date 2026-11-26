@@ -1,8 +1,8 @@
-import { type EncodedPacket, EncodedPacketSink, type InputVideoTrack } from "mediabunny";
 import { abortError } from "../../core/errors/error-helpers.js";
 import { isVideoError, VideoError } from "../../core/errors/video-error.js";
 import { CODED_PADDING } from "../../core/model/probe-limits.js";
 import { boundedFlush } from "../bounded-flush.js";
+import type { VideoPacket, VideoPackets } from "../packets.js";
 
 /** The most packets waiting in the decoder's own queue (docs/adr/0002). */
 export const MAX_DECODE_QUEUE = 8;
@@ -55,10 +55,11 @@ export interface FrameRange {
 }
 
 /**
- * Decodes the frames of `range` from a video track with WebCodecs, in the
- * worker, and lends each one to `onFrame` in presentation order (docs/adr/0001,
- * docs/adr/0002). Decoding starts at the key packet at or before
- * `range.keyFrom`, or `range.from`.
+ * Decodes the frames of `range` from a video track's packets with WebCodecs,
+ * in the worker, and lends each one to `onFrame` in presentation order
+ * (docs/adr/0001, docs/adr/0002). Decoding starts at the key packet at or
+ * before `range.keyFrom`, or `range.from`. The packets come from whichever
+ * reader opened the file (docs/adr/0009).
  *
  * - **Bounded:** at most {@link MAX_DECODE_QUEUE} packets wait in the
  *   decoder, with back-pressure on its `dequeue` event, and no packet is fed
@@ -92,7 +93,7 @@ export interface FrameRange {
  * @internal
  */
 export async function decodeVideoFrames(
-  track: InputVideoTrack,
+  packets: VideoPackets,
   config: VideoDecoderConfig,
   bounds: FrameBounds,
   range: FrameRange,
@@ -244,11 +245,10 @@ export async function decodeVideoFrames(
 
   try {
     configure(decoder, config);
-    const sink = new EncodedPacketSink(track);
     const start =
-      (await sink.getKeyPacket((range.keyFrom ?? range.from) / 1_000_000)) ??
-      (await sink.getFirstPacket());
-    let packet: EncodedPacket | null = start;
+      (await packets.getKeyPacket((range.keyFrom ?? range.from) / 1_000_000)) ??
+      (await packets.getFirstPacket());
+    let packet: VideoPacket | null = start;
     while (packet !== null && delivered < limit) {
       check();
       // Packets after the range can't hold frames in it, once the decoder
@@ -271,7 +271,7 @@ export async function decodeVideoFrames(
         decoder.decodeQueueSize,
       );
       await drain();
-      packet = await sink.getNextPacket(packet);
+      packet = await packets.getNextPacket(packet);
     }
     if (delivered < limit) {
       // The flush, bounded: a decoder that stopped would leave it pending.

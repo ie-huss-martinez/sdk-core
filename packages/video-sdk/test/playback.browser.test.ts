@@ -24,6 +24,7 @@ import {
   type VideoOutputHarness,
 } from "./contracts/video-output.contract.js";
 import landscapeVp8 from "./fixtures/video/landscape-vp8.webm?url";
+import numberedDav from "./fixtures/video/numbered.dav?url";
 import numberedBeeps from "./fixtures/video/numbered-beeps.webm?url";
 import numberedVp8 from "./fixtures/video/numbered-vp8.webm?url";
 import { DEV_WORKER_START_TIMEOUT } from "./support/load.js";
@@ -303,6 +304,29 @@ describe("drawing what the plan places at the clock", () => {
     output.seek(90);
     // The end shows the last frame.
     expect(await shown()).toBe(29);
+    await noFramesOpen();
+  });
+
+  // A recording at 25 frames a second, read by the SDK's own DHAV reader
+  // (docs/adr/0009), on the plan's 30: each output frame shows the picture
+  // whose time it falls in.
+  it("previews a DAV recording, seeking to exact pictures", async () => {
+    const real = await setup(numberedDav);
+    output = real.output;
+    expect(real.source).toMatchObject({ container: "dav", duration: 3_000_000 });
+    expect(real.source.audio).toEqual({ codec: "alaw", sampleRate: 8_000, channels: 1 });
+    output.load(planOf(clipOf("a", real.source, 0, 90)));
+    expect(await shown()).toBe(0);
+    // Output frame 30 is at 1 s, the recording's 26th picture, a key picture.
+    output.seek(30);
+    expect(await shown()).toBe(25);
+    // 1.5 s is halfway through the picture at 1.48 s.
+    output.seek(45);
+    expect(await shown()).toBe(37);
+    output.step(1);
+    expect(await shown()).toBe(38);
+    output.seek(89);
+    expect(await shown()).toBe(74);
     await noFramesOpen();
   });
 

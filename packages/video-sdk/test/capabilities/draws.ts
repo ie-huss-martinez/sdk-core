@@ -1,9 +1,10 @@
 // Whether a real decoded frame can be drawn into a worker's 2D OffscreenCanvas
 // and read back (docs/adr/0006): directly with drawImage(frame), and through
 // createImageBitmap(frame), the fallback.
+import { frontCheck } from "../../src/adapters/front-check/front-check.js";
 import { frameBounds } from "../../src/adapters/mediabunny/frame-bounds.js";
-import { familyOf, openInput, pickTracks } from "../../src/adapters/mediabunny/tracks.js";
 import { decodeVideoFrames } from "../../src/adapters/mediabunny/video-decoder.js";
+import { openTracks } from "../../src/adapters/open-tracks.js";
 import { probeFile } from "../../src/adapters/probe.js";
 import { videoLimits } from "../../src/core/errors/video-limits.js";
 
@@ -30,13 +31,13 @@ export async function draws(file: Blob): Promise<Draws> {
   let result: Draws = { videoFrame: false, imageBitmap: false };
   try {
     const probe = await probeFile(file, videoLimits.resolve());
-    const input = openInput(file, familyOf(probe.container));
+    const tracks = await openTracks(file, await frontCheck(file, videoLimits.resolve()));
     try {
-      const { video } = await pickTracks(input, probe.container);
-      const config = await video.getDecoderConfig();
+      const { video } = tracks;
+      const config = await video.config();
       if (config === null) return result;
       const range = { from: Number.NEGATIVE_INFINITY, to: Number.POSITIVE_INFINITY, limit: 1 };
-      await decodeVideoFrames(video, config, frameBounds(probe), range, async (frame) => {
+      await decodeVideoFrames(video.packets(), config, frameBounds(probe), range, async (frame) => {
         const videoFrame = drawsOpaque((context) => context.drawImage(frame, 0, 0, 64, 36));
         let imageBitmap = false;
         try {
@@ -49,7 +50,7 @@ export async function draws(file: Blob): Promise<Draws> {
         result = { videoFrame, imageBitmap };
       });
     } finally {
-      input.dispose();
+      tracks.dispose();
     }
   } catch {
     // Nothing decoded: neither path can be measured, so both stay false.

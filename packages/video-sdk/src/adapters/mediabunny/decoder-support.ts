@@ -1,7 +1,9 @@
 import { isVideoError, VideoError } from "../../core/errors/video-error.js";
 import type { VideoProbe } from "../../core/model/source.js";
+import type { FrontCheck } from "../front-check/types.js";
+import { openTracks } from "../open-tracks.js";
+import type { OpenTracks } from "../packets.js";
 import { frameBounds } from "./frame-bounds.js";
-import { familyOf, openInput, pickTracks } from "./tracks.js";
 import { decodeVideoFrames } from "./video-decoder.js";
 
 /**
@@ -31,7 +33,7 @@ export type AudioSupport =
  * without `VideoDecoder`, `UNSUPPORTED_CODEC` with `details.codec` and
  * `details.track: "video"` for a video track the browser can't decode,
  * `DECODE_FAILED` when it claims a codec but its first frame doesn't
- * decode, and `INVALID_VIDEO` if mediabunny can't give a decoder
+ * decode, and `INVALID_VIDEO` if the reader can't give a decoder
  * configuration or the frame breaks the probe's bounds.
  *
  * @internal
@@ -39,6 +41,7 @@ export type AudioSupport =
 export async function checkDecoderSupport(
   file: Blob,
   probe: VideoProbe,
+  front: FrontCheck,
   signal?: AbortSignal,
 ): Promise<AudioSupport> {
   const { container } = probe;
@@ -53,24 +56,33 @@ export async function checkDecoderSupport(
       );
     }
   }
-  const input = openInput(file, familyOf(container));
+  let tracks: OpenTracks | undefined;
   try {
-    const { video, videoCodec, audio } = await pickTracks(input, container);
-    const videoConfig = await video.getDecoderConfig();
+    tracks = await openTracks(file, front);
+    const { video, audio } = tracks;
+    const videoConfig = await video.config();
     if (videoConfig === null || !(await VideoDecoder.isConfigSupported(videoConfig)).supported) {
       throw new VideoError("UNSUPPORTED_CODEC", "This browser can't decode the video track.", {
-        details: { codec: videoCodec, track: "video" },
+        details: { codec: video.codec, track: "video" },
       });
     }
     const bounds = frameBounds(probe);
     const range = { from: Number.NEGATIVE_INFINITY, to: Number.POSITIVE_INFINITY, limit: 1 };
-    if ((await decodeVideoFrames(video, videoConfig, bounds, range, () => {}, signal)) === 0) {
+    const decoded = await decodeVideoFrames(
+      video.packets(),
+      videoConfig,
+      bounds,
+      range,
+      () => {},
+      signal,
+    );
+    if (decoded === 0) {
       throw new VideoError("DECODE_FAILED", "The video track's first frame didn't decode.", {
-        details: { codec: videoCodec },
+        details: { codec: video.codec },
       });
     }
     if (!audio || probe.audio === null) return { audio: "none" };
-    const audioConfig = await audio.getDecoderConfig();
+    const audioConfig = await audio.config();
     const codec = audioConfig?.codec ?? probe.audio.codec;
     if (
       typeof AudioDecoder !== "function" ||
@@ -87,6 +99,6 @@ export async function checkDecoderSupport(
       cause: error,
     });
   } finally {
-    input.dispose();
+    tracks?.dispose();
   }
 }
