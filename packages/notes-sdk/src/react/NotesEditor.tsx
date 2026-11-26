@@ -99,8 +99,8 @@ export interface NotesEditorProps
    * Host content under the open notebook's properties panel, in its column,
    * such as an app's ad slot, passed to ui's `EditorFrame` unchanged
    * (sdk-core ADR 0067). It shows only while the panel's content and it both
-   * fit in the column's height, and hides with the panel and below 45 rem.
-   * The library has no frame, so it doesn't show there. `<hm-notes-editor>`
+   * fit in the column's height. Without a panel shown, it stays in the
+   * column alone from 60 rem and hides below that. The library has no frame, so it doesn't show there. `<hm-notes-editor>`
    * has no equivalent, as it takes no React content.
    */
   readonly propertiesFooter?: ReactNode;

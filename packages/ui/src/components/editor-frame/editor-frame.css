@@ -176,10 +176,6 @@
     padding: var(--hm-editor-frame-inset, var(--hm-inset-normal));
   }
 
-  .hm-editor-frame-properties-footer[hidden] {
-    display: none;
-  }
-
   /*
    * Without room under the panel it stays laid out, out of the flow and
    * invisible, so the frame can tell when new content would fit.
@@ -190,6 +186,26 @@
     pointer-events: none;
     position: absolute;
     visibility: hidden;
+  }
+
+  /*
+   * Without a panel shown, the column holds just the footer, at its foot
+   * and as wide as the panel, so the stage doesn't move when the panel
+   * comes back. Without room, the footer leaves the flow and the column
+   * takes no width, as if there were no footer.
+   */
+  .hm-editor-frame-properties-column[data-hm-footer-only] {
+    justify-content: flex-end;
+  }
+
+  .hm-editor-frame-properties-column[data-hm-footer-only] > .hm-editor-frame-properties-footer {
+    inline-size: var(--hm-editor-frame-inspector-width, var(--hm-inspector-width));
+  }
+
+  /* Laid out invisibly from the column's end, over the stage, rather than past the frame. */
+  .hm-editor-frame-properties-column[data-hm-footer-only]
+    > .hm-editor-frame-properties-footer[data-hm-no-room] {
+    inset-inline-start: auto;
   }
 
   /* Edge tabs bring a hidden panel back. */
@@ -269,6 +285,11 @@
 
     .hm-editor-frame .hm-editor-frame-properties-column {
       inset-inline-end: 0;
+    }
+
+    /* The footer never floats over the stage alone. */
+    .hm-editor-frame .hm-editor-frame-properties-column[data-hm-footer-only] {
+      display: none;
     }
 
     /* The stage keeps the rail's room, so it doesn't jump when the tools open. */

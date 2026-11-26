@@ -141,11 +141,11 @@ export interface PdfEditorProps extends Omit<PdfSessionProviderProps, "children"
   readonly onPreferencesChange?: (preferences: EditorPreferences) => void;
   /**
    * Host content under the properties panel, in its column, such as an app's
-   * ad slot, passed to ui's `EditorFrame` unchanged (sdk-core ADR 0067). The
-   * frame shows it only under a properties panel, and this editor has none,
-   * so for now it never shows: it's here so a host can pass the same props
-   * to every editor in the family. `<hm-pdf-editor>` has no equivalent, as
-   * it takes no React content.
+   * ad slot, passed to ui's `EditorFrame` unchanged (sdk-core ADR 0067). This
+   * editor has no properties panel, so from 60 rem the footer has the column
+   * to itself, at its foot, while it fits the column's height; below 60 rem
+   * it hides. `<hm-pdf-editor>` has no equivalent, as it takes no React
+   * content.
    */
   readonly propertiesFooter?: ReactNode;
   /** Icon components by name, over the SDK's own from ui. */

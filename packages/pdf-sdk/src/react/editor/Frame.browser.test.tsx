@@ -466,10 +466,12 @@ describe("on a phone (sdk-core ADR 0067)", () => {
 });
 
 describe("the properties footer (sdk-core ADR 0067)", () => {
-  it("passes a host's footer to the frame, which keeps it hidden without a properties panel", async () => {
+  it("passes a host's footer to the frame, which shows it in a column of its own on a wide frame", async () => {
     const { container } = await setUp({ propertiesFooter: <div className="host-footer" /> });
-    expect(
-      container.querySelector(".hm-editor-frame-properties-footer[hidden] > .host-footer"),
-    ).not.toBeNull();
+    const footer = container.querySelector(".hm-editor-frame-properties-footer") as HTMLElement;
+    expect(footer.querySelector(".host-footer")).not.toBeNull();
+    // No properties panel: the column holds just the footer.
+    expect(container.querySelector(".hm-editor-frame-properties")).toBeNull();
+    expect(footer.checkVisibility({ visibilityProperty: true })).toBe(true);
   });
 });

@@ -141,8 +141,9 @@ export interface AudioEditorProps extends Omit<AudioEditorProviderProps, "childr
    * Host content under the properties panel, in its column, such as an app's
    * ad slot, passed to ui's `EditorFrame` unchanged (sdk-core ADR 0067). It
    * shows only while the panel's content and it both fit in the column's
-   * height, and hides with the panel and below 45 rem. `<hm-audio-editor>`
-   * has no equivalent, as it takes no React content.
+   * height. Without a panel shown, it stays in the column alone from 60 rem
+   * and hides below that. `<hm-audio-editor>` has no equivalent, as it
+   * takes no React content.
    */
   readonly propertiesFooter?: ReactNode;
 }

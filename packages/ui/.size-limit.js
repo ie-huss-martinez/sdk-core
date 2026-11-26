@@ -191,8 +191,10 @@ export default [
   entryBudget({
     name: "Stylesheet (./styles.css)",
     entry: "dist/styles.css",
-    // 16.5 kB; 16.2 kB with the search field's rules (docs/adr/0017) and the
-    // editor frame's properties column and footer.
+    // 17 kB; 16.53 kB with the editor frame's column that keeps a host's
+    // footer without a panel on wide frames (sdk-core ADR 0067).
+    // Before, 16.5 kB; 16.2 kB with the search field's rules (docs/adr/0017)
+    // and the editor frame's properties column and footer.
     // Before, 16 kB; 15.59 kB with the tabs' rules (docs/adr/0016).
     // Before, 15.5 kB; 15.07 kB with the tag's and the tag list's rules, five tones
     // among them, and a link's one (docs/adr/0015).
@@ -205,7 +207,7 @@ export default [
     // entry's is: to the measurement, rounded up to the next 0.5 kB. Every
     // application loads the whole stylesheet, so this one is the cost of
     // every component.
-    limit: "16.5 kB",
+    limit: "17 kB",
   }),
   // A floor: 0.6 kB; 0.56 kB, counting only the React names it uses
   // (sdk-config 0.12.1). A leak into every component shows here first.

@@ -108,7 +108,8 @@ export interface NotesNotebookProps extends NotesPreferenceProps {
    * Host content under the properties panel, in its column, such as an app's
    * ad slot, passed to ui's `EditorFrame` unchanged (sdk-core ADR 0067). It
    * shows only while the panel's content and it both fit in the column's
-   * height, and hides with the panel and below 45 rem.
+   * height. Without a panel shown, it stays in the column alone from 60 rem
+   * and hides below that.
    */
   readonly propertiesFooter?: ReactNode;
 }

@@ -2,4 +2,4 @@
 "@hussmartinez/pdf-sdk": patch
 ---
 
-`propertiesFooter`: host content under the properties panel, such as an app's ad slot. `PdfEditor` has no properties panel yet, so it doesn't show; it's there so a host can pass the same props to every editor.
+`propertiesFooter`: host content in the properties column, such as an app's ad slot. `PdfEditor` has no properties panel, so on a frame 60 rem wide or more the footer has a column of its own at the inline end, at its foot, beside the stage, while it fits the column's height. Narrower, it hides.
