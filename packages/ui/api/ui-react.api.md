@@ -790,6 +790,32 @@ export interface TabBarProps extends Omit<ToolbarProps, "classNames" | "orientat
 }
 
 // @public
+export const Tabs: ForwardRefExoticComponent<TabsProps & RefAttributes<HTMLDivElement>>;
+
+// @public
+export interface TabsItem {
+    readonly content: ReactNode;
+    readonly icon?: ReactNode;
+    readonly id: string;
+    readonly label: string;
+}
+
+// @public
+export type TabsPart = "root" | "list" | "tab" | "icon" | "label" | "panel" | "title";
+
+// @public
+export interface TabsProps extends Omit<HTMLAttributes<HTMLDivElement>, "className" | "defaultValue" | "onChange">, StyleProps<TabsPart> {
+    readonly activation?: "automatic" | "manual" | undefined;
+    readonly defaultValue?: string | undefined;
+    readonly headingLevel?: HeadingLevel | undefined;
+    readonly label: string;
+    readonly onValueChange?: ((id: string) => void) | undefined;
+    // (undocumented)
+    readonly tabs: readonly TabsItem[];
+    readonly value?: string | undefined;
+}
+
+// @public
 export const Tag: ForwardRefExoticComponent<TagProps & RefAttributes<HTMLElement>>;
 
 // @public

@@ -61,7 +61,7 @@ A site's unlayered CSS still wins. **A bare `a { color: … }` or `a { text-deco
 ## Consequences
 
 - Pages get chips and button-like links from `ui`, with the accessibility decisions made once: what a tag is to a screen reader, what a link says when it opens a tab, and what happens to a hostile address.
-- **Three exports and 18 component tokens,** `--hm-tag-*`. `Tag` costs an application 0.47 kB, `Tag` with `TagList` 0.53 kB and `ButtonLink` 0.90 kB, minified and compressed. `Button`'s floor doesn't move.
+- **Three exports and 18 component tokens,** `--hm-tag-*`. `Tag` costs an application 0.47 kB, `Tag` with `TagList` 0.53 kB and `ButtonLink` 0.91 kB, minified and compressed. `Button`'s floor doesn't move.
 - **`uiMessages` gains `buttonLink.newTab`.** It's additive for callers who spread `uiMessages` into their catalogue; a hand-written object of that type must add the key.
 - **`ButtonLink` shares `Button`'s CSS,** so a change to a button's look reaches links too, and the browser test that compares the two per variant fails if they drift.
 - **A tag becomes a list item in two ways:** inside a `TagList` in a React tree, or with `as="li"`. A `Tag` inside a `TagList` must be its direct item, and in an `.astro` file the list is only valid with `as`, which nothing checks.

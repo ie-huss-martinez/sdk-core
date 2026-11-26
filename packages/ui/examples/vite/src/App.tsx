@@ -19,6 +19,7 @@ import {
   SegmentedControl,
   Slider,
   Spinner,
+  Tabs,
   Tag,
   TagList,
   TextArea,
@@ -304,6 +305,14 @@ export function App() {
             This page again
           </ButtonLink>
         </section>
+        <Tabs
+          label="Formats"
+          headingLevel={3}
+          tabs={[
+            { id: "pdf", label: "PDF", content: <p>Pages and annotations.</p> },
+            { id: "image", label: "Image", content: <p>Layers and filters.</p> },
+          ]}
+        />
         <Field label="Volume" description="For playback only">
           <Slider defaultValue={40} />
         </Field>
