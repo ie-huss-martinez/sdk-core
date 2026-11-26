@@ -24,9 +24,11 @@ const hasTargets = ({ snapshot }: { snapshot: PdfSessionSnapshot }) =>
 /** Turns the selected pages, or the current one, a quarter turn anticlockwise. */
 export const rotateLeftTool: PdfTool = /* @__PURE__ */ defineTool({
   id: "pdf.rotate-left",
+  level: "easy",
+  description: "tools.rotate-left.description",
   label: "tools.rotate-left",
   icon: "rotate-left",
-  group: "pages",
+  group: "rotate",
   isEnabled: hasTargets,
   run: (context) => rotate(context, -90),
   shortcuts: ["["],
@@ -35,9 +37,11 @@ export const rotateLeftTool: PdfTool = /* @__PURE__ */ defineTool({
 /** Turns the selected pages, or the current one, a quarter turn clockwise. */
 export const rotateRightTool: PdfTool = /* @__PURE__ */ defineTool({
   id: "pdf.rotate-right",
+  level: "easy",
+  description: "tools.rotate-right.description",
   label: "tools.rotate-right",
   icon: "rotate-right",
-  group: "pages",
+  group: "rotate",
   isEnabled: hasTargets,
   run: (context) => rotate(context, 90),
   shortcuts: ["]"],

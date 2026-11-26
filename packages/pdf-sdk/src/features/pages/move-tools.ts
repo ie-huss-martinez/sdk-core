@@ -70,9 +70,11 @@ const canMove = (direction: MoveDirection, { snapshot }: PdfToolState): boolean 
  */
 export const moveEarlierTool: PdfTool = /* @__PURE__ */ defineTool({
   id: "pdf.move-earlier",
+  level: "advanced",
+  description: "tools.move-earlier.description",
   label: "tools.move-earlier",
   icon: "move-up",
-  group: "pages",
+  group: "order",
   isEnabled: (state) => canMove("earlier", state),
   run: (context) => move(context, "earlier"),
 });
@@ -80,9 +82,11 @@ export const moveEarlierTool: PdfTool = /* @__PURE__ */ defineTool({
 /** Moves the selected pages, or the current one, one position later: Alt+↓ in the thumbnails. */
 export const moveLaterTool: PdfTool = /* @__PURE__ */ defineTool({
   id: "pdf.move-later",
+  level: "advanced",
+  description: "tools.move-later.description",
   label: "tools.move-later",
   icon: "move-down",
-  group: "pages",
+  group: "order",
   isEnabled: (state) => canMove("later", state),
   run: (context) => move(context, "later"),
 });

@@ -39,6 +39,8 @@ function deletePages({ session }: PdfToolContext): void {
  */
 export const deletePagesTool: PdfTool = /* @__PURE__ */ defineTool({
   id: "pdf.delete-pages",
+  level: "easy",
+  description: "tools.delete-pages.description",
   label: "tools.delete-pages",
   icon: "delete",
   group: "pages",

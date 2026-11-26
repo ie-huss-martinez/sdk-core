@@ -1,14 +1,15 @@
 /*
- * PdfEditor. Every value is a --hm-pdf-editor-* token, falling back to ui's
- * semantic tokens. States come from attributes: data-hm-status on the root,
- * data-hm-dragging on the drop zone, and focus. The editor fills the height
- * its host gives it; its viewer and thumbnails scroll within it.
+ * PdfEditor, on ui's editor frame (docs/adr/0012, sdk-core ADR 0067). Every
+ * value is a --hm-pdf-editor-* token, falling back to ui's semantic tokens.
+ * States come from attributes: data-hm-status on the root, data-hm-dragging
+ * on the drop zone, and focus. The editor fills the height its host gives
+ * it; its viewer and thumbnails scroll within it.
  */
 @layer hm.sdk {
   .hm-pdf-editor {
     container: hm-pdf-editor / inline-size;
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
+    display: flex;
+    flex-direction: column;
     position: relative;
     min-height: 0;
     height: 100%;
@@ -23,22 +24,58 @@
     color: var(--hm-pdf-editor-text, var(--hm-color-text));
   }
 
-  /*
-   * The toolbar keeps the control radius rather than ui's larger surface
-   * radius: its rounded end, drawn beside pdf.js's worker-drawn pages,
-   * rasterises differently from one load to the next, which strict
-   * screenshots can't take. It goes when the editor moves onto ui's frame
-   * (sdk-core ADR 0067).
-   */
-  .hm-pdf-editor-header {
-    --hm-toolbar-radius: var(--hm-radius-control);
+  .hm-pdf-editor-frame {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  /* The top bar: the editor's name and the file's, which gives way first. */
+  .hm-pdf-editor-title {
     display: flex;
+    flex: 1 1 auto;
+    align-items: baseline;
+    gap: var(--hm-gap-normal);
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .hm-pdf-editor-file {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .hm-pdf-editor-bar.hm-toolbar {
+    flex-wrap: nowrap;
+    padding: 0;
+  }
+
+  /* On a phone, the mode and the file's name leave the top bar; Settings keeps the mode. */
+  @container hm-editor-frame (width < 45rem) {
+    .hm-pdf-editor-mode,
+    .hm-pdf-editor-file {
+      display: none;
+    }
+  }
+
+  /* The notices above the document: saving, alerts and warnings. */
+  .hm-pdf-editor-header {
+    display: flex;
+    flex: none;
     flex-direction: column;
     gap: var(--hm-pdf-editor-header-gap, var(--hm-gap-tight));
+    padding-block: var(--hm-pdf-editor-header-gap, var(--hm-gap-tight));
+  }
+
+  .hm-pdf-editor-header:empty {
+    display: none;
   }
 
   .hm-pdf-editor-body {
     display: grid;
+    flex: 1 1 auto;
     grid-template-columns: minmax(0, 1fr);
     min-height: 0;
   }
@@ -162,12 +199,135 @@
     font-size: var(--hm-font-size-small);
   }
 
-  /* Read by screen readers, never shown. */
-  .hm-pdf-editor-announcer {
+  /*
+   * Easy mode's start cards, over the document (sdk-core ADR 0067): the
+   * steps, the question, and the cards in a grid that wraps.
+   */
+  .hm-pdf-start {
+    align-content: center;
+    box-sizing: border-box;
+    display: grid;
+    gap: var(--hm-gap-loose);
+    inset: 0;
+    justify-items: center;
+    overflow: auto;
+    padding: var(--hm-inset-loose);
     position: absolute;
+    z-index: var(--hm-z-raised);
+  }
+
+  .hm-pdf-start-steps {
+    display: flex;
+    gap: var(--hm-gap-normal);
+    list-style: none;
     margin: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    clip-path: inset(50%);
+    padding: 0;
+  }
+
+  .hm-pdf-start-heading {
+    margin: 0;
+    text-align: center;
+  }
+
+  /* Two columns at most, so the four cards sit two by two, never three and one. */
+  .hm-pdf-start-cards {
+    display: grid;
+    gap: var(--hm-gap-normal);
+    grid-template-columns: repeat(auto-fit, minmax(calc(var(--hm-space-12) * 2), 1fr));
+    inline-size: min(100%, calc(var(--hm-space-12) * 5));
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .hm-pdf-start-card {
+    align-content: start;
+    block-size: 100%;
+    box-sizing: border-box;
+    cursor: pointer;
+    display: grid;
+    gap: var(--hm-gap-tight);
+    inline-size: 100%;
+    justify-items: start;
+    min-block-size: var(--hm-target-size);
+    padding: var(--hm-inset-normal);
+    text-align: start;
+  }
+
+  .hm-pdf-start-card:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: var(--hm-focus-ring-offset);
+  }
+
+  .hm-pdf-start-card-icon {
+    block-size: var(--hm-icon-size);
+    display: inline-flex;
+    inline-size: var(--hm-icon-size);
+  }
+
+  .hm-pdf-start-card-icon > svg {
+    block-size: inherit;
+    inline-size: inherit;
+  }
+
+  .hm-pdf-editor:not([data-hm-unstyled]) .hm-pdf-editor-title {
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-pdf-editor:not([data-hm-unstyled]) .hm-pdf-editor-file {
+    color: var(--hm-pdf-editor-muted, var(--hm-color-text-muted));
+    font-size: var(--hm-font-size-small);
+    font-weight: var(--hm-font-weight-regular);
+  }
+
+  .hm-pdf-editor:not([data-hm-unstyled]) .hm-pdf-editor-bar.hm-toolbar {
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .hm-pdf-editor:not([data-hm-unstyled]) .hm-pdf-start {
+    background: color-mix(in oklch, var(--hm-color-bg) 88%, transparent);
+  }
+
+  .hm-pdf-editor:not([data-hm-unstyled]) .hm-pdf-start-steps {
+    color: var(--hm-pdf-editor-muted, var(--hm-color-text-muted));
+    font-size: var(--hm-font-size-small);
+  }
+
+  .hm-pdf-editor:not([data-hm-unstyled]) .hm-pdf-start-step[aria-current="step"] {
+    color: var(--hm-color-accent-text);
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-pdf-editor:not([data-hm-unstyled]) .hm-pdf-start-heading {
+    font-size: var(--hm-font-size-title);
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-pdf-editor:not([data-hm-unstyled]) .hm-pdf-start-card {
+    background: var(--hm-color-surface-raised);
+    border: var(--hm-border-width) solid var(--hm-color-border);
+    border-radius: var(--hm-radius-surface);
+    box-shadow: var(--hm-shadow-raised);
+    color: var(--hm-color-text);
+    font: inherit;
+    transition-duration: var(--hm-motion-duration-feedback);
+    transition-property: border-color;
+    transition-timing-function: var(--hm-motion-easing-spring);
+  }
+
+  .hm-pdf-editor:not([data-hm-unstyled]) .hm-pdf-start-card-title {
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-pdf-editor:not([data-hm-unstyled]) .hm-pdf-start-card-description {
+    color: var(--hm-pdf-editor-muted, var(--hm-color-text-muted));
+    font-size: var(--hm-font-size-small);
+  }
+
+  @media (hover: hover) {
+    .hm-pdf-editor:not([data-hm-unstyled]) .hm-pdf-start-card:hover {
+      border-color: var(--hm-color-accent);
+    }
   }
 }

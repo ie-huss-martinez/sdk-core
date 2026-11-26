@@ -1,4 +1,5 @@
 import type { MessageOverrides } from "@hussmartinez/sdk-core";
+import type { EditorPreferences } from "@hussmartinez/ui";
 import type { IconComponent } from "@hussmartinez/ui/react";
 import type { PdfBytes } from "../../core/model/document.js";
 import type { PdfExportOptions, PdfOpenOptions, PdfSession } from "../../core/session/session.js";
@@ -7,6 +8,8 @@ import type { PdfSessionProviderProps } from "../PdfSessionProvider.js";
 
 /**
  * The parts of `PdfEditor` that take extra classes through `classNames`.
+ * The `header` is the notices above the document: saving, alerts and
+ * warnings. The `toolbar` is the tools panel's list (docs/adr/0012).
  *
  * @public
  */
@@ -109,12 +112,31 @@ export interface PdfEditorProps extends Omit<PdfSessionProviderProps, "children"
    */
   readonly tools?: readonly string[];
   /**
-   * The toolbar's groups, as tool ids, such as
+   * The tools' groups, as tool ids, such as
    * `[["pdf.undo", "pdf.redo"], ["pdf.rotate-left", "pdf.rotate-right"]]`.
-   * Defaults to the present tools in their usual groups; `[]` hides the
-   * toolbar, keeping the shortcuts. An unknown id throws.
+   * Open, Undo, Redo and Download go in the top bar; the other groups make
+   * the tools panel, each named after its first tool's group. Defaults to
+   * the present tools in their usual groups; `[]` shows no tool, keeping the
+   * shortcuts and the command palette. An unknown id throws.
    */
   readonly toolbar?: readonly (readonly string[])[];
+  /**
+   * The person's preferences (sdk-core ADR 0067): mode, theme, the tools
+   * panel, density, motion and tips. Controlled with `onPreferencesChange`;
+   * the editor never stores them, so the host decides where they're kept,
+   * such as `localStorage`. The editor has no properties panel, so it
+   * ignores `properties`.
+   */
+  readonly preferences?: EditorPreferences;
+  /**
+   * Preferences to start with when `preferences` isn't given. Fields left
+   * out take ui's defaults, except the mode, which is Advanced, so every tool
+   * is listed until the host or the person chooses otherwise. The theme is
+   * the page's until the host sets one here or the person picks one.
+   */
+  readonly defaultPreferences?: Partial<EditorPreferences>;
+  /** Called with the whole preferences when the person changes one. */
+  readonly onPreferencesChange?: (preferences: EditorPreferences) => void;
   /** Icon components by name, over the SDK's own from ui. */
   readonly icons?: Readonly<Record<string, IconComponent>>;
   /** Extra classes on the root. */

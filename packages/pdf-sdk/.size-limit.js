@@ -80,10 +80,12 @@ export default [
     limit: "1.8 kB",
   }),
   forHosts({
+    // 4.17 kB, then 4.53 kB with the catalogue's text for the editor on ui's
+    // frame (docs/adr/0012): levels, start cards and settings, about 0.3 kB.
     name: "React: PdfThumbnails",
     entry: "dist/react.js",
     imports: "{ PdfThumbnails }",
-    limit: "4.5 kB",
+    limit: "5 kB",
   }),
   forHosts({
     name: "React: PdfViewer",
@@ -93,17 +95,23 @@ export default [
   }),
   forHosts({
     // A session from the provider brings the engine and processor factories.
+    // 10.18 kB, then 10.57 kB with the catalogue's text for the editor on
+    // ui's frame (docs/adr/0012).
     name: "React: PdfSessionProvider",
     entry: "dist/react.js",
     imports: "{ PdfSessionProvider }",
-    limit: "10.5 kB",
+    limit: "11 kB",
   }),
   forHosts({
-    // What a typical application imports: the whole editor.
+    // What a typical application imports: the whole editor. 17.91 kB, then
+    // 20.49 kB on ui's frame (docs/adr/0012): about 2.2 kB of the editor's
+    // own code for the tools panel and palette lists, start cards,
+    // preferences and toasts, and 0.3 kB of text. ui's components count in
+    // ui's budgets, not here.
     name: "React: PdfEditor",
     entry: "dist/react.js",
     imports: "{ PdfEditor }",
-    limit: "18 kB",
+    limit: "20.5 kB",
   }),
 
   // The element entry (./element): it registers nothing yet.

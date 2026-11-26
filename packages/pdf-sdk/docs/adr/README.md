@@ -15,7 +15,8 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0005](0005-element-in-the-light-dom.md) | The element renders in the light DOM, and the standalone script stays in its layers | Accepted |
 | [0006](0006-icc-colour-and-self-hosted-assets.md) | ICC colour needs self-hosted assets; inline mode uses approximate colour | Accepted; where `assetsUrl` points superseded by [0007](0007-one-assets-directory.md) |
 | [0007](0007-one-assets-directory.md) | One assets directory, and a self-hosted processing worker | Accepted |
-| [0008](0008-page-organisation-in-the-editor.md) | Organising pages in the editor: delete, move and insert | Accepted |
-| [0009](0009-saving-the-document.md) | Saving the document: the file's name, and the download tool | Accepted |
+| [0008](0008-page-organisation-in-the-editor.md) | Organising pages in the editor: delete, move and insert | Accepted; its toolbar refined by [0012](0012-the-editor-on-ui-s-frame.md) |
+| [0009](0009-saving-the-document.md) | Saving the document: the file's name, and the download tool | Accepted; its header refined by [0012](0012-the-editor-on-ui-s-frame.md) |
 | [0010](0010-interface-text-outside-the-server-safe-entry.md) | Interface text stays out of the server-safe entry | Accepted |
 | [0011](0011-drawing-one-page-over-another.md) | Drawing one page over another: page overlays in a build | Accepted |
+| [0012](0012-the-editor-on-ui-s-frame.md) | The editor on ui's frame: levels, start cards, toasts and preferences | Accepted; refines [0008](0008-page-organisation-in-the-editor.md) and [0009](0009-saving-the-document.md) |

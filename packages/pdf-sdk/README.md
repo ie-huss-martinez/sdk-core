@@ -22,7 +22,7 @@ const editor = useRef<PdfEditorHandle>(null);
 const bytes = await editor.current?.export();
 ```
 
-**Styles: ui's stylesheet is required.** Import `@hussmartinez/ui/styles.css` once in your application, before `@hussmartinez/pdf-sdk/styles.css`, as above. The editor's toolbar is built from [`@hussmartinez/ui`](https://www.npmjs.com/package/@hussmartinez/ui)'s components, and their focus rings and minimum target sizes are in ui's stylesheet, along with the design tokens, themes and density ([sdk-core ADR 0036](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0036-ui-as-a-dependency-of-the-sdks.md)). The SDK's stylesheet never includes it, so a page with several SDKs loads it once. Every value is also a `--hm-pdf-*` property you can set on any ancestor.
+**Styles: ui's stylesheet is required.** Import `@hussmartinez/ui/styles.css` once in your application, before `@hussmartinez/pdf-sdk/styles.css`, as above. The editor renders through [`@hussmartinez/ui`](https://www.npmjs.com/package/@hussmartinez/ui)'s editor frame and components, whose layout, focus rings and minimum target sizes are in ui's stylesheet, along with the design tokens, themes and density ([sdk-core ADR 0036](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0036-ui-as-a-dependency-of-the-sdks.md)). The SDK's stylesheet never includes it, so a page with several SDKs loads it once. Every value is also a `--hm-pdf-*` property you can set on any ancestor.
 
 **One copy of ui and sdk-core.** The SDK depends on `@hussmartinez/ui` `^0.16.0` and `@hussmartinez/sdk-core` `^0.4.7`. If your application uses either itself, depend on the same minor versions, and check that `npm ls @hussmartinez/ui @hussmartinez/sdk-core` lists one version of each: a second copy doesn't share providers with the first, so text falls back to English and announcements are lost.
 
@@ -40,28 +40,28 @@ The download tool builds the document in the processing worker and downloads it.
 
 - **`downloadName(info)`** names the file yourself. `info` has the opened file's `sourceName` and the `pageCount`. The result is cleaned as a file name and gets a `.pdf` extension.
 - **`onExport(bytes, info)`** receives the bytes instead of the browser downloading them, for example to keep them in your app's storage. `info` has the `fileName` the download would have had, and the `pageCount`. If it throws or rejects, the editor says the PDF couldn't be saved. Your error is yours to log, and the editor doesn't read it.
-- **While it builds,** the button is disabled but keeps focus, and the header says "Preparing the PDF…". After a second, a Cancel button appears beside it.
+- **While it builds,** the button is disabled but keeps focus, and a notice above the document says "Preparing the PDF…". After a second, a Cancel button appears beside it. Once it's saved, a toast says so.
 - **Cancelling:** cancelling, or opening or closing a document, stops the build quietly.
-- **Failures:** a failed build shows its error's text in the header.
+- **Failures:** a failed build shows its error's text above the document.
 
-### Tools, the toolbar and shortcuts
+### Tools, modes and shortcuts
 
-The editor's tools are in `pdfTools`:
+The editor renders through ui's editor frame ([ADR 0012](docs/adr/0012-the-editor-on-ui-s-frame.md)): a top bar with Open, Undo, Redo, the mode switch, the theme toggle, Settings and Download; a tools panel of the page tools, in groups; and the document with its thumbnails. On a phone, a tab bar opens each group of tools in a sheet. Its tools are in `pdfTools`:
 
-| Tool | Shortcut | What it does |
-|---|---|---|
-| `pdf.open` | none: `Ctrl+O` is the browser's own | Opens a PDF, replacing the current one |
-| `pdf.insert-pages` | none | Inserts every page of another PDF after the current page, which merges the two |
-| `pdf.undo` | `Ctrl+Z`, or `⌘Z` on Apple platforms | Undoes the last edit |
-| `pdf.redo` | `Ctrl+Shift+Z` or `Ctrl+Y`, or `⇧⌘Z` | Redoes the last undone edit |
-| `pdf.rotate-left` | `[` | Turns the selected pages, or the current one, a quarter turn anticlockwise |
-| `pdf.rotate-right` | `]` | Turns them a quarter turn clockwise |
-| `pdf.move-earlier` | `Alt+↑` (`Option+↑` on macOS), in the thumbnails only | Moves the selected pages, or the current one, one position earlier |
-| `pdf.move-later` | `Alt+↓` (`Option+↓`), in the thumbnails only | Moves them one position later |
-| `pdf.delete-pages` | `Delete` or `Backspace`, in the thumbnails only | Deletes the selected pages, or the current one; a document keeps at least one page |
-| `pdf.download` | none: `Ctrl+S` is the browser's own | Builds the document and downloads it, or hands it to `onExport` |
+| Tool | Where | Shortcut | What it does |
+|---|---|---|---|
+| `pdf.open` | Top bar | none: `Ctrl+O` is the browser's own | Opens a PDF, replacing the current one |
+| `pdf.undo` | Top bar | `Ctrl+Z`, or `⌘Z` on Apple platforms | Undoes the last edit |
+| `pdf.redo` | Top bar | `Ctrl+Shift+Z` or `Ctrl+Y`, or `⇧⌘Z` | Redoes the last undone edit |
+| `pdf.rotate-left` | Easy | `[` | Turns the selected pages, or the current one, a quarter turn anticlockwise |
+| `pdf.rotate-right` | Easy | `]` | Turns them a quarter turn clockwise |
+| `pdf.delete-pages` | Easy | `Delete` or `Backspace`, in the thumbnails only | Deletes the selected pages, or the current one; a document keeps at least one page |
+| `pdf.insert-pages` | Easy | none | Inserts every page of another PDF after the current page, which merges the two |
+| `pdf.move-earlier` | Advanced | `Alt+↑` (`Option+↑` on macOS), in the thumbnails only | Moves the selected pages, or the current one, one position earlier |
+| `pdf.move-later` | Advanced | `Alt+↓` (`Option+↓`), in the thumbnails only | Moves them one position later |
+| `pdf.download` | Top bar | none: `Ctrl+S` is the browser's own | Builds the document and downloads it, or hands it to `onExport` |
 
-Choose which tools are present with `tools`, and arrange the toolbar with `toolbar`, as groups of tool ids; `toolbar={[]}` hides it and keeps the shortcuts. An unknown id throws when the editor renders, so a typo never leaves a tool silently missing. `icons` replaces any icon by name with your own component.
+Choose which tools are present with `tools`, and group them with `toolbar`, as groups of tool ids: Open, Undo, Redo and Download go in the top bar, and the other groups make the tools panel. `toolbar={[]}` shows no tool and keeps the shortcuts and the command palette. An unknown id throws when the editor renders, so a typo never leaves a tool silently missing. `icons` replaces any icon by name with your own component.
 
 ```tsx
 <PdfEditor
@@ -70,9 +70,11 @@ Choose which tools are present with `tools`, and arrange the toolbar with `toolb
 />
 ```
 
-Shortcuts work only while focus is inside the editor, never on the rest of your page, and never while typing in a field. The toolbar is one tab stop, with arrow keys between its buttons; each button names its shortcut in `aria-keyshortcuts`. A button that can't run is disabled with `aria-disabled`, so it keeps focus. Undoing, redoing, rotating and deleting are announced to screen readers.
+Shortcuts work only while focus is inside the editor, never on the rest of your page, and never while typing in a field. The top bar's tools and the tools panel are a tab stop each, with arrow keys between their buttons; each button names its shortcut in `aria-keyshortcuts`. A button that can't run is disabled with `aria-disabled`, so it keeps focus. Opening, each edit, undo, redo and saving show a toast, which screen readers hear too; an edit's toast offers Undo. `Ctrl+K` (`⌘K`) opens the command palette, which reaches every tool in every mode, and `Ctrl+\` (`⌘\`) hides or shows the tools panel.
 
-Inserting puts every page of the chosen PDF after the current page, selects the inserted pages and shows the first. The file policy's limits apply to the combined document: `maxPages` counts the pages after the insert, and `maxSessionSize` counts every document held. A failed insert leaves the document unchanged and shows why in the header. When undo steps had to be dropped to make room within `maxSessionSize`, the header says so.
+**Modes and preferences.** Easy lists the Easy tools, with a line on what each does, and opens each document on four start cards: Rotate pages, Remove pages, Add pages from another PDF and Reorder pages. Advanced lists every tool, and Expert adds the command palette's button and each tool's shortcut. The person's choices, such as the mode, the theme and the tools panel's state, are `EditorPreferences` from `@hussmartinez/ui`. The editor never stores them: pass `preferences` and keep what `onPreferencesChange` gives you, such as in `localStorage`, or pass `defaultPreferences` and let the editor keep them while it's mounted. Without either, it starts in Advanced mode and keeps your page's theme until the person picks one.
+
+Inserting puts every page of the chosen PDF after the current page, selects the inserted pages and shows the first. The file policy's limits apply to the combined document: `maxPages` counts the pages after the insert, and `maxSessionSize` counts every document held. A failed insert leaves the document unchanged and shows why above the document. When undo steps had to be dropped to make room within `maxSessionSize`, a notice there says so.
 
 Moving gathers pages that aren't next to each other into one block, in their order, and moves the block one position. The moved pages stay selected, and focus stays on them. The keys were chosen so they don't clash with browser or system shortcuts; ADR 0008 records the check.
 

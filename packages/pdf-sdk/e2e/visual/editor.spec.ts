@@ -21,6 +21,16 @@ import { expectAnnounced } from "../tests/helpers.js";
  * | `save-failed` | The host's `onExport` failed: the header's alert, with Download focused |
  * | `error` | A file that isn't a PDF, and the catalogue's text for it |
  * | `replace-error` | A document still open after a replacement failed, with the header's alert |
+ * | `settings` | The settings, in a sheet from the inline end |
+ * | `palette` | The command palette, searched for "rot" |
+ * | `phone` | A 390-pixel window: the tab bar, and the "Rotate" group in a sheet from the bottom |
+ * | `advanced-open` | The report open in the editor as a host embeds it, with no preferences: Advanced mode |
+ * | `easy-start`, `easy-icons` | Easy mode: the report under the start cards; then the tools as icons |
+ *
+ * The editor's states are in Expert mode, where every tool is listed with
+ * its shortcut, unless their name says otherwise (docs/adr/0012). Toasts
+ * stay where they are: the page's clock is fixed, so their timers never run
+ * out.
  *
  * No state is masked: every one renders a fixture generated in code, at a
  * fixed time, and the editor shows no time or random value. Pages are drawn
@@ -104,7 +114,8 @@ const STATES: Readonly<Record<string, State>> = {
     // The shortcut rotates the current page clockwise, and says so.
     await page.keyboard.press("]");
     await expectAnnounced(page, "Rotated 1 page.");
-    await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
+    // The top bar's Undo, not the toast's.
+    await expect(page.locator("header").getByRole("button", { name: "Undo" })).toBeEnabled();
     await drawn(page, { wide: true });
   },
   selection: async (page) => {
@@ -209,29 +220,132 @@ const STATES: Readonly<Record<string, State>> = {
     await expect(page.locator(".hm-pdf-editor-header .hm-pdf-editor-alert")).toBeVisible();
     await drawn(page);
   },
+  // The settings, in a sheet from the inline end (sdk-core ADR 0067).
+  settings: async (page) => {
+    await opened(page);
+    await page.getByRole("button", { name: "Settings" }).click();
+    await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+  },
+  // The command palette, searched, with its first result active (sdk-core ADR 0067).
+  palette: async (page) => {
+    await opened(page);
+    await page.keyboard.press("ControlOrMeta+k");
+    const search = page.getByRole("combobox", { name: "Search tools" });
+    await expect(search).toBeFocused();
+    await search.fill("rot");
+    await expect(page.getByRole("option", { name: "Rotate left" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  },
+  // A phone: the tab bar, and a group of tools open in a sheet from the bottom.
+  phone: async (page) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await choose(page, "report.pdf", Buffer.from(await reportPdf()));
+    await expect(page.getByRole("region", { name: "Document" })).toBeFocused();
+    // Narrower than 32 rem, the document has the width and the thumbnails,
+    // still a tab away, are hidden: only the first page needs drawing.
+    await expect
+      .poll(
+        () =>
+          page
+            .locator(".hm-pdf-page-canvas")
+            .first()
+            .evaluate((canvas) => (canvas as HTMLCanvasElement).width),
+        { timeout: 30_000 },
+      )
+      .toBeGreaterThan(0);
+    await expect(page.locator('.hm-pdf-editor [aria-busy="true"]')).toHaveCount(0);
+    await page
+      .getByRole("toolbar", { name: "PDF tools" })
+      .getByRole("button", { name: "Rotate" })
+      .click();
+    await expect(page.getByRole("dialog", { name: "Rotate" })).toBeVisible();
+  },
 };
 
-/** States reached from another page of the example than its first. */
-const PATHS: Readonly<Partial<Record<string, string>>> = { "save-failed": "/?save=fail" };
+/** The editor as a host embeds it, with no preferences: Advanced mode. */
+const ADVANCED: Readonly<Record<string, State>> = {
+  "advanced-open": opened,
+};
 
-for (const [state, reach] of Object.entries(STATES)) {
-  for (const variant of visualVariants) {
-    test(`${state}, ${variant.name}`, async ({ page }) => {
-      // No request may leave the page's origin (sdk-core ADR 0012).
-      const foreign: string[] = [];
-      page.on("request", (request) => {
-        const url = new URL(request.url());
-        if (!["http:", "https:"].includes(url.protocol)) return;
-        if (url.origin !== ORIGIN) foreign.push(request.url());
+/** Easy mode: a document just opened, under the start cards (sdk-core ADR 0067). */
+const EASY: Readonly<Record<string, State>> = {
+  "easy-start": async (page) => {
+    await choose(page, "report.pdf", Buffer.from(await reportPdf()));
+    await expect(page.getByRole("region", { name: "What would you like to do?" })).toBeVisible();
+    // The cards cover the document, so focus is on the first of them.
+    await expect(page.getByRole("button", { name: /^Rotate pages/ })).toBeFocused();
+    await drawn(page);
+  },
+  // Tools as icons, from the frame's own button, once the cards are skipped.
+  "easy-icons": async (page) => {
+    await choose(page, "report.pdf", Buffer.from(await reportPdf()));
+    await page.getByRole("button", { name: "Just show me the editor" }).click();
+    await expect(page.getByRole("region", { name: "Document" })).toBeFocused();
+    await page.getByRole("button", { name: "Icons only" }).click();
+    await drawn(page);
+  },
+};
+
+/**
+ * Draws the whole page again, from nothing, just before the screenshot. The
+ * frame's panels share the page's layer with the pages, whose canvases the
+ * render worker draws at a different moment on each load, and Chromium
+ * rasterises that layer's anti-aliased edges a level or two apart depending
+ * on what was invalidated when. Changing the root's background invalidates
+ * every tile, so each capture is of the page drawn in one go, after the
+ * canvases have their drawings. The comparison stays as strict as it was
+ * (sdk-core ADR 0054). image-sdk and notes-sdk steady theirs the same way.
+ */
+async function repainted(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        const frames = (then: () => void) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => then()));
+        const root = document.documentElement;
+        const before = root.style.backgroundColor;
+        // A colour no theme uses, so the change always invalidates.
+        root.style.backgroundColor = "rgb(1, 2, 3)";
+        frames(() => {
+          root.style.backgroundColor = before;
+          frames(resolve);
+        });
+      }),
+  );
+}
+
+/** States reached from another page of the example than their group's. */
+const PATHS: Readonly<Partial<Record<string, string>>> = {
+  "save-failed": "/?save=fail&mode=expert",
+};
+
+for (const [path, states] of [
+  ["/?mode=expert", STATES],
+  ["/", ADVANCED],
+  ["/?mode=easy", EASY],
+] as const) {
+  for (const [state, reach] of Object.entries(states)) {
+    for (const variant of visualVariants) {
+      test(`${state}, ${variant.name}`, async ({ page }) => {
+        // No request may leave the page's origin (sdk-core ADR 0012).
+        const foreign: string[] = [];
+        page.on("request", (request) => {
+          const url = new URL(request.url());
+          if (!["http:", "https:"].includes(url.protocol)) return;
+          if (url.origin !== ORIGIN) foreign.push(request.url());
+        });
+        await page.clock.install({ time: NOW });
+        await page.goto(PATHS[state] ?? path);
+        await applyVisualVariant(page, variant);
+        await reach(page);
+        // The pointer rests outside the editor, so no hover styles show.
+        await page.mouse.move(0, 0);
+        await repainted(page);
+        await expect(page).toHaveScreenshot(`${state}-${variant.name}.png`);
+        expect(foreign).toEqual([]);
       });
-      await page.clock.install({ time: NOW });
-      await page.goto(PATHS[state] ?? "/");
-      await applyVisualVariant(page, variant);
-      await reach(page);
-      // The pointer rests outside the editor, so no hover styles show.
-      await page.mouse.move(0, 0);
-      await expect(page).toHaveScreenshot(`${state}-${variant.name}.png`);
-      expect(foreign).toEqual([]);
-    });
+    }
   }
 }

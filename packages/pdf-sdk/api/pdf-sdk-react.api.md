@@ -4,6 +4,7 @@
 
 ```ts
 
+import type { EditorPreferences } from '@hussmartinez/ui';
 import { FilePolicyOverrides } from '@hussmartinez/sdk-core';
 import { ForwardRefExoticComponent } from 'react';
 import { IconComponent } from '@hussmartinez/ui/react';
@@ -109,7 +110,9 @@ export const pdfEditorMessages: {
     readonly "toolbar.label": "PDF tools";
     readonly "toolbar.groups.file": "File";
     readonly "toolbar.groups.history": "History";
-    readonly "toolbar.groups.pages": "Pages";
+    readonly "toolbar.groups.pages": "Remove and add";
+    readonly "toolbar.groups.rotate": "Rotate";
+    readonly "toolbar.groups.order": "Reorder";
     readonly "toolbar.groups.save": "Save";
     readonly "toolbar.groups.other": "More tools";
     readonly "tools.open": "Open a PDF";
@@ -122,6 +125,35 @@ export const pdfEditorMessages: {
     readonly "tools.insert-pages": "Insert pages";
     readonly "tools.move-earlier": "Move earlier";
     readonly "tools.move-later": "Move later";
+    readonly "tools.rotate-left.description": "A quarter turn anticlockwise";
+    readonly "tools.rotate-right.description": "A quarter turn clockwise";
+    readonly "tools.delete-pages.description": "Remove the selected pages, or this one";
+    readonly "tools.insert-pages.description": "Add another PDF's pages after this one";
+    readonly "tools.move-earlier.description": "One place towards the start";
+    readonly "tools.move-later.description": "One place towards the end";
+    readonly "toolbar.bar": "Editor actions";
+    readonly "editor.mode.easy": "Easy mode";
+    readonly "editor.mode.advanced": "Advanced mode";
+    readonly "editor.mode.expert": "Expert mode";
+    readonly "editor.theme.light": "Light theme";
+    readonly "editor.theme.dark": "Dark theme";
+    readonly "editor.theme.system": "The system's theme";
+    readonly "editor.commands": "Commands";
+    readonly "editor.settings": "Settings";
+    readonly "start.title": "What would you like to do?";
+    readonly "start.skip": "Just show me the editor";
+    readonly "start.steps": "Steps";
+    readonly "start.step.open": "Open";
+    readonly "start.step.edit": "Edit";
+    readonly "start.step.download": "Download";
+    readonly "start.rotate": "Rotate pages";
+    readonly "start.rotate.description": "Turn pages that are sideways or upside down.";
+    readonly "start.remove": "Remove pages";
+    readonly "start.remove.description": "Delete the pages you don't need.";
+    readonly "start.add": "Add pages from another PDF";
+    readonly "start.add.description": "Merge another document into this one.";
+    readonly "start.reorder": "Reorder pages";
+    readonly "start.reorder.description": "Move pages earlier or later.";
     readonly "colorField.swatches": "swatches";
     readonly "dialog.close": "Close";
     readonly "fileDropZone.choose": "Choose a file";
@@ -291,12 +323,15 @@ export type PdfEditorPart = "root" | "header" | "toolbar" | "body" | "sidebar" |
 export interface PdfEditorProps extends Omit<PdfSessionProviderProps, "children" | "messages"> {
     readonly className?: string;
     readonly classNames?: Readonly<Partial<Record<PdfEditorPart, string>>>;
+    readonly defaultPreferences?: Partial<EditorPreferences>;
     readonly downloadName?: (info: PdfDownloadNameInfo) => string;
     readonly file?: Blob | PdfBytes | null;
     readonly icons?: Readonly<Record<string, IconComponent>>;
     readonly messages?: MessageOverrides<PdfEditorMessageCatalogue>;
     readonly onChange?: (change: PdfEditorChange) => void;
     readonly onExport?: (bytes: Uint8Array, info: PdfExportInfo) => void | Promise<void>;
+    readonly onPreferencesChange?: (preferences: EditorPreferences) => void;
+    readonly preferences?: EditorPreferences;
     readonly toolbar?: readonly (readonly string[])[];
     readonly tools?: readonly string[];
     readonly unstyled?: boolean;
