@@ -16,6 +16,7 @@ import {
   ProgressBar,
   ReorderableList,
   ReorderableListItem,
+  SearchField,
   SegmentedControl,
   Slider,
   Spinner,
@@ -319,6 +320,7 @@ export function App() {
         <Field label="File name">
           <TextField defaultValue="report" />
         </Field>
+        <SearchField label="Search pages" defaultValue="invoice" />
         <Field label="Caption">
           <TextArea defaultValue="A page" />
         </Field>

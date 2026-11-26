@@ -159,7 +159,9 @@ export default [
   entryBudget({
     name: "React entry (./react), with the shared code it loads",
     entry: "dist/react.js",
-    // 45.5 kB; 45.23 kB with useEditorPreferences, the preference glue the
+    // 46 kB; 45.75 kB with SearchField (docs/adr/0017), 1.82 kB to an
+    // application that imports it, with the icon button that clears it.
+    // Before, 45.5 kB; 45.23 kB with useEditorPreferences, the preference glue the
     // four media editors each carried before (0.73 kB). Before, 44.5 kB;
     // 44.49 kB with Tabs (docs/adr/0016), 1.43 kB to an application
     // that imports it, with the heading it shows before it's ready.
@@ -181,7 +183,7 @@ export default [
     // content's headings. Every component counts here, though no
     // application ships them all, so a component's pull request raises it as
     // expected growth; review reads the import scenarios below to judge it.
-    limit: "45.5 kB",
+    limit: "46 kB",
   }),
   entryBudget({
     name: "Stylesheet (./styles.css)",

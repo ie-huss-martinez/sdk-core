@@ -24,3 +24,4 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0014](0014-card-and-morph-transition.md) | A card whose title is its action, and a morph into a dialog through view transitions | Accepted |
 | [0015](0015-tag-and-button-link.md) | A static tag, and a link that looks like a button | Accepted |
 | [0016](0016-tabs.md) | Tabs that are sections first, and one component | Accepted |
+| [0017](0017-search-field-and-filter-chips.md) | A search field in a box, and filter chips from toggle buttons | Accepted |
