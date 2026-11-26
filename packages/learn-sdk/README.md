@@ -13,6 +13,7 @@ It's published as **`@hussmartinez/learn-sdk`**, from `packages/learn-sdk` in th
 ```tsx
 import "@hussmartinez/ui/styles.css";
 import "@hussmartinez/learn-sdk/styles.css";
+import { isLearnError } from "@hussmartinez/learn-sdk";
 import { LearnEditor, type LearnEditorHandle } from "@hussmartinez/learn-sdk/react";
 import { useRef, useState } from "react";
 
@@ -25,7 +26,18 @@ export function Editor({ content, save }: { content: unknown; save: (c: unknown)
   return (
     <>
       <LearnEditor ref={editor} initialContent={content} profile={thai} onChange={(_, problems) => setValid(problems.valid)} />
-      <button type="button" disabled={!valid} onClick={() => save(editor.current?.getContent())}>
+      <button
+        type="button"
+        disabled={!valid}
+        onClick={() => {
+          try {
+            void save(editor.current?.getContent());
+          } catch (error) {
+            // Content the editor couldn't open, or a draft with problems: the editor shows why.
+            if (!isLearnError(error)) throw error;
+          }
+        }}
+      >
         Save
       </button>
     </>

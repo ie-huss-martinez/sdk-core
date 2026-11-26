@@ -327,17 +327,32 @@ describe("LearnEditor", () => {
     expect(document.activeElement).toBe(button(element, "Add an answer"));
   });
 
-  it("keeps text the session refuses on screen, with the refusal as the field's problem", async () => {
+  it("doesn't apply text the session refuses, and shows why at the field", async () => {
     // 15 code points: the content's own texts fit, the new title doesn't.
     const onChange = vi.fn();
-    const element = render({ onChange, limits: { maxTextLength: 15 } });
+    const ref = createRef<LearnEditorHandle>();
+    const element = render({ onChange, limits: { maxTextLength: 15 } }, ref);
     field(element, "Title").focus();
     await userEvent.keyboard("{Control>}a{/Control}A title far over ten");
     await userEvent.tab();
     const title = field(element, "Title");
-    expect(title.value).toBe("A title far over ten");
+    // The draft's title again, with the refusal as the field's problem.
+    expect(title.value).toBe("อาหาร");
     expect(title.getAttribute("aria-invalid")).toBe("true");
     expect(onChange).not.toHaveBeenCalled();
+    expect(ref.current?.getContent().exercises[0]?.title).toBe("อาหาร");
+  });
+
+  it("commits once when the host reads the content from onChange", async () => {
+    const ref = createRef<LearnEditorHandle>();
+    const onChange = vi.fn(() => ref.current?.getContent());
+    const element = render({ onChange }, ref);
+    field(element, "Title").focus();
+    await userEvent.keyboard("{Control>}a{/Control}Lunch");
+    await userEvent.tab();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    await userEvent.click(button(element, "Undo"));
+    expect(field(element, "Title").value).toBe("อาหาร");
   });
 
   it("shows a limit the draft passed, which no field can show", async () => {

@@ -49,8 +49,8 @@ export const PendingTextContext = /* @__PURE__ */ createContext<PendingText | nu
 export interface CommittedTextProps {
   /**
    * The error that refused the last commit, such as a text over
-   * `maxTextLength`, while its text is still pending; null otherwise. Not an
-   * input attribute: the field shows it as its problem.
+   * `maxTextLength`, until the next edit; null otherwise. Not an input
+   * attribute: the field shows it as its problem.
    */
   readonly refused: unknown;
   readonly value: string;
@@ -72,9 +72,10 @@ export interface CommittedTextProps {
  * what's there: the editor's `flush()` or `getContent()`, a structural edit,
  * leaving the field, or the field going away (ADR 0008).
  *
- * A commit the session refuses, such as a text over `maxTextLength`, keeps
- * the text on screen and pending, and reports the error as `refused`, so the
- * field shows why it isn't saved, and the next commit tries again.
+ * A commit the session refuses, such as a text over `maxTextLength`, isn't
+ * applied: the field shows the draft's value again, and reports the error as
+ * `refused` until the next edit. Nothing stays pending, so what the editor's
+ * content holds is always what its fields show.
  *
  * `committed` is the value in the draft; `commit` turns a new value into a
  * command. Until the field has typing of its own, it shows `committed`, so
@@ -113,18 +114,20 @@ export function useCommittedText(
       const value = pending.current;
       pausedWhileComposing.current = false;
       if (value === null) return;
+      // Cleared before committing: a host whose onChange asks for the content
+      // flushes again, and must find nothing left to commit.
+      pending.current = null;
+      setTyped(null);
       try {
         latestCommit.current(value);
+        setRefused(null);
       } catch (error) {
         // A bug, not a refusal, still throws.
         if (!isLearnError(error)) throw error;
-        // Kept pending and on screen, with the reason; never thrown from a timer or handler.
+        // Not applied: the field shows the draft again, with the reason, and
+        // nothing is thrown from a timer or a handler.
         setRefused(error);
-        return;
       }
-      pending.current = null;
-      setRefused(null);
-      setTyped(null);
     },
     [clearTimer, latestCommit],
   );
@@ -144,6 +147,7 @@ export function useCommittedText(
     value: typed ?? committed,
     onChange: (event) => {
       const value = event.currentTarget.value;
+      setRefused(null);
       pending.current = value;
       setTyped(value);
       clearTimer();
