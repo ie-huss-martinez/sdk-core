@@ -44,3 +44,5 @@
 @import "./components/command-palette/command-palette.css";
 @import "./components/toast/toast.css";
 @import "./components/progress-overlay/progress-overlay.css";
+@import "./components/card/card.css";
+@import "./components/morph-transition/morph-transition.css";
