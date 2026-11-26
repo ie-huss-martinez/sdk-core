@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-26
 - **Amends:** [ADR 0004](0004-entry-points-and-module-format.md), which gains a `./native` entry, and [ADR 0013](0013-browser-and-react-support.md), which gains React Native as a platform and a rule for the engine it runs on
+- **Amended:** 2026-11-26, to mark a native entry as experimental until it's checked on a device, and to record that sdk-core's gaps are closed
 
 ## Context
 
@@ -48,7 +49,9 @@ Three layers, cheapest first:
 2. **The built entries run in a bare realm.** A test bundles the built `.` and `./native` entries whole, as Metro would, and runs them in a realm with the ECMAScript language and nothing else: no `Intl`, no `normalize`, no DOM, no Node. `react-native` is a stub. That's less than Hermes has, so what runs there runs on Hermes. It's the check for the rule above.
 3. **A small Expo application in `examples/native`** ([ADR 0039](0039-test-applications-in-each-repository.md)), which uses every export of the native entry. `pnpm verify` type-checks it against the built package and builds it with `expo export --platform android`, offline and with Expo's telemetry off. That proves Metro resolves the ESM-only `exports`, and that Hermes compiles the result to bytecode.
 
-**No test renders on a device or an emulator.** CI has neither, and an emulator in the browser test image would cost more than the entry it tests. What the three layers can't see is how a component looks and how a screen reader reads it. The first application that uses an entry is where that's checked, by hand, before the package's next release.
+**No test renders on a device or an emulator.** CI has neither, and an emulator in the browser test image would cost more than the entry it tests. What the three layers can't see is how a component looks and how a screen reader reads it. The first application that uses an entry is where that's checked, by hand.
+
+**A native entry is experimental until that check is done** (amended 2026-11-26). A release doesn't wait for a phone. Instead, the package's README marks the entry as experimental, and says why: it hasn't been looked at on a device, or listened to with VoiceOver and TalkBack. While it's marked, its API may change in any release, patches included, which is the one exception to the family's rule that a breaking change bumps the minor ([ADR 0021](0021-version-and-release-with-changesets.md)); each changeset still says what changed. The mark comes off in the pull request that records the check: who ran it, on which devices, and with which application.
 
 Each package starts with a test of its own for layer 2. If a second package copies it, the helper moves to `sdk-config` ([ADR 0039](0039-test-applications-in-each-repository.md)'s rule for duplication).
 
@@ -89,6 +92,6 @@ Each package starts with a test of its own for layer 2. If a second package copi
 - `ui` lists `react-native` as a peer, which turns Biome's React Native rules on for the whole package. The root `biome.json` keeps them to the native sources and the Expo application; the web components draw text in elements, which those rules would report.
 - The native components are fewer and plainer than the web's, and grow as applications need them. They share tokens and icons with the web, not behaviour: a fix to the web `Button` doesn't reach the native one.
 - **Known gaps in the root entries,** to close before a native entry relies on them:
-  - **sdk-core:** `createMessages` formats numbers, dates, lists and plurals with `Intl`, and `cleanFileName` calls `normalize`, both without checking. Importing sdk-core is safe, and `ui`'s native entry uses only its error class, so nothing fails today. `ui`'s native entry imports sdk-core, so by the rule above sdk-core's guards come in a pull request of their own before the release that publishes `@hussmartinez/ui/native`.
+  - **sdk-core:** closed on 2026-11-26, before the release that publishes `@hussmartinez/ui/native`. `createMessages` checks for each `Intl` constructor before using it and fails with `UNSUPPORTED_ENVIRONMENT`, naming it; plain text needs none. `cleanFileName` leaves a name uncomposed where there's no `normalize`. Its other uses of platform types, such as `Blob` in the file policy and `URL` for worker assets, belong to features a native entry doesn't reach yet, and are checked when one does.
   - **learn-sdk:** `normalize("NFC")` in grading, and `Blob` in its audio port. Its native entry's pull request fixes them.
 - [`STANDARDS.md`](../../STANDARDS.md) gains the `./native` entry, the optional peers, and the rule for the root entry.

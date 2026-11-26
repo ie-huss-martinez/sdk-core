@@ -617,3 +617,78 @@ describe("createMessages", () => {
     }
   });
 });
+
+describe("createMessages on an engine with little or no Intl (ADR 0069)", () => {
+  const catalogue = defineMessages({
+    ...sdkCoreMessages,
+    "files.opened": "Opened {name}.",
+    "files.count": plural("count", { one: "{count} file", other: "{count} files" }),
+    "files.size": "It's {size, fileSize}.",
+  });
+
+  beforeEach(() => {
+    clearIntlCache();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    clearIntlCache();
+  });
+
+  /** What `run` throws, as its code and the feature it names. */
+  const refusal = (run: () => unknown): unknown => {
+    try {
+      run();
+    } catch (error) {
+      const { code, details } = error as SdkError;
+      return { sdk: error instanceof SdkError, code, feature: details?.["feature"] };
+    }
+    return undefined;
+  };
+
+  it("renders plain text and named placeholders with no Intl at all", () => {
+    vi.stubGlobal("Intl", undefined);
+    const messages = createMessages(catalogue, { locale: "es-ES" });
+    expect(messages.t("files.opened", { name: "a.pdf" })).toBe("Opened a.pdf.");
+    expect(messages.error(new Error("x"))).toBe(catalogue["errors.UNKNOWN"]);
+  });
+
+  it("fails with UNSUPPORTED_ENVIRONMENT, naming the constructor a message needs", () => {
+    vi.stubGlobal("Intl", undefined);
+    const messages = createMessages(catalogue);
+    expect(refusal(() => messages.t("files.count", { count: 2 }))).toEqual({
+      sdk: true,
+      code: "UNSUPPORTED_ENVIRONMENT",
+      feature: "Intl.PluralRules",
+    });
+    expect(refusal(() => messages.t("files.size", { size: 1_300_000 }))).toEqual({
+      sdk: true,
+      code: "UNSUPPORTED_ENVIRONMENT",
+      feature: "Intl.NumberFormat",
+    });
+  });
+
+  it("names the one constructor that's missing when the rest of Intl is there", () => {
+    // Hermes has had number and date formatting without plural rules.
+    vi.stubGlobal("Intl", { ...Intl, NumberFormat: Intl.NumberFormat, PluralRules: undefined });
+    const messages = createMessages(catalogue);
+    expect(messages.t("files.size", { size: 1_300_000 })).toBe("It's 1.3 MB.");
+    expect(refusal(() => messages.t("files.count", { count: 2 }))).toMatchObject({
+      code: "UNSUPPORTED_ENVIRONMENT",
+      feature: "Intl.PluralRules",
+    });
+  });
+
+  it("keeps a well-formed locale it can't canonicalise, and refuses one that isn't a tag", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.stubGlobal("Intl", { NumberFormat: Intl.NumberFormat });
+    // German separators show the locale reached the formatter as given.
+    const german = createMessages(catalogue, { locale: "de-DE" });
+    expect(german.t("files.size", { size: 1_300_000 })).toBe("It's 1,3 MB.");
+    expect(warn).not.toHaveBeenCalled();
+    const invalid = createMessages(catalogue, { locale: "not a locale" });
+    expect(invalid.t("files.size", { size: 1_300_000 })).toBe("It's 1.3 MB.");
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+});

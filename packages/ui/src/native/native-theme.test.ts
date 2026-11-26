@@ -196,6 +196,12 @@ describe("createNativeTheme", () => {
     ],
     // `new Array(4)` with two coordinates set: the others are holes.
     ["a curve with holes", { "motion-easing-enter": sparseCurve() }, "motion-easing-enter"],
+    // Refused by its length alone: copying it would never finish.
+    [
+      "an array far too long to copy",
+      { "motion-easing-enter": new Array(2 ** 32 - 1) },
+      "motion-easing-enter",
+    ],
   ])("refuses %s, naming the token", (_case, tokens, token) => {
     let thrown: unknown;
     try {

@@ -44,7 +44,7 @@ The package is ESM only ([ADR 0004](https://github.com/ie-huss-martinez/sdk-core
 | `@hussmartinez/ui` | Tokens, `createTheme`, `themeToCss`, the built-in themes and their types. No React and no DOM access on import, so it's safe in Server Components and build scripts |
 | `@hussmartinez/ui/react` | `ThemeProvider`, `UiMessagesProvider` and the components. Starts with `"use client"`. React and React DOM `>=18.3` are optional peer dependencies |
 | `@hussmartinez/ui/styles.css` | All styles: the built-in tokens and base styles, in the cascade layers `hm.tokens` and `hm.base`. Import it once in your application |
-| `@hussmartinez/ui/native` | For React Native: the themes as native values, the icons as data with `Icon`, `Text`, `Button`, `ChoiceList`, and helpers for direction, preferences and announcements. No DOM and no stylesheet. `react-native` `>=0.81` and `react-native-svg` `>=15` are optional peer dependencies. See [React Native](#react-native) |
+| `@hussmartinez/ui/native` | **Experimental.** For React Native: the themes as native values, the icons as data with `Icon`, `Text`, `Button`, `ChoiceList`, and helpers for direction, preferences and announcements. No DOM and no stylesheet. `react-native` `>=0.81` and `react-native-svg` `>=15` are optional peer dependencies. See [React Native](#react-native) |
 
 JavaScript never imports CSS, so your application decides where the stylesheet loads. Your own unlayered CSS overrides every `hm` layer without `!important` ([ADR 0005](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0005-plain-css-with-cascade-layers.md)).
 
@@ -128,6 +128,8 @@ const scoped = themeToCss(brandLight, ".marketing"); // only inside .marketing
 Custom themes always beat the built-in ones, whatever order stylesheets load in. Themes can nest; the closest one wins. Invalid selectors throw `UiError` with the code `INVALID_THEME_SELECTOR`.
 
 ## React Native
+
+> **Experimental.** `@hussmartinez/ui/native` builds and passes `ui`'s own checks, but it hasn't been checked on a device yet: nobody has looked at its components on a phone, or listened to them with VoiceOver and TalkBack. Until the first application has, its API may change in any release, patches included, and this note stays.
 
 `@hussmartinez/ui/native` is `ui` for React Native ([ADR 0069 in sdk-core](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0069-react-native-entry-points.md)). It shares the web's tokens and icons, not its components: there's no DOM and no CSS on a device.
 
