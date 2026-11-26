@@ -105,7 +105,17 @@
     flex: none;
     flex-direction: column;
     min-block-size: 0;
-    /* The footer without room is placed against it. */
+  }
+
+  /*
+   * The footer without room is placed against the column. Only then: a
+   * positioned column would paint over what spills from the stage, such
+   * as a floating bar's shadow. Without specificity, so the narrow
+   * layouts' absolute column keeps its place.
+   */
+  :where(
+    .hm-editor-frame-properties-column:has(> .hm-editor-frame-properties-footer[data-hm-no-room])
+  ) {
     position: relative;
   }
 
