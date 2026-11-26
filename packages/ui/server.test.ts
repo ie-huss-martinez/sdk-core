@@ -213,6 +213,13 @@ describe("the built package on a server", () => {
         items: [{ id: "a", label: "A", icon }],
       },
       Sheet: { open: true, onOpenChange: noop, title: "Title", children: "Body" },
+      Tabs: {
+        label: "Implementations",
+        tabs: [
+          { id: "next", label: "Next.js", icon, content: "Server Components" },
+          { id: "astro", label: "Astro", content: "Islands" },
+        ],
+      },
       Tag: { tone: "success", icon, children: "Stable" },
       TagList: {
         "aria-label": "Stack",

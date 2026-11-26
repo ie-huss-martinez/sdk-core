@@ -1,0 +1,111 @@
+@layer hm.components {
+  /*
+   * Layout, focus and target size: kept with unstyled. Before the tabs are
+   * ready there's no list, and the panels follow one another, each under its
+   * title.
+   */
+  .hm-tabs {
+    display: grid;
+    gap: var(--hm-tabs-gap, var(--hm-gap-loose));
+    /* A grid item is as wide as its content unless told otherwise, and the list scrolls instead. */
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* The row scrolls sideways when its tabs don't fit; focus brings a tab into view. */
+  .hm-tabs-list {
+    display: flex;
+    gap: var(--hm-tabs-list-gap, var(--hm-gap-tight));
+    overflow-x: auto;
+  }
+
+  .hm-tabs-tab {
+    align-items: center;
+    box-sizing: border-box;
+    cursor: pointer;
+    display: inline-flex;
+    flex-shrink: 0;
+    gap: var(--hm-control-gap);
+    justify-content: center;
+    min-block-size: max(var(--hm-tabs-tab-height, var(--hm-control-height)), var(--hm-target-size));
+    min-inline-size: var(--hm-target-size);
+    padding-block: 0;
+    padding-inline: var(--hm-tabs-tab-padding-x, var(--hm-control-padding-x));
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  /* Inside the tab, because the scrolling row would cut a ring drawn around it. */
+  .hm-tabs-tab:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: calc(var(--hm-focus-ring-width) * -1);
+  }
+
+  .hm-tabs-icon {
+    block-size: var(--hm-icon-size);
+    display: inline-flex;
+    flex-shrink: 0;
+    inline-size: var(--hm-icon-size);
+  }
+
+  .hm-tabs-icon > svg {
+    block-size: inherit;
+    inline-size: inherit;
+  }
+
+  .hm-tabs-panel:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: var(--hm-focus-ring-offset);
+  }
+
+  .hm-tabs-title {
+    margin-block-end: var(--hm-gap-normal);
+  }
+
+  /*
+   * Visual styles, dropped with unstyled. Each rule reaches its part through
+   * its own root, child by child, so tabs inside another's panel keep their
+   * own unstyled.
+   */
+  .hm-tabs:not([data-hm-unstyled]) > .hm-tabs-list {
+    border-block-end: var(--hm-border-width) solid
+      var(--hm-tabs-list-border-color, var(--hm-color-border));
+  }
+
+  .hm-tabs:not([data-hm-unstyled]) > .hm-tabs-list > .hm-tabs-tab {
+    background: transparent;
+    border: 0;
+    border-start-end-radius: var(--hm-tabs-tab-radius, var(--hm-radius-control));
+    border-start-start-radius: var(--hm-tabs-tab-radius, var(--hm-radius-control));
+    color: var(--hm-tabs-tab-fg, var(--hm-color-text-muted));
+    font-family: var(--hm-font-family);
+    font-size: var(--hm-font-size-body);
+    font-weight: var(--hm-font-weight-strong);
+    letter-spacing: var(--hm-letter-spacing);
+    line-height: var(--hm-line-height-tight);
+    /*
+     * Room for the line under the selected tab, so selecting one moves
+     * nothing. It's padding, not a transparent border: forced-colours mode
+     * draws every border, and would underline every tab.
+     */
+    padding-block-end: var(--hm-tabs-indicator-size, var(--hm-focus-ring-width));
+  }
+
+  /* The line says which tab is selected without colour alone, in forced colours too. */
+  .hm-tabs:not([data-hm-unstyled]) > .hm-tabs-list > .hm-tabs-tab[aria-selected="true"] {
+    border-block-end: var(--hm-tabs-indicator-size, var(--hm-focus-ring-width)) solid
+      var(--hm-tabs-indicator-color, var(--hm-color-accent));
+    color: var(--hm-tabs-tab-selected-fg, var(--hm-color-text));
+    padding-block-end: 0;
+  }
+
+  /* Hover only where there's a real pointer, so touch doesn't leave it stuck. */
+  @media (hover: hover) {
+    .hm-tabs:not([data-hm-unstyled]) > .hm-tabs-list > .hm-tabs-tab:hover {
+      background: var(--hm-tabs-tab-bg-hover, var(--hm-color-control-hover));
+      color: var(--hm-tabs-tab-selected-fg, var(--hm-color-text));
+      transition-duration: var(--hm-motion-duration-feedback);
+      transition-property: background-color, color;
+      transition-timing-function: var(--hm-motion-easing-standard);
+    }
+  }
+}
