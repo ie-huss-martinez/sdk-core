@@ -60,6 +60,10 @@ export default [
     entry: "dist/index.js",
     limit: "24 kB",
   }),
+  // Measured at 44.10 kB on ui's editor frame (docs/adr/0007): the start
+  // cards, the tool lists, the preferences and their inherited values, the
+  // toasts' wiring and the top bar. The frame's components are ui's, so not
+  // counted. The limit is the measurement rounded up to the next 0.5 kB.
   // Measured at 38.64 kB with the element beside it (docs/adr/0006, step
   // 16), 30.08 kB minified: the element shares its code, so it loads one
   // chunk more. It was 38.29 kB, 29.87 kB minified, with the export dialog
@@ -75,15 +79,17 @@ export default [
   entryBudget({
     name: "React entry (./react), with the shared code it loads",
     entry: "dist/react.js",
-    limit: "40 kB",
+    limit: "44.5 kB",
   }),
-  // The element and the React editor it mounts (docs/adr/0006, step 16):
-  // measured at 39.53 kB, 30.71 kB minified. The limit is the next 0.5 kB.
+  // The element and the React editor it mounts, on ui's frame
+  // (docs/adr/0007): measured at 44.18 kB. The limit is the next 0.5 kB.
+  // With the element's first release (docs/adr/0006, step 16) it measured
+  // 39.53 kB, 30.71 kB minified.
   // Empty before the element, it was 1 kB.
   entryBudget({
     name: "Element entry (./element), with the shared code it loads",
     entry: "dist/element.js",
-    limit: "40 kB",
+    limit: "44.5 kB",
   }),
   {
     disablePlugins: ["@size-limit/esbuild"],

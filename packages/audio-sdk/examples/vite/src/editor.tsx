@@ -1,8 +1,14 @@
 import "@hussmartinez/ui/styles.css";
 import "@hussmartinez/audio-sdk/styles.css";
 import type { AudioEditorMessageCatalogue, AudioPlan } from "@hussmartinez/audio-sdk";
-import { AudioEditor, type AudioEditorHandle } from "@hussmartinez/audio-sdk/react";
+import {
+  AudioEditor,
+  type AudioEditorHandle,
+  type AudioEditorProps,
+} from "@hussmartinez/audio-sdk/react";
 import type { MessageOverrides } from "@hussmartinez/sdk-core";
+import { type EditorPreferences, readEditorPreferences } from "@hussmartinez/ui";
+import { useState } from "react";
 import { createRoot } from "react-dom/client";
 
 /** The editor, as a host renders it: ui's stylesheet first, then the SDK's (sdk-core ADR 0036). */
@@ -117,19 +123,82 @@ window.audioEditor = {
   plan: () => latest,
 };
 
-const element = document.querySelector("#editor");
+/**
+ * `?app` makes the page behave as the family's apps do (sdk-core ADR 0067):
+ * the editor fills the window, opens a first visit in Easy mode, and the
+ * page keeps the person's preferences in `localStorage`, never a cookie.
+ * Without it, the editor is embedded with its own defaults, as the tests
+ * expect.
+ */
+const APP = params.has("app");
+/** `?mode=easy|advanced|expert` starts the embedded editor in that mode. */
+const MODE = (["easy", "advanced", "expert"] as const).find((mode) => params.get("mode") === mode);
+const PREFERENCES = "editor-prefs:audio-example";
+
+function readStored(): EditorPreferences {
+  let stored: unknown = null;
+  try {
+    stored = JSON.parse(localStorage.getItem(PREFERENCES) ?? "null");
+  } catch {
+    stored = null;
+  }
+  return readEditorPreferences(stored, { mode: "easy" });
+}
+
+const shared: AudioEditorProps = {
+  ...translation,
+  onChange: (plan) => {
+    latest = plan;
+  },
+};
+
+const attach = (editor: AudioEditorHandle | null) => {
+  if (editor) mount(editor);
+};
+
+function App() {
+  const [preferences, setPreferences] = useState(readStored);
+  return (
+    <AudioEditor
+      {...shared}
+      ref={attach}
+      preferences={preferences}
+      onPreferencesChange={(next) => {
+        setPreferences(next);
+        try {
+          localStorage.setItem(PREFERENCES, JSON.stringify(next));
+        } catch {
+          // Storage full or blocked: the preferences last until the page closes.
+        }
+      }}
+    />
+  );
+}
+
+const element = document.querySelector<HTMLElement>("#editor");
 if (element) {
+  if (APP) {
+    // The app fills the window: the page's heading steps aside. React sets
+    // these through the DOM, which style-src 'self' allows.
+    document.querySelector("h1")?.remove();
+    for (const each of [document.documentElement, document.body, element]) {
+      each.style.height = "100%";
+      each.style.margin = "0";
+    }
+    const main = element.parentElement;
+    if (main) main.style.height = "100%";
+  }
   createRoot(element).render(
-    <div style={{ height: "80vh" }}>
-      <AudioEditor
-        {...translation}
-        ref={(editor) => {
-          if (editor) mount(editor);
-        }}
-        onChange={(plan) => {
-          latest = plan;
-        }}
-      />
-    </div>,
+    APP ? (
+      <App />
+    ) : (
+      <div style={{ height: "80vh" }}>
+        <AudioEditor
+          {...shared}
+          ref={attach}
+          {...(MODE ? { defaultPreferences: { mode: MODE } } : {})}
+        />
+      </div>
+    ),
   );
 }

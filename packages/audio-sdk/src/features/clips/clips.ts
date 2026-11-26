@@ -209,9 +209,11 @@ const trackIndex = (state: AudioToolState) =>
 export const clipTools: readonly AudioTool[] = [
   /* @__PURE__ */ defineTool({
     id: "audio.split",
+    level: "easy",
+    description: "tools.split.description",
     label: "tools.split",
     icon: "split",
-    group: "clips",
+    group: "cut",
     shortcuts: ["S"],
     // Where the playhead is isn't state, so whether it's inside a clip is
     // known only when the tool runs, which says so when it isn't.
@@ -221,9 +223,11 @@ export const clipTools: readonly AudioTool[] = [
   }),
   /* @__PURE__ */ defineTool({
     id: "audio.delete",
+    level: "easy",
+    description: "tools.delete.description",
     label: "tools.delete",
     icon: "delete",
-    group: "clips",
+    group: "cut",
     shortcuts: "delete",
     // The range, or else the selected clip (docs/adr/0005).
     isEnabled: (state: AudioToolState) =>
@@ -246,9 +250,11 @@ export const clipTools: readonly AudioTool[] = [
   }),
   /* @__PURE__ */ defineTool({
     id: "audio.trim-start",
+    level: "easy",
+    description: "tools.trimStart.description",
     label: "tools.trimStart",
     icon: "trim-start",
-    group: "clips",
+    group: "cut",
     shortcuts: ["["],
     isEnabled: withClip,
     run: (context: AudioToolContext) => {
@@ -258,9 +264,11 @@ export const clipTools: readonly AudioTool[] = [
   }),
   /* @__PURE__ */ defineTool({
     id: "audio.trim-end",
+    level: "easy",
+    description: "tools.trimEnd.description",
     label: "tools.trimEnd",
     icon: "trim-end",
-    group: "clips",
+    group: "cut",
     shortcuts: ["]"],
     isEnabled: withClip,
     run: (context: AudioToolContext) => {
@@ -272,6 +280,8 @@ export const clipTools: readonly AudioTool[] = [
   // are the buttons for a single pointer (WCAG 2.5.7).
   /* @__PURE__ */ defineTool({
     id: "audio.move-earlier",
+    level: "advanced",
+    description: "tools.moveEarlier.description",
     label: "tools.moveEarlier",
     icon: "chevron-left",
     group: "clips",
@@ -283,6 +293,8 @@ export const clipTools: readonly AudioTool[] = [
   }),
   /* @__PURE__ */ defineTool({
     id: "audio.move-later",
+    level: "advanced",
+    description: "tools.moveLater.description",
     label: "tools.moveLater",
     icon: "chevron-right",
     group: "clips",
@@ -294,6 +306,8 @@ export const clipTools: readonly AudioTool[] = [
   }),
   /* @__PURE__ */ defineTool({
     id: "audio.move-to-track-above",
+    level: "expert",
+    description: "tools.moveToTrackAbove.description",
     label: "tools.moveToTrackAbove",
     icon: "move-up",
     group: "clips",
@@ -305,6 +319,8 @@ export const clipTools: readonly AudioTool[] = [
   }),
   /* @__PURE__ */ defineTool({
     id: "audio.move-to-track-below",
+    level: "expert",
+    description: "tools.moveToTrackBelow.description",
     label: "tools.moveToTrackBelow",
     icon: "move-down",
     group: "clips",

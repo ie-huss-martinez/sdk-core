@@ -1,7 +1,6 @@
-import axe from "axe-core";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
-import { editor, recording, step } from "../../test/editor.js";
+import { editor, recording, step, violations } from "../../test/editor.js";
 import { cleanUp, waitFor } from "../../test/react.js";
 
 // Wide enough for the whole editor, so a pointer can reach every part of it.
@@ -64,7 +63,7 @@ describe("selecting a range", () => {
     await step(() => ref.current?.seek(12_000));
     await step(() => userEvent.keyboard("o"));
     await said("Selected 0:00.50 to 0:01.50 on every track.");
-    expect((await axe.run(container)).violations.map((each) => each.id)).toEqual([]);
+    expect(await violations(container)).toEqual([]);
     await step(() => userEvent.keyboard("{Escape}"));
     await said("Selection cleared.");
     expect(selectionText(container)).toBeUndefined();

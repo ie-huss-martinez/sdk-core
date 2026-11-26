@@ -1,17 +1,18 @@
-import { applyVisualVariant, visualVariants } from "@hussmartinez/sdk-config/testing/visual";
+import { applyVisualVariant, variantsFor } from "@hussmartinez/sdk-config/testing/visual";
 import type { Page } from "@playwright/test";
 import { expect, test } from "../fixtures.js";
 import { FIRST_OPEN, tone } from "../tests/helpers.js";
 
 /**
- * The editor's designed states, as screenshots (sdk-core ADR 0048). Each is
- * captured in light and dark, compact and comfortable, on the built example
- * as a host renders it.
+ * The editor's designed states, as screenshots (sdk-core ADR 0048), on the
+ * built example as a host renders it. The main states, in FULL, are captured
+ * in light and dark, compact and comfortable; the rest in light-comfortable
+ * only (sdk-core ADR 0068).
  *
  * | State | What it shows |
  * |---|---|
  * | `empty` | The drop zone, before a recording is open |
- * | `open` | One recording on its track: the toolbar, the timeline with its waveform, the transport and the inspector's Recording section |
+ * | `open` | One recording on its track: the tools panel, the timeline with its waveform, the transport and the inspector's Recording section |
  * | `tracks` | Two tracks, the second muted, with a clip of the first selected and the inspector's Clip section |
  * | `selection` | A range on the first of two tracks, with Ripple's warning on its lane and header, the transport's text and the inspector's Selection section |
  * | `rename` | The rename dialog, its field focused |
@@ -22,6 +23,17 @@ import { FIRST_OPEN, tone } from "../tests/helpers.js";
  * | `long-text`, `long-text-rename`, `long-text-export` | A host's longer text, as a translation can be: two tracks with a clip selected, the rename dialog and the export dialog wrap it |
  * | `rtl`, `rtl-selection` | A Hebrew host, right to left: two tracks, the second muted, with a clip of the first selected, and a range on the first. Time runs from the right, and the icons that point along time are mirrored |
  * | `rtl-dir-only` | `tracks` on a page that sets only `dir="rtl"`, with English text, so a rule keyed on a right-to-left `lang` can't stand in for one keyed on direction |
+ * | `settings` | The settings, in a sheet from the inline end |
+ * | `palette` | The command palette, searched for "fade" |
+ * | `phone` | A 390-pixel window: the tab bar, and the "Cut" group in a sheet from the bottom |
+ * | `advanced-open` | A recording open in the editor as a host embeds it, with no preferences: Advanced mode |
+ * | `easy-start` | Easy mode: a recording just opened, under the start cards |
+ *
+ * The editor's own states are in Expert mode, where every tool is listed
+ * with its shortcut, unless their name says otherwise (docs/adr/0007). The
+ * long-text, right-to-left and element states are the editor as a host
+ * embeds it, in Advanced mode. Toasts stay where they are: the page's clock
+ * is fixed, so their timers never run out.
  *
  * No state is masked: every one renders generated tones at a fixed time,
  * the waveform is drawn from their peaks, and the editor shows no time or
@@ -62,16 +74,19 @@ const tracks: State = async (page) => {
   await expect(page.getByText("Clip on Track 1")).toBeVisible();
 };
 
+/** One recording open, with focus on the playhead. */
+const opened: State = async (page) => {
+  await open(page, tone(2));
+  await expect(page.getByRole("slider", { name: "Playhead" })).toBeFocused({
+    timeout: FIRST_OPEN,
+  });
+};
+
 const EDITOR: Readonly<Record<string, State>> = {
   empty: async (page) => {
     await expect(page.getByRole("button", { name: "Choose a file" })).toBeVisible();
   },
-  open: async (page) => {
-    await open(page, tone(2));
-    await expect(page.getByRole("slider", { name: "Playhead" })).toBeFocused({
-      timeout: FIRST_OPEN,
-    });
-  },
+  open: opened,
   tracks,
   selection: async (page) => {
     await twoTracks(page);
@@ -112,6 +127,48 @@ const EDITOR: Readonly<Record<string, State>> = {
   error: async (page) => {
     await open(page, Buffer.from([1, 2, 3, 4])).catch(() => {});
     await expect(page.locator(".hm-audio-editor-error")).toBeVisible({ timeout: FIRST_OPEN });
+  },
+  // The settings, in a sheet from the inline end (sdk-core ADR 0067).
+  settings: async (page) => {
+    await opened(page);
+    await page.getByRole("button", { name: "Settings" }).click();
+    await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+  },
+  // The command palette, searched, with its first result active (sdk-core ADR 0067).
+  palette: async (page) => {
+    await opened(page);
+    await page.keyboard.press("ControlOrMeta+k");
+    const search = page.getByRole("combobox", { name: "Search tools" });
+    await expect(search).toBeFocused();
+    await search.fill("fade");
+    await expect(page.getByRole("option", { name: "Fade in" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  },
+  // A phone: the tab bar, and a group of tools open in a sheet from the bottom.
+  phone: async (page) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await opened(page);
+    await page.getByRole("toolbar", { name: "Tools" }).getByRole("button", { name: "Cut" }).click();
+    await expect(page.getByRole("dialog", { name: "Cut" })).toBeVisible();
+  },
+};
+
+/** The editor as a host embeds it, with no preferences: Advanced mode. */
+const ADVANCED: Readonly<Record<string, State>> = {
+  "advanced-open": async (page) => opened(page),
+};
+
+/** Easy mode: a recording just opened, under the start cards (sdk-core ADR 0067). */
+const EASY: Readonly<Record<string, State>> = {
+  "easy-start": async (page) => {
+    await open(page, tone(2));
+    await expect(page.getByRole("region", { name: "What would you like to do?" })).toBeVisible({
+      timeout: FIRST_OPEN,
+    });
+    // The cards cover the stage, so focus is on the first of them.
+    await expect(page.getByRole("button", { name: /^Cut the start or end/ })).toBeFocused();
   },
 };
 
@@ -189,15 +246,61 @@ const DIR_ONLY: Readonly<Record<string, State>> = {
   },
 };
 
+/**
+ * Draws the whole page again, from nothing, just before the screenshot. The
+ * frame's panels share the page's layer with the waveforms, whose canvases
+ * are drawn at a different moment on each load, and Chromium rasterises
+ * that layer's anti-aliased edges a level or two apart depending on what was
+ * invalidated when. Changing the root's background invalidates every tile,
+ * so each capture is of the page drawn in one go. The comparison stays as
+ * strict as it was (sdk-core ADR 0054), as in pdf-sdk and image-sdk.
+ */
+async function repainted(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        const frames = (then: () => void) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => then()));
+        const root = document.documentElement;
+        const before = root.style.backgroundColor;
+        // A colour no theme uses, so the change always invalidates.
+        root.style.backgroundColor = "rgb(1, 2, 3)";
+        frames(() => {
+          root.style.backgroundColor = before;
+          frames(resolve);
+        });
+      }),
+  );
+}
+
+/**
+ * The states captured in every theme and density (sdk-core ADR 0068): the
+ * frame's main states, and every right-to-left and element state, which
+ * show how the page's direction and the host's styles meet each variant.
+ */
+const FULL: readonly string[] = [
+  "empty",
+  "open",
+  "settings",
+  "phone",
+  "advanced-open",
+  "easy-start",
+  ...Object.keys(HEBREW),
+  ...Object.keys(DIR_ONLY),
+  ...Object.keys(ELEMENT),
+];
+
 for (const [path, states] of [
-  ["/editor.html", EDITOR],
+  ["/editor.html?mode=expert", EDITOR],
+  ["/editor.html", ADVANCED],
+  ["/editor.html?mode=easy", EASY],
   ["/editor.html?long-text", LONG_TEXT],
   ["/editor.html?lang=he", HEBREW],
   ["/editor.html?dir=rtl", DIR_ONLY],
   ["/element.html", ELEMENT],
 ] as const) {
   for (const [state, reach] of Object.entries(states)) {
-    for (const variant of visualVariants) {
+    for (const variant of variantsFor(state, { full: FULL })) {
       test(`${state}, ${variant.name}`, async ({ page }) => {
         // No request may leave the page's origin (sdk-core ADR 0012).
         const foreign: string[] = [];
@@ -212,6 +315,7 @@ for (const [path, states] of [
         await reach(page);
         // The pointer rests outside the editor, so no hover styles show.
         await page.mouse.move(0, 0);
+        await repainted(page);
         await expect(page).toHaveScreenshot(`${state}-${variant.name}.png`);
         expect(foreign).toEqual([]);
       });

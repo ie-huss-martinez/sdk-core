@@ -22,13 +22,15 @@ const editor = useRef<AudioEditorHandle>(null);
 const { blob } = await editor.current!.export();
 ```
 
-It shows a toolbar, the timeline with a lane per track (its header, waveform and clips) and the playhead, the transport, an inspector, and the export dialog ([ADR 0005](docs/adr/0005-editor-shell.md), [ADR 0006](docs/adr/0006-multitrack.md)). People open a recording with its button or by dropping a file, and add more, each on a track of its own.
+It renders through ui's editor frame ([ADR 0007](docs/adr/0007-the-editor-on-ui-s-frame.md), [sdk-core ADR 0067](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0067-editor-frame-modes-and-host-owned-preferences.md)): a top bar with the mode switch, Open, Undo, Redo, the theme toggle, Settings and Export; a tools panel of the editing tools, by mode; the timeline with a lane per track (its header, waveform and clips) and the playhead; the inspector as the properties panel; the transport and the zoom across the foot; and the export dialog ([ADR 0005](docs/adr/0005-editor-shell.md), [ADR 0006](docs/adr/0006-multitrack.md)). People open a recording with its button or by dropping a file, and add more, each on a track of its own. On a phone, a tab bar opens each group of tools in a sheet.
+
+**Modes and preferences.** Easy, Advanced and Expert decide which tools the panel lists; the command palette (`Ctrl+K`, or `⌘K`) reaches every tool in every mode. In Easy mode, each recording opens on four start cards. Edits, undo and redo, opening and adding recordings show a toast, and an edit's offers Undo. The person's choices, such as the mode and theme, are `EditorPreferences` from `@hussmartinez/ui`: pass `preferences` and `onPreferencesChange` to keep them where you like, such as `localStorage`; the editor never stores them. Without them it starts in Advanced mode, and inherits the page's theme, density and motion until the person picks them.
 
 **Styles: ui's stylesheet is required.** Import `@hussmartinez/ui/styles.css` once in your application, before `@hussmartinez/audio-sdk/styles.css`, as above. The editor is built from [`@hussmartinez/ui`](https://www.npmjs.com/package/@hussmartinez/ui)'s components, whose focus rings, minimum target sizes, design tokens, themes and density are in ui's stylesheet ([sdk-core ADR 0036](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0036-ui-as-a-dependency-of-the-sdks.md)). The SDK's stylesheet never includes it, so a page with several SDKs loads it once. The SDK's styles are in the `hm.sdk` cascade layer and use `.hm-audio-*` classes with values from `--hm-*` tokens; `classNames` adds your classes to the editor's parts, and `unstyled` leaves out its own look.
 
 **One copy of ui and sdk-core.** The SDK depends on `@hussmartinez/ui` `^0.14.0` and `@hussmartinez/sdk-core` `^0.4.4`. If your application uses either itself, depend on the same minor versions, and check that `npm ls @hussmartinez/ui @hussmartinez/sdk-core` lists one version of each: a second copy doesn't share providers with the first, so text falls back to English and announcements are lost.
 
-**A bounded height.** `AudioEditor` fills the height of its container, and its timeline scrolls within it, so give it a bounded height: a fixed height, or a grid row such as `minmax(0, 1fr)`. Where the editor is at least 1080 px wide, the inspector sits beside the timeline; otherwise it's below the transport.
+**A bounded height.** `AudioEditor` fills the height of its container, and its timeline scrolls within it, so give it a bounded height: a fixed height, or a grid row such as `minmax(0, 1fr)`. The frame's panels follow the editor's own width: from 60 rem the tools and the inspector sit beside the timeline, between 45 and 60 rem they float over it, and below 45 rem the tab bar holds the tools and the inspector sits under the timeline.
 
 **Text.** `messages` overrides any text the editor shows, by key, including ui's, and `locale` sets the language for numbers and plurals ([sdk-core ADR 0046](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0046-ui-text-through-the-sdk.md)). `audioEditorMessages`, from `@hussmartinez/audio-sdk/react`, is the English catalogue. Type your overrides as `MessageOverrides<AudioEditorMessageCatalogue>`: `MessageOverrides` from `@hussmartinez/sdk-core`, and the catalogue's type from the main entry, `@hussmartinez/audio-sdk`, which the element's `messages` uses too (sdk-core ADR 0059). `AudioEditorMessageOverrides` and `AudioEditorMessages` still work, but they're deprecated. `audioMessages`, from the server-safe entry, holds only error and warning text.
 
@@ -38,9 +40,10 @@ It shows a toolbar, the timeline with a lane per track (its header, waveform and
 | `onChange(plan)` | The plan, whenever it changes: when a recording opens or is added, after every edit, and after undo and redo |
 | `fileName` | The name an export is downloaded under, without its extension; otherwise the recording's title, or `recording` |
 | `onExport(blob, result)` | Takes an export's file instead of the download, and the dialog closes; `result` has the mix's `peakDb` and `clippedFrames` |
-| `tools`, `toolbar` | Which tools are present, by id, and the toolbar's groups of them; an unknown id throws |
+| `tools`, `toolbar` | Which tools are present, by id, and their groups: Open, Undo, Redo, Export and the zoom go in the frame's bars, and the other groups make the tools panel; an unknown id throws |
+| `preferences`, `defaultPreferences`, `onPreferencesChange` | The person's mode, theme, panels, density, motion and tips, as ui's `EditorPreferences`, kept by you; Advanced mode without them |
 | `headingLevel` | The level of the editor's headings, from 2 to 6, so they fit your page's outline; 2 by default |
-| `theme` | `light`, `dark` or `system`; without it, the editor follows the page's theme |
+| `theme` | `light`, `dark` or `system`; it wins over the preferences' theme, and the top bar then has no theme toggle. Without it, the editor follows the page's theme until one is chosen |
 | `assetsUrl` | Where you serve the package's `dist/assets/`, to self-host the worker (see [Content Security Policy](#content-security-policy)) |
 | `filePolicy` | Limits for untrusted files, as for `createAudioSession` |
 | `engine`, `processor`, `output` | Your own adapters; the editor makes the SDK's own for any you leave out, and destroys only those |
@@ -54,7 +57,7 @@ The ref's `AudioEditorHandle` has `open(file)`, `insert(file, options)`, `export
 
 The Export tool opens the export dialog. Export is irreversible, so it shows a summary first: the length, the sample rate and channels, any track a mute or a solo leaves out, and the metadata that will be written. Then the format, 16-bit WAV (the default), 24-bit or 32-bit float, each with the file's exact size. While it runs, a progress bar and Stop; when it's done, Download, which gets focus. The download uses a `blob:` URL, so it makes no request. When the mix went over full scale, the dialog says by how much, and one button lowers the master gain by that and exports again. Closing the dialog stops an export that's running.
 
-### Tools, the toolbar and shortcuts
+### Tools, modes and shortcuts
 
 | Tool | Shortcut | What it does |
 |---|---|---|
@@ -81,7 +84,9 @@ The Export tool opens the export dialog. Export is irreversible, so it shows a s
 
 On the timeline, `←` and `→` move between a track's clips and `↑` and `↓` between tracks; `Alt+[` and `Alt+]` shorten a clip's start or end by 10 ms, and with `Shift` lengthen it. The playhead steps 10 ms with the arrows and a second with `Page Up` and `Page Down`, and `Shift` with its keys extends the selection. Dragging across the timeline selects a range, and dragging a clip's title moves it.
 
-Shortcuts work only while focus is inside the editor, never on the rest of your page, and never while typing in a field. The toolbar is one tab stop, with arrow keys between its buttons; each button names its shortcut in `aria-keyshortcuts`, and one that can't run is disabled with `aria-disabled`, so it keeps focus. Track and clip edits, selections made with the keyboard, refused moves and finished exports are announced to screen readers.
+Easy mode lists trimming, splitting, deleting and fading; Advanced adds adding recordings, tracks, muting, moving clips and the selection's tools; Expert adds Ripple, moving clips between tracks and moving tracks. Open, Undo, Redo, Export and the zoom are in the frame's bars in every mode, and playback's tools in the transport, which shows the start and end in Expert mode.
+
+Shortcuts work only while focus is inside the editor, never on the rest of your page, and never while typing in a field. The tools panel is one tab stop, with arrow keys between its rows; each row and button names its shortcut in `aria-keyshortcuts`, and one that can't run is disabled with `aria-disabled`, so it keeps focus. Rows carry `data-hm-tool-id`, and the bars' buttons `data-tool`. Edits, selections made with the keyboard and refused moves show a toast, which screen readers hear too, and finished exports are announced.
 
 ```tsx
 <AudioEditor
@@ -92,7 +97,7 @@ Shortcuts work only while focus is inside the editor, never on the rest of your 
 
 ### Building blocks
 
-`AudioEditorProvider` holds the session, the output and the editor's state, and `AudioToolbar`, `AudioStage`, `AudioTimeline`, `AudioTransport`, `AudioInspector`, `AudioNotices` and `AudioExportDialog` render inside it, for a layout of your own. `useAudioSession`, `useAudioOutput`, `useAudioPlayhead` and `useAudioMessages` read it; `useAudioPlayhead` updates at most once a frame while playing.
+`AudioEditorProvider` holds the session, the output and the editor's state, and `AudioToolbar` (a toolbar of every tool, which the editor itself no longer uses), `AudioStage`, `AudioTimeline`, `AudioTransport`, `AudioInspector`, `AudioNotices` and `AudioExportDialog` render inside it, for a layout of your own. `useAudioSession`, `useAudioOutput`, `useAudioPlayhead` and `useAudioMessages` read it; `useAudioPlayhead` updates at most once a frame while playing.
 
 ### Server rendering
 

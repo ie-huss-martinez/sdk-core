@@ -14,34 +14,171 @@
     display: block;
   }
 
-  /* The editor (docs/adr/0007): a column of regions that fills its container. */
-  /* Its own text, such as the transport's time, takes ui's type and colour
-     from the hm-text class on the root (ui ADR 0010), not from rules here. */
+  /*
+   * The editor, on ui's frame (docs/adr/0010, sdk-core ADR 0067): the frame
+   * fills the root, which fills its container. Its own text, such as the
+   * transport's time, takes ui's type and colour from the hm-text class on
+   * the root (ui ADR 0010), not from rules here.
+   */
   .hm-video-editor {
-    display: grid;
-    /* The second column is the inspector's, in a wide container; it's empty,
-       and so has no width, in a narrow one and before a video is open. */
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto minmax(calc(var(--hm-space-12) * 2), 1fr) auto auto;
-    row-gap: var(--hm-gap-normal);
-    min-block-size: calc(var(--hm-space-12) * 3);
-    container-type: inline-size;
-  }
-
-  /* A host given a height gets an editor of that height; an auto-height host
-     keeps the editor's own. */
-  hm-video-editor > .hm-video-editor {
+    display: flex;
+    flex-direction: column;
+    position: relative;
     block-size: 100%;
+    min-block-size: calc(var(--hm-space-12) * 3);
   }
 
-  .hm-video-editor > * {
-    grid-column: 1;
+  .hm-video-editor-frame {
+    flex: 1 1 auto;
+    min-block-size: 0;
+  }
+
+  /* The top bar: the editor's name and the file's, which gives way first. */
+  .hm-video-editor-title {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: baseline;
+    gap: var(--hm-gap-normal);
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .hm-video-editor-file {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .hm-video-editor-bar.hm-toolbar,
+  .hm-video-editor-zoom.hm-toolbar {
+    flex-wrap: nowrap;
+    padding: 0;
+  }
+
+  /* On a phone, the mode and the file's name leave the top bar; Settings keeps the mode. */
+  @container hm-editor-frame (width < 45rem) {
+    .hm-video-editor-mode,
+    .hm-video-editor-file {
+      display: none;
+    }
+  }
+
+  /*
+   * Easy mode's start cards, over the preview (sdk-core ADR 0067): the
+   * steps, the question, and the cards in a grid that wraps.
+   */
+  .hm-video-start {
+    position: absolute;
+    inset: 0;
+    z-index: var(--hm-z-raised);
+    box-sizing: border-box;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: var(--hm-gap-loose);
+    overflow: auto;
+    padding: var(--hm-inset-loose);
+    background: color-mix(in oklch, var(--hm-color-bg) 88%, transparent);
+  }
+
+  .hm-video-start-steps {
+    display: flex;
+    gap: var(--hm-gap-normal);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
+  }
+
+  .hm-video-start-step[aria-current="step"] {
+    color: var(--hm-color-accent-text);
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-video-start-heading {
+    margin: 0;
+    text-align: center;
+    font-size: var(--hm-font-size-title);
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  /* Two columns at most, so the four cards sit two by two, never three and one. */
+  .hm-video-start-cards {
+    display: grid;
+    gap: var(--hm-gap-normal);
+    grid-template-columns: repeat(auto-fit, minmax(calc(var(--hm-space-12) * 2), 1fr));
+    inline-size: min(100%, calc(var(--hm-space-12) * 5));
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hm-video-start-card {
+    box-sizing: border-box;
+    display: grid;
+    align-content: start;
+    justify-items: start;
+    gap: var(--hm-gap-tight);
+    inline-size: 100%;
+    block-size: 100%;
+    min-block-size: var(--hm-target-size);
+    padding: var(--hm-inset-normal);
+    color: var(--hm-color-text);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+    background: var(--hm-color-surface-raised);
+    border: var(--hm-border-width) solid var(--hm-color-border);
+    border-radius: var(--hm-radius-surface);
+    box-shadow: var(--hm-shadow-raised);
+    transition-duration: var(--hm-motion-duration-feedback);
+    transition-property: border-color;
+    transition-timing-function: var(--hm-motion-easing-spring);
+  }
+
+  .hm-video-start-card:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: var(--hm-focus-ring-offset);
+  }
+
+  @media (hover: hover) {
+    .hm-video-start-card:hover {
+      border-color: var(--hm-color-accent);
+    }
+  }
+
+  .hm-video-start-card-icon {
+    display: inline-flex;
+    inline-size: var(--hm-icon-size);
+    block-size: var(--hm-icon-size);
+  }
+
+  .hm-video-start-card-icon > svg {
+    inline-size: inherit;
+    block-size: inherit;
+  }
+
+  .hm-video-start-card-title {
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-video-start-card-description {
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
   }
 
   .hm-video-stage {
     position: relative;
     display: grid;
     min-block-size: 0;
+  }
+
+  /* The preview takes what the bars leave. */
+  .hm-video-editor-frame .hm-video-stage {
+    flex: 1 1 auto;
   }
 
   .hm-video-stage-surface {
@@ -199,8 +336,7 @@
     );
   }
 
-  /* The inspector (docs/adr/0007): under the timeline in a narrow
-     container, and a column beside the other regions in a wide one. */
+  /* The inspector: the frame's properties panel (docs/adr/0010). */
   .hm-video-inspector {
     min-inline-size: 0;
   }
@@ -257,23 +393,6 @@
     font-variant-numeric: tabular-nums;
   }
 
-  @container (inline-size >= 720px) {
-    .hm-video-inspector {
-      grid-column: 2;
-      grid-row: 1 / span 4;
-      inline-size: calc(var(--hm-space-12) * 3);
-      /* It takes no height of its own, so the other regions set the rows,
-         then fills them and scrolls: a long inspector never stretches the
-         editor. */
-      block-size: 0;
-      min-block-size: 100%;
-      margin-inline-start: var(--hm-gap-normal);
-      padding-inline-start: var(--hm-gap-normal);
-      border-inline-start: var(--hm-border-width) solid var(--hm-color-border);
-      overflow-y: auto;
-    }
-  }
-
   .hm-video-export-summary,
   .hm-video-export-choices {
     display: grid;
@@ -299,5 +418,45 @@
 
   .hm-video-export-error {
     color: var(--hm-color-danger-text);
+  }
+
+  /*
+   * The foot: the transport, the timeline's tools and the zoom on one line,
+   * which wraps on a phone, then the timeline at its full width. The
+   * building blocks' own boxes step aside, so their parts share the line.
+   */
+  .hm-video-editor-bottom {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--hm-gap-tight) var(--hm-gap-normal);
+    padding: var(--hm-inset-tight) var(--hm-inset-normal);
+  }
+
+  .hm-video-editor-controls,
+  .hm-video-editor-bottom .hm-video-timeline {
+    display: contents;
+  }
+
+  .hm-video-editor-bottom .hm-video-timeline-tools {
+    order: 1;
+  }
+
+  /* The foot's toolbars are rows of buttons, as the transport is. */
+  .hm-video-editor-bottom .hm-toolbar {
+    padding: 0;
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .hm-video-editor-zoom {
+    order: 2;
+    margin-inline-start: auto;
+  }
+
+  .hm-video-editor-bottom .hm-video-timeline > :not(.hm-video-timeline-tools) {
+    order: 3;
+    flex: 1 0 100%;
+    min-inline-size: 0;
   }
 }

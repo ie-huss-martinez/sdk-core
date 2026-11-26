@@ -1,4 +1,11 @@
-import { IconButton, PauseIcon, PlayIcon, SkipBackIcon } from "@hussmartinez/ui/react";
+import type { EditorMode } from "@hussmartinez/sdk-core";
+import {
+  IconButton,
+  PauseIcon,
+  PlayIcon,
+  SkipBackIcon,
+  SkipForwardIcon,
+} from "@hussmartinez/ui/react";
 import { forwardRef, type ReactNode, useState } from "react";
 import { planLength } from "../core/model/plan.js";
 import { formatTimecode } from "../core/model/time.js";
@@ -35,8 +42,17 @@ export function AudioTransport({ className }: AudioTransportProps): ReactNode {
 /** The transport, with the editor's part classes. Its ref is the play button. */
 export const Transport = /* @__PURE__ */ forwardRef<
   HTMLButtonElement,
-  { readonly className?: string | undefined; readonly classNames: PartClassNames | undefined }
->(function Transport({ className, classNames }, ref): ReactNode {
+  {
+    readonly className?: string | undefined;
+    readonly classNames: PartClassNames | undefined;
+    /**
+     * The editor's mode, on its frame (docs/adr/0007): play and pause in
+     * every mode, and the start and end in Expert. Without one, the
+     * building block's play and start.
+     */
+    readonly mode?: EditorMode | undefined;
+  }
+>(function Transport({ className, classNames, mode }, ref): ReactNode {
   const { messages } = useAudioEditorContext();
   const { snapshot } = useAudioSession();
   const { output, snapshot: playback } = useAudioOutput();
@@ -70,13 +86,24 @@ export const Transport = /* @__PURE__ */ forwardRef<
         focusableWhenDisabled
         onClick={playPause}
       />
-      <IconButton
-        label={messages.t("transport.start")}
-        icon={<SkipBackIcon />}
-        disabled={length === 0}
-        focusableWhenDisabled
-        onClick={() => output.seek(0)}
-      />
+      {mode === undefined || mode === "expert" ? (
+        <IconButton
+          label={messages.t("transport.start")}
+          icon={<SkipBackIcon />}
+          disabled={length === 0}
+          focusableWhenDisabled
+          onClick={() => output.seek(0)}
+        />
+      ) : null}
+      {mode === "expert" ? (
+        <IconButton
+          label={messages.t("tools.end")}
+          icon={<SkipForwardIcon />}
+          disabled={length === 0}
+          focusableWhenDisabled
+          onClick={() => output.seek(length)}
+        />
+      ) : null}
       <p className="hm-audio-editor-time">
         {messages.t("transport.time", {
           position: formatTimecode(Math.min(position, length), rate),

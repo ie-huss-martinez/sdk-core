@@ -1,9 +1,12 @@
+import type { EditorMode } from "@hussmartinez/sdk-core";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
   IconButton,
   PauseIcon,
   PlayIcon,
+  SkipBackIcon,
+  SkipForwardIcon,
   ToggleButton,
   useAnnounce,
 } from "@hussmartinez/ui/react";
@@ -33,7 +36,21 @@ export interface VideoTransportProps {
  * @public
  */
 export function VideoTransport(props: VideoTransportProps): ReactNode {
-  const { messages, locale } = useVideoEditor();
+  return <Transport {...props} />;
+}
+
+/**
+ * The transport, with its buttons for a mode, as the editor's frame shows
+ * it (docs/adr/0010): play and pause in every mode, the previous and next
+ * frame from Advanced, and the start and end in Expert. Without a mode, it
+ * shows the building block's three.
+ *
+ * @internal
+ */
+export function Transport(
+  props: VideoTransportProps & { readonly mode?: EditorMode | undefined },
+): ReactNode {
+  const { messages, locale, tools } = useVideoEditor();
   const { snapshot } = useVideoSession();
   const { output, snapshot: playback } = useVideoOutput();
   const frame = useVideoPlayhead();
@@ -69,18 +86,35 @@ export function VideoTransport(props: VideoTransportProps): ReactNode {
     length: formatTimecode(frameTime(frames, rate), locale),
   });
 
+  const steps = props.mode !== "easy";
+  // The start and end are tools of Expert mode's: a host that leaves them
+  // out of `tools` gets neither the buttons nor their keys.
+  const ends = props.mode === "expert";
+  const start = ends && tools.get("video.start") !== undefined;
+  const end = ends && tools.get("video.end") !== undefined;
   return (
     <fieldset
       className={["hm-video-transport", props.className].filter(Boolean).join(" ")}
       aria-label={messages.t("transport.label")}
     >
-      <IconButton
-        label={messages.t("transport.previousFrame")}
-        icon={<ChevronLeftIcon />}
-        disabled={disabled}
-        {...keysOf("video.previous-frame")}
-        onClick={() => output?.step(-1)}
-      />
+      {start ? (
+        <IconButton
+          label={messages.t("tools.start")}
+          icon={<SkipBackIcon />}
+          disabled={disabled}
+          {...keysOf("video.start")}
+          onClick={() => output?.seek(0)}
+        />
+      ) : null}
+      {steps ? (
+        <IconButton
+          label={messages.t("transport.previousFrame")}
+          icon={<ChevronLeftIcon />}
+          disabled={disabled}
+          {...keysOf("video.previous-frame")}
+          onClick={() => output?.step(-1)}
+        />
+      ) : null}
       <ToggleButton
         label={messages.t(playing ? "transport.pause" : "transport.play")}
         icon={playing ? <PauseIcon /> : <PlayIcon />}
@@ -93,13 +127,24 @@ export function VideoTransport(props: VideoTransportProps): ReactNode {
           else output.pause();
         }}
       />
-      <IconButton
-        label={messages.t("transport.nextFrame")}
-        icon={<ChevronRightIcon />}
-        disabled={disabled}
-        {...keysOf("video.next-frame")}
-        onClick={() => output?.step(1)}
-      />
+      {steps ? (
+        <IconButton
+          label={messages.t("transport.nextFrame")}
+          icon={<ChevronRightIcon />}
+          disabled={disabled}
+          {...keysOf("video.next-frame")}
+          onClick={() => output?.step(1)}
+        />
+      ) : null}
+      {end ? (
+        <IconButton
+          label={messages.t("tools.end")}
+          icon={<SkipForwardIcon />}
+          disabled={disabled}
+          {...keysOf("video.end")}
+          onClick={() => output?.seek(Math.max(0, frames - 1))}
+        />
+      ) : null}
       <span className="hm-video-transport-time" aria-live="off">
         {time}
       </span>

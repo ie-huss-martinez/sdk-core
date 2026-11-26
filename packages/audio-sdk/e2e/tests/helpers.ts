@@ -1,4 +1,5 @@
-import type { Locator, Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { wavFile } from "../../test/fixtures/pcm-files.js";
 
 /**
@@ -65,4 +66,36 @@ export function watch(page: Page, origin: string) {
     }
   });
   return problems;
+}
+
+/**
+ * axe's findings in the editor, dialogs and toasts included: they're inside
+ * its root. Taken once every transition has ended, such as a sheet's fade
+ * in, so axe reads the colours that stay, not a frame of the way there.
+ */
+export async function violations(page: Page) {
+  await page.waitForFunction(() =>
+    document.getAnimations().every((animation) => animation.playState !== "running"),
+  );
+  const result = await new AxeBuilder({ page }).include(".hm-audio-editor").analyze();
+  return result.violations.map(
+    (violation) =>
+      `${violation.id}: ${violation.help} (${violation.nodes
+        .map((node) => `${node.target.join(" ")}: ${node.failureSummary ?? ""}`)
+        .join("; ")})`,
+  );
+}
+
+/**
+ * Waits until `text` is what the editor's polite live region said last.
+ * Messages announced in the same frame are said together, separated by a
+ * space (ui 0.14.2), so the region may also hold an earlier one, such as an
+ * open's toast that a slow engine shows a frame late.
+ */
+export async function expectAnnounced(page: Page, text: string): Promise<void> {
+  const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  await expect(page.locator(".hm-announcer [aria-live=polite]")).toHaveText(
+    // A whole sentence: the start, or the end of the previous one, comes first.
+    new RegExp(`(^|[.!?\u2026] )${escaped}$`),
+  );
 }

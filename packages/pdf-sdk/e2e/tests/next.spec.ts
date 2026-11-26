@@ -1,7 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
 import { reportPdf } from "../../test/fixtures/pdfs.js";
-import { expectAnnounced, oneLabelledByReader, openPdf, watch } from "./helpers.js";
+import { expect, expectAnnounced, openPdf, test, watch } from "./helpers.js";
 
 const url = "http://localhost:4321/";
 const origin = new URL(url).origin;
@@ -13,8 +12,6 @@ const origin = new URL(url).origin;
  * never reaches another origin.
  */
 test.describe("Next.js App Router", () => {
-  test.beforeEach(({ page, browserName }) => oneLabelledByReader(page, browserName));
-
   test("renders the editor on the server", async ({ request }) => {
     const response = await request.get(url);
     expect(response.ok()).toBe(true);

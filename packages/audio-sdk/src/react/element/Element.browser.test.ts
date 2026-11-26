@@ -74,8 +74,9 @@ function record(editor: HTMLElement) {
   return events;
 }
 
+// A bar's button carries data-tool, and a tools panel's row data-hm-tool-id (docs/adr/0007).
 const tool = (editor: HTMLElement, id: string) =>
-  editor.querySelector<HTMLButtonElement>(`[data-hm-tool="${id}"]`);
+  editor.querySelector<HTMLButtonElement>(`[data-tool="${id}"], [data-hm-tool-id="${id}"]`);
 const lastPlan = (events: ReturnType<typeof record>) =>
   events.filter((event) => event.name === "change").at(-1)?.detail as AudioPlan | undefined;
 
@@ -233,10 +234,10 @@ describe("<hm-audio-editor> (docs/adr/0005, sdk-core ADR 0040)", () => {
       "Export",
     );
     tool(editor, "audio.export")?.click();
-    await until(() => editor.querySelector("dialog[open]") !== null, "the dialog");
-    const confirm = [...editor.querySelectorAll<HTMLButtonElement>("dialog button")].find(
-      (element) => element.textContent === "Export",
-    );
+    await until(() => editor.querySelector("dialog.hm-audio-export[open]") !== null, "the dialog");
+    const confirm = [
+      ...editor.querySelectorAll<HTMLButtonElement>("dialog.hm-audio-export button"),
+    ].find((element) => element.textContent === "Export");
     confirm?.click();
     await until(() => events.some((event) => event.name === "export"), "the export event");
     const report = events.find((event) => event.name === "export")?.detail as object;

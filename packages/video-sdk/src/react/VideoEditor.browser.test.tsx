@@ -10,8 +10,8 @@ import landscapeVp8 from "../../test/fixtures/video/landscape-vp8.webm?url";
 import type { VideoEngine } from "../core/ports/video-engine.js";
 import { VideoEditor, type VideoEditorHandle } from "./VideoEditor.js";
 
-// The editor shell (docs/adr/0007): its states, accessibility and lifecycle,
-// over the SDK's real engine and output.
+// The editor shell (docs/adr/0007, on ui's frame in docs/adr/0010): its
+// states, accessibility and lifecycle, over the SDK's real engine and output.
 
 let root: Root | undefined;
 let container: HTMLElement | undefined;
@@ -30,8 +30,9 @@ afterEach(async () => {
 
 function render(element: React.ReactElement): HTMLElement {
   container = document.createElement("div");
-  container.style.inlineSize = "640px";
-  container.style.blockSize = "480px";
+  // Wide and tall enough for the frame's desktop layout (docs/adr/0010).
+  container.style.inlineSize = "1000px";
+  container.style.blockSize = "640px";
   document.body.append(container);
   act(() => {
     root = createRoot(container as HTMLElement);
@@ -258,25 +259,27 @@ describe("the video editor", () => {
     expect(shown.color).not.toBe("rgb(1, 2, 3)");
   });
 
-  it("puts the inspector under the timeline in a narrow container, and beside the regions in a wide one", async () => {
+  it("puts the inspector beside the preview in a wide frame, under it in a narrow one, and the timeline across the foot", async () => {
     const view = render(<VideoEditor initialFiles={[await fixture()]} />);
+    view.style.inlineSize = "640px";
     await vi.waitFor(() => expect(view.querySelector(".hm-video-inspector")).not.toBeNull(), {
       timeout: 15_000,
     });
     const box = (selector: string) =>
       (view.querySelector(selector) as HTMLElement).getBoundingClientRect();
-    // 640 px, under the 720 px of docs/adr/0007.
-    expect(box(".hm-video-inspector").top).toBeGreaterThanOrEqual(box(".hm-video-timeline").bottom);
-    expect(box(".hm-video-inspector").width).toBeCloseTo(box(".hm-video-timeline").width, 0);
-    view.style.inlineSize = "960px";
+    // 640 px, under the frame's 45 rem (docs/adr/0010): the properties sit under the stage.
     await vi.waitFor(() =>
-      expect(box(".hm-video-inspector").left).toBeGreaterThanOrEqual(
-        box(".hm-video-timeline").right,
-      ),
+      expect(box(".hm-video-inspector").top).toBeGreaterThanOrEqual(box(".hm-video-stage").bottom),
     );
-    expect(box(".hm-video-inspector").top).toBeCloseTo(box(".hm-video-toolbar").top, 0);
-    // The other regions keep the first column to themselves.
-    expect(box(".hm-video-stage").right).toBeLessThanOrEqual(box(".hm-video-inspector").left);
+    view.style.inlineSize = "1000px";
+    await vi.waitFor(() =>
+      expect(box(".hm-video-inspector").left).toBeGreaterThanOrEqual(box(".hm-video-stage").right),
+    );
+    // The timeline and transport are the frame's foot, under both, at its full width.
+    expect(box(".hm-video-editor-bottom").top).toBeGreaterThanOrEqual(
+      box(".hm-editor-frame-properties").bottom,
+    );
+    expect(box(".hm-video-editor-bottom").width).toBeCloseTo(box(".hm-video-editor").width, 0);
   });
 
   it("opens a file from its handle in place of the plan, which can't be undone", async () => {
@@ -318,7 +321,7 @@ describe("the video editor", () => {
     expect(result.clippedFrames).toBe(0);
     expect(progress.at(-1)).toBe(1);
     // The host has the file from the call: no dialog, and onExport isn't called.
-    expect(view.querySelector("dialog")?.open ?? false).toBe(false);
+    expect(view.querySelector("dialog[open]")).toBeNull();
     expect(exported).toEqual([]);
     // Without sound when asked: silence.
     const silent = await editor.export({ audio: "omit" });

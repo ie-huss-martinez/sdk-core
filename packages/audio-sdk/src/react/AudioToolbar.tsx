@@ -1,78 +1,15 @@
-import {
-  AddIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  CloseIcon,
-  DeleteIcon,
-  DownloadIcon,
-  FadeInIcon,
-  FadeOutIcon,
-  FitIcon,
-  IconButton,
-  type IconComponent,
-  MoveDownIcon,
-  MoveUpIcon,
-  MutedIcon,
-  OpenIcon,
-  PlayIcon,
-  RangeEndIcon,
-  RangeStartIcon,
-  RedoIcon,
-  RemoveIcon,
-  RippleIcon,
-  SkipBackIcon,
-  SkipForwardIcon,
-  SplitIcon,
-  ToggleButton,
-  Toolbar,
-  ToolbarGroup,
-  TrimEndIcon,
-  TrimStartIcon,
-  UndoIcon,
-  UploadIcon,
-  ZoomInIcon,
-  ZoomOutIcon,
-} from "@hussmartinez/ui/react";
+import { AddIcon, IconButton, ToggleButton, Toolbar, ToolbarGroup } from "@hussmartinez/ui/react";
 import { type ReactNode, useEffect, useRef } from "react";
 import { ACCEPT } from "./AudioStage.js";
 import { useAudioEditorContext } from "./context.js";
+import { ICONS } from "./icons.js";
 import { classes, type PartClassNames } from "./parts.js";
 import { useAudioTools } from "./tools.js";
 
-/** The icons the tools name, from ui's set. */
-const ICONS: Readonly<Record<string, IconComponent>> = {
-  open: OpenIcon,
-  upload: UploadIcon,
-  undo: UndoIcon,
-  redo: RedoIcon,
-  add: AddIcon,
-  remove: RemoveIcon,
-  "move-up": MoveUpIcon,
-  "move-down": MoveDownIcon,
-  muted: MutedIcon,
-  "zoom-in": ZoomInIcon,
-  "zoom-out": ZoomOutIcon,
-  fit: FitIcon,
-  play: PlayIcon,
-  "skip-back": SkipBackIcon,
-  "skip-forward": SkipForwardIcon,
-  split: SplitIcon,
-  delete: DeleteIcon,
-  "trim-start": TrimStartIcon,
-  "trim-end": TrimEndIcon,
-  "chevron-left": ChevronLeftIcon,
-  "chevron-right": ChevronRightIcon,
-  close: CloseIcon,
-  download: DownloadIcon,
-  "fade-in": FadeInIcon,
-  "fade-out": FadeOutIcon,
-  "range-start": RangeStartIcon,
-  "range-end": RangeEndIcon,
-  ripple: RippleIcon,
-};
-
 /** The message key that names each default toolbar group. */
 const GROUP_LABELS = {
+  cut: "toolbar.cut",
+  fade: "toolbar.fade",
   file: "toolbar.file",
   history: "toolbar.history",
   tracks: "toolbar.tracks",

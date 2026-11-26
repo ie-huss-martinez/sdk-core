@@ -1,7 +1,6 @@
-import axe from "axe-core";
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
-import { disabled, editor, recording, step } from "../../test/editor.js";
+import { disabled, editor, recording, step, violations } from "../../test/editor.js";
 import { cleanUp, waitFor } from "../../test/react.js";
 
 afterEach(async () => {
@@ -9,22 +8,27 @@ afterEach(async () => {
   await new Promise((resolve) => setTimeout(resolve, 0));
 });
 
-describe("the toolbar", () => {
-  it("has the tools in groups, with their keys, and each one's state", async () => {
+describe("the tools (docs/adr/0007)", () => {
+  it("has the tools panel's groups and the bars' tools, with their keys, and each one's state", async () => {
     const { container, tool } = await editor(recording());
-    const toolbar = container.querySelector('[role="toolbar"][aria-label="Tools"]') as Element;
+    const panel = container.querySelector(".hm-audio-editor-tools") as Element;
+    expect(panel.getAttribute("aria-label")).toBe("Tools");
     expect(
-      [...toolbar.querySelectorAll('[role="group"]')].map((group) =>
+      [...panel.querySelectorAll('[role="group"]')].map((group) =>
         group.getAttribute("aria-label"),
       ),
-    ).toEqual(["File", "History", "Tracks", "Clip", "Selection", "Zoom"]);
+    ).toEqual(["Cut", "Fade", "Clip", "Selection", "Tracks"]);
+    expect(tool("audio.undo").closest(".hm-audio-editor-bar")).not.toBeNull();
     expect(tool("audio.undo").getAttribute("aria-keyshortcuts")).toMatch(/Z/);
-    expect(tool("audio.zoom-in").getAttribute("title")).toBe("Zoom in (+)");
+    // The zoom is with the transport, and playback's tools in it.
+    expect(tool("audio.zoom-in").closest(".hm-audio-editor-bottom")).not.toBeNull();
+    expect(tool("audio.zoom-in").getAttribute("aria-keyshortcuts")).toBe("Plus =");
+    expect(tool("audio.play-pause")).toBeNull();
     // Nothing to undo yet, and one track can't be removed.
     expect(disabled(tool("audio.undo"))).toBe(true);
     expect(disabled(tool("audio.remove-track"))).toBe(true);
     expect(disabled(tool("audio.add-track"))).toBe(false);
-    expect((await axe.run(container)).violations.map((each) => each.id)).toEqual([]);
+    expect(await violations(container)).toEqual([]);
   });
 
   it("adds a track, focusing its name, and removes one, focusing the one that took its place", async () => {
@@ -69,7 +73,10 @@ describe("the toolbar", () => {
 describe("a track's header", () => {
   it("mutes and solos its track, which its lane's name and the announcer say", async () => {
     const { container, plan } = await editor(recording(), recording("music.wav"));
-    const headers = () => [...container.querySelectorAll('[role="toolbar"]')].slice(1);
+    // The tracks' headers: the timeline's toolbars, in the stage.
+    const headers = () => [
+      ...container.querySelectorAll('.hm-audio-editor-stage [role="toolbar"]'),
+    ];
     const toggle = (header: Element, name: string) =>
       [...header.querySelectorAll("button")].find(
         (button) => button.getAttribute("aria-label") === name || button.textContent === name,
@@ -83,7 +90,7 @@ describe("a track's header", () => {
     await waitFor(() => expect(plan().tracks[0]?.soloed).toBe(true));
     // The announcer updates on a timer: let it, inside act(), before axe runs.
     await waitFor(() => expect(document.body.textContent).toContain("Track 1 soloed."));
-    expect((await axe.run(container)).violations.map((each) => each.id)).toEqual([]);
+    expect(await violations(container)).toEqual([]);
   });
 
   it("renames its track in a dialog, and gives focus back to the name", async () => {

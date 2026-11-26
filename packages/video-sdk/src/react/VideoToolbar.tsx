@@ -1,28 +1,8 @@
-import {
-  AddIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  DeleteIcon,
-  DownloadIcon,
-  FitIcon,
-  IconButton,
-  type IconComponent,
-  MutedIcon,
-  PlayIcon,
-  RedoIcon,
-  SkipBackIcon,
-  SkipForwardIcon,
-  SplitIcon,
-  ToggleButton,
-  Toolbar,
-  ToolbarGroup,
-  UndoIcon,
-  ZoomInIcon,
-  ZoomOutIcon,
-} from "@hussmartinez/ui/react";
+import { AddIcon, IconButton, ToggleButton, Toolbar, ToolbarGroup } from "@hussmartinez/ui/react";
 import { type ReactNode, useEffect, useRef } from "react";
 import { useVideoEditor } from "./context.js";
 import { ACCEPT } from "./files.js";
+import { ICONS } from "./icons.js";
 import { useVideoTools } from "./tools.js";
 
 /**
@@ -34,27 +14,9 @@ export interface VideoToolbarProps {
   readonly className?: string;
 }
 
-/** The icons the tools name, from ui's set. */
-const ICONS: Readonly<Record<string, IconComponent>> = {
-  add: AddIcon,
-  undo: UndoIcon,
-  redo: RedoIcon,
-  split: SplitIcon,
-  delete: DeleteIcon,
-  download: DownloadIcon,
-  muted: MutedIcon,
-  play: PlayIcon,
-  "chevron-left": ChevronLeftIcon,
-  "chevron-right": ChevronRightIcon,
-  "skip-back": SkipBackIcon,
-  "skip-forward": SkipForwardIcon,
-  "zoom-in": ZoomInIcon,
-  "zoom-out": ZoomOutIcon,
-  fit: FitIcon,
-};
-
 /** The message key that names each default toolbar group. */
 const GROUP_LABELS = {
+  add: "toolbar.add",
   file: "toolbar.file",
   history: "toolbar.history",
   edit: "toolbar.edit",

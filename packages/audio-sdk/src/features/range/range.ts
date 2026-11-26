@@ -59,6 +59,8 @@ const hasLength = (state: AudioToolState) => state.plan !== undefined && planLen
 export const rangeTools: readonly AudioTool[] = [
   /* @__PURE__ */ defineTool({
     id: "audio.set-start",
+    level: "advanced",
+    description: "tools.setStart.description",
     label: "tools.setStart",
     icon: "range-start",
     group: "range",
@@ -75,6 +77,8 @@ export const rangeTools: readonly AudioTool[] = [
   }),
   /* @__PURE__ */ defineTool({
     id: "audio.set-end",
+    level: "advanced",
+    description: "tools.setEnd.description",
     label: "tools.setEnd",
     icon: "range-end",
     group: "range",
@@ -90,6 +94,8 @@ export const rangeTools: readonly AudioTool[] = [
   }),
   /* @__PURE__ */ defineTool({
     id: "audio.clear-selection",
+    level: "advanced",
+    description: "tools.clearSelection.description",
     label: "tools.clearSelection",
     icon: "close",
     group: "range",
@@ -103,6 +109,8 @@ export const rangeTools: readonly AudioTool[] = [
   }),
   /* @__PURE__ */ defineTool({
     id: "audio.ripple",
+    level: "expert",
+    description: "tools.ripple.description",
     label: "tools.ripple",
     icon: "ripple",
     group: "range",

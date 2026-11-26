@@ -96,9 +96,11 @@ const allMuted = (state: VideoToolState) =>
 export const videoTools: readonly VideoTool[] = [
   /* @__PURE__ */ defineTool({
     id: "video.insert",
+    level: "easy",
+    description: "tools.insert.description",
     label: "tools.insert",
     icon: "add",
-    group: "file",
+    group: "add",
     run: (context: VideoToolContext) => context.chooseFiles(),
   }),
   /* @__PURE__ */ defineTool({
@@ -130,6 +132,8 @@ export const videoTools: readonly VideoTool[] = [
   }),
   /* @__PURE__ */ defineTool({
     id: "video.split",
+    level: "easy",
+    description: "tools.split.description",
     label: "tools.split",
     icon: "split",
     group: "edit",
@@ -144,6 +148,8 @@ export const videoTools: readonly VideoTool[] = [
   }),
   /* @__PURE__ */ defineTool({
     id: "video.delete",
+    level: "easy",
+    description: "tools.delete.description",
     label: "tools.delete",
     icon: "delete",
     group: "edit",
@@ -154,6 +160,8 @@ export const videoTools: readonly VideoTool[] = [
   }),
   /* @__PURE__ */ defineTool({
     id: "video.mute",
+    level: "advanced",
+    description: "tools.mute.description",
     label: "tools.mute",
     icon: "muted",
     group: "edit",
@@ -169,6 +177,8 @@ export const videoTools: readonly VideoTool[] = [
   }),
   /* @__PURE__ */ defineTool({
     id: "video.play-pause",
+    level: "easy",
+    description: "tools.playPause.description",
     label: "tools.playPause",
     icon: "play",
     group: "playback",
@@ -179,6 +189,8 @@ export const videoTools: readonly VideoTool[] = [
   }),
   /* @__PURE__ */ defineTool({
     id: "video.previous-frame",
+    level: "advanced",
+    description: "tools.previousFrame.description",
     label: "tools.previousFrame",
     icon: "chevron-left",
     group: "playback",
@@ -188,6 +200,8 @@ export const videoTools: readonly VideoTool[] = [
   }),
   /* @__PURE__ */ defineTool({
     id: "video.next-frame",
+    level: "advanced",
+    description: "tools.nextFrame.description",
     label: "tools.nextFrame",
     icon: "chevron-right",
     group: "playback",
@@ -197,6 +211,8 @@ export const videoTools: readonly VideoTool[] = [
   }),
   /* @__PURE__ */ defineTool({
     id: "video.start",
+    level: "expert",
+    description: "tools.start.description",
     label: "tools.start",
     icon: "skip-back",
     group: "playback",
@@ -206,6 +222,8 @@ export const videoTools: readonly VideoTool[] = [
   }),
   /* @__PURE__ */ defineTool({
     id: "video.end",
+    level: "expert",
+    description: "tools.end.description",
     label: "tools.end",
     icon: "skip-forward",
     group: "playback",
@@ -245,14 +263,47 @@ export const videoTools: readonly VideoTool[] = [
 ];
 
 /**
- * The editor's toolbar by default: editing and the view. Playback has its
- * own controls, the transport, and its tools keep their keys.
+ * The tools' default groups (docs/adr/0010): the tools panel's first, each
+ * named after its first tool's group, then the bar's. Playback's tools
+ * aren't in a group: the transport is their place, by mode, and their keys
+ * work everywhere in the editor.
  *
  * @internal
  */
 export const defaultVideoToolbar: readonly (readonly string[])[] = [
-  ["video.insert", "video.export"],
-  ["video.undo", "video.redo"],
   ["video.split", "video.delete", "video.mute"],
+  ["video.insert"],
+  ["video.undo", "video.redo"],
+  ["video.export"],
   ["video.zoom-out", "video.zoom-in", "video.zoom-fit"],
+];
+
+/**
+ * Tools the frame's bars hold, never the tools panel: they have no level
+ * (sdk-core ADR 0067). Undo, Redo and Export are in the top bar, Export as
+ * its primary button, and the zoom with the timeline.
+ *
+ * @internal
+ */
+export const BAR_TOOLS: ReadonlySet<string> = /* @__PURE__ */ new Set([
+  "video.undo",
+  "video.redo",
+  "video.export",
+  "video.zoom-out",
+  "video.zoom-in",
+  "video.zoom-fit",
+]);
+
+/**
+ * Playback's tools, which the transport holds rather than the tools panel
+ * (docs/adr/0010). Their levels decide which of them it shows in a mode.
+ *
+ * @internal
+ */
+export const TRANSPORT_TOOLS: readonly string[] = [
+  "video.start",
+  "video.previous-frame",
+  "video.play-pause",
+  "video.next-frame",
+  "video.end",
 ];

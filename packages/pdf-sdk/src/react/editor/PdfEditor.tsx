@@ -318,22 +318,25 @@ function PdfEditorBody(props: BodyProps): ReactNode {
     editToast.current = { id, plan: session.getSnapshot().plan };
   };
 
-  const runTool = (tool: PdfTool) => {
-    if (sourceId !== undefined) setStartShownFor(sourceId);
+  /** Runs a tool that can run now, and says whether it did. */
+  const runTool = (tool: PdfTool): boolean => {
     const before = session.getSnapshot();
     const state = { snapshot: before, saving: saving.saving, inserting };
-    if (!(tool.isEnabled?.(state) ?? true)) return;
+    if (!(tool.isEnabled?.(state) ?? true)) return false;
+    // A tool that ran closes the start cards; one that couldn't leaves them.
+    if (sourceId !== undefined) setStartShownFor(sourceId);
     void Promise.resolve(tool.run(context)).then(() => {
       const result = resultOf(tool, messages, before, session.getSnapshot());
       if (!result) return;
       if (isEdit(tool)) showEdit(result);
       else toastTo.current.show({ message: result });
     });
+    return true;
   };
 
-  const run = (id: string) => {
+  const run = (id: string): boolean => {
     const tool = registry.get(id);
-    if (tool) runTool(tool);
+    return tool ? runTool(tool) : false;
   };
 
   // Shortcuts work while focus is inside the editor, never on the whole page
@@ -508,14 +511,15 @@ function PdfEditorBody(props: BodyProps): ReactNode {
    */
   const chooseCard = (card: StartCard) => {
     if (sourceId === undefined) return;
-    setStartShownFor(sourceId);
-    setChosen({ source: sourceId, card });
     const target =
       card.tools.find((id) => lists.palette.some((item) => item.id === id && !item.disabled)) ??
       card.tools[0];
     if (target === undefined) return;
-    // The picker opens within the click, as browsers require.
-    if (card.run) run(target);
+    // The picker opens within the click, as browsers require. A tool that
+    // can't run leaves the cards open, with focus on the card.
+    if (card.run && !run(target)) return;
+    setStartShownFor(sourceId);
+    setChosen({ source: sourceId, card });
     const group = registry.toolbar.find((tools) => tools.some((tool) => tool.id === target));
     const tab = root.current?.querySelector<HTMLElement>(".hm-tab-bar");
     if (tab?.checkVisibility()) {

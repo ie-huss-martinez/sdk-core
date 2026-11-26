@@ -85,13 +85,18 @@ async function editor() {
   return { view, handle: handle.current as VideoEditorHandle };
 }
 
+// The editor's Export button, or the toolbar building block's.
 const exportTool = (view: HTMLElement) =>
-  view.querySelector('[data-hm-tool="video.export"]') as HTMLButtonElement;
-const dialogOf = (view: HTMLElement) => view.querySelector("dialog") as HTMLDialogElement;
+  view.querySelector(
+    '[data-tool="video.export"], [data-hm-tool="video.export"]',
+  ) as HTMLButtonElement;
+// The export dialog: the frame's palette, settings and sheet are dialogs too.
+const dialogOf = (view: HTMLElement) =>
+  view.querySelector("dialog.hm-video-export") as HTMLDialogElement;
 const button = (view: HTMLElement, name: string) =>
-  [...view.querySelectorAll("dialog button")].find((each) => each.textContent === name) as
-    | HTMLButtonElement
-    | undefined;
+  [...view.querySelectorAll("dialog.hm-video-export button")].find(
+    (each) => each.textContent === name,
+  ) as HTMLButtonElement | undefined;
 const announced = (view: HTMLElement) =>
   [...view.querySelectorAll(".hm-announcer [aria-live]")].map((each) => each.textContent).join(" ");
 
@@ -429,7 +434,8 @@ describe("the export dialog", () => {
     await press(exportTool(view));
     await press(button(view, "Export") as HTMLButtonElement);
     const alert = await eventually(() => {
-      const found = dialogOf(view).querySelector('[role="alert"]');
+      // The dialog's own alert, not the toasts' live region, which a modal dialog hosts.
+      const found = dialogOf(view).querySelector('.hm-video-export-error[role="alert"]');
       expect(found?.textContent).toContain("can't save this video's sound");
       return found as HTMLElement;
     }, WORK_WAIT);
@@ -460,7 +466,7 @@ describe("the export dialog", () => {
     await eventually(() => expect(button(view, "Export")).toBeDefined(), WORK_WAIT);
     await eventually(() => expect(announced(view)).toContain("Export stopped."));
     expect(dialogOf(view).open).toBe(true);
-    expect(view.querySelector('dialog [role="alert"]')).toBeNull();
+    expect(view.querySelector("dialog.hm-video-export .hm-video-export-error")).toBeNull();
   });
 
   it("drops an export it no longer owns when it's closed while exporting", async () => {

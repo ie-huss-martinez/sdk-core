@@ -1,7 +1,6 @@
-import axe from "axe-core";
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
-import { editor, editorSized, recording, step } from "../../test/editor.js";
+import { editor, editorSized, recording, step, violations } from "../../test/editor.js";
 import { cleanUp, waitFor } from "../../test/react.js";
 
 afterEach(async () => {
@@ -29,18 +28,19 @@ async function enter(input: HTMLInputElement, text: string) {
   await step(() => userEvent.keyboard(`${text}{Enter}`));
 }
 
-describe("the inspector's place", () => {
-  it("is beside the timeline where both fit, and below it otherwise", async () => {
+describe("the inspector's place (docs/adr/0007)", () => {
+  it("is the frame's properties panel: beside the stage in a wide frame, under it on a phone", async () => {
     const box = (container: Element, selector: string) =>
       (container.querySelector(selector) as Element).getBoundingClientRect();
     const wide = await editorSized(1_200, recording());
     expect(box(wide.container, ".hm-audio-editor-inspector").left).toBeGreaterThanOrEqual(
-      box(wide.container, ".hm-audio-editor-work").right,
+      box(wide.container, ".hm-audio-editor-stage").right,
     );
     await cleanUp();
-    const narrow = await editorSized(900, recording());
+    // Under the frame's 45 rem.
+    const narrow = await editorSized(600, recording());
     expect(box(narrow.container, ".hm-audio-editor-inspector").top).toBeGreaterThanOrEqual(
-      box(narrow.container, ".hm-audio-editor-work").bottom,
+      box(narrow.container, ".hm-audio-editor-stage").bottom,
     );
   });
 });
@@ -71,7 +71,7 @@ describe("the inspector, with no clip selected", () => {
     expect(artist.value).toBe("");
     await step(() => artist.blur());
     expect(plan().metadata.artist).toBe("");
-    expect((await axe.run(container)).violations.map((each) => each.id)).toEqual([]);
+    expect(await violations(container)).toEqual([]);
   });
 });
 
@@ -144,6 +144,6 @@ describe("the inspector, with a clip selected", () => {
     await waitFor(() =>
       expect(plan().tracks[0]?.clips[0]?.fadeIn).toEqual({ frames: 2_000, curve: "equalPower" }),
     );
-    expect((await axe.run(container)).violations.map((each) => each.id)).toEqual([]);
+    expect(await violations(container)).toEqual([]);
   });
 });
