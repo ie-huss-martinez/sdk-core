@@ -8,6 +8,7 @@ export const ZOOM_STEP = 1.25;
 export const closeTool: NotesTool = /* @__PURE__ */ defineTool({
   id: "notes.close",
   label: "tools.close",
+  description: "tools.close.description",
   icon: "library",
   group: "navigation",
   run: ({ close }) => {
@@ -19,6 +20,7 @@ export const closeTool: NotesTool = /* @__PURE__ */ defineTool({
 export const zoomInTool: NotesTool = /* @__PURE__ */ defineTool({
   id: "notes.zoom-in",
   label: "tools.zoomIn",
+  description: "tools.zoom-in.description",
   icon: "zoom-in",
   group: "view",
   isEnabled: ({ zoom, maxZoom }) => zoom < maxZoom,
@@ -32,6 +34,7 @@ export const zoomInTool: NotesTool = /* @__PURE__ */ defineTool({
 export const zoomOutTool: NotesTool = /* @__PURE__ */ defineTool({
   id: "notes.zoom-out",
   label: "tools.zoomOut",
+  description: "tools.zoom-out.description",
   icon: "zoom-out",
   group: "view",
   isEnabled: ({ zoom, minZoom }) => zoom > minZoom,
@@ -45,6 +48,7 @@ export const zoomOutTool: NotesTool = /* @__PURE__ */ defineTool({
 export const zoomFitTool: NotesTool = /* @__PURE__ */ defineTool({
   id: "notes.zoom-fit",
   label: "tools.zoomFit",
+  description: "tools.zoom-fit.description",
   icon: "fit",
   group: "view",
   isEnabled: ({ zoom }) => zoom !== 1,
@@ -58,6 +62,7 @@ export const zoomFitTool: NotesTool = /* @__PURE__ */ defineTool({
 export const sidebarTool: NotesTool = /* @__PURE__ */ defineTool({
   id: "notes.sidebar",
   label: "tools.sidebar",
+  description: "tools.sidebar.description",
   icon: "sidebar",
   group: "view",
   isActive: ({ sidebar }) => sidebar,
@@ -70,6 +75,7 @@ export const sidebarTool: NotesTool = /* @__PURE__ */ defineTool({
 export const searchTool: NotesTool = /* @__PURE__ */ defineTool({
   id: "notes.search",
   label: "tools.search",
+  description: "tools.search.description",
   icon: "search",
   group: "view",
   run: ({ search }) => {

@@ -5,6 +5,8 @@ import type { NotesTool } from "../tool-types.js";
 export const addPageTool: NotesTool = /* @__PURE__ */ defineTool({
   id: "notes.add-page",
   label: "tools.addPage",
+  description: "tools.add-page.description",
+  level: "expert",
   icon: "page-add",
   group: "pages",
   run: ({ addPage }) => {
@@ -16,6 +18,8 @@ export const addPageTool: NotesTool = /* @__PURE__ */ defineTool({
 export const deletePageTool: NotesTool = /* @__PURE__ */ defineTool({
   id: "notes.delete-page",
   label: "tools.deletePage",
+  description: "tools.delete-page.description",
+  level: "expert",
   icon: "delete",
   group: "pages",
   isEnabled: ({ snapshot }) => snapshot.notebook.pages.length > 1,

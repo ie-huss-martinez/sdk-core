@@ -1,12 +1,15 @@
-import { applyVisualVariant, visualVariants } from "@hussmartinez/sdk-config/testing/visual";
+import { applyVisualVariant, variantsFor } from "@hussmartinez/sdk-config/testing/visual";
 import { expect, type Page, test } from "@playwright/test";
 import { inkAt, isInk, line, PAGE, pen, settled } from "../tests/helpers.js";
 
 /**
- * The editor's designed states, as screenshots (sdk-core ADR 0048). Each is
- * captured in light and dark, compact and comfortable, on the built Vite
- * example as a host renders it, with a library kept in memory so every run
- * starts from the same empty one.
+ * The editor's designed states, as screenshots (sdk-core ADR 0048), on the
+ * built Vite example as a host renders it, with a library kept in memory so
+ * every run starts from the same empty one. The main states, in FULL, are
+ * captured in light and dark, compact and comfortable; the rest in
+ * light-comfortable only (sdk-core ADR 0068). An open notebook is on ui's
+ * frame (docs/adr/0008): its states run in Expert mode, where every tool is
+ * listed, apart from `advanced-open` and the Easy ones.
  *
  * | State | What it shows |
  * |---|---|
@@ -14,10 +17,16 @@ import { inkAt, isInk, line, PAGE, pen, settled } from "../tests/helpers.js";
  * | `library` | A folder and three notebooks: each cover colour's board, spine and ruled label |
  * | `new-notebook` | The dialog for a new notebook: name, paper, cover, page size and orientation |
  * | `bin` | The bin, with a notebook to restore or delete for good |
- * | `notebook` | An open notebook: the toolbar, the pen's options, lined paper, pen and highlighter ink |
- * | `sidebar` | The same with the page sidebar open: thumbnails of two pages, and the paper choice |
+ * | `notebook` | An open notebook: the blue top bar, the tools in their dock, the pen's options in the properties panel, lined paper, pen and highlighter ink |
+ * | `sidebar` | The same with the page sidebar open in the stage, thumbnails of two pages, and the toast of the page just added |
  * | `selection` | A stroke selected with the lasso: its box, corner handles and bar of actions |
  * | `eraser` | The eraser in hand, with its options, and a stroke cut in two |
+ * | `tools-sidebar` | The tools in the frame's sidebar instead of the dock, chosen in the settings |
+ * | `settings` | The settings, in a sheet from the inline end |
+ * | `palette` | The command palette, searched, with its first result active |
+ * | `phone` | A phone: the tab bar of the tool groups, and the writing tools open in a sheet |
+ * | `advanced-open` | The notebook as a host embeds it, with no preferences: Advanced mode |
+ * | `easy-start` | A new notebook in Easy mode, under the start cards |
  *
  * No state is masked: the library's names are fixed, the ink is drawn from
  * fixed samples through the browser's own pen input, and the editor shows no
@@ -30,7 +39,7 @@ import { inkAt, isInk, line, PAGE, pen, settled } from "../tests/helpers.js";
  * - The custom element: it renders the same editor.
  */
 
-/** A fixed time, so nothing that reads the clock can vary (ADR 0048). */
+/** A fixed time, so nothing that reads the clock can vary (ADR 0048). Toasts stay put under it. */
 const NOW = new Date("2026-11-23T12:00:00Z");
 const ORIGIN = "http://localhost:4350";
 
@@ -86,11 +95,14 @@ const written: State = async (page) => {
   await page.getByRole("button", { name: "Highlighter", exact: true }).click();
   await pen(page, PAGE, line([0.15, 0.12], [0.5, 0.12], { steps: 14 }));
   await page.getByRole("button", { name: "Pen", exact: true }).click();
+  // The pointer leaves the dock, so its tooltip goes.
+  await page.mouse.move(0, 0);
   await expect.poll(async () => isInk(await inkAt(page, 0.6, 0.12))).toBe(true);
   await expect(page.locator(".hm-notes-notebook-save")).toHaveText("Saved");
 };
 
-const STATES: Readonly<Record<string, State>> = {
+/** The library, and the notebook in Expert mode, where every tool is listed. */
+const EDITOR: Readonly<Record<string, State>> = {
   "library-empty": async (page) => {
     await expect(page.getByText("No notebooks yet")).toBeVisible();
   },
@@ -161,7 +173,71 @@ const STATES: Readonly<Record<string, State>> = {
     await expect.poll(async () => isInk(await inkAt(page, 0.45, 0.22))).toBe(false);
     await expect(page.locator(".hm-notes-notebook-save")).toHaveText("Saved");
   },
+  // Huss's decision (a): the dock by default, and the sidebar from the settings.
+  "tools-sidebar": async (page) => {
+    await written(page);
+    await page.getByRole("button", { name: "Settings" }).click();
+    const settings = page.getByRole("dialog", { name: "Settings" });
+    await settings.getByRole("radio", { name: "Sidebar" }).click();
+    await page.keyboard.press("Escape");
+    await expect(settings).toBeHidden();
+    // Focus leaves Settings, so its tooltip goes.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await expect(page.getByRole("navigation", { name: "Tools" })).toBeVisible();
+  },
+  settings: async (page) => {
+    await written(page);
+    await page.getByRole("button", { name: "Settings" }).click();
+    await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+  },
+  palette: async (page) => {
+    await written(page);
+    await page.getByRole("button", { name: "Pen", exact: true }).focus();
+    await page.keyboard.press("ControlOrMeta+k");
+    const search = page.getByRole("combobox", { name: "Search tools" });
+    await expect(search).toBeFocused();
+    await search.fill("high");
+    await expect(page.getByRole("option", { name: "Highlighter" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  },
+  phone: async (page) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await page.getByRole("button", { name: "New notebook" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
+    await expect(page.locator(PAGE).first()).toBeVisible();
+    await page
+      .getByRole("toolbar", { name: "Notebook tools" })
+      .getByRole("button", { name: "Write", exact: true })
+      .click();
+    await expect(page.getByRole("dialog", { name: "Write" })).toBeVisible();
+  },
 };
+
+/** The notebook as a host embeds it, with no preferences: Advanced mode, the tools in a dock. */
+const ADVANCED: Readonly<Record<string, State>> = {
+  "advanced-open": written,
+};
+
+/** Easy mode: a new notebook under the start cards (sdk-core ADR 0067). */
+const EASY: Readonly<Record<string, State>> = {
+  "easy-start": async (page) => {
+    await page.getByRole("button", { name: "New notebook" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
+    await expect(page.getByRole("heading", { name: "What would you like to do?" })).toBeVisible();
+  },
+};
+
+/** The states captured in every theme and density (sdk-core ADR 0068). */
+const FULL: readonly string[] = [
+  "library-empty",
+  "notebook",
+  "settings",
+  "phone",
+  "advanced-open",
+  "easy-start",
+];
 
 /**
  * Draws the whole page again, from nothing. Chromium keeps the pixels of what
@@ -191,27 +267,33 @@ async function repainted(page: Page): Promise<void> {
   );
 }
 
-for (const [state, reach] of Object.entries(STATES)) {
-  for (const variant of visualVariants) {
-    test(`${state}, ${variant.name}`, async ({ page }) => {
-      // No request may leave the page's origin (sdk-core ADR 0012).
-      const foreign: string[] = [];
-      page.on("request", (request) => {
-        const url = new URL(request.url());
-        if (!["http:", "https:"].includes(url.protocol)) return;
-        if (url.origin !== ORIGIN) foreign.push(request.url());
+for (const [query, states] of [
+  ["?store=memory&mode=expert", EDITOR],
+  ["?store=memory", ADVANCED],
+  ["?store=memory&mode=easy", EASY],
+] as const) {
+  for (const [state, reach] of Object.entries(states)) {
+    for (const variant of variantsFor(state, { full: FULL })) {
+      test(`${state}, ${variant.name}`, async ({ page }) => {
+        // No request may leave the page's origin (sdk-core ADR 0012).
+        const foreign: string[] = [];
+        page.on("request", (request) => {
+          const url = new URL(request.url());
+          if (!["http:", "https:"].includes(url.protocol)) return;
+          if (url.origin !== ORIGIN) foreign.push(request.url());
+        });
+        await page.clock.install({ time: NOW });
+        await page.goto(`/${query}`);
+        await applyVisualVariant(page, variant);
+        await expect(page.getByRole("button", { name: "New notebook" })).toBeVisible();
+        await reach(page);
+        // The pointer rests outside the editor, so no hover styles show.
+        await page.mouse.move(0, 0);
+        await settled(page);
+        await repainted(page);
+        await expect(page).toHaveScreenshot(`${state}-${variant.name}.png`);
+        expect(foreign).toEqual([]);
       });
-      await page.clock.install({ time: NOW });
-      await page.goto("/?store=memory");
-      await applyVisualVariant(page, variant);
-      await expect(page.getByRole("button", { name: "New notebook" })).toBeVisible();
-      await reach(page);
-      // The pointer rests outside the editor, so no hover styles show.
-      await page.mouse.move(0, 0);
-      await settled(page);
-      await repainted(page);
-      await expect(page).toHaveScreenshot(`${state}-${variant.name}.png`);
-      expect(foreign).toEqual([]);
-    });
+    }
   }
 }

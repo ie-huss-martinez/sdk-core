@@ -5,6 +5,7 @@
 ```ts
 
 import { EditorElementDefine } from '@hussmartinez/sdk-core/element';
+import type { EditorPreferences } from '@hussmartinez/ui';
 import { FilePolicyOverrides } from '@hussmartinez/sdk-core';
 import type { HeadingLevel } from '@hussmartinez/ui';
 import type { MessageOverrides } from '@hussmartinez/sdk-core';
@@ -14,7 +15,7 @@ import type { uiMessages } from '@hussmartinez/ui';
 export const defineNotesEditorElement: EditorElementDefine<Partial<NotesEditorElementProps>, NotesEditorElementMethods>;
 
 // @public
-export type NotesEditorElementEvent = "view" | "settings" | "event";
+export type NotesEditorElementEvent = "view" | "settings" | "preferences" | "event";
 
 // @public
 export interface NotesEditorElementMethods {
@@ -26,6 +27,7 @@ export interface NotesEditorElementMethods {
 export interface NotesEditorElementProps {
     // (undocumented)
     assetsUrl?: string | URL;
+    defaultPreferences?: Partial<EditorPreferences>;
     // Warning: (ae-forgotten-export) The symbol "NotesFilePolicyOverrides" needs to be exported by the entry point element.d.ts
     //
     // (undocumented)
@@ -42,6 +44,7 @@ export interface NotesEditorElementProps {
     //
     // (undocumented)
     pdfEngine?: NotesPdfEngine;
+    preferences?: EditorPreferences;
     // Warning: (ae-forgotten-export) The symbol "NotesRecorder" needs to be exported by the entry point element.d.ts
     //
     // (undocumented)

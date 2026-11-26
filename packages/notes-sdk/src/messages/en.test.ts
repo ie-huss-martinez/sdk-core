@@ -111,6 +111,9 @@ describe("notesEditorMessages", () => {
     for (const tool of notesTools) {
       expect(notesEditorMessages, tool.id).toHaveProperty([tool.label]);
       expect(notesEditorMessages, tool.id).toHaveProperty([`toolbar.groups.${tool.group}`]);
+      // Every tool is described, for Easy mode's rows and the command palette (sdk-core ADR 0067).
+      expect(tool.description, tool.id).toBe(`tools.${tool.id.slice("notes.".length)}.description`);
+      expect(notesEditorMessages, tool.id).toHaveProperty([tool.description ?? ""]);
     }
     for (const template of ["blank", "lined", "grid", "dotted"]) {
       expect(notesEditorMessages).toHaveProperty([`templates.${template}`]);
