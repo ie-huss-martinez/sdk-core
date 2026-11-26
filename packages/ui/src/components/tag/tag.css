@@ -1,0 +1,87 @@
+@layer hm.components {
+  /*
+   * Layout: kept with unstyled. A tag is text, not a control, so it has no
+   * target size and no focus ring. Text too long for its line wraps inside the
+   * tag: cutting it short would hide it from everyone, with no way to read
+   * the rest.
+   */
+  .hm-tag {
+    align-items: center;
+    box-sizing: border-box;
+    display: inline-flex;
+    gap: var(--hm-tag-gap, var(--hm-gap-tight));
+    max-inline-size: 100%;
+    padding-block: var(--hm-tag-padding-y, var(--hm-gap-tight));
+    padding-inline: var(--hm-tag-padding-x, var(--hm-inset-tight));
+    vertical-align: middle;
+  }
+
+  .hm-tag-icon {
+    block-size: var(--hm-tag-icon-size, var(--hm-font-size-body));
+    display: inline-flex;
+    flex-shrink: 0;
+    inline-size: var(--hm-tag-icon-size, var(--hm-font-size-body));
+  }
+
+  .hm-tag-icon > svg {
+    block-size: inherit;
+    inline-size: inherit;
+  }
+
+  .hm-tag-label {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+
+  /* A list of tags: its tags are its items, and it wraps. */
+  .hm-tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--hm-tag-list-gap, var(--hm-gap-normal));
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Visual styles, dropped with unstyled. */
+  .hm-tag:not([data-hm-unstyled]) {
+    background: var(--hm-tag-bg, var(--hm-color-control));
+    /*
+     * Only the neutral tone colours its border. The others keep it
+     * transparent: it still takes space, so tones line up, and forced-colours
+     * mode draws it, where backgrounds are dropped.
+     */
+    border: var(--hm-border-width) solid var(--hm-tag-border-color, var(--hm-color-border));
+    border-radius: var(--hm-tag-radius, var(--hm-radius-round));
+    color: var(--hm-tag-fg, var(--hm-color-text));
+    font-family: var(--hm-font-family);
+    font-size: var(--hm-tag-font-size, var(--hm-font-size-small));
+    font-weight: var(--hm-font-weight-strong);
+    letter-spacing: var(--hm-letter-spacing);
+    line-height: var(--hm-line-height-tight);
+  }
+
+  .hm-tag--accent:not([data-hm-unstyled]) {
+    background: var(--hm-tag-accent-bg, var(--hm-color-accent-subtle));
+    border-color: transparent;
+    color: var(--hm-tag-accent-fg, var(--hm-color-text));
+  }
+
+  .hm-tag--success:not([data-hm-unstyled]) {
+    background: var(--hm-tag-success-bg, var(--hm-color-success-subtle));
+    border-color: transparent;
+    color: var(--hm-tag-success-fg, var(--hm-color-success-text));
+  }
+
+  .hm-tag--warning:not([data-hm-unstyled]) {
+    background: var(--hm-tag-warning-bg, var(--hm-color-warning-subtle));
+    border-color: transparent;
+    color: var(--hm-tag-warning-fg, var(--hm-color-warning-text));
+  }
+
+  .hm-tag--danger:not([data-hm-unstyled]) {
+    background: var(--hm-tag-danger-bg, var(--hm-color-danger-subtle));
+    border-color: transparent;
+    color: var(--hm-tag-danger-fg, var(--hm-color-danger-text));
+  }
+}

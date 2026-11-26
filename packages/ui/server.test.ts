@@ -103,6 +103,7 @@ describe("the built package on a server", () => {
       AnnouncerProvider: {},
       Button: { children: "Save", startIcon: icon },
       IconButton: { label: "Rotate", icon },
+      ButtonLink: { href: "/guides", target: "_blank", startIcon: icon, children: "Guides" },
       ToggleButton: { label: "Loop", icon, defaultPressed: true },
       TextField: { label: "File name", defaultValue: "report" },
       TextArea: { label: "Caption", defaultValue: "One\nTwo" },
@@ -205,6 +206,11 @@ describe("the built package on a server", () => {
         items: [{ id: "a", label: "A", icon }],
       },
       Sheet: { open: true, onOpenChange: noop, title: "Title", children: "Body" },
+      Tag: { tone: "success", icon, children: "Stable" },
+      TagList: {
+        "aria-label": "Stack",
+        children: createElement(component("Tag"), null, "React"),
+      },
       SettingsPanel: {
         open: true,
         onOpenChange: noop,
