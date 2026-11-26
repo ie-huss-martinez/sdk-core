@@ -126,6 +126,8 @@ export type { SpinnerProps } from "./components/spinner/Spinner.js";
 export { Spinner } from "./components/spinner/Spinner.js";
 export type { TabBarItem, TabBarPart, TabBarProps } from "./components/tab-bar/TabBar.js";
 export { TabBar } from "./components/tab-bar/TabBar.js";
+export type { TabsItem, TabsPart, TabsProps } from "./components/tabs/Tabs.js";
+export { Tabs } from "./components/tabs/Tabs.js";
 export type { TagListProps, TagPart, TagProps, TagTone } from "./components/tag/Tag.js";
 export { Tag, TagList } from "./components/tag/Tag.js";
 export type { TextAreaProps } from "./components/text-area/TextArea.js";

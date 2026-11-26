@@ -255,6 +255,11 @@ describe("what applications ship", () => {
         excludes: ["hm-button", "hm-heading", "hm-visually-hidden", "dialog.close", ROVING_FOCUS],
       },
     );
+    // Tabs bring the heading they show before they're ready, and nothing else.
+    await expectShipped('import { Tabs } from "./react.js"; export const app = Tabs;', {
+      includes: ["hm-tabs", "tablist", "hm-heading"],
+      excludes: ["hm-button", "hm-tab-bar", "hm-toolbar", "dialog.close", ROVING_FOCUS],
+    });
     // A link ships its own text, the new-tab hint, and none of the other
     // components'; a button ships nothing of the link.
     await expectShipped('import { ButtonLink } from "./react.js"; export const app = ButtonLink;', {
