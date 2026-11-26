@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-25
+- **Amended:** 2026-11-26: density and motion follow the theme's rule, set on the root only once chosen, so a page's compact density or reduced motion reaches the editor; the theme toggle shows the inherited theme. See "Preferences"
 - **Refines:** [ADR 0007](0007-editor-shell.md)'s layout, under [sdk-core ADR 0067](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0067-editor-frame-modes-and-host-owned-preferences.md). Its stage, gestures, shortcuts, focus and export dialog stand.
 
 ## Context
@@ -37,7 +38,7 @@ sdk-core ADR 0067 gives every SDK editor one frame, three modes and preferences 
 - **Preferences:**
   - `<ImageEditor>` takes `preferences`, `defaultPreferences` and `onPreferencesChange`, and never stores them.
   - Without either, it starts in Advanced mode, so a host that embedded it before keeps nearly every tool in the panel. Layers and Frames are Expert tools: in Advanced they're in the command palette, with their shortcuts, but not the panel. A host that wants them listed passes `defaultPreferences={{ mode: "expert" }}`. The family's apps pass their own preferences, with Easy on a first visit.
-  - The density and motion are set on the editor's root. So is the theme, once the host passes preferences or a default theme, or the person chooses one; until then, an embedded editor inherits the page's theme, as before. A `theme` prop still wins over the preferences, and then neither the toggle nor the setting is shown.
+  - The theme, density and motion are each set on the editor's root once chosen: when the host passes preferences, or a default for that field, or the person changes it. Until then, an embedded editor inherits the page's, as before, and the theme toggle shows the inherited theme (amended 2026-11-26). A `theme` prop still wins over the preferences, and then neither the toggle nor the setting is shown.
 
 ## Alternatives considered
 

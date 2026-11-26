@@ -60,6 +60,10 @@ import { toolLists } from "./tool-lists.js";
 import type { PdfEditorChange, PdfEditorHandle, PdfEditorProps } from "./types.js";
 import { useSave } from "./use-save.js";
 
+/** Preferences the editor's root inherits from the page until they're chosen (sdk-core ADR 0067). */
+const INHERITED = ["theme", "density", "motion"] as const;
+type Inherited = (typeof INHERITED)[number];
+
 /** The command palette's place in the shortcut registry: a family action, not a tool. */
 const PALETTE = "pdf.command-palette";
 
@@ -256,12 +260,19 @@ function PdfEditorBody(props: BodyProps): ReactNode {
     props.defaultPreferences,
     props.onPreferencesChange,
   );
-  // An embedded editor inherits the page's theme until someone chooses one:
-  // the host, through its preferences, or the person, through the toggle or
-  // the settings.
-  const [themePicked, setThemePicked] = useState(false);
-  const themeChosen =
-    themePicked || props.preferences !== undefined || props.defaultPreferences?.theme !== undefined;
+  // An embedded editor inherits the page's theme, density and motion until
+  // someone chooses them: the host, through its preferences or a default for
+  // that field, or the person, through the toggle or the settings.
+  const [picked, setPicked] = useState<ReadonlySet<Inherited>>(() => new Set());
+  const isChosen = (field: Inherited): boolean =>
+    picked.has(field) ||
+    props.preferences !== undefined ||
+    props.defaultPreferences?.[field] !== undefined;
+  // How the tools were last shown, to show them that way again for a start card.
+  const lastTools = useRef<"full" | "icons">("full");
+  useEffect(() => {
+    if (preferences.tools !== "hidden") lastTools.current = preferences.tools;
+  }, [preferences.tools]);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tab, setTab] = useState<string | null>(null);
@@ -340,8 +351,11 @@ function PdfEditorBody(props: BodyProps): ReactNode {
       toastTo.current.show({ message: t(`editor.mode.${next.mode}`) });
     }
     if (next.theme !== preferences.theme) {
-      setThemePicked(true);
       toastTo.current.show({ message: t(`editor.theme.${next.theme}`) });
+    }
+    const changed = INHERITED.filter((field) => next[field] !== preferences[field]);
+    if (changed.some((field) => !picked.has(field))) {
+      setPicked(new Set([...picked, ...changed]));
     }
     setPreferences(next);
   };
@@ -414,12 +428,17 @@ function PdfEditorBody(props: BodyProps): ReactNode {
     if (status === "error") startButton.current?.focus();
   }, [status]);
 
-  // A start card's tool, or the document, takes focus once it's rendered.
+  // A start card's tool, or the document, takes focus once it's rendered:
+  // the match that's shown, such as the row in a group's sheet rather than
+  // the one in the tools panel a phone hides, or else the document.
   useEffect(() => {
     const selector = pendingFocus.current;
     if (selector === null) return;
     pendingFocus.current = null;
-    root.current?.querySelector<HTMLElement>(selector)?.focus();
+    const shown = [...(root.current?.querySelectorAll<HTMLElement>(selector) ?? [])].find(
+      (element) => element.checkVisibility(),
+    );
+    (shown ?? root.current?.querySelector<HTMLElement>(".hm-pdf-viewer"))?.focus();
   });
 
   const open = (chosenFile: File) => {
@@ -467,8 +486,11 @@ function PdfEditorBody(props: BodyProps): ReactNode {
 
   /**
    * Leads into the editor with a card's tools: listed, and the first that
-   * can run focused, in the tools panel or, on a phone, in its group's sheet.
-   * Adding pages runs its tool, which asks for a file.
+   * can run focused. Its row is always there to focus: in the tools panel,
+   * shown again as it was last if it was hidden, or, on a phone, where the
+   * tab bar replaces the panel, in its group's sheet. Adding pages runs its
+   * tool, which asks for a file; on a phone, focus then goes to its group's
+   * tab, rather than a sheet over the picker.
    */
   const chooseCard = (card: StartCard) => {
     if (sourceId === undefined) return;
@@ -480,14 +502,22 @@ function PdfEditorBody(props: BodyProps): ReactNode {
     if (target === undefined) return;
     // The picker opens within the click, as browsers require.
     if (card.run) run(target);
-    const phone = root.current?.querySelector(".hm-tab-bar")?.checkVisibility() ?? false;
-    if (phone && !card.run) {
-      setTab(
-        registry.toolbar.find((group) => group.some((tool) => tool.id === target))?.[0]?.id ?? null,
-      );
-      return;
+    const group = registry.toolbar.find((tools) => tools.some((tool) => tool.id === target));
+    const tab = root.current?.querySelector<HTMLElement>(".hm-tab-bar");
+    if (tab?.checkVisibility()) {
+      if (card.run) {
+        const label = group ? lists.groups.find((each) => each.id === group[0]?.id)?.label : "";
+        const button = [...tab.querySelectorAll<HTMLElement>("button")].find(
+          (each) => each.textContent === label,
+        );
+        button?.focus();
+        return;
+      }
+      setTab(group?.[0]?.id ?? null);
+    } else if (preferences.tools === "hidden") {
+      changePreferences({ ...preferences, tools: lastTools.current });
     }
-    pendingFocus.current = phone ? ".hm-pdf-viewer" : `[data-hm-tool-id="${target}"]`;
+    pendingFocus.current = `[data-hm-tool-id="${target}"]`;
   };
 
   const skipCards = () => {
@@ -585,9 +615,9 @@ function PdfEditorBody(props: BodyProps): ReactNode {
       )}
       data-hm-status={status}
       // ui's colour mode, density and motion for the editor alone (sdk-core ADR 0067).
-      data-hm-theme={themeChosen ? preferences.theme : undefined}
-      data-hm-density={preferences.density}
-      data-hm-motion={preferences.motion}
+      data-hm-theme={isChosen("theme") ? preferences.theme : undefined}
+      data-hm-density={isChosen("density") ? preferences.density : undefined}
+      data-hm-motion={isChosen("motion") ? preferences.motion : undefined}
       onKeyDown={onKeyDown}
       {...(unstyled ? { "data-hm-unstyled": "" } : {})}
     >
@@ -655,7 +685,8 @@ function PdfEditorBody(props: BodyProps): ReactNode {
                 </Tooltip>
               ) : null}
               <ThemeToggle
-                value={preferences.theme}
+                // Until a theme is chosen, the toggle shows the page's.
+                value={isChosen("theme") ? preferences.theme : "inherit"}
                 onValueChange={(theme) => changePreferences({ ...preferences, theme })}
               />
               <Tooltip type="label" content={t("editor.settings")}>

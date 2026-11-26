@@ -197,6 +197,52 @@ describe("the editor's modes (sdk-core ADR 0067)", () => {
   });
 });
 
+describe("what the editor inherits from its page (sdk-core ADR 0067)", () => {
+  it("keeps the page's theme, density and motion until the person or the host picks them", async () => {
+    const html = document.documentElement;
+    html.setAttribute("data-hm-theme", "dark");
+    html.setAttribute("data-hm-density", "compact");
+    html.setAttribute("data-hm-motion", "reduced");
+    try {
+      await mounted();
+      const section = () => document.querySelector<HTMLElement>("section.hm-image-editor");
+      for (const name of ["data-hm-theme", "data-hm-density", "data-hm-motion"]) {
+        expect(section()?.hasAttribute(name), name).toBe(false);
+      }
+      // The toggle shows the theme the editor inherits, the page's dark one.
+      const toggle = document.querySelector<HTMLElement>(".hm-theme-toggle");
+      await until(() => toggle?.getAttribute("aria-pressed") === "true", "the inherited theme");
+
+      // Chosen in the settings, each one is the editor's own.
+      await click(named("Settings"));
+      const option = (setting: string, text: string) =>
+        [
+          ...document.querySelectorAll<HTMLElement>(
+            `dialog[open] [aria-label="${setting}"] [role="radio"]`,
+          ),
+        ].find((radio) => radio.textContent === text);
+      await click(option("Density", "Compact"));
+      expect(section()?.dataset["hmDensity"]).toBe("compact");
+      expect(section()?.hasAttribute("data-hm-motion")).toBe(false);
+      await click(option("Motion", "Full"));
+      expect(section()?.dataset["hmMotion"]).toBe("full");
+      expect(section()?.hasAttribute("data-hm-theme")).toBe(false);
+    } finally {
+      html.removeAttribute("data-hm-theme");
+      html.removeAttribute("data-hm-density");
+      html.removeAttribute("data-hm-motion");
+    }
+  });
+
+  it("sets a field the host gives a default for, and inherits the others", async () => {
+    await mounted({ defaultPreferences: { density: "compact" } });
+    const section = document.querySelector<HTMLElement>("section.hm-image-editor");
+    expect(section?.dataset["hmDensity"]).toBe("compact");
+    expect(section?.hasAttribute("data-hm-motion")).toBe(false);
+    expect(section?.hasAttribute("data-hm-theme")).toBe(false);
+  });
+});
+
 describe("Easy mode's start cards (sdk-core ADR 0067)", () => {
   it("shows once per image, runs a card's tool, and closes with Just show me the editor", async () => {
     const { open } = await mounted({ defaultPreferences: { mode: "easy" } });

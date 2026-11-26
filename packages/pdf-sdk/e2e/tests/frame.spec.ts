@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { reportPdf } from "../../test/fixtures/pdfs.js";
-import { expectAnnounced, openPdf, watch } from "./helpers.js";
+import { expectAnnounced, oneLabelledByReader, openPdf, watch } from "./helpers.js";
 
 const origin = "http://localhost:4320";
 
@@ -29,6 +29,8 @@ async function violations(page: Page) {
  * the frame's states passing axe.
  */
 test.describe("the editor's frame", () => {
+  test.beforeEach(({ page, browserName }) => oneLabelledByReader(page, browserName));
+
   test("opens an app's first visit in Easy mode, and the page keeps the preferences", async ({
     page,
     context,

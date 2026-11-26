@@ -129,3 +129,24 @@ export async function expectAnnounced(page: Page, text: string): Promise<void> {
     new RegExp(`(^|[.!?\u2026] )${escaped}$`),
   );
 }
+
+/**
+ * Keeps Firefox's page alive under axe. Firefox crashes the page when an
+ * element's `ariaLabelledByElements` is read from two JavaScript worlds:
+ * Playwright's locators read it in their own world to match by name, such
+ * as `getByRole("dialog", { name: "Settings" })`, and axe reads it in the
+ * page's. Five lines reproduce it with no SDK at all: a button with
+ * `aria-labelledby`, `getByRole` by its name, then the property read by
+ * `page.evaluate`, in either order. Chromium and WebKit are unaffected.
+ *
+ * This takes the property out of the page's world only, before any script
+ * runs, so axe resolves `aria-labelledby` from the attribute, which names
+ * the same elements, and every rule still runs. Playwright's world keeps
+ * its own view of the property.
+ */
+export async function oneLabelledByReader(page: Page, browserName: string): Promise<void> {
+  if (browserName !== "firefox") return;
+  await page.addInitScript(() => {
+    delete (Element.prototype as { ariaLabelledByElements?: unknown }).ariaLabelledByElements;
+  });
+}

@@ -51,6 +51,10 @@ import { START_CARDS, type StartCard, StartCards } from "./StartCards.js";
 import { toolLists } from "./tool-lists.js";
 import type { ImageEditorHandle, ImageEditorProps } from "./types.js";
 
+/** Preferences the editor's root inherits from the page until they're chosen (sdk-core ADR 0067). */
+const INHERITED = ["theme", "density", "motion"] as const;
+type Inherited = (typeof INHERITED)[number];
+
 /** The command palette's place in the shortcut registry: a family action, not a tool. */
 const PALETTE = "image.command-palette";
 
@@ -304,12 +308,14 @@ function ImageEditorBody(props: BodyProps): ReactNode {
     props.defaultPreferences,
     props.onPreferencesChange,
   );
-  // An embedded editor inherits the page's theme until someone chooses one:
-  // the host, through its preferences, or the person, through the toggle or
-  // the settings.
-  const [themePicked, setThemePicked] = useState(false);
-  const themeChosen =
-    themePicked || props.preferences !== undefined || props.defaultPreferences?.theme !== undefined;
+  // An embedded editor inherits the page's theme, density and motion until
+  // someone chooses them: the host, through its preferences or a default for
+  // that field, or the person, through the toggle or the settings.
+  const [picked, setPicked] = useState<ReadonlySet<Inherited>>(() => new Set());
+  const isChosen = (field: Inherited): boolean =>
+    picked.has(field) ||
+    props.preferences !== undefined ||
+    props.defaultPreferences?.[field] !== undefined;
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tab, setTab] = useState<string | null>(null);
@@ -337,8 +343,11 @@ function ImageEditorBody(props: BodyProps): ReactNode {
   const changePreferences = (next: EditorPreferences) => {
     if (next.mode !== preferences.mode) toast.show({ message: t(`editor.mode.${next.mode}`) });
     if (next.theme !== preferences.theme) {
-      setThemePicked(true);
       toast.show({ message: t(`editor.theme.${next.theme}`) });
+    }
+    const changed = INHERITED.filter((field) => next[field] !== preferences[field]);
+    if (changed.some((field) => !picked.has(field))) {
+      setPicked(new Set([...picked, ...changed]));
     }
     if (next.mode !== "easy") setEasyProperties(false);
     setPreferences(next);
@@ -445,9 +454,9 @@ function ImageEditorBody(props: BodyProps): ReactNode {
       onKeyDown={onKeyDown}
       aria-label={messages.t("editor.label")}
       // ui's colour mode, density and motion for the editor alone (sdk-core ADR 0067).
-      data-hm-theme={props.theme ?? (themeChosen ? preferences.theme : undefined)}
-      data-hm-density={preferences.density}
-      data-hm-motion={preferences.motion}
+      data-hm-theme={props.theme ?? (isChosen("theme") ? preferences.theme : undefined)}
+      data-hm-density={isChosen("density") ? preferences.density : undefined}
+      data-hm-motion={isChosen("motion") ? preferences.motion : undefined}
     >
       <EngineBoundary>
         <input
@@ -523,7 +532,8 @@ function ImageEditorBody(props: BodyProps): ReactNode {
                 ) : null}
                 {props.theme ? null : (
                   <ThemeToggle
-                    value={preferences.theme}
+                    // Until a theme is chosen, the toggle shows the page's.
+                    value={isChosen("theme") ? preferences.theme : "inherit"}
                     onValueChange={(theme) => changePreferences({ ...preferences, theme })}
                   />
                 )}

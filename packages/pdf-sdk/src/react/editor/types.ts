@@ -131,8 +131,9 @@ export interface PdfEditorProps extends Omit<PdfSessionProviderProps, "children"
   /**
    * Preferences to start with when `preferences` isn't given. Fields left
    * out take ui's defaults, except the mode, which is Advanced, so every tool
-   * is listed until the host or the person chooses otherwise. The theme is
-   * the page's until the host sets one here or the person picks one.
+   * is listed until the host or the person chooses otherwise. The theme,
+   * density and motion are the page's until the host sets them here or the
+   * person picks them.
    */
   readonly defaultPreferences?: Partial<EditorPreferences>;
   /** Called with the whole preferences when the person changes one. */

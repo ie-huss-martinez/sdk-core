@@ -22,6 +22,6 @@ New:
 
 - **Size:** give the editor a height. It fills its box, at least 24rem.
 - **Finding tools in the DOM:** tools in the panel carry `data-hm-tool-id`; only the bar's buttons keep `data-tool`.
-- **Theme:** unchanged unless you opt in: without `theme`, preferences or a default theme, the editor inherits the page's theme until the person picks one with the toggle or the settings.
+- **Theme, density and motion:** unchanged unless you opt in: without `theme`, preferences, or a default for the field, the editor inherits the page's until the person picks one in the settings, or the theme with the toggle, which shows the inherited theme.
 - **`DEFAULT_TOOLBAR`:** its groups changed.
 - **`ImageToolbar`:** it's still exported, but the editor no longer uses it.

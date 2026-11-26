@@ -24,5 +24,5 @@ New:
 - **`toolbar`:** its groups now place tools: Open, Undo, Redo and Download in the top bar, and the rest in the tools panel. `toolbar={[]}` still shows no tool, and keeps the shortcuts and the palette.
 - **Tool groups:** the rotate tools' `group` is now `rotate`, the insert tool's `pages` and the move tools' `order`.
 - **The `header` part** of `classNames` now styles the notices above the document; the toolbar is no longer in it.
-- **Theme:** unchanged unless you opt in: without preferences or a default theme, the editor inherits the page's theme until the person picks one with the toggle or the settings.
+- **Theme, density and motion:** unchanged unless you opt in: without preferences, or a default for the field, the editor inherits the page's until the person picks one in the settings, or the theme with the toggle, which shows the inherited theme.
 - **`PdfToolbar`:** it's still exported, but the editor no longer uses it.

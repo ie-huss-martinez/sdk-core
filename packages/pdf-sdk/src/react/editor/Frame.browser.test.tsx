@@ -185,24 +185,76 @@ describe("the editor's modes (sdk-core ADR 0067)", () => {
     expect(rows(container)).not.toContain("Move earlier");
   });
 
-  it("inherits the page's theme until the person or the host picks one, and sets density and motion", async () => {
-    const onPreferencesChange = vi.fn<(preferences: EditorPreferences) => void>();
-    const first = await setUp({ onPreferencesChange });
-    expect(root(first.container).hasAttribute("data-hm-theme")).toBe(false);
-    expect(root(first.container).dataset["hmDensity"]).toBe("comfortable");
-    expect(root(first.container).dataset["hmMotion"]).toBe("system");
-    const toggle = first.container.querySelector(".hm-theme-toggle") as HTMLElement;
-    await act(() => userEvent.click(toggle));
-    expect(root(first.container).dataset["hmTheme"]).toBe("dark");
-    expect(onPreferencesChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ theme: "dark" }),
-    );
-    await waitFor(() => expect(toasts(first.container)).toContain("Dark theme"));
-    await cleanUp();
+  it("inherits the page's theme, density and motion until the person or the host picks them", async () => {
+    // A page that sets its own: dark, compact and reduced.
+    const html = document.documentElement;
+    html.setAttribute("data-hm-theme", "dark");
+    html.setAttribute("data-hm-density", "compact");
+    html.setAttribute("data-hm-motion", "reduced");
+    try {
+      const onPreferencesChange = vi.fn<(preferences: EditorPreferences) => void>();
+      const first = await setUp({ onPreferencesChange });
+      const editorRoot = root(first.container);
+      for (const name of ["data-hm-theme", "data-hm-density", "data-hm-motion"]) {
+        expect(editorRoot.hasAttribute(name), name).toBe(false);
+      }
+      // The toggle shows the theme the editor inherits, the page's dark one.
+      const toggle = first.container.querySelector(".hm-theme-toggle") as HTMLElement;
+      await waitFor(() => expect(toggle.getAttribute("aria-pressed")).toBe("true"));
 
-    const second = await setUp({ defaultPreferences: { theme: "light", density: "compact" } });
-    expect(root(second.container).dataset["hmTheme"]).toBe("light");
-    expect(root(second.container).dataset["hmDensity"]).toBe("compact");
+      // Chosen in the settings, each one is the editor's own.
+      await act(() => userEvent.click(named(first.container, "Settings") as HTMLElement));
+      const option = (setting: string, text: string) =>
+        [
+          ...first.container.querySelectorAll<HTMLElement>(
+            `dialog[open] [aria-label="${setting}"] [role="radio"]`,
+          ),
+        ].find((radio) => radio.textContent === text) as HTMLElement;
+      await act(() => userEvent.click(option("Density", "Compact")));
+      expect(editorRoot.dataset["hmDensity"]).toBe("compact");
+      expect(editorRoot.hasAttribute("data-hm-motion")).toBe(false);
+      await act(() => userEvent.click(option("Motion", "Full")));
+      expect(editorRoot.dataset["hmMotion"]).toBe("full");
+      expect(editorRoot.hasAttribute("data-hm-theme")).toBe(false);
+      await act(() => userEvent.keyboard("{Escape}"));
+
+      // Pressing the toggle chooses the other theme from the one shown.
+      await act(() => userEvent.click(toggle));
+      expect(editorRoot.dataset["hmTheme"]).toBe("light");
+      expect(onPreferencesChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({ theme: "light", density: "compact", motion: "full" }),
+      );
+      await waitFor(() => expect(toasts(first.container)).toContain("Light theme"));
+      await cleanUp();
+
+      // A host's default for a field sets it; the others still inherit.
+      const second = await setUp({ defaultPreferences: { theme: "light", density: "compact" } });
+      expect(root(second.container).dataset["hmTheme"]).toBe("light");
+      expect(root(second.container).dataset["hmDensity"]).toBe("compact");
+      expect(root(second.container).hasAttribute("data-hm-motion")).toBe(false);
+      await cleanUp();
+
+      // A host that keeps the preferences sets all three.
+      const third = await setUp({
+        preferences: {
+          theme: "system",
+          mode: "advanced",
+          toolsLayout: "sidebar",
+          tools: "full",
+          properties: "shown",
+          density: "comfortable",
+          motion: "system",
+          tips: true,
+        },
+      });
+      expect(root(third.container).dataset["hmTheme"]).toBe("system");
+      expect(root(third.container).dataset["hmDensity"]).toBe("comfortable");
+      expect(root(third.container).dataset["hmMotion"]).toBe("system");
+    } finally {
+      html.removeAttribute("data-hm-theme");
+      html.removeAttribute("data-hm-density");
+      html.removeAttribute("data-hm-motion");
+    }
   });
 });
 
@@ -264,6 +316,42 @@ describe("Easy mode's start cards (sdk-core ADR 0067)", () => {
     await act(() => userEvent.click(card(container, "add")));
     expect(asked).toHaveBeenCalledOnce();
     expect(document.activeElement).toBe(row(container, "pdf.insert-pages"));
+  });
+
+  it("shows hidden tools again, as they were last shown, to focus a card's tool", async () => {
+    const onPreferencesChange = vi.fn<(preferences: EditorPreferences) => void>();
+    const { container, open } = await setUp({
+      defaultPreferences: { mode: "easy", tools: "hidden" },
+      onPreferencesChange,
+    });
+    await open(3);
+    expect((container.querySelector("nav") as HTMLElement).hidden).toBe(true);
+    await act(() => userEvent.click(card(container, "remove")));
+    expect((container.querySelector("nav") as HTMLElement).hidden).toBe(false);
+    expect(onPreferencesChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tools: "full" }),
+    );
+    expect(document.activeElement).toBe(row(container, "pdf.delete-pages"));
+  });
+
+  it("on a phone, opens a card's group in a sheet with its tool focused", async () => {
+    const { container, open } = await setUp({ defaultPreferences: { mode: "easy" } }, PHONE);
+    await open(3);
+    await act(() => userEvent.click(card(container, "rotate")));
+    const sheet = container.querySelector<HTMLDialogElement>("dialog[open]") as HTMLDialogElement;
+    expect(sheet).not.toBeNull();
+    const target = sheet.querySelector('[data-hm-tool-id="pdf.rotate-left"]');
+    expect(document.activeElement).toBe(target);
+    await act(() => userEvent.keyboard("{Escape}"));
+
+    // Adding pages asks for a file, so focus goes to its group's tab, not a sheet.
+    await open(2);
+    const picker = container.querySelector("input[data-hm-insert]") as HTMLInputElement;
+    picker.addEventListener("click", (event) => event.preventDefault());
+    await act(() => userEvent.click(card(container, "add")));
+    expect(container.querySelector("dialog[open]")).toBeNull();
+    expect(document.activeElement?.textContent).toBe("Remove and add");
+    expect(document.activeElement?.closest(".hm-tab-bar")).not.toBeNull();
   });
 
   it("offers only the cards whose tools the host kept and that can run", async () => {
