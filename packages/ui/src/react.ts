@@ -110,6 +110,11 @@ export {
   ReorderableListItem,
 } from "./components/reorderable-list/ReorderableList.js";
 export type {
+  SearchFieldPart,
+  SearchFieldProps,
+} from "./components/search-field/SearchField.js";
+export { SearchField } from "./components/search-field/SearchField.js";
+export type {
   SegmentedControlOption,
   SegmentedControlPart,
   SegmentedControlProps,

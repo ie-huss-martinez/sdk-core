@@ -740,6 +740,8 @@ export type ComponentTokenName =
   | "text-field-border-color"
   | "text-field-invalid-border-color"
   | "text-area-padding-y"
+  | "search-field-gap"
+  | "search-field-icon-fg"
   | "reorderable-list-gap"
   | "reorderable-list-row-height"
   | "reorderable-list-row-padding-x"
@@ -1002,6 +1004,8 @@ const component = {
   "text-field-border-color": { fallback: "color-border-strong" },
   "text-field-invalid-border-color": { fallback: "color-danger-text" },
   "text-area-padding-y": { fallback: "inset-tight" },
+  "search-field-gap": { fallback: "control-gap" },
+  "search-field-icon-fg": { fallback: "color-text-muted" },
   "reorderable-list-gap": { fallback: "gap-tight" },
   "reorderable-list-row-height": { fallback: "control-height" },
   "reorderable-list-row-padding-x": { fallback: "control-padding-x" },

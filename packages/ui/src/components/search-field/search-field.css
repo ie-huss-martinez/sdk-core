@@ -1,0 +1,110 @@
+@layer hm.components {
+  /*
+   * Layout, focus and target size: kept with unstyled. The box is the field:
+   * it's as tall as a text field, and the input inside fills what the icon,
+   * the clear button and the end leave.
+   */
+  .hm-search-field {
+    align-items: center;
+    box-sizing: border-box;
+    display: flex;
+    gap: var(--hm-search-field-gap, var(--hm-control-gap));
+    min-block-size: max(
+      var(--hm-text-field-height, var(--hm-control-height)),
+      var(--hm-target-size)
+    );
+    padding-inline: var(--hm-text-field-padding-x, var(--hm-control-padding-x));
+  }
+
+  .hm-search-field > .hm-search-field-icon {
+    block-size: var(--hm-icon-size);
+    display: inline-flex;
+    flex-shrink: 0;
+    inline-size: var(--hm-icon-size);
+  }
+
+  .hm-search-field > .hm-search-field-icon > svg {
+    block-size: inherit;
+    inline-size: inherit;
+  }
+
+  .hm-search-field > .hm-search-field-input {
+    align-self: stretch;
+    flex: 1;
+    min-inline-size: 0;
+  }
+
+  /*
+   * The ring goes around the box, which is what looks like the field, when
+   * the input has focus. The clear button keeps its own.
+   */
+  .hm-search-field > .hm-search-field-input:focus-visible {
+    outline: none;
+  }
+
+  .hm-search-field:has(> .hm-search-field-input:focus-visible) {
+    outline: var(--hm-focus-ring);
+    outline-offset: var(--hm-focus-ring-offset);
+  }
+
+  .hm-search-field:has(> .hm-search-field-input:disabled) {
+    cursor: not-allowed;
+  }
+
+  /*
+   * Once the field's own clear button works, the browser's goes: two would
+   * sit side by side. Before that, and on a page that never hydrates the
+   * field, the browser's stays.
+   */
+  .hm-search-field[data-hm-ready] > .hm-search-field-input::-webkit-search-cancel-button {
+    display: none;
+  }
+
+  .hm-search-field > .hm-search-field-end {
+    align-items: center;
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+
+  /* Visual styles, dropped with unstyled. They're a text field's, with its tokens. */
+  .hm-search-field:not([data-hm-unstyled]) {
+    background: var(--hm-text-field-bg, var(--hm-color-surface));
+    border: var(--hm-border-width) solid
+      var(--hm-text-field-border-color, var(--hm-color-border-strong));
+    border-radius: var(--hm-text-field-radius, var(--hm-radius-control));
+    color: var(--hm-text-field-fg, var(--hm-color-text));
+    font-family: var(--hm-font-family);
+    font-size: var(--hm-font-size-body);
+    letter-spacing: var(--hm-letter-spacing);
+    line-height: var(--hm-line-height-tight);
+    transition: border-color var(--hm-motion-duration-feedback) var(--hm-motion-easing-standard);
+  }
+
+  .hm-search-field:not([data-hm-unstyled]) > .hm-search-field-icon {
+    color: var(--hm-search-field-icon-fg, var(--hm-color-text-muted));
+  }
+
+  /* The box draws the field, so the input inside is bare. */
+  .hm-search-field:not([data-hm-unstyled]) > .hm-search-field-input {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    padding: 0;
+  }
+
+  .hm-search-field:not([data-hm-unstyled]) > .hm-search-field-input::placeholder {
+    color: var(--hm-text-field-placeholder-fg, var(--hm-color-text-muted));
+    opacity: 1;
+  }
+
+  .hm-search-field:not([data-hm-unstyled]):has(> .hm-search-field-input[aria-invalid="true"]) {
+    border-color: var(--hm-text-field-invalid-border-color, var(--hm-color-danger-text));
+  }
+
+  .hm-search-field:not([data-hm-unstyled]):has(> .hm-search-field-input:disabled) {
+    opacity: var(--hm-opacity-disabled);
+  }
+}

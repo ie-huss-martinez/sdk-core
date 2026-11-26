@@ -31,6 +31,7 @@
 @import "./components/number-field/number-field.css";
 @import "./components/text-field/text-field.css";
 @import "./components/text-area/text-area.css";
+@import "./components/search-field/search-field.css";
 @import "./components/color-field/color-field.css";
 @import "./components/color-picker/color-picker.css";
 @import "./components/spinner/spinner.css";

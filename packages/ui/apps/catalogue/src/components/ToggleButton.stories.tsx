@@ -135,3 +135,41 @@ export const Unstyled: Story = {
     </div>
   ),
 };
+
+const categories = ["Foundations", "Security", "Operations", "Frontend", "Backend"] as const;
+
+/**
+ * Filter chips are toggle buttons in a named group: there's no component of
+ * their own (docs/adr/0017). Each says whether it's pressed, and the group's
+ * name says what they filter. Here one category applies at a time, and "All"
+ * is pressed when none does; for filters that combine, let each keep its own
+ * state.
+ */
+export const FilterChips: Story = {
+  name: "Filter chips",
+  render: function FilterChips() {
+    const [category, setCategory] = useState<string | null>("Security");
+    return (
+      // biome-ignore lint/a11y/useSemanticElements: a fieldset brings form semantics and a legend, which a row of filters doesn't have.
+      <div role="group" aria-label="Filter by category" style={row}>
+        <ToggleButton
+          size="small"
+          pressed={category === null}
+          onPressedChange={() => setCategory(null)}
+        >
+          All
+        </ToggleButton>
+        {categories.map((name) => (
+          <ToggleButton
+            key={name}
+            size="small"
+            pressed={category === name}
+            onPressedChange={(on) => setCategory(on ? name : null)}
+          >
+            {name}
+          </ToggleButton>
+        ))}
+      </div>
+    );
+  },
+};

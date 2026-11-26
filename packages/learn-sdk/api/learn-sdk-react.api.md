@@ -637,6 +637,7 @@ export const playerCatalogue: {
     "colorPicker.hue.purple": "purple";
     "colorPicker.hue.pink": "pink";
     "buttonLink.newTab": "(opens in a new tab)";
+    "searchField.clear": "Clear search";
     "player.label": "Exercises";
     "player.position": "Exercise {position, number} of {count, number}";
     "player.toolbar": "Exercise actions";
