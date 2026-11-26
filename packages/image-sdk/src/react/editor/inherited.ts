@@ -21,14 +21,20 @@ const FALLBACK: InheritedValues = { theme: "system", density: "comfortable", mot
 /**
  * The values in effect for the fields the editor inherits: each from the
  * nearest ancestor above its root that sets the attribute ui's tokens
- * follow, or else ui's own. An unknown value counts as unset.
+ * follow with a value it knows, or else ui's own. An unknown value is
+ * skipped, as CSS skips it.
  */
 export function inheritedValues(root: Element | null): InheritedValues {
   const read = <Field extends Inherited>(field: Field): InheritedValues[Field] => {
     const name = ATTRIBUTES[field];
-    const value = root?.parentElement?.closest(`[${name}]`)?.getAttribute(name);
     const options: readonly string[] = editorPreferenceOptions[field];
-    return value && options.includes(value) ? (value as InheritedValues[Field]) : FALLBACK[field];
+    // As in CSS, a value ui's tokens don't know matches nothing, so the
+    // nearest valid one further out is the one in effect.
+    for (let element = root?.parentElement; element; element = element.parentElement) {
+      const value = element.getAttribute(name);
+      if (value !== null && options.includes(value)) return value as InheritedValues[Field];
+    }
+    return FALLBACK[field];
   };
   return { theme: read("theme"), density: read("density"), motion: read("motion") };
 }
