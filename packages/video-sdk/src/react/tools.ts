@@ -1,8 +1,8 @@
 import type { ShortcutPart } from "@hussmartinez/sdk-core";
-import { useAnnounce, usePlatform } from "@hussmartinez/ui/react";
+import { useAnnounce, useLatest, usePlatform } from "@hussmartinez/ui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { VideoOutput } from "../core/ports/video-output.js";
-import type { VideoSession } from "../core/session/session.js";
+import type { VideoSession, VideoSessionSnapshot } from "../core/session/session.js";
 import type { VideoToolContext, VideoToolState } from "../features/tools/tools.js";
 import { useVideoEditor, useVideoOutput, useVideoSession } from "./context.js";
 
@@ -22,6 +22,57 @@ export interface VideoTools {
   ariaKeyShortcuts(id: string): string | undefined;
   /** A tool's label with its first shortcut, such as "Undo (Ctrl+Z)", for its tooltip. */
   labelWithKeys(id: string): string;
+  /** A tool's first shortcut as text, such as "Ctrl+Z" or "⌘Z", if it has one. */
+  keysText(id: string): string | undefined;
+}
+
+/**
+ * What a tool did, in words: the toast the editor shows, or what the
+ * building blocks announce (docs/adr/0010). An edit's can offer Undo.
+ */
+export interface VideoToolResult {
+  readonly message: string;
+  /** Whether it changed the plan as an edit, rather than undoing or redoing one. */
+  readonly edit: boolean;
+}
+
+type EditorMessages = ReturnType<typeof useVideoEditor>["messages"];
+
+/**
+ * What a tool that ran did, for the people who can't see it change: an edit
+ * or a step through the history, if the plan changed. Playback, zoom,
+ * adding videos and exporting have none: their results show, or come later.
+ */
+function resultOf(
+  id: string,
+  state: VideoToolState,
+  before: VideoSessionSnapshot,
+  after: VideoSessionSnapshot,
+  messages: EditorMessages,
+): VideoToolResult | undefined {
+  if (after.plan === before.plan) return undefined;
+  const count = state.selectedClips.length;
+  switch (id) {
+    case "video.undo":
+      return { message: messages.t("announce.undone"), edit: false };
+    case "video.redo":
+      return { message: messages.t("announce.redone"), edit: false };
+    case "video.split":
+      return { message: messages.t("editor.split"), edit: true };
+    case "video.delete":
+      return { message: messages.t("editor.deleted", { count }), edit: true };
+    case "video.mute": {
+      const muted = state.selectedClips.every(
+        (key) => after.plan?.clips.find((clip) => clip.key === key)?.muted,
+      );
+      return {
+        message: messages.t(muted ? "editor.muted" : "editor.unmuted", { count }),
+        edit: true,
+      };
+    }
+    default:
+      return undefined;
+  }
 }
 
 /**
@@ -31,9 +82,12 @@ export interface VideoTools {
  * again only when it changes a flag, so a toolbar doesn't re-render every
  * frame while playing.
  *
+ * What a tool did goes to `onResult`, such as the editor's toasts, or else
+ * to the editor's announcer.
+ *
  * @internal
  */
-export function useVideoTools(): VideoTools {
+export function useVideoTools(onResult?: (result: VideoToolResult) => void): VideoTools {
   const editor = useVideoEditor();
   const {
     messages,
@@ -50,6 +104,7 @@ export function useVideoTools(): VideoTools {
   const { output, snapshot: playback } = useVideoOutput();
   const announce = useAnnounce();
   const platform = usePlatform();
+  const report = useLatest(onResult);
 
   const stateAt = useCallback(
     (playhead: number): VideoToolState => ({
@@ -106,12 +161,17 @@ export function useVideoTools(): VideoTools {
       if (!tool) return false;
       const state = stateAt(output?.position() ?? 0);
       if (tool.isEnabled && !tool.isEnabled(state)) return false;
-      void tool.run(
-        contextOf(state, { session, output, setZoom, chooseFiles, setDialog, announce, messages }),
-      );
+      const before = session.getSnapshot();
+      void tool.run(contextOf(state, { session, output, setZoom, chooseFiles, setDialog }));
+      // Edits and the history's steps change the plan at once.
+      const result = resultOf(id, state, before, session.getSnapshot(), messages);
+      if (result) {
+        if (report.current) report.current(result);
+        else announce(result.message);
+      }
       return true;
     },
-    [tools, stateAt, output, session, setZoom, chooseFiles, setDialog, announce, messages],
+    [tools, stateAt, output, session, setZoom, chooseFiles, setDialog, announce, messages, report],
   );
 
   const describe = useCallback(
@@ -134,6 +194,10 @@ export function useVideoTools(): VideoTools {
         const [first] = shortcuts.describe(id);
         return first ? messages.t("toolbar.withKeys", { label, keys: describe(first) }) : label;
       },
+      keysText: (id: string) => {
+        const [first] = shortcuts.describe(id);
+        return first ? describe(first) : undefined;
+      },
     }),
     [flags, run, shortcuts, tools, messages, describe],
   );
@@ -147,16 +211,12 @@ function contextOf(
     setZoom,
     chooseFiles,
     setDialog,
-    announce,
-    messages,
   }: {
     readonly session: VideoSession;
     readonly output: VideoOutput | null;
     readonly setZoom: (zoom: number) => void;
     readonly chooseFiles: () => void;
     readonly setDialog: (dialog: "export" | null) => void;
-    readonly announce: (message: string) => void;
-    readonly messages: ReturnType<typeof useVideoEditor>["messages"];
   },
 ): VideoToolContext {
   return {
@@ -168,12 +228,9 @@ function contextOf(
         // The session's snapshot holds the error, which the stage shows.
       }
     },
-    undo() {
-      if (session.undo()) announce(messages.t("announce.undone"));
-    },
-    redo() {
-      if (session.redo()) announce(messages.t("announce.redone"));
-    },
+    // What they did is said by whoever ran them (useVideoTools).
+    undo: () => void session.undo(),
+    redo: () => void session.redo(),
     // A play the editor's unmount cuts short rejects; there's nothing to show then.
     play: () => void output?.play().catch(() => {}),
     pause: () => output?.pause(),

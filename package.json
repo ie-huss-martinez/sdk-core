@@ -41,6 +41,7 @@
     "lint-staged": "catalog:",
     "secretlint": "catalog:",
     "stylelint": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "yaml": "catalog:"
   }
 }

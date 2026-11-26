@@ -62,8 +62,9 @@ function record(editor: HTMLElement) {
   return events;
 }
 
+// A bar's button carries data-tool, and a tools panel's row data-hm-tool-id (docs/adr/0010).
 const tool = (editor: HTMLElement, id: string) =>
-  editor.querySelector<HTMLButtonElement>(`[data-hm-tool="${id}"]`);
+  editor.querySelector<HTMLButtonElement>(`[data-tool="${id}"], [data-hm-tool-id="${id}"]`);
 const lastPlan = (events: ReturnType<typeof record>) =>
   events.filter((event) => event.name === "change").at(-1)?.detail as VideoPlan | undefined;
 const clips = (events: ReturnType<typeof record>) => lastPlan(events)?.clips.length ?? 0;
@@ -230,10 +231,10 @@ describe("<hm-video-editor> (docs/adr/0007, sdk-core ADR 0040)", () => {
       "Export",
     );
     tool(editor, "video.export")?.click();
-    await until(() => editor.querySelector("dialog[open]") !== null, "the dialog");
-    const confirm = [...editor.querySelectorAll<HTMLButtonElement>("dialog button")].find(
-      (element) => element.textContent === "Export",
-    );
+    await until(() => editor.querySelector("dialog.hm-video-export[open]") !== null, "the dialog");
+    const confirm = [
+      ...editor.querySelectorAll<HTMLButtonElement>("dialog.hm-video-export button"),
+    ].find((element) => element.textContent === "Export");
     confirm?.click();
     await until(() => events.some((event) => event.name === "export"), "the export", WORK_WAIT);
     const report = events.find((event) => event.name === "export")?.detail as Record<
@@ -265,10 +266,10 @@ describe("<hm-video-editor> (docs/adr/0007, sdk-core ADR 0040)", () => {
       "Export",
     );
     tool(editor, "video.export")?.click();
-    await until(() => editor.querySelector("dialog[open]") !== null, "the dialog");
-    const confirm = [...editor.querySelectorAll<HTMLButtonElement>("dialog button")].find(
-      (element) => element.textContent === "Export",
-    );
+    await until(() => editor.querySelector("dialog.hm-video-export[open]") !== null, "the dialog");
+    const confirm = [
+      ...editor.querySelectorAll<HTMLButtonElement>("dialog.hm-video-export button"),
+    ].find((element) => element.textContent === "Export");
     confirm?.click();
     await until(() => events.some((event) => event.name === "error"), "the error", WORK_WAIT);
     await new Promise((resolve) => setTimeout(resolve, 100));

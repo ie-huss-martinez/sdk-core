@@ -12,5 +12,6 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0002](0002-workers-and-assets.md) | One audio worker, sources on the page, and assets without the network | Accepted |
 | [0003](0003-clip-plan-document-model.md) | The clip plan: edits change a model, and audio is rendered on export | Accepted; in part superseded by 0006 |
 | [0004](0004-audio-limits.md) | Audio limits and session memory | Accepted |
-| [0005](0005-editor-shell.md) | The editor shell: layout, the waveform timeline, selection, shortcuts and focus | Accepted; in part superseded by 0006 |
-| [0006](0006-multitrack.md) | Multitrack: tracks of positioned clips, mixed on playback and export | Accepted |
+| [0005](0005-editor-shell.md) | The editor shell: layout, the waveform timeline, selection, shortcuts and focus | Accepted; in part superseded by 0006; refined by 0007 |
+| [0006](0006-multitrack.md) | Multitrack: tracks of positioned clips, mixed on playback and export | Accepted; refined by 0007 |
+| [0007](0007-the-editor-on-ui-s-frame.md) | The editor on ui's frame: levels, start cards, toasts and preferences | Accepted; refines 0005 and 0006 |

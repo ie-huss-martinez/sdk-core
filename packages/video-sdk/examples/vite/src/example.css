@@ -11,3 +11,16 @@ body {
 .example-frame {
   block-size: 80vh;
 }
+
+/* `?app`: the editor is the page, as in the family's apps. */
+[data-app] body {
+  padding: 0;
+}
+
+[data-app] h1 {
+  display: none;
+}
+
+[data-app] .example-frame {
+  block-size: 100vh;
+}

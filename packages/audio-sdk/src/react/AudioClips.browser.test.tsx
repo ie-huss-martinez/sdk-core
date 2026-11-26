@@ -1,7 +1,6 @@
-import axe from "axe-core";
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
-import { disabled, editor, recording, step } from "../../test/editor.js";
+import { disabled, editor, recording, step, violations } from "../../test/editor.js";
 import { cleanUp, waitFor } from "../../test/react.js";
 
 afterEach(async () => {
@@ -18,20 +17,22 @@ const focused = () => (document.activeElement as HTMLElement | null)?.dataset["h
 const said = (text: string) => waitFor(() => expect(document.body.textContent).toContain(text));
 
 describe("the clip tools", () => {
-  it("are in the toolbar's Clip group, and act on the selected clip", async () => {
+  it("are in the tools panel's Cut, Fade and Clip groups, and act on the selected clip", async () => {
     const { container, tool } = await editor(recording());
-    const group = container.querySelector('[role="group"][aria-label="Clip"]') as Element;
-    expect(
-      [...group.querySelectorAll("[data-hm-tool]")].map((each) =>
-        each.getAttribute("data-hm-tool"),
-      ),
-    ).toEqual([
-      "audio.split",
-      "audio.delete",
+    const ids = (name: string) =>
+      [
+        ...(
+          container.querySelector(`[role="group"][aria-label="${name}"]`) as Element
+        ).querySelectorAll("[data-hm-tool-id]"),
+      ].map((each) => each.getAttribute("data-hm-tool-id"));
+    expect(ids("Cut")).toEqual([
       "audio.trim-start",
       "audio.trim-end",
-      "audio.fade-in",
-      "audio.fade-out",
+      "audio.split",
+      "audio.delete",
+    ]);
+    expect(ids("Fade")).toEqual(["audio.fade-in", "audio.fade-out"]);
+    expect(ids("Clip")).toEqual([
       "audio.move-earlier",
       "audio.move-later",
       "audio.move-to-track-above",
@@ -45,7 +46,7 @@ describe("the clip tools", () => {
     expect(disabled(tool("audio.move-earlier"))).toBe(true);
     expect(disabled(tool("audio.move-later"))).toBe(false);
     expect(disabled(tool("audio.move-to-track-below"))).toBe(true);
-    expect((await axe.run(container)).violations.map((each) => each.id)).toEqual([]);
+    expect(await violations(container)).toEqual([]);
   });
 
   it("splits at the playhead with S, focusing the part after it", async () => {

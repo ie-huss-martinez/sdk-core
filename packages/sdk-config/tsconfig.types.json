@@ -21,6 +21,7 @@
     "src/size/index.js",
     "src/testing/audio-output.js",
     "src/testing/browser-instances.js",
+    "src/testing/browsers.js",
     "src/testing/conformance.js",
     "src/testing/firefox-labelled-by.js",
     "src/testing/firefox-labelled-by-setup.js",

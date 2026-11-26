@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# CodeRabbit, the automated reviewer every pull request waits for (ADR 0053).
+# ADR 0068 makes it review less often and less noisily: once when a pull
+# request is ready, then only what each later push changes, and never the
+# files nobody writes by hand. Settings not listed keep CodeRabbit's defaults.
+language: en-GB
+
+reviews:
+  # Balanced feedback; "assertive" adds the nitpicks the instructions below rule out.
+  profile: chill
+  in_progress_fortune: false
+
+  auto_review:
+    enabled: true
+    # A draft isn't reviewed. Marking it ready starts the full review, and
+    # each later push gets an incremental review of what it changed.
+    drafts: false
+    auto_incremental_review: true
+    # The default, 5, paused reviews part-way through a pull request, which
+    # then waited for a manual "@coderabbitai review".
+    auto_pause_after_reviewed_commits: 50
+
+  # Generated or binary files: their sources are reviewed instead.
+  path_filters:
+    - "!**/__screenshots__/**"
+    - "!packages/ui/src/tokens/tokens.css"
+    - "!packages/ui/docs/tokens.md"
+    - "!packages/ui/src/icons/*.generated.*"
+    - "!**/api/*.api.md"
+    - "!**/*.snap"
+    - "!pnpm-lock.yaml"
+    - "!**/CHANGELOG.md"
+
+  path_instructions:
+    - path: "**"
+      instructions: >-
+        Report bugs, security problems, accessibility failures and breaches of
+        STANDARDS.md or the ADRs in docs/adr and packages/*/docs/adr, each with
+        the rule or behaviour it breaks. Don't comment on style, naming or
+        formatting that Biome and stylelint accept, and don't suggest optional
+        refactors. When a finding contradicts an ADR, cite the ADR instead of
+        proposing the change.

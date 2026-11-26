@@ -6,10 +6,19 @@ name: Verify
 # before it (ADR 0064). A weekly run, and one started by hand, verify every
 # package, as a safety net and before a release that needs it.
 #
+# A draft pull request runs its packages' browser tests in Chromium only,
+# read from the pull request when the run starts (the affected job).
+# Marking it ready, and every push to a pull request that isn't a draft, runs
+# all three engines, as pushes to main and the weekly run do. The required
+# `verify` check fails on a draft's run, so only a full run can pass it (ADR
+# 0068).
+#
 # The required status checks are the jobs named `verify` and `changeset`, so
 # keep those names.
 on:
   pull_request:
+    # GitHub's defaults, and ready_for_review for the full run.
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
   schedule:
@@ -64,9 +73,16 @@ jobs:
     name: affected
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       packages: ${{ steps.list.outputs.packages }}
       any: ${{ steps.list.outputs.any }}
+      # The engines sdk-config's testBrowsers narrows every browser suite to,
+      # as HM_BROWSERS: Chromium on a draft pull request, and empty, meaning
+      # every engine in CI, for anything else (ADR 0068).
+      browsers: ${{ steps.browsers.outputs.browsers }}
     steps:
       # A pull request is checked out as its merge into main, so two commits
       # are enough: the merge and main's side of it. A push fetches the
@@ -106,6 +122,30 @@ jobs:
               ;;
           esac
 
+      # Whether the pull request is a draft now, read from GitHub, not from
+      # the event: a push and "ready for review" a moment apart start two
+      # runs, and the one the other cancels may be the full one. The run that
+      # survives started after both, so the live state is the right one. A
+      # re-run reads it again too. Nothing else sets it: no input, branch
+      # name or label.
+      - id: browsers
+        name: Read whether the pull request is a draft
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          draft=$(gh api "repos/$REPOSITORY/pulls/$NUMBER" --jq .draft)
+          case "$draft" in
+            true) echo "browsers=chromium" >> "$GITHUB_OUTPUT" ;;
+            false) ;;
+            *)
+              echo "::error::Couldn't read whether pull request $NUMBER is a draft."
+              exit 1
+              ;;
+          esac
+
   # What belongs to the repository, not to one package: Biome and the
   # hidden-character check over every file, the single-copy and image checks
   # on the one lockfile, and the tests of the repository's own scripts.
@@ -133,7 +173,8 @@ jobs:
       - run: pnpm verify:repository
 
   # One job per affected package: it builds what the package depends on, then
-  # runs the package's own verify, browsers included.
+  # runs the package's own verify, browsers included: every engine, or only
+  # those HM_BROWSERS names on a draft.
   package:
     name: package (${{ matrix.package }})
     needs: [image, affected]
@@ -154,6 +195,7 @@ jobs:
       # The job runs in the browser test image, so hm-in-image runs the
       # browser tests directly (ADR 0049).
       HM_VISUAL_CONTAINER: "1"
+      HM_BROWSERS: ${{ needs.affected.outputs.browsers }}
       HUSKY: "0"
       PACKAGE: ${{ matrix.package }}
     steps:
@@ -195,9 +237,12 @@ jobs:
           include-hidden-files: true
           retention-days: 7
 
-  # The required check. It passes only when every job above passed, and the
-  # package jobs were skipped only because no package was affected. A skipped
-  # required check counts as passing, so this one always runs.
+  # The required check. It passes only when every job above passed, the
+  # package jobs were skipped only because no package was affected, and they
+  # ran every engine: a draft's Chromium-only run fails it, so it can't stand
+  # in for the full run that marking the pull request ready starts (ADR
+  # 0068). A skipped required check counts as passing, so this one always
+  # runs.
   verify:
     name: verify
     needs: [image, affected, repository, package]
@@ -212,6 +257,7 @@ jobs:
           ANY: ${{ needs.affected.outputs.any }}
           REPOSITORY: ${{ needs.repository.result }}
           PACKAGES: ${{ needs.package.result }}
+          HM_BROWSERS: ${{ needs.affected.outputs.browsers }}
         run: |
           echo "image: $IMAGE, affected: $AFFECTED (any: $ANY), repository: $REPOSITORY, packages: $PACKAGES"
           [ "$IMAGE" = "success" ] && [ "$AFFECTED" = "success" ] && [ "$REPOSITORY" = "success" ] || exit 1
@@ -219,6 +265,10 @@ jobs:
             true:success | false:skipped) ;;
             *) exit 1 ;;
           esac
+          if [ -n "$HM_BROWSERS" ]; then
+            echo "::error::A draft pull request's run tests in $HM_BROWSERS only, so it can't pass this check. Mark the pull request ready for review: that runs every engine."
+            exit 1
+          fi
 
   # The version pull request consumes changesets by design, so it's skipped.
   changeset:

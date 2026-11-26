@@ -136,10 +136,18 @@ interface EditorContext {
   readonly pendingClipFocus: RefObject<string | undefined>;
   /** The present tools, and the toolbar's groups of them. */
   readonly tools: ToolRegistry<AudioTool>;
-  /** The present tools' shortcuts, for this platform. */
+  /**
+   * The present tools' shortcuts, for this platform, and the command
+   * palette's, {@link PALETTE}, which only the editor answers.
+   */
   readonly shortcuts: ShortcutRegistry;
   /** Opens the toolbar's file chooser, when it's rendered. */
   readonly fileChooser: RefObject<((purpose: "open" | "insert") => void) | null>;
+  /**
+   * Where what the tools did goes, such as the editor's toasts, when the
+   * editor sets it; otherwise it's announced (docs/adr/0007).
+   */
+  readonly feedback: RefObject<((result: AudioToolResult) => void) | null>;
   /** The track being renamed, by key, while its dialog is open. */
   readonly renaming: string | undefined;
   readonly setRenaming: (key: string | undefined) => void;
@@ -149,6 +157,26 @@ interface EditorContext {
    */
   readonly emit: (event: AudioSessionEvent) => void;
 }
+
+/**
+ * What a tool did, in words: the toast the editor shows, or what the
+ * building blocks announce (docs/adr/0007). An edit's can offer Undo.
+ *
+ * @internal
+ */
+export interface AudioToolResult {
+  readonly message: string;
+  /** Whether it changed the plan as an edit, rather than undoing or redoing one. */
+  readonly edit: boolean;
+}
+
+/**
+ * The command palette's place in the shortcut registry: a family action,
+ * not a tool (sdk-core ADR 0067).
+ *
+ * @internal
+ */
+export const PALETTE = "audio.command-palette";
 
 const Context = /* @__PURE__ */ createContext<EditorContext | null>(null);
 
@@ -296,6 +324,7 @@ export function AudioEditorProvider(props: AudioEditorProviderProps): ReactNode 
   const pendingFocus = useRef<string | undefined>(undefined);
   const pendingClipFocus = useRef<string | undefined>(undefined);
   const fileChooser = useRef<((purpose: "open" | "insert") => void) | null>(null);
+  const feedback = useRef<((result: AudioToolResult) => void) | null>(null);
 
   // The registries, from the tools and toolbar props, as plain data.
   const platform = usePlatform();
@@ -313,7 +342,11 @@ export function AudioEditorProvider(props: AudioEditorProviderProps): ReactNode 
     [toolIds, toolbarIds],
   );
   const shortcuts = useMemo(
-    () => createShortcutRegistry({ platform, tools: tools.tools }),
+    () =>
+      createShortcutRegistry({
+        platform,
+        tools: [...tools.tools, { id: PALETTE, shortcuts: "command-palette" as const }],
+      }),
     [platform, tools],
   );
 
@@ -344,6 +377,7 @@ export function AudioEditorProvider(props: AudioEditorProviderProps): ReactNode 
       tools,
       shortcuts,
       fileChooser,
+      feedback,
       renaming,
       setRenaming,
       emit,

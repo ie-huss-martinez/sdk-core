@@ -17,3 +17,4 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0007](0007-editor-shell.md) | The editor shell: layout, the timeline, shortcuts and focus | Accepted |
 | [0008](0008-audio-editing.md) | Audio editing: clip controls in the editor, then audio tracks that stay in sync with the picture | Accepted |
 | [0009](0009-dhav-reader.md) | DAV recordings: the SDK's own DHAV reader, feeding WebCodecs as the recorder wrote | Accepted; refines [0001](0001-video-engines.md) |
+| [0010](0010-the-editor-on-ui-s-frame.md) | The editor on ui's frame: levels, the transport by mode, start cards, toasts and preferences | Accepted; refines [0007](0007-editor-shell.md) |

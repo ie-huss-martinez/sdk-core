@@ -1,6 +1,9 @@
+import { testBrowsers } from "@hussmartinez/sdk-config/testing/browsers";
 import { defineConfig, devices } from "@playwright/test";
 
 const ci = Boolean(process.env["CI"]);
+// Every engine in CI, Chromium on a draft pull request (sdk-core ADR 0068).
+const browsers = testBrowsers();
 
 /**
  * End-to-end tests against production builds of the Vite and Next.js
@@ -27,7 +30,7 @@ export default defineConfig({
       ["webkit", "Desktop Safari"],
     ] as const
   )
-    .filter(([name]) => ci || name === "chromium")
+    .filter(([name]) => browsers.includes(name))
     .map(([name, device]) => ({ name, use: { ...devices[device] } })),
   // Started with Node directly, so the suite also runs in the pinned browser
   // image, which has no pnpm.

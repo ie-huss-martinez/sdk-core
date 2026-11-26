@@ -299,6 +299,7 @@ const DIAGNOSTICS_ENV = "HM_BROWSER_DIAGNOSTICS";
  *
  * - `CI`, `DEBUG`: what CI and debugging read.
  * - `HM_BROWSER_DIAGNOSTICS`: the folder for `browserInstances`' net logs.
+ * - `HM_BROWSERS`: the engines `testBrowsers` narrows a run to.
  * - `PLAYWRIGHT_BASE_URL`, `SMOKE_BASE_URL`, `SMOKE_ENGINES`,
  *   `SMOKE_ANALYTICS`: what the family's end-to-end and smoke suites read to
  *   choose their target.
@@ -307,6 +308,7 @@ export const PASSED_ENV = Object.freeze([
   "CI",
   "DEBUG",
   DIAGNOSTICS_ENV,
+  "HM_BROWSERS",
   "PLAYWRIGHT_BASE_URL",
   "SMOKE_ANALYTICS",
   "SMOKE_BASE_URL",

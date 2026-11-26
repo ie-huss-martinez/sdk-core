@@ -3,6 +3,8 @@ import { FONT_CONFIG_FILE } from "./fonts.js";
 import {
   applyVisualVariant,
   defineVisualConfig,
+  primaryVisualVariant,
+  variantsFor,
   visualComparison,
   visualVariants,
 } from "./visual.js";
@@ -85,6 +87,17 @@ describe("visualVariants", () => {
       "dark-comfortable",
     ]);
     expect(Object.isFrozen(visualVariants)).toBe(true);
+  });
+
+  it("capture a main state in every variant, and any other in light-comfortable only", () => {
+    const full = ["empty", "open"];
+    expect(variantsFor("open", { full })).toBe(visualVariants);
+    expect(variantsFor("crop", { full })).toEqual([primaryVisualVariant]);
+    expect(primaryVisualVariant).toEqual({
+      theme: "light",
+      density: "comfortable",
+      name: "light-comfortable",
+    });
   });
 
   it("are applied as data-hm-theme and data-hm-density on the root", async () => {

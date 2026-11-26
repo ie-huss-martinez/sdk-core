@@ -20,17 +20,224 @@
     display: block;
   }
 
+  /*
+   * On ui's frame (docs/adr/0007, sdk-core ADR 0067): the frame fills the
+   * root, which fills its container. Layout that the frame needs stays with
+   * data-hm-unstyled, as the frame's own does.
+   */
   .hm-audio-editor {
     container-type: inline-size;
-  }
-
-  .hm-audio-editor:not([data-hm-unstyled]) {
     display: flex;
     flex-direction: column;
-    gap: var(--hm-gap-normal);
+    position: relative;
+    block-size: 100%;
     min-block-size: 0;
-    padding: var(--hm-gap-normal);
-    background: var(--hm-color-bg);
+  }
+
+  .hm-audio-editor-frame {
+    flex: 1 1 auto;
+    min-block-size: 0;
+  }
+
+  /* The top bar: the editor's name and the file's, which gives way first. */
+  .hm-audio-editor-title {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: baseline;
+    gap: var(--hm-gap-normal);
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .hm-audio-editor-file {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .hm-audio-editor-bar.hm-toolbar,
+  .hm-audio-editor-zoom.hm-toolbar {
+    flex-wrap: nowrap;
+  }
+
+  /* On a phone, the mode and the file's name leave the top bar; Settings keeps the mode. */
+  @container hm-editor-frame (width < 45rem) {
+    .hm-audio-editor-mode,
+    .hm-audio-editor-file {
+      display: none;
+    }
+  }
+
+  /* The foot: the transport, then the zoom at the far end; it wraps on a phone. */
+  .hm-audio-editor-bottom {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--hm-gap-tight) var(--hm-gap-normal);
+  }
+
+  /*
+   * The stage takes what the bars leave, and the timeline scrolls in it.
+   * Layout, kept with unstyled, so a host's fixed height still reaches every
+   * track.
+   */
+  .hm-audio-editor-stage {
+    flex: 1 1 auto;
+    display: grid;
+    align-content: start;
+    min-block-size: 0;
+    overflow: auto;
+  }
+
+  .hm-audio-editor-stage[data-hm-empty] {
+    align-content: stretch;
+  }
+
+  /*
+   * Easy mode's start cards, over the stage (sdk-core ADR 0067): the steps,
+   * the question, and the cards in a grid that wraps.
+   */
+  .hm-audio-start {
+    position: absolute;
+    inset: 0;
+    z-index: var(--hm-z-raised);
+    box-sizing: border-box;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: var(--hm-gap-loose);
+    overflow: auto;
+    padding: var(--hm-inset-loose);
+  }
+
+  .hm-audio-start-steps {
+    display: flex;
+    gap: var(--hm-gap-normal);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hm-audio-start-heading {
+    margin: 0;
+    text-align: center;
+  }
+
+  /* Two columns at most, so the four cards sit two by two, never three and one. */
+  .hm-audio-start-cards {
+    display: grid;
+    gap: var(--hm-gap-normal);
+    grid-template-columns: repeat(auto-fit, minmax(calc(var(--hm-space-12) * 2), 1fr));
+    inline-size: min(100%, calc(var(--hm-space-12) * 5));
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hm-audio-start-card {
+    box-sizing: border-box;
+    display: grid;
+    align-content: start;
+    justify-items: start;
+    gap: var(--hm-gap-tight);
+    inline-size: 100%;
+    block-size: 100%;
+    min-block-size: var(--hm-target-size);
+    padding: var(--hm-inset-normal);
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .hm-audio-start-card:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: var(--hm-focus-ring-offset);
+  }
+
+  .hm-audio-start-card-icon {
+    display: inline-flex;
+    inline-size: var(--hm-icon-size);
+    block-size: var(--hm-icon-size);
+  }
+
+  .hm-audio-start-card-icon > svg {
+    inline-size: inherit;
+    block-size: inherit;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-title {
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-file {
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
+    font-weight: var(--hm-font-weight-regular);
+  }
+
+  /* The bars' toolbars are rows of buttons, as the transport is. */
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-bar.hm-toolbar,
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-zoom.hm-toolbar {
+    padding: 0;
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-bottom {
+    padding: var(--hm-inset-tight) var(--hm-inset-normal);
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-start {
+    background: color-mix(in oklch, var(--hm-color-bg) 88%, transparent);
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-start-steps {
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-start-step[aria-current="step"] {
+    color: var(--hm-color-accent-text);
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-start-heading {
+    font-size: var(--hm-font-size-title);
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-start-card {
+    color: var(--hm-color-text);
+    font: inherit;
+    background: var(--hm-color-surface-raised);
+    border: var(--hm-border-width) solid var(--hm-color-border);
+    border-radius: var(--hm-radius-surface);
+    box-shadow: var(--hm-shadow-raised);
+    transition-duration: var(--hm-motion-duration-feedback);
+    transition-property: border-color;
+    transition-timing-function: var(--hm-motion-easing-spring);
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-start-card-title {
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-start-card-description {
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
+  }
+
+  @media (hover: hover) {
+    .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-start-card:hover {
+      border-color: var(--hm-color-accent);
+    }
+  }
+
+  /* The notices, over the stage's top. */
+  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-notices {
+    padding: var(--hm-inset-tight) var(--hm-inset-normal) 0;
   }
 
   .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-notices ul {
@@ -55,32 +262,6 @@
 
   .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-notices p {
     margin: 0;
-  }
-
-  /*
-   * The stage and transport, then the inspector: side by side where the
-   * editor leaves the timeline its full layout, 720px, beside the
-   * inspector, and the inspector below them otherwise.
-   */
-  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-main {
-    flex: 1 1 auto;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--hm-gap-normal);
-    min-block-size: 0;
-  }
-
-  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-work {
-    display: flex;
-    flex-direction: column;
-    gap: var(--hm-gap-normal);
-    min-block-size: 0;
-  }
-
-  @container (inline-size >= 1080px) {
-    .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-main {
-      grid-template-columns: minmax(0, 1fr) calc(var(--hm-space-12) * 3);
-    }
   }
 
   .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-inspector {
@@ -115,15 +296,8 @@
   }
 
   .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-stage {
-    flex: 1 1 auto;
-    display: grid;
     gap: var(--hm-gap-normal);
-    align-content: start;
-    min-block-size: 0;
-  }
-
-  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-stage[data-hm-empty] {
-    align-content: stretch;
+    padding: var(--hm-inset-normal);
   }
 
   .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-progress {

@@ -1,12 +1,13 @@
-import { applyVisualVariant, visualVariants } from "@hussmartinez/sdk-config/testing/visual";
+import { applyVisualVariant, variantsFor } from "@hussmartinez/sdk-config/testing/visual";
 import { expect, type Page, test } from "@playwright/test";
 import { pagesPdf, reportPdf } from "../../test/fixtures/pdfs.js";
 import { expectAnnounced } from "../tests/helpers.js";
 
 /**
- * The editor's designed states, as screenshots (sdk-core ADR 0048). Each is
- * captured in light and dark, compact and comfortable, on the built Vite
- * example as a host renders it, with its assets inlined.
+ * The editor's designed states, as screenshots (sdk-core ADR 0048), on the
+ * built Vite example as a host renders it, with its assets inlined. The main
+ * states, in FULL, are captured in light and dark, compact and comfortable;
+ * the rest in light-comfortable only (sdk-core ADR 0068).
  *
  * | State | What it shows |
  * |---|---|
@@ -321,13 +322,23 @@ const PATHS: Readonly<Partial<Record<string, string>>> = {
   "save-failed": "/?save=fail&mode=expert",
 };
 
+/** The states captured in every theme and density: the frame's main states (sdk-core ADR 0068). */
+const FULL: readonly string[] = [
+  "empty",
+  "open",
+  "settings",
+  "phone",
+  "advanced-open",
+  "easy-start",
+];
+
 for (const [path, states] of [
   ["/?mode=expert", STATES],
   ["/", ADVANCED],
   ["/?mode=easy", EASY],
 ] as const) {
   for (const [state, reach] of Object.entries(states)) {
-    for (const variant of visualVariants) {
+    for (const variant of variantsFor(state, { full: FULL })) {
       test(`${state}, ${variant.name}`, async ({ page }) => {
         // No request may leave the page's origin (sdk-core ADR 0012).
         const foreign: string[] = [];

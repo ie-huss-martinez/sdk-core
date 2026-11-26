@@ -9,7 +9,7 @@ import { userEvent } from "vitest/browser";
 import landscapeVp8 from "../../test/fixtures/video/landscape-vp8.webm?url";
 import { VideoEditor, type VideoEditorHandle, type VideoEditorProps } from "./VideoEditor.js";
 
-// The editor's tools (docs/adr/0007, sdk-core ADR 0030): the toolbar, the
+// The editor's tools (docs/adr/0007 and 0010, sdk-core ADR 0030): the tools panel and bars, the
 // shortcuts on the editor's root, focus after edits, and one Messages object
 // for the SDK's text and ui's (sdk-core ADR 0046). The fixture is 60 frames
 // at 30 per second.
@@ -41,8 +41,9 @@ const fixture = async () => {
 
 function render(props: VideoEditorProps, handle?: React.Ref<VideoEditorHandle>): HTMLElement {
   container = document.createElement("div");
-  container.style.inlineSize = "640px";
-  container.style.blockSize = "520px";
+  // Wide enough for the frame's tools panel (docs/adr/0010).
+  container.style.inlineSize = "1000px";
+  container.style.blockSize = "640px";
   document.body.append(container);
   act(() => {
     root = createRoot(container as HTMLElement);
@@ -67,8 +68,10 @@ async function editorWith(count: number, props: VideoEditorProps = {}) {
 
 const clipsIn = (view: HTMLElement) => [...view.querySelectorAll<HTMLElement>('[role="option"]')];
 const names = (view: HTMLElement) => clipsIn(view).map((clip) => clip.getAttribute("aria-label"));
+// A bar's button carries data-tool, and a tools panel's row data-hm-tool-id (docs/adr/0010).
+const TOOLS = "[data-tool], [data-hm-tool-id]";
 const tool = (view: HTMLElement, id: string) =>
-  view.querySelector(`[data-hm-tool="${id}"]`) as HTMLButtonElement | null;
+  view.querySelector(`[data-tool="${id}"], [data-hm-tool-id="${id}"]`) as HTMLButtonElement | null;
 const announced = (view: HTMLElement) =>
   [...view.querySelectorAll(".hm-announcer [aria-live]")]
     .map((region) => region.textContent)
@@ -89,21 +92,25 @@ function HostDialog({ file }: { readonly file: File }) {
 }
 
 describe("the editor's tools", () => {
-  it("shows the toolbar's groups, with each tool's keys, and no violations", async () => {
+  it("shows the tools panel's groups and the bars' tools, with each tool's keys, and no violations", async () => {
     const { view } = await editorWith(1);
-    const toolbar = view.querySelector('[role="toolbar"]') as HTMLElement;
-    expect(toolbar.getAttribute("aria-label")).toBe("Editing tools");
+    const panel = view.querySelector(".hm-video-editor-toolbar") as HTMLElement;
+    expect(panel.getAttribute("aria-label")).toBe("Editing tools");
+    // In Advanced mode, the embedded default: the editing tools and adding videos.
     expect(
-      [...toolbar.querySelectorAll('[role="group"]')].map((g) => g.getAttribute("aria-label")),
-    ).toEqual(["File", "History", "Edit", "View"]);
+      [...panel.querySelectorAll('[role="group"]')].map((g) => g.getAttribute("aria-label")),
+    ).toEqual(["Edit", "Add"]);
     const undo = tool(view, "video.undo") as HTMLButtonElement;
+    expect(undo.closest(".hm-video-editor-bar")).not.toBeNull();
     expect(undo.getAttribute("aria-keyshortcuts")).toBe(mod === "Meta" ? "Meta+Z" : "Control+Z");
-    expect(undo.title).toBe(mod === "Meta" ? "Undo (⌘Z)" : "Undo (Ctrl+Z)");
-    // Nothing to redo: it stays in the toolbar's keyboard order, marked disabled.
+    // Nothing to redo: it stays in the keyboard order, marked disabled.
     const redo = tool(view, "video.redo") as HTMLButtonElement;
     expect(redo.getAttribute("aria-disabled")).toBe("true");
     expect(redo.disabled).toBe(false);
-    expect(tool(view, "video.split")?.title).toBe("Split at the playhead (S)");
+    expect(tool(view, "video.split")?.getAttribute("aria-keyshortcuts")).toBe("S");
+    // The zoom is with the timeline, and playback's tools in the transport.
+    expect(tool(view, "video.zoom-in")?.closest(".hm-video-editor-bottom")).not.toBeNull();
+    expect(tool(view, "video.play-pause")).toBeNull();
     expect(
       (view.querySelector('button[aria-label="Next frame"]') as HTMLElement).getAttribute(
         "aria-keyshortcuts",
@@ -211,7 +218,9 @@ describe("the editor's tools", () => {
   it("has only the tools a host chooses, with their keys and nothing else's", async () => {
     const { view, handle } = await editorWith(1, { tools: ["video.undo", "video.redo"] });
     expect(
-      [...view.querySelectorAll("[data-hm-tool]")].map((each) => each.getAttribute("data-hm-tool")),
+      [...view.querySelectorAll(TOOLS)].map(
+        (each) => each.getAttribute("data-tool") ?? each.getAttribute("data-hm-tool-id"),
+      ),
     ).toEqual(["video.undo", "video.redo"]);
     act(() => handle.seek(30));
     clipsIn(view)[0]?.focus();

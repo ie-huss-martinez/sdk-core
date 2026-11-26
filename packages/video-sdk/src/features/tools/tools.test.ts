@@ -9,9 +9,12 @@ import {
   type VideoPlan,
 } from "../../core/model/plan.js";
 import type { VideoCommand } from "../../core/operations/commands.js";
+import { videoEditorText } from "../../messages/editor-en.js";
 import {
+  BAR_TOOLS,
   clipToSplit,
   defaultVideoToolbar,
+  TRANSPORT_TOOLS,
   type VideoToolContext,
   type VideoToolState,
   videoTools,
@@ -168,5 +171,51 @@ describe("the video editor's tools", () => {
     const empty = state({ plan: { ...plan, clips: [] } });
     expect(tool("video.zoom-in").isEnabled?.(empty)).toBe(false);
     expect(tool("video.play-pause").isEnabled?.(empty)).toBe(false);
+  });
+});
+
+describe("the tools' levels and groups (docs/adr/0010, sdk-core ADR 0067)", () => {
+  const text: Readonly<Record<string, unknown>> = videoEditorText;
+
+  it("gives each tool the spec's level and a description, and the bars' tools neither", () => {
+    const levels = Object.fromEntries(
+      videoTools.filter((tool) => !BAR_TOOLS.has(tool.id)).map((tool) => [tool.id, tool.level]),
+    );
+    expect(levels).toEqual({
+      "video.insert": "easy",
+      "video.split": "easy",
+      "video.delete": "easy",
+      "video.play-pause": "easy",
+      "video.mute": "advanced",
+      "video.previous-frame": "advanced",
+      "video.next-frame": "advanced",
+      "video.start": "expert",
+      "video.end": "expert",
+    });
+    for (const tool of videoTools) {
+      if (BAR_TOOLS.has(tool.id)) {
+        expect(tool.level, tool.id).toBeUndefined();
+        expect(tool.description, tool.id).toBeUndefined();
+      } else {
+        expect(text[tool.description ?? ""], tool.id).toEqual(expect.any(String));
+      }
+    }
+  });
+
+  it("puts every tool but playback's in one default group, named after its first tool's group", () => {
+    const listed = defaultVideoToolbar.flat();
+    expect([...listed, ...TRANSPORT_TOOLS].sort()).toEqual(
+      videoTools.map((tool) => tool.id).sort(),
+    );
+    const byId = new Map(videoTools.map((tool) => [tool.id, tool]));
+    const names = defaultVideoToolbar
+      .filter((group) => !group.every((id) => BAR_TOOLS.has(id)))
+      .map((group) => text[`toolbar.${byId.get(group[0] ?? "")?.group}`]);
+    expect(names).toEqual(["Edit", "Add"]);
+    // The bars' tools sit in groups of their own, so no panel group holds one.
+    for (const group of defaultVideoToolbar) {
+      const inBar = group.filter((id) => BAR_TOOLS.has(id));
+      expect(inBar.length === 0 || inBar.length === group.length, group.join(" ")).toBe(true);
+    }
   });
 });

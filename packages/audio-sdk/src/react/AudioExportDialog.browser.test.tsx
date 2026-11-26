@@ -1,8 +1,7 @@
-import axe from "axe-core";
 import { createRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
-import { editor, recording, step } from "../../test/editor.js";
+import { editor, recording, step, violations } from "../../test/editor.js";
 import { wavFile } from "../../test/fixtures/pcm-files.js";
 import { cleanUp, mount, waitFor } from "../../test/react.js";
 import { sessionEvents } from "../../test/session-events.js";
@@ -48,15 +47,7 @@ describe("the export dialog", () => {
     expect(
       [...dialog().querySelectorAll('[role="radio"]')].map((each) => each.textContent),
     ).toEqual(["16-bit, 32 kB", "24-bit, 48.1 kB", "32-bit float, 64.1 kB"]);
-    // ui's dialog fades in: measure contrast once it's fully shown.
-    await step(() =>
-      Promise.all(
-        dialog()
-          .getAnimations({ subtree: true })
-          .map((each) => each.finished),
-      ),
-    );
-    expect((await axe.run(container)).violations.map((each) => each.id)).toEqual([]);
+    expect(await violations(container)).toEqual([]);
   });
 
   it("exports, then focuses Download, which saves the file under its cleaned name", async () => {
@@ -149,11 +140,11 @@ describe("the export dialog", () => {
         onEvent={events.onEvent}
         onExport={(blob, result) => exported.push([blob, result])}
       />,
-      "width: 900px; height: 600px; display: grid; grid-template-rows: minmax(0, 1fr);",
+      "width: 1100px; height: 600px; display: grid; grid-template-rows: minmax(0, 1fr);",
     );
     await opened();
     await step(() => new Promise((resolve) => requestAnimationFrame(resolve)));
-    const exportTool = container.querySelector<HTMLButtonElement>('[data-hm-tool="audio.export"]');
+    const exportTool = container.querySelector<HTMLButtonElement>('[data-tool="audio.export"]');
     await step(() => userEvent.click(exportTool as HTMLButtonElement));
     await waitFor(() => expect(inDialog("Export")).toBeDefined());
     const done = events.nextExport();

@@ -286,7 +286,21 @@ describe("the timeline", () => {
     const sounding = inkRows();
     // Muted, it's drawn as silence: the centre line only.
     await userEvent.click(clipsIn(view)[0] as HTMLElement);
-    await userEvent.click(button(view, "Mute the selected clips"));
+    // At 640 px the frame's tab bar holds the tools (docs/adr/0010): mute is
+    // in the "Edit" group's sheet.
+    await userEvent.click(
+      [...view.querySelectorAll<HTMLButtonElement>(".hm-tab-bar button")].find(
+        (tab) => tab.textContent === "Edit",
+      ) as HTMLButtonElement,
+    );
+    const mute = await eventually(() => {
+      const row = view.querySelector<HTMLButtonElement>(
+        'dialog[open] [data-hm-tool-id="video.mute"]',
+      );
+      expect(row).not.toBeNull();
+      return row as HTMLButtonElement;
+    });
+    await userEvent.click(mute);
     await eventually(() => expect(names(view)[0]).toMatch(/, muted$/));
     await eventually(() => expect(inkRows()).toBeLessThanOrEqual(2));
     expect(inkRows()).toBeLessThan(sounding);

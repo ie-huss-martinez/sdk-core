@@ -30,6 +30,8 @@ export interface AudioTools {
   ariaKeyShortcuts(id: string): string | undefined;
   /** A tool's label with its first shortcut, such as "Undo (Ctrl+Z)", for its tooltip. */
   labelWithKeys(id: string): string;
+  /** A tool's first shortcut as text, such as "Ctrl+Z" or "⌘Z", if it has one. */
+  keysText(id: string): string | undefined;
 }
 
 /**
@@ -81,19 +83,23 @@ export function useAudioTools(): AudioTools {
     const say = (message: AudioToolAnnouncement) => {
       const index = message.track && plan ? plan.tracks.indexOf(message.track) : 0;
       const rate = plan?.sampleRate ?? 1;
-      announce(
-        // Each message uses the parameters it names, and ignores the rest.
-        messages.t(
-          message.key as "announce.trimmed",
-          {
-            track: message.track ? trackName(messages, message.track, index) : "",
-            time: message.frame === undefined ? "" : formatTimecode(message.frame, rate),
-            end: message.end === undefined ? "" : formatTimecode(message.end, rate),
-            tracks: message.tracks ? tracksText(messages, plan, message.tracks) : "",
-            gain: message.gain ?? 0,
-          } as { time: string; end: string; tracks: string; gain: number },
-        ),
+      // Each message uses the parameters it names, and ignores the rest.
+      const text = messages.t(
+        message.key as "announce.trimmed",
+        {
+          track: message.track ? trackName(messages, message.track, index) : "",
+          time: message.frame === undefined ? "" : formatTimecode(message.frame, rate),
+          end: message.end === undefined ? "" : formatTimecode(message.end, rate),
+          tracks: message.tracks ? tracksText(messages, plan, message.tracks) : "",
+          gain: message.gain ?? 0,
+        } as { time: string; end: string; tracks: string; gain: number },
       );
+      // An edit changed the plan the tool ran on; undo and redo step through it.
+      const history = message.key === "announce.undone" || message.key === "announce.redone";
+      const edit = !history && session.getSnapshot().plan !== plan;
+      const report = editor.feedback.current;
+      if (report) report({ message: text, edit });
+      else announce(text);
     };
     return {
       state,
@@ -167,6 +173,10 @@ export function useAudioTools(): AudioTools {
         const label = tool ? messages.t(tool.label as "tools.undo") : id;
         const [first] = shortcuts.describe(id);
         return first ? messages.t("toolbar.withKeys", { label, keys: describe(first) }) : label;
+      },
+      keysText: (id: string) => {
+        const [first] = shortcuts.describe(id);
+        return first ? describe(first) : undefined;
       },
     }),
     [flags, run, context, shortcuts, tools, messages, describe],

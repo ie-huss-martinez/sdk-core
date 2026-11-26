@@ -40,9 +40,11 @@ export const audioTools: readonly AudioTool[] = /* @__PURE__ */ [
   }),
   /* @__PURE__ */ defineTool({
     id: "audio.insert",
+    level: "advanced",
+    description: "tools.insert.description",
     label: "tools.insert",
     icon: "upload",
-    group: "file",
+    group: "tracks",
     isEnabled: editable,
     run: (context: AudioToolContext) => context.chooseFile("insert"),
   }),
@@ -81,6 +83,8 @@ export const audioTools: readonly AudioTool[] = /* @__PURE__ */ [
   }),
   /* @__PURE__ */ defineTool({
     id: "audio.add-track",
+    level: "advanced",
+    description: "tools.addTrack.description",
     label: "tools.addTrack",
     icon: "add",
     group: "tracks",
@@ -96,6 +100,8 @@ export const audioTools: readonly AudioTool[] = /* @__PURE__ */ [
   }),
   /* @__PURE__ */ defineTool({
     id: "audio.remove-track",
+    level: "advanced",
+    description: "tools.removeTrack.description",
     label: "tools.removeTrack",
     icon: "remove",
     group: "tracks",
@@ -115,6 +121,8 @@ export const audioTools: readonly AudioTool[] = /* @__PURE__ */ [
   }),
   /* @__PURE__ */ defineTool({
     id: "audio.move-track-up",
+    level: "expert",
+    description: "tools.moveTrackUp.description",
     label: "tools.moveTrackUp",
     icon: "move-up",
     group: "tracks",
@@ -130,6 +138,8 @@ export const audioTools: readonly AudioTool[] = /* @__PURE__ */ [
   }),
   /* @__PURE__ */ defineTool({
     id: "audio.move-track-down",
+    level: "expert",
+    description: "tools.moveTrackDown.description",
     label: "tools.moveTrackDown",
     icon: "move-down",
     group: "tracks",
@@ -148,6 +158,8 @@ export const audioTools: readonly AudioTool[] = /* @__PURE__ */ [
   }),
   /* @__PURE__ */ defineTool({
     id: "audio.mute",
+    level: "advanced",
+    description: "tools.mute.description",
     label: "tools.mute",
     icon: "muted",
     group: "tracks",
@@ -191,9 +203,11 @@ export const audioTools: readonly AudioTool[] = /* @__PURE__ */ [
     run: (context: AudioToolContext) => context.setZoom(1),
   }),
 ].concat(clipTools, fadeTools, rangeTools, [
-  // The transport's, with keys: not in the toolbar.
+  // The transport's, with keys: not in the tools panel.
   /* @__PURE__ */ defineTool({
     id: "audio.play-pause",
+    level: "easy",
+    description: "tools.playPause.description",
     label: "tools.playPause",
     icon: "play",
     group: "playback",
@@ -203,6 +217,8 @@ export const audioTools: readonly AudioTool[] = /* @__PURE__ */ [
   }),
   /* @__PURE__ */ defineTool({
     id: "audio.start",
+    level: "expert",
+    description: "tools.start.description",
     label: "tools.start",
     icon: "skip-back",
     group: "playback",
@@ -212,6 +228,8 @@ export const audioTools: readonly AudioTool[] = /* @__PURE__ */ [
   }),
   /* @__PURE__ */ defineTool({
     id: "audio.end",
+    level: "expert",
+    description: "tools.end.description",
     label: "tools.end",
     icon: "skip-forward",
     group: "playback",
@@ -222,27 +240,58 @@ export const audioTools: readonly AudioTool[] = /* @__PURE__ */ [
 ]);
 
 /**
- * The toolbar's groups by default, by tool id: files, history, tracks,
- * clips, the selection and zoom. The transport has playback, and track headers have Mute.
+ * The tools' default groups (docs/adr/0007): the tools panel's first, each
+ * named after its first tool's group, then the bar's. Playback's tools
+ * aren't in a group: the transport is their place, by mode, and their keys
+ * work everywhere in the editor.
  *
  * @internal
  */
 export const defaultAudioToolbar: readonly (readonly string[])[] = [
-  ["audio.open", "audio.insert", "audio.export"],
-  ["audio.undo", "audio.redo"],
-  ["audio.add-track", "audio.remove-track", "audio.move-track-up", "audio.move-track-down"],
+  ["audio.trim-start", "audio.trim-end", "audio.split", "audio.delete"],
+  ["audio.fade-in", "audio.fade-out"],
   [
-    "audio.split",
-    "audio.delete",
-    "audio.trim-start",
-    "audio.trim-end",
-    "audio.fade-in",
-    "audio.fade-out",
     "audio.move-earlier",
     "audio.move-later",
     "audio.move-to-track-above",
     "audio.move-to-track-below",
   ],
   ["audio.set-start", "audio.set-end", "audio.clear-selection", "audio.ripple"],
+  [
+    "audio.insert",
+    "audio.add-track",
+    "audio.remove-track",
+    "audio.mute",
+    "audio.move-track-up",
+    "audio.move-track-down",
+  ],
+  ["audio.open"],
+  ["audio.undo", "audio.redo"],
+  ["audio.export"],
   ["audio.zoom-out", "audio.zoom-in", "audio.zoom-fit"],
 ];
+
+/**
+ * Tools the frame's bars hold, never the tools panel: they have no level
+ * (sdk-core ADR 0067). Open, Undo, Redo and Export are in the top bar,
+ * Export as its primary button, and the zoom with the transport.
+ *
+ * @internal
+ */
+export const BAR_TOOLS: ReadonlySet<string> = /* @__PURE__ */ new Set([
+  "audio.open",
+  "audio.undo",
+  "audio.redo",
+  "audio.export",
+  "audio.zoom-out",
+  "audio.zoom-in",
+  "audio.zoom-fit",
+]);
+
+/**
+ * Playback's tools, which the transport holds rather than the tools panel
+ * (docs/adr/0007). Their levels decide which of them it shows in a mode.
+ *
+ * @internal
+ */
+export const TRANSPORT_TOOLS: readonly string[] = ["audio.start", "audio.play-pause", "audio.end"];
