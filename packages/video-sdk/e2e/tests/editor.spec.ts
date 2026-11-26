@@ -40,15 +40,15 @@ function watch(page: Page, origin: string): Problems {
   return problems;
 }
 
-/** Waits for animations to settle, so axe checks colours as they end, not mid-fade. */
+/**
+ * Waits until no animation is running, so axe checks colours as they end,
+ * not mid-fade, as pdf-sdk's helper does. Not for every animation to
+ * finish: in WebKit one never did, and the wait ran until the test's
+ * timeout closed the page. A paused animation changes no colour.
+ */
 async function noViolations(page: Page): Promise<void> {
-  await page.evaluate(() =>
-    Promise.all(
-      document
-        .getAnimations()
-        .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
-        .map((animation) => animation.finished.catch(() => undefined)),
-    ),
+  await page.waitForFunction(() =>
+    document.getAnimations().every((animation) => animation.playState !== "running"),
   );
   const results = await new AxeBuilder({ page }).include(".hm-video-editor").analyze();
   const found = results.violations.map(

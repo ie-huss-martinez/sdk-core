@@ -1,6 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "../fixtures.js";
-import { FIRST_OPEN, openByKeyboard, watch } from "./helpers.js";
+import { expectAnnounced, FIRST_OPEN, openByKeyboard, violations, watch } from "./helpers.js";
 
 const url = "http://localhost:4311/";
 const origin = new URL(url).origin;
@@ -49,7 +48,7 @@ test.describe("Next.js App Router", () => {
 
     // A shortcut mutes the current track, and says so.
     await page.keyboard.press("m");
-    await expect(page.locator(".hm-announcer [aria-live=polite]")).toHaveText("Track 1 muted.");
+    await expectAnnounced(page, "Track 1 muted.");
     await expect(page.getByRole("group", { name: "Track 1, muted" })).toBeAttached();
     await expect(playhead).toBeFocused();
 
@@ -61,14 +60,13 @@ test.describe("Next.js App Router", () => {
   test("passes axe with no recording, and with one open", async ({ page }) => {
     await page.goto(url);
     await expect(page.locator("[data-hydrated]")).toBeAttached();
-    const empty = await new AxeBuilder({ page }).include(".hm-audio-editor").analyze();
-    expect(empty.violations).toEqual([]);
+    // Once transitions end, such as a toast's fade in (helpers.ts).
+    expect(await violations(page)).toEqual([]);
 
     await openByKeyboard(page, 1);
     await expect(page.getByRole("slider", { name: "Playhead" })).toBeFocused({
       timeout: FIRST_OPEN,
     });
-    const ready = await new AxeBuilder({ page }).include(".hm-audio-editor").analyze();
-    expect(ready.violations).toEqual([]);
+    expect(await violations(page)).toEqual([]);
   });
 });

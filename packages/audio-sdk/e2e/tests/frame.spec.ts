@@ -1,27 +1,7 @@
-import AxeBuilder from "@axe-core/playwright";
-import type { Page } from "@playwright/test";
 import { expect, test } from "../fixtures.js";
-import { FIRST_OPEN, openByKeyboard, watch } from "./helpers.js";
+import { FIRST_OPEN, openByKeyboard, violations, watch } from "./helpers.js";
 
 const origin = "http://localhost:4310";
-
-/**
- * axe's findings in the editor, dialogs and toasts included: they're inside
- * its root. Taken once every transition has ended, such as a sheet's fade
- * in, so axe reads the colours that stay, not a frame of the way there.
- */
-async function violations(page: Page) {
-  await page.waitForFunction(() =>
-    document.getAnimations().every((animation) => animation.playState !== "running"),
-  );
-  const result = await new AxeBuilder({ page }).include(".hm-audio-editor").analyze();
-  return result.violations.map(
-    (violation) =>
-      `${violation.id}: ${violation.help} (${violation.nodes
-        .map((node) => `${node.target.join(" ")}: ${node.failureSummary ?? ""}`)
-        .join("; ")})`,
-  );
-}
 
 /**
  * The editor on ui's frame in the built Vite example (docs/adr/0007,
