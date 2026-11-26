@@ -27,6 +27,7 @@ Three things constrain both:
 - **Text too long for its line wraps inside the tag.** A tag can't be focused or hovered for a tooltip, so text cut with an ellipsis would be lost to everyone.
 - **There's no `Badge`.** A badge is a count or a dot attached to something else, such as unread messages on a button. It needs a name that includes what it counts, changes while the page is open, and may need announcing. Nothing in the family needs one yet, and a second component for "a small coloured label" would leave callers guessing which to use. When a count is needed, it gets its own record.
 - **`TagList` is the list.** It renders `<ul role="list">`, and a `Tag` inside it renders as the `<li>`, through context, so the markup is valid without the caller writing list items, and a screen reader says how many tags there are. The role is written out because Safari treats a list without markers as no list, and VoiceOver then says nothing of it. It wraps, takes `className`, and has no `unstyled`, because it only lays out.
+- **`as="li"` is for where context doesn't reach.** An `.astro` file renders each React component on its own and hands a parent its children as markup, so a `Tag` written inside a `TagList` there never sees the list, and would be a `<span>` in a `<ul>`. `as` takes `span` or `li` and wins over the context. It also serves a tag in the caller's own `<ul>`.
 - **Removable and pressable tags are out.** A tag that does something is a button or a toggle, with a name, a target size and a focus ring. Filter chips will be `ToggleButton`s in a group, in their own pull request.
 
 ### `ButtonLink`: a component of its own
@@ -34,8 +35,9 @@ Three things constrain both:
 - **A native `<a href>` with the button's classes,** plus `hm-button-link`. `variant`, `size`, `startIcon`, `endIcon`, `classNames` and `unstyled` are `Button`'s; every other prop is the anchor's own.
 - **A link stays a link.** No `role="button"`, and no Space handler: Enter follows it, Space scrolls the page, and the browser's own link behaviour stays, such as the address on hover, opening in a new tab from the context menu or with a modifier, and copying the address. A screen reader says "link", so the user knows that it navigates.
 - **It has no `disabled` and no `pressed`.** HTML has no disabled link, and a link has no pressed state. Where navigation isn't available, don't render the link.
-- **`target="_blank"` is made safe and said.** `rel` defaults to `noopener noreferrer`, as [`STANDARDS.md`](../../../../STANDARDS.md) asks of links; a `rel` the caller passes wins. The link's accessible name gains "(opens in a new tab)", in text hidden on screen, so the change of context isn't a surprise (WCAG technique G201). The text is `newTabHint`, falling back to `buttonLink.newTab` in `uiMessages`; `""` leaves it out, for a link whose own text says it. The visible sign is the caller's icon, such as `ExternalLinkIcon` as `endIcon`: icon slots are hidden from assistive technology, so the icon alone would tell a screen reader nothing.
+- **`target="_blank"` is made safe and said.** `rel` defaults to `noopener noreferrer`, as [`STANDARDS.md`](../../../../STANDARDS.md) asks of links; a `rel` the caller passes wins. The link's accessible name gains "(opens in a new tab)", in text hidden on screen, so the change of context isn't a surprise (WCAG technique G201). The text is `newTabHint`, falling back to `buttonLink.newTab` in `uiMessages`; `""` leaves it out, for a link whose own text says it. A name the caller gives with `aria-label` or `aria-labelledby` replaces the link's text, so the hint joins that name instead: an icon-only link to another site says it too. The keyword is matched in any case, as HTML matches it. The visible sign is the caller's icon, such as `ExternalLinkIcon` as `endIcon`: icon slots are hidden from assistive technology, so the icon alone would tell a screen reader nothing.
 - **A `javascript:` URL is refused.** A link's address often comes from data, such as a profile's website, and React 18 renders such a URL as it is. `ButtonLink` renders the link without an `href`, so it does nothing and leaves the Tab order, and warns in development. The check is React 19's own pattern.
+- **It's a refusal of one scheme, not an allowlist.** `STANDARDS.md` allowlists the protocols of links that come out of files, where an SDK's parser decides what a document may link to. A design system's link can't know its host's schemes: `mailto:`, `tel:`, an application's own, or the `blob:` address of a download. So `ButtonLink` refuses the one scheme that runs script in the page, and a host that takes addresses from users checks them where they enter.
 - **The new-tab text is a part of the catalogue of its own,** `src/messages/link.ts`, read through a hook that names its part. A link ships that one string, not the other components' text, and no other component ships it.
 
 ### Static pages
@@ -51,15 +53,16 @@ A site's unlayered CSS still wins. **A bare `a { color: … }` or `a { text-deco
 - **Documenting `class="hm-button"` on an `<a>` and nothing else:** no code at all, and it stays possible. It leaves the new-tab `rel`, the hint and the underline to every caller.
 - **A `Link` component for text links too:** a different component, with its own questions about visited colours and underlines. Not needed by either site yet.
 - **`Tag` and `Badge` as two components now:** see above; nothing needs the second.
-- **An `as="li"` prop on `Tag`:** explicit, and it lets a `<span>` into a `<ul>` when it's forgotten. With the list as a component, the valid markup is the only one it writes.
+- **Only an `as="li"` prop on `Tag`, and no context:** one mechanism, and it lets a `<span>` into a `<ul>` whenever it's forgotten. With the context, a list in a React tree is valid without it; `as` is left for the places context can't reach.
+- **An allowlist of link protocols in `ButtonLink`:** see above. It would refuse legitimate links until every host extended it.
 - **Cutting long tags with an ellipsis:** tidier, and it hides text nobody can then read.
 - **A `size` for `Tag`:** nothing needs two. `--hm-tag-padding-y`, `--hm-tag-padding-x` and `--hm-tag-font-size` change it per page or per subtree.
 
 ## Consequences
 
 - Pages get chips and button-like links from `ui`, with the accessibility decisions made once: what a tag is to a screen reader, what a link says when it opens a tab, and what happens to a hostile address.
-- **Three exports and 18 component tokens,** `--hm-tag-*`. `Tag` costs an application 0.46 kB, `Tag` with `TagList` 0.52 kB and `ButtonLink` 0.82 kB, minified and compressed. `Button`'s floor doesn't move.
+- **Three exports and 18 component tokens,** `--hm-tag-*`. `Tag` costs an application 0.47 kB, `Tag` with `TagList` 0.53 kB and `ButtonLink` 0.90 kB, minified and compressed. `Button`'s floor doesn't move.
 - **`uiMessages` gains `buttonLink.newTab`.** It's additive for callers who spread `uiMessages` into their catalogue; a hand-written object of that type must add the key.
 - **`ButtonLink` shares `Button`'s CSS,** so a change to a button's look reaches links too, and the browser test that compares the two per variant fails if they drift.
-- **The API has two ways to write a tag in a list:** `TagList`, or the caller's own `<li>` around a `Tag`. Both are valid; a `Tag` inside a `TagList` must be its direct item.
+- **A tag becomes a list item in two ways:** inside a `TagList` in a React tree, or with `as="li"`. A `Tag` inside a `TagList` must be its direct item, and in an `.astro` file the list is only valid with `as`, which nothing checks.
 - **Follow-up work,** each in its own pull request: tabs, a search field, and filter chips as a group of `ToggleButton`s.

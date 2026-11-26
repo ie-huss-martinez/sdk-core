@@ -87,6 +87,39 @@ describe("ButtonLink that opens a new tab", () => {
     );
   });
 
+  it("knows the keyword in any case, as HTML does", () => {
+    const html = renderToString(
+      <ButtonLink href="https://example.com" target="_BLANK">
+        Example
+      </ButtonLink>,
+    );
+    expect(html).toContain('rel="noopener noreferrer"');
+    expect(html).toContain("> (opens in a new tab)</span>");
+  });
+
+  it("adds the hint to a name the caller gives, which replaces the link's text", () => {
+    const labelled = renderToString(
+      <ButtonLink
+        href="https://example.com"
+        target="_blank"
+        aria-label="Example"
+        startIcon={<svg />}
+      />,
+    );
+    expect(labelled).toContain('aria-label="Example (opens in a new tab)"');
+    const labelledBy = renderToString(
+      <ButtonLink href="https://example.com" target="_blank" aria-labelledby="site" />,
+    );
+    const [, hintId] = /aria-labelledby="site ([^"]+)"/.exec(labelledBy) ?? [];
+    expect(hintId).toBeTruthy();
+    expect(labelledBy).toContain(`<span id="${hintId}" class="hm-visually-hidden">`);
+    // Not when the caller says the name already tells it.
+    const plain = renderToString(
+      <ButtonLink href="https://example.com" target="_blank" aria-label="Example" newTabHint="" />,
+    );
+    expect(plain).toContain('aria-label="Example"');
+  });
+
   it("keeps a rel the host chose", () => {
     const html = renderToString(
       <ButtonLink href="https://example.com" target="_blank" rel="noopener me">

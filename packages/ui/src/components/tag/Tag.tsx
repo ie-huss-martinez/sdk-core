@@ -29,6 +29,13 @@ export interface TagProps
   readonly tone?: TagTone | undefined;
   /** An icon before the text. It's decorative, and draws with `currentColor`. */
   readonly icon?: ReactNode;
+  /**
+   * The element to render. By default a tag is the `li` of the
+   * {@link TagList} it's directly inside, and a `span` anywhere else. Set
+   * `li` where the tag can't know its list: in your own `<ul>`, or where a
+   * framework renders each component on its own, as an `.astro` file does.
+   */
+  readonly as?: "span" | "li" | undefined;
 }
 
 /** Whether a tag is a direct item of a {@link TagList}, and so its `<li>`. */
@@ -37,7 +44,8 @@ const TagListContext = /* @__PURE__ */ createContext(false);
 /**
  * A short, static label, such as a category, a technology or a state. It's
  * text, not a control: it takes no focus and does nothing when pressed. A
- * `<span>` on its own, and an `<li>` inside a {@link TagList}.
+ * `<span>` on its own, and an `<li>` inside a {@link TagList} or with
+ * `as="li"`.
  *
  * @example
  * ```tsx
@@ -47,10 +55,11 @@ const TagListContext = /* @__PURE__ */ createContext(false);
  * @public
  */
 export const Tag = /* @__PURE__ */ forwardRef<HTMLElement, TagProps>(function Tag(
-  { tone = "neutral", icon, className, classNames, unstyled, children, ...props },
+  { tone = "neutral", icon, as, className, classNames, unstyled, children, ...props },
   ref,
 ) {
-  const Element = useContext(TagListContext) ? "li" : "span";
+  const inList = useContext(TagListContext);
+  const Element = as ?? (inList ? "li" : "span");
   return (
     <Element
       {...props}
@@ -80,6 +89,10 @@ export type TagListProps = Omit<HTMLAttributes<HTMLUListElement>, "role">;
  * {@link Tag}s are its `<li>`s, so a screen reader says how many there are.
  * Name it with `aria-label` or `aria-labelledby` when nothing beside it says
  * what the tags are. It has no `unstyled` prop, because it only lays out.
+ *
+ * The tags learn that they're in a list through React context. Where each
+ * component is rendered on its own, as in an `.astro` file, they can't:
+ * give each `as="li"` there.
  *
  * @example
  * ```tsx

@@ -1,4 +1,4 @@
-import { type AnchorHTMLAttributes, forwardRef, type ReactNode } from "react";
+import { type AnchorHTMLAttributes, forwardRef, type ReactNode, useId } from "react";
 import { warnInDevelopment } from "../../internal/development.js";
 import { uiLinkText } from "../../messages/link.js";
 import { useUiPartText } from "../messages/UiMessagesProvider.js";
@@ -31,8 +31,10 @@ export interface ButtonLinkProps
   readonly endIcon?: ReactNode;
   /**
    * What a link with `target="_blank"` adds to its accessible name, hidden on
-   * screen. Defaults to `buttonLink.newTab` from the messages ("(opens in a
-   * new tab)"). Pass `""` when the link's own text already says it.
+   * screen: after its text, or after its `aria-label` or `aria-labelledby`
+   * when it has one. Defaults to `buttonLink.newTab` from the messages
+   * ("(opens in a new tab)"). Pass `""` when the link's own name already
+   * says it.
    */
   readonly newTabHint?: string | undefined;
 }
@@ -70,11 +72,14 @@ export const ButtonLink = /* @__PURE__ */ forwardRef<HTMLAnchorElement, ButtonLi
       classNames,
       unstyled,
       children,
+      "aria-label": label,
+      "aria-labelledby": labelledBy,
       ...props
     },
     ref,
   ) {
     const defaultHint = useUiPartText(uiLinkText, "buttonLink.newTab");
+    const hintId = useId();
     const refused = isScriptUrl(href);
     if (refused) {
       if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
@@ -83,8 +88,12 @@ export const ButtonLink = /* @__PURE__ */ forwardRef<HTMLAnchorElement, ButtonLi
         );
       }
     }
-    const newTab = target === "_blank";
+    // HTML matches the keyword in any case.
+    const newTab = target?.toLowerCase() === "_blank";
     const hint = newTab ? (newTabHint ?? defaultHint) : "";
+    // A name the caller gives replaces the link's text, hint and all, so the
+    // hint joins that name instead.
+    const named = hint !== "" && labelledBy !== undefined;
     return (
       <a
         {...props}
@@ -92,6 +101,8 @@ export const ButtonLink = /* @__PURE__ */ forwardRef<HTMLAnchorElement, ButtonLi
         href={refused ? undefined : href}
         target={target}
         rel={rel ?? (newTab ? "noopener noreferrer" : undefined)}
+        aria-label={label !== undefined && hint !== "" ? `${label} ${hint}` : label}
+        aria-labelledby={named ? `${labelledBy} ${hintId}` : labelledBy}
         className={cx(
           "hm-button",
           `hm-button--${variant}`,
@@ -108,7 +119,9 @@ export const ButtonLink = /* @__PURE__ */ forwardRef<HTMLAnchorElement, ButtonLi
         )}
         {endIcon == null ? null : <Icon className={classNames?.icon}>{endIcon}</Icon>}
         {/* One text node, space included, so static markup holds no comment between two. */}
-        {hint === "" ? null : <span className="hm-visually-hidden">{` ${hint}`}</span>}
+        {hint === "" ? null : (
+          <span id={named ? hintId : undefined} className="hm-visually-hidden">{` ${hint}`}</span>
+        )}
       </a>
     );
   },

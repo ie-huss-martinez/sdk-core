@@ -40,6 +40,14 @@ describe("Tag on the server", () => {
     expect(html).toContain('lang="en"');
   });
 
+  it("is a list item with as, where it can't know its list", () => {
+    // An `.astro` file renders each component on its own, so a tag there
+    // never sees its TagList's context.
+    expect(renderToString(<Tag as="li">React</Tag>)).toBe(
+      '<li class="hm-tag hm-tag--neutral"><span class="hm-tag-label">React</span></li>',
+    );
+  });
+
   it("is static: it has no role, no tabindex and no state", () => {
     const html = renderToString(<Tag tone="danger">Failed</Tag>);
     expect(html).not.toMatch(/role=|tabindex=|aria-/);

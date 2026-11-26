@@ -132,7 +132,7 @@ export default [
   entryBudget({
     name: "React entry (./react), with the shared code it loads",
     entry: "dist/react.js",
-    // 44 kB; 43.74 kB with Tag, TagList and ButtonLink (docs/adr/0015) and
+    // 44 kB; 43.81 kB with Tag, TagList and ButtonLink (docs/adr/0015) and
     // 14 icons for pages (docs/adr/0005, amended), which the every-icon
     // scenario measures. The scenarios that leave them out ship the same code
     // as before. Before, 42.5 kB; 42.43 kB with Card and startMorphTransition

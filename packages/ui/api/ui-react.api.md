@@ -803,6 +803,7 @@ export type TagPart = "root" | "icon" | "label";
 
 // @public
 export interface TagProps extends Omit<HTMLAttributes<HTMLElement>, "className">, StyleProps<TagPart> {
+    readonly as?: "span" | "li" | undefined;
     readonly icon?: ReactNode;
     readonly tone?: TagTone | undefined;
 }
