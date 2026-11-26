@@ -328,9 +328,21 @@ export const EditorFrame = /* @__PURE__ */ forwardRef(function EditorFrame(
         measure();
       });
       children.observe(body, { childList: true, subtree: true, characterData: true });
+      // The footer's own content too: WebKit doesn't always report a resize
+      // of a footer that's laid out invisibly, without room.
+      const content = new MutationObserver(measure);
+      if (footer.current) {
+        content.observe(footer.current, {
+          attributes: true,
+          characterData: true,
+          childList: true,
+          subtree: true,
+        });
+      }
       columnObserver.current = () => {
         resizes.disconnect();
         children.disconnect();
+        content.disconnect();
       };
     },
     [hasFooter, panelShown],
