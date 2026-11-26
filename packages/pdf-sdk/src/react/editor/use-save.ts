@@ -1,4 +1,3 @@
-import type { Announce } from "@hussmartinez/ui/react";
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { isPdfError } from "../../core/errors/pdf-error.js";
 import type { PdfSession } from "../../core/session/session.js";
@@ -9,12 +8,12 @@ import type { PdfDownloadNameInfo, PdfEditorProps } from "./types.js";
 /** How long a save runs before its Cancel button appears, in milliseconds. */
 export const CANCEL_AFTER = 1_000;
 
-/** Where a save is, for the editor's header and its tools. */
+/** Where a save is, for the notices above the document and its tools. */
 export interface SaveState {
   readonly saving: boolean;
   /** Whether the Cancel button shows: only once a save takes a while. */
   readonly cancellable: boolean;
-  /** The text of the last save's failure, for the header's alert. */
+  /** The text of the last save's failure, for the alert above the document. */
   readonly failure: string | undefined;
 }
 
@@ -30,10 +29,11 @@ const IDLE: SaveState = { saving: false, cancellable: false, failure: undefined 
 export function useSave(options: {
   readonly session: PdfSession;
   readonly messages: ReturnType<typeof usePdfMessages>;
-  readonly announce: Announce;
+  /** Says that the save worked, such as in a toast. */
+  readonly done: (message: string) => void;
   readonly props: RefObject<Pick<PdfEditorProps, "onExport" | "downloadName">>;
 }): SaveState & { readonly save: () => void; readonly cancel: () => void } {
-  const { session, messages, announce, props } = options;
+  const { session, messages, done, props } = options;
   const [state, setState] = useState<SaveState>(IDLE);
   const running = useRef<AbortController | undefined>(undefined);
 
@@ -75,17 +75,17 @@ export function useSave(options: {
         const name = downloadFileName(downloadName ? downloadName(info) : info.sourceName);
         if (onExport) {
           await onExport(bytes, { fileName: name, pageCount: info.pageCount });
-          announce(messages.t("editor.ready"));
+          done(messages.t("editor.ready"));
         } else {
           saveFile(bytes, name);
-          announce(messages.t("editor.saved", { name }));
+          done(messages.t("editor.saved", { name }));
         }
       } catch {
         // The host's code failed; its error is its own to log (docs/adr/0009).
         failure = messages.t("editor.saveFailed");
       }
     })().finally(finish);
-  }, [session, messages, announce, props]);
+  }, [session, messages, done, props]);
 
   // Opening or closing a document cancels a save, and the last failure no
   // longer applies; so does leaving the page.

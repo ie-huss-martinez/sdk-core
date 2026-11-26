@@ -10,9 +10,11 @@ import { hasDocument, type PdfTool } from "../tool-types.js";
  */
 export const insertPagesTool: PdfTool = /* @__PURE__ */ defineTool({
   id: "pdf.insert-pages",
+  level: "easy",
+  description: "tools.insert-pages.description",
   label: "tools.insert-pages",
   icon: "page-add",
-  group: "file",
+  group: "pages",
   isEnabled: (state) => hasDocument(state) && !state.inserting,
   run: ({ chooseInsertFile }) => chooseInsertFile?.(),
 });

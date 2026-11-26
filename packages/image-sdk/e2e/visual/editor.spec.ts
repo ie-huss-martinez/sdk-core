@@ -47,7 +47,7 @@ import { FIRST_RENDER_TIMEOUT } from "../timeouts.js";
  * their name says otherwise. Toasts stay where they are: the page's clock is
  * fixed, so their timers never run out.
  *
- * No state is masked but the right-to-left ones' Open icon, which the
+ * No state is masked but the right-to-left ones' Open icon and mode switch, which the
  * browser draws one of two ways per load (see OPEN_ICON). Every state renders
  * committed fixtures, at a fixed time, and the editor shows no time or random
  * value. The stage's canvas is drawn
@@ -341,8 +341,16 @@ const EASY: Readonly<Record<string, State>> = {
  * So a mask on the one icon that varies is the smallest honest remedy.
  * Remove it if Chromium's raster here becomes deterministic. ui's agent
  * showed the icon itself draws the same way over 78 loads.
+ *
+ * On ui's frame (2026-11-26, sdk-core #230) the same variance reached the
+ * mode switch's pill-shaped ends in the top bar: 2 to 3 levels on a handful
+ * of edge pixels, once in CI in `rtl-crop, dark-compact`, never in 8 local
+ * runs, and with the page drawn again in one go before the capture. The
+ * same rule applies, so the switch is masked in the right-to-left states
+ * only; left to right, its edges are still compared.
  */
 const OPEN_ICON = '[data-tool="image.open"] svg';
+const MODE_SWITCH = ".hm-image-editor-mode";
 const RTL_PATH = "/editor.html?dir=rtl&mode=expert";
 
 /** On the editor page with `?dir=rtl`. */
@@ -452,7 +460,7 @@ for (const [path, states] of [
         await page.mouse.move(0, 0);
         await repainted(page);
         await expect(page).toHaveScreenshot(`${state}-${variant.name}.png`, {
-          mask: path === RTL_PATH ? [page.locator(OPEN_ICON)] : [],
+          mask: path === RTL_PATH ? [page.locator(OPEN_ICON), page.locator(MODE_SWITCH)] : [],
         });
         expect(foreign).toEqual([]);
       });

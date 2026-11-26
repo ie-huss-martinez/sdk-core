@@ -108,10 +108,12 @@ export default [
     // layer fields reset while rendering rather than in effects (#147), and
     // the subscription for the editor's announcements (#149). Then 58.22 kB
     // with the editor on ui's frame (docs/adr/0016): its tools panel and
-    // palette lists, start cards, preferences, toasts and top bar.
+    // palette lists, start cards, preferences, toasts and top bar. Then
+    // 58.7 kB with the theme, density and motion inherited from the page
+    // until chosen, and the settings showing the values in effect.
     name: "React (./react), as built",
     entry: "dist/react.js",
-    limit: "58.5 kB",
+    limit: "59 kB",
   }),
   importBudget({
     // The floor: a hook over the provider, which every panel reads. Measured
@@ -201,11 +203,13 @@ export default [
     // What a typical application imports: the whole editor. 43.42 kB on
     // ui's frame (docs/adr/0016): about 2.3 kB of the editor's own code for
     // the tools panel, palette, start cards, preferences and toasts. ui's
-    // components count in ui's budgets, not here.
+    // components count in ui's budgets, not here. Then 43.77 kB with the
+    // theme, density and motion inherited from the page until chosen, and
+    // the settings showing the values in effect.
     name: "React: ImageEditor",
     entry: "dist/react.js",
     imports: "{ ImageEditor }",
-    limit: "43.5 kB",
+    limit: "44 kB",
   }),
 
   // The element entry (./element), which ships whole.
@@ -214,10 +218,11 @@ export default [
     // (42.4 kB minified), 0.1 kB over the 55.0 kB before the React entry's
     // parts could be imported apart (sdk-core ADR 0056). The element ships
     // whole. Then 55.51 kB, with the React entry's changes of #147 and #149,
-    // and 58.55 kB with the editor on ui's frame (docs/adr/0016).
+    // and 58.55 kB with the editor on ui's frame (docs/adr/0016), then
+    // 59.04 kB with the preferences it inherits from the page.
     name: "Element (./element), as built",
     entry: "dist/element.js",
-    limit: "59 kB",
+    limit: "59.5 kB",
   }),
 
   built({ name: "Stylesheet (./styles.css)", path: "dist/styles.css", limit: "10 kB" }),

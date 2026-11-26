@@ -85,7 +85,9 @@ export interface ImageEditorProps extends Omit<ImageEditorProviderProps, "childr
   /**
    * Preferences to start with when `preferences` isn't given. Fields left
    * out take ui's defaults, except the mode, which is Advanced, so every tool
-   * is listed until the host or the person chooses otherwise.
+   * is listed until the host or the person chooses otherwise. The theme,
+   * density and motion are the page's until the host sets them here or the
+   * person picks them.
    */
   readonly defaultPreferences?: Partial<EditorPreferences>;
   /** Called with the whole preferences when the person changes one. */

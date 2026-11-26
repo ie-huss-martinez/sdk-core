@@ -67,7 +67,13 @@ function Host({ props, handle, changes, control }: HostProps): ReactNode {
   );
 }
 
-function setUp(props: Partial<PdfEditorProps> = {}, css?: string, styles: StyleOptions = {}) {
+/**
+ * The host's box: wide enough for the frame's desktop layout, where the tools
+ * panel sits beside the document rather than over it (sdk-core ADR 0067).
+ */
+const HOST = "width: 1000px; height: 600px; display: grid; grid-template-rows: minmax(0, 1fr);";
+
+function setUp(props: Partial<PdfEditorProps> = {}, css = HOST, styles: StyleOptions = {}) {
   const changes: PdfEditorChange[] = [];
   const handle = createRef<PdfEditorHandle>();
   const control = { setFile: (_: PdfEditorProps["file"]) => {} };
@@ -102,7 +108,7 @@ const settle = async (container: HTMLElement, status: string, timeout?: number) 
 const FIRST_OPEN = 30_000;
 
 const editor = (container: HTMLElement) =>
-  container.querySelector<HTMLElement>('[role="group"][aria-label="PDF editor"]');
+  container.querySelector<HTMLElement>('section[aria-label="PDF editor"]');
 const button = (container: HTMLElement) =>
   container.querySelector<HTMLButtonElement>(".hm-pdf-editor-start button");
 const input = (container: HTMLElement) =>
@@ -146,7 +152,7 @@ function Labelled() {
 }
 
 describe("PdfEditor", () => {
-  it("starts with a labelled group, a button to choose a PDF and a privacy hint", async () => {
+  it("starts with a labelled region, a button to choose a PDF and a privacy hint", async () => {
     const { mounted } = setUp();
     const container = await mounted;
     expect(editor(container)?.dataset["hmStatus"]).toBe("empty");
@@ -157,8 +163,8 @@ describe("PdfEditor", () => {
     // The file input is only the picker behind the button.
     expect(input(container).tabIndex).toBe(-1);
     expect(input(container).accept).toBe("application/pdf,.pdf");
-    // The toolbar is there from the start; only opening is possible yet.
-    expect(container.querySelector('[role="toolbar"]')?.getAttribute("aria-label")).toBe(
+    // The tools panel is there from the start; only opening is possible yet.
+    expect(container.querySelector('nav [role="toolbar"]')?.getAttribute("aria-label")).toBe(
       "PDF tools",
     );
   });
@@ -315,8 +321,8 @@ describe("PdfEditor", () => {
     await act(() => handle.current?.open(fakePdf(2)));
     const sidebar = container.querySelector(".hm-pdf-editor-sidebar") as HTMLElement;
     const viewer = container.querySelector(".hm-pdf-viewer") as HTMLElement;
-    // Five control heights wide, from ui's tokens: a toolbar button is one.
-    const control = container.querySelector('[role="toolbar"] button') as HTMLElement;
+    // Five control heights wide, from ui's tokens: the top bar's buttons are one.
+    const control = container.querySelector('[data-tool="pdf.open"]') as HTMLElement;
     expect(sidebar.getBoundingClientRect().width).toBeCloseTo(
       control.getBoundingClientRect().height * 5,
       0,
@@ -331,7 +337,7 @@ describe("PdfEditor", () => {
   it("sets its own text in ui's type, whatever the host page sets around it", async () => {
     const { mounted } = setUp(
       {},
-      "width: 800px; height: 600px; display: grid; grid-template-rows: minmax(0, 1fr); font: 30px/3 serif;",
+      "width: 1000px; height: 600px; display: grid; grid-template-rows: minmax(0, 1fr); font: 30px/3 serif;",
     );
     const container = await mounted;
     // The tokens' computed values, read from an element that uses them.
@@ -362,7 +368,7 @@ describe("PdfEditor", () => {
   it("leaves an unstyled editor's text to the host", async () => {
     const { mounted } = setUp(
       { unstyled: true },
-      "width: 800px; height: 600px; display: grid; grid-template-rows: minmax(0, 1fr); font: 30px/3 serif;",
+      "width: 1000px; height: 600px; display: grid; grid-template-rows: minmax(0, 1fr); font: 30px/3 serif;",
     );
     const container = await mounted;
     const root = editor(container) as HTMLElement;
@@ -422,7 +428,7 @@ describe("PdfEditor", () => {
     it("keeps the viewer's width still when its page only just overflows", async (context) => {
       const { mounted, handle } = setUp(
         {},
-        "width: 800px; height: 1400px; display: grid; grid-template-rows: minmax(0, 1fr);",
+        "width: 1000px; height: 1400px; display: grid; grid-template-rows: minmax(0, 1fr);",
       );
       const host = await mounted;
       const style = document.createElement("style");
@@ -447,7 +453,7 @@ describe("PdfEditor", () => {
     it("keeps the thumbnails' width still when they only just overflow", async (context) => {
       const { mounted, handle } = setUp(
         {},
-        "width: 800px; height: 1400px; display: grid; grid-template-rows: minmax(0, 1fr);",
+        "width: 1000px; height: 1400px; display: grid; grid-template-rows: minmax(0, 1fr);",
       );
       const host = await mounted;
       const style = document.createElement("style");
@@ -485,7 +491,13 @@ describe("PdfEditor", () => {
       );
 
     it("keeps the thumbnails beside the document, and sizes the pages to the viewer", async () => {
-      const { mounted, handle } = setUp({}, undefined, { ui: false });
+      // Without ui's stylesheet the frame has no layout of its own, so its
+      // top bar and tools sit above the document, which keeps the full width.
+      const { mounted, handle } = setUp(
+        {},
+        "width: 800px; height: 600px; display: grid; grid-template-rows: minmax(0, 1fr);",
+        { ui: false },
+      );
       const container = await mounted;
       unset();
       await act(() => handle.current?.open(fakePdf(2)));
@@ -529,59 +541,55 @@ describe("PdfEditor", () => {
     });
   });
 
-  describe("the toolbar", () => {
+  describe("the tools", () => {
+    /** The tools panel's list (docs/adr/0012). */
     const toolbar = (container: HTMLElement) =>
-      container.querySelector<HTMLElement>('[role="toolbar"]') as HTMLElement;
+      container.querySelector<HTMLElement>('nav [role="toolbar"]') as HTMLElement;
+    /** A tool's row in the tools panel, or its button in the top bar. */
     const tool = (container: HTMLElement, id: string) =>
-      container.querySelector<HTMLButtonElement>(`[data-hm-tool="${id}"]`) as HTMLButtonElement;
-    /** ui's toolbar buttons stay focusable when disabled, with aria-disabled (docs/adr/0008). */
+      container.querySelector<HTMLButtonElement>(
+        `[data-hm-tool-id="${id}"], [data-tool="${id}"]`,
+      ) as HTMLButtonElement;
+    /** The top bar's tools. */
+    const bar = (container: HTMLElement) => [
+      ...container.querySelectorAll<HTMLButtonElement>("header [data-tool]"),
+    ];
+    /** ui's tool buttons stay focusable when disabled, with aria-disabled (docs/adr/0008). */
     const disabled = (button: HTMLButtonElement) =>
       button.disabled || button.getAttribute("aria-disabled") === "true";
     const rotations = (handle: { current: PdfEditorHandle | null }) =>
       handle.current?.session.getSnapshot().plan.pages.map((page) => page.rotation);
 
-    it("is a labelled toolbar of labelled groups, with only what can run enabled", async () => {
+    it("puts the page tools in the panel's labelled groups, and the rest in the top bar, with only what can run enabled", async () => {
       const { mounted, handle } = setUp();
       const container = await mounted;
       const groups = [...toolbar(container).querySelectorAll('[role="group"]')];
       expect(groups.map((group) => group.getAttribute("aria-label"))).toEqual([
-        "File",
-        "History",
-        "Pages",
-        "Save",
+        "Rotate",
+        "Remove and add",
+        "Reorder",
       ]);
-      const buttons = [...toolbar(container).querySelectorAll("button")];
-      expect(
-        buttons.map((button) => button.getAttribute("aria-label") ?? button.textContent),
-      ).toEqual([
-        "Open a PDF",
-        "Insert pages",
-        "Undo",
-        "Redo",
+      // Embedded with no preferences, the editor is in Advanced mode: every
+      // page tool is listed, as in the toolbar before the frame.
+      const rows = [...toolbar(container).querySelectorAll("button")];
+      expect(rows.map((row) => row.textContent)).toEqual([
         "Rotate left",
         "Rotate right",
+        "Delete pages",
+        "Insert pages",
         "Move earlier",
         "Move later",
-        "Delete pages",
-        "Download",
       ]);
-      expect(buttons.map(disabled)).toEqual([
-        false,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-      ]);
+      expect(rows.map(disabled)).toEqual([true, true, true, true, true, true]);
+      expect(
+        bar(container).map((button) => button.getAttribute("aria-label") ?? button.textContent),
+      ).toEqual(["Open a PDF", "Undo", "Redo", "Download"]);
+      expect(bar(container).map(disabled)).toEqual([false, true, true, true]);
       // Disabled buttons keep focus, rather than the disabled attribute.
-      expect(buttons.some((button) => button.disabled)).toBe(false);
+      expect([...rows, ...bar(container)].some((button) => button.disabled)).toBe(false);
       expect(tool(container, "pdf.undo").getAttribute("aria-keyshortcuts")).toBe("Control+Z");
       expect(tool(container, "pdf.rotate-right").getAttribute("aria-keyshortcuts")).toBe("]");
-      // The delete keys work in the thumbnails, and the button says so.
+      // The delete keys work in the thumbnails, and the row says so.
       expect(tool(container, "pdf.delete-pages").getAttribute("aria-keyshortcuts")).toBe(
         "Delete Backspace",
       );
@@ -595,6 +603,7 @@ describe("PdfEditor", () => {
       await act(() => handle.current?.open(fakePdf(2)));
       expect(disabled(tool(container, "pdf.rotate-left"))).toBe(false);
       expect(disabled(tool(container, "pdf.delete-pages"))).toBe(false);
+      expect(disabled(tool(container, "pdf.download"))).toBe(false);
       expect(disabled(tool(container, "pdf.undo"))).toBe(true);
     });
 
@@ -823,7 +832,7 @@ describe("PdfEditor", () => {
           clicked();
         });
         const button = tool(container, "pdf.insert-pages");
-        expect(button.getAttribute("aria-label")).toBe("Insert pages");
+        expect(button.textContent).toBe("Insert pages");
         await act(() => userEvent.click(button));
         expect(clicked).toHaveBeenCalledOnce();
 
@@ -990,7 +999,7 @@ describe("PdfEditor", () => {
           const container = await mounted;
           await act(() => handle.current?.open(pdfFile(2, "C:\\scans\\report.pdf")));
           const button = tool(container, "pdf.download");
-          expect(button.getAttribute("aria-label")).toBe("Download");
+          expect(button.textContent).toBe("Download");
           expect(button.hasAttribute("aria-keyshortcuts")).toBe(false);
           await act(() => userEvent.click(button));
           await waitFor(() => expect(caught.downloads).toHaveLength(1));
@@ -1377,19 +1386,27 @@ describe("PdfEditor", () => {
       expect(changes).toEqual([{ reason: "open", pageCount: 2, fileName: "report.pdf" }]);
     });
 
-    it("shows the chosen tools in the chosen groups, and hides with an empty toolbar", async () => {
+    it("shows the chosen tools in the chosen groups, and hides them with an empty toolbar", async () => {
+      const ids = (container: HTMLElement) =>
+        [...container.querySelectorAll<HTMLElement>("[data-tool], [data-hm-tool-id]")].map(
+          (button) => button.dataset["tool"] ?? button.dataset["hmToolId"],
+        );
       const chosen = setUp({ tools: ["pdf.undo", "pdf.redo"] });
       const container = await chosen.mounted;
-      expect(
-        [...toolbar(container).querySelectorAll("button")].map(
-          (button) => button.dataset["hmTool"],
-        ),
-      ).toEqual(["pdf.undo", "pdf.redo"]);
+      expect(ids(container)).toEqual(["pdf.undo", "pdf.redo"]);
+      // No page tool, so no tools panel.
+      expect(container.querySelector("nav")).toBeNull();
+      await cleanUp();
+
+      const grouped = setUp({ toolbar: [["pdf.rotate-right", "pdf.rotate-left"], ["pdf.undo"]] });
+      const regrouped = await grouped.mounted;
+      expect(ids(regrouped)).toEqual(["pdf.undo", "pdf.rotate-right", "pdf.rotate-left"]);
       await cleanUp();
 
       const hidden = setUp({ toolbar: [] });
       const bare = await hidden.mounted;
-      expect(bare.querySelector('[role="toolbar"]')).toBeNull();
+      expect(ids(bare)).toEqual([]);
+      expect(bare.querySelector("nav")).toBeNull();
       // The shortcuts stay.
       await act(() => hidden.handle.current?.open(fakePdf(1)));
       (bare.querySelector(".hm-pdf-viewer") as HTMLElement).focus();

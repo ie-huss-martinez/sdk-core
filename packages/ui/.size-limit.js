@@ -129,7 +129,9 @@ export default [
   entryBudget({
     name: "React entry (./react), with the shared code it loads",
     entry: "dist/react.js",
-    // 41.5 kB; 41.05 kB with the editor frame's eleven components and the
+    // 42 kB; 41.73 kB with ThemeToggle's `inherit`, which reads the theme its
+    // element inherits and follows its ancestors' changes. Before, 41.5 kB;
+    // 41.05 kB with the editor frame's eleven components and the
     // colour picker (sdk-core ADR 0067, docs/adr/0013), which the two
     // scenarios at the end measure. Before, 26 kB; 25.53 kB once ReorderableList kept focus on its cells and
     // entered at its Tab stop under NVDA (sdk-core#201, #202), +0.60 kB of it
@@ -139,7 +141,7 @@ export default [
     // content's headings. Every component counts here, though no
     // application ships them all, so a component's pull request raises it as
     // expected growth; review reads the import scenarios below to judge it.
-    limit: "41.5 kB",
+    limit: "42 kB",
   }),
   entryBudget({
     name: "Stylesheet (./styles.css)",
@@ -177,7 +179,8 @@ export default [
   scenario("every icon", ICONS, "3.5 kB"),
   // 7.5 kB; 7.40 kB.
   scenario("an editor", EDITOR, "7.5 kB"),
-  // 10.5 kB; 10.35 kB, with the frame's own panel toggles and their tooltips, and the palette's and toasts' own live regions for
+  // 11 kB; 10.56 kB with ThemeToggle's `inherit`, for an editor that takes
+  // its page's theme until one is chosen. Before, 10.5 kB; 10.35 kB, with the frame's own panel toggles and their tooltips, and the palette's and toasts' own live regions for
   // when a modal dialog makes the page's announcer inert. Everything an SDK
   // editor renders through (sdk-core ADR
   // 0067): the frame, its tools, the mode switch, the theme toggle, the tab
@@ -197,7 +200,7 @@ export default [
       "useToast",
       "ProgressOverlay",
     ],
-    "10.5 kB",
+    "11 kB",
   ),
   // 6 kB; 5.86 kB, with its colour names (docs/adr/0013).
   scenario("ColorPicker", ["ColorPicker", "addRecentColor"], "6 kB"),

@@ -25,10 +25,26 @@ export const pdfTools: readonly PdfTool[] = [
   downloadTool,
 ];
 
-/** The toolbar's default groups. */
+/**
+ * The tools' default groups (docs/adr/0012): the bar's first and last, and
+ * the tools panel's between them, each named after its first tool's group.
+ */
 export const DEFAULT_TOOLBAR: readonly (readonly string[])[] = [
-  ["pdf.open", "pdf.insert-pages"],
+  ["pdf.open"],
   ["pdf.undo", "pdf.redo"],
-  ["pdf.rotate-left", "pdf.rotate-right", "pdf.move-earlier", "pdf.move-later", "pdf.delete-pages"],
+  ["pdf.rotate-left", "pdf.rotate-right"],
+  ["pdf.delete-pages", "pdf.insert-pages"],
+  ["pdf.move-earlier", "pdf.move-later"],
   ["pdf.download"],
 ];
+
+/**
+ * Tools the top bar holds, never the tools panel: they have no level
+ * (sdk-core ADR 0067). Download is the bar's primary button.
+ */
+export const BAR_TOOLS: ReadonlySet<string> = /* @__PURE__ */ new Set([
+  "pdf.open",
+  "pdf.undo",
+  "pdf.redo",
+  "pdf.download",
+]);

@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { reportPdf } from "../../test/fixtures/pdfs.js";
-import { expectAnnounced, openPdf, watch } from "./helpers.js";
+import { expectAnnounced, oneLabelledByReader, openPdf, watch } from "./helpers.js";
 
 const url = "http://localhost:4321/";
 const origin = new URL(url).origin;
@@ -13,6 +13,8 @@ const origin = new URL(url).origin;
  * never reaches another origin.
  */
 test.describe("Next.js App Router", () => {
+  test.beforeEach(({ page, browserName }) => oneLabelledByReader(page, browserName));
+
   test("renders the editor on the server", async ({ request }) => {
     const response = await request.get(url);
     expect(response.ok()).toBe(true);
@@ -22,9 +24,12 @@ test.describe("Next.js App Router", () => {
       '<span data-testid="max-pages">5,000</span>',
       'aria-label="PDF editor"',
       'data-hm-status="empty"',
+      // ui's frame, with the top bar's tools and the tools panel (docs/adr/0012).
+      'class="hm-editor-frame',
       'role="toolbar"',
       'aria-label="PDF tools"',
-      'data-hm-tool="pdf.open"',
+      'data-tool="pdf.open"',
+      'data-hm-tool-id="pdf.rotate-left"',
       'aria-keyshortcuts="Control+Z"',
       "Choose a PDF",
       'aria-live="polite"',
@@ -40,8 +45,9 @@ test.describe("Next.js App Router", () => {
     await page.goto(url);
     await expect(page.locator("[data-hydrated]")).toBeAttached();
 
-    // The toolbar is one tab stop.
-    await expect(page.locator('[role="toolbar"] [tabindex="0"]')).toHaveCount(1);
+    // The top bar's tools and the tools panel are a tab stop each.
+    await expect(page.locator('header [role="toolbar"] [tabindex="0"]')).toHaveCount(1);
+    await expect(page.locator('nav [role="toolbar"] [tabindex="0"]')).toHaveCount(1);
 
     await openPdf(page, await reportPdf(), "report.pdf");
     await expect(page.getByRole("listbox", { name: "Pages" }).getByRole("option")).toHaveCount(2);
@@ -50,7 +56,8 @@ test.describe("Next.js App Router", () => {
     // A shortcut rotates the current page, and says so.
     await page.keyboard.press("]");
     await expectAnnounced(page, "Rotated 1 page.");
-    await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
+    // The top bar's Undo, not the toast's.
+    await expect(page.locator("header").getByRole("button", { name: "Undo" })).toBeEnabled();
 
     expect(problems.errors).toEqual([]);
     expect(problems.console).toEqual([]);

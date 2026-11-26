@@ -797,7 +797,7 @@ export const ThemeToggle: ForwardRefExoticComponent<ThemeToggleProps & RefAttrib
 export interface ThemeToggleProps extends Omit<IconButtonProps, "label" | "icon" | "pressed" | "onClick"> {
     readonly label?: string | undefined;
     readonly onValueChange: (value: "light" | "dark") => void;
-    readonly value: "system" | "light" | "dark";
+    readonly value: "system" | "light" | "dark" | "inherit";
 }
 
 // @public
