@@ -92,8 +92,10 @@ export const ButtonLink = /* @__PURE__ */ forwardRef<HTMLAnchorElement, ButtonLi
     const newTab = target?.toLowerCase() === "_blank";
     const hint = newTab ? (newTabHint ?? defaultHint) : "";
     // A name the caller gives replaces the link's text, hint and all, so the
-    // hint joins that name instead.
-    const named = hint !== "" && labelledBy !== undefined;
+    // hint joins that name instead. An empty one names nothing, and the
+    // link's text stays its name.
+    const labelled = hint !== "" && label !== undefined && label.trim() !== "";
+    const named = hint !== "" && labelledBy !== undefined && labelledBy.trim() !== "";
     return (
       <a
         {...props}
@@ -101,7 +103,7 @@ export const ButtonLink = /* @__PURE__ */ forwardRef<HTMLAnchorElement, ButtonLi
         href={refused ? undefined : href}
         target={target}
         rel={rel ?? (newTab ? "noopener noreferrer" : undefined)}
-        aria-label={label !== undefined && hint !== "" ? `${label} ${hint}` : label}
+        aria-label={labelled ? `${label} ${hint}` : label}
         aria-labelledby={named ? `${labelledBy} ${hintId}` : labelledBy}
         className={cx(
           "hm-button",

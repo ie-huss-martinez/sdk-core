@@ -113,6 +113,17 @@ describe("ButtonLink that opens a new tab", () => {
     const [, hintId] = /aria-labelledby="site ([^"]+)"/.exec(labelledBy) ?? [];
     expect(hintId).toBeTruthy();
     expect(labelledBy).toContain(`<span id="${hintId}" class="hm-visually-hidden">`);
+    // An empty name names nothing: the link's text, with its hint, stays the name.
+    // As a caller's variables would bring them: the linter refuses them written out.
+    const emptyNames = { "aria-label": "", "aria-labelledby": " " };
+    const empty = renderToString(
+      <ButtonLink href="https://example.com" target="_blank" {...emptyNames}>
+        Example
+      </ButtonLink>,
+    );
+    expect(empty).toContain('aria-label=""');
+    expect(empty).toContain('aria-labelledby=" "');
+    expect(empty).toContain('<span class="hm-visually-hidden"> (opens in a new tab)</span>');
     // Not when the caller says the name already tells it.
     const plain = renderToString(
       <ButtonLink href="https://example.com" target="_blank" aria-label="Example" newTabHint="" />,
