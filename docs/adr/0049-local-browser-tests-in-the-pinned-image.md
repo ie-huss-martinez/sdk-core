@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-14
 - **Refines:** [0025](0025-one-browser-test-image-in-one-place.md), by using the browser test image for local runs too, and [0048](0048-visual-regression-for-sdk-editors.md), whose runner becomes the general one
-- **Amended:** 2026-11-21, to refuse browser tests outside the image, and to fix which environment variables reach the container
+- **Amended:** 2026-11-21, to refuse browser tests outside the image, and to fix which environment variables reach the container; 2026-11-26, to give each checkout its own `node_modules` volumes
 
 ## Context
 
@@ -32,6 +32,7 @@ The evidence, from a harness that loads 150 slow modules in Chromium for 12 roun
 
   A script becomes `"test:browser": "hm-in-image vitest run --project browser"`, and CI is unchanged apart from setting that variable.
 - **One image and one set of volumes per repository,** shared with `hm-test-visual`, which now runs through the same code.
+  - **Amended, 2026-11-26** ([sdk-core#238](https://github.com/ie-huss-martinez/sdk-core/issues/238)): the `node_modules` volumes are one set per checkout, not per repository. Clones and worktrees of a repository share its workspace name, so two of them running at once installed into the same volumes, and one run failed on a module the other was still writing. Their names now carry the first ten hexadecimal digits of the SHA-256 of the checkout's real path. The image and the pnpm store stay one per repository, so a new checkout downloads nothing it already has, and each install holds a lock in the store's volume, so two never write to it at once.
 - **Docker is a prerequisite of local `pnpm verify`,** as [ADR 0048](0048-visual-regression-for-sdk-editors.md) already made it. Without it, the command fails with a one-line message saying how to fix it; it never skips.
 - **Git hooks don't change:** `pre-push` runs `verify:fast`, which has no browser tests.
 
