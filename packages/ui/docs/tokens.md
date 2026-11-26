@@ -212,12 +212,39 @@ Fine-grained overrides for one component. `ui` never declares them: each compone
 | `--hm-dialog-small-width` | `--hm-surface-width-small` | Width of small dialogs. |
 | `--hm-dialog-width` | `--hm-surface-width-medium` | Width of dialogs. |
 | `--hm-dialog-large-width` | `--hm-surface-width-large` | Width of large dialogs. |
+| `--hm-card-bg` | `--hm-color-surface` | Background of cards. |
+| `--hm-card-fg` | `--hm-color-text` | Text of cards. |
+| `--hm-card-border-color` | `--hm-color-border` | Border of cards. |
+| `--hm-card-border-color-hover` | `--hm-color-border-strong` | Border of a card while the pointer is over its main action. |
+| `--hm-card-shadow-hover` | `--hm-shadow-raised` | Shadow of a card while the pointer is over its main action. |
+| `--hm-card-radius` | `--hm-radius-surface` | Corner radius of cards. |
+| `--hm-card-padding` | `--hm-inset-normal` | Padding inside cards; their media reaches the edges. |
+| `--hm-card-gap` | `--hm-gap-normal` | Gap between a card's parts, and between its footer's items. |
+| `--hm-card-title-font-size` | `--hm-font-size-body` | Size of card titles. |
 | `--hm-heading-font-size` | `--hm-font-size-title` | Size of headings from the Heading component. |
 | `--hm-spinner-size` | `--hm-icon-size` | Size of spinners. |
 | `--hm-spinner-thickness` | `--hm-focus-ring-width` | Thickness of a spinner's ring. |
 | `--hm-spinner-color` | `--hm-color-accent` | Colour of a spinner's moving arc. |
 | `--hm-spinner-track-color` | `--hm-color-border` | Colour of a spinner's ring. |
 | `--hm-spinner-duration` | `--hm-motion-duration-loop` | Duration of one spinner turn. |
+| `--hm-tag-padding-y` | `--hm-gap-tight` | Block padding of tags. |
+| `--hm-tag-padding-x` | `--hm-inset-tight` | Inline padding of tags. |
+| `--hm-tag-gap` | `--hm-gap-tight` | Gap between a tag's icon and label. |
+| `--hm-tag-radius` | `--hm-radius-round` | Corner radius of tags. |
+| `--hm-tag-font-size` | `--hm-font-size-small` | Size of a tag's text. |
+| `--hm-tag-icon-size` | `--hm-font-size-body` | Size of a tag's icon: the body text's size, so it sits with the tag's small text. |
+| `--hm-tag-bg` | `--hm-color-control` | Background of neutral tags. |
+| `--hm-tag-fg` | `--hm-color-text` | Text and icon of neutral tags. |
+| `--hm-tag-border-color` | `--hm-color-border` | Border of neutral tags. |
+| `--hm-tag-accent-bg` | `--hm-color-accent-subtle` | Background of accent tags. |
+| `--hm-tag-accent-fg` | `--hm-color-text` | Text and icon of accent tags. |
+| `--hm-tag-success-bg` | `--hm-color-success-subtle` | Background of success tags. |
+| `--hm-tag-success-fg` | `--hm-color-success-text` | Text and icon of success tags. |
+| `--hm-tag-warning-bg` | `--hm-color-warning-subtle` | Background of warning tags. |
+| `--hm-tag-warning-fg` | `--hm-color-warning-text` | Text and icon of warning tags. |
+| `--hm-tag-danger-bg` | `--hm-color-danger-subtle` | Background of danger tags. |
+| `--hm-tag-danger-fg` | `--hm-color-danger-text` | Text and icon of danger tags. |
+| `--hm-tag-list-gap` | `--hm-gap-normal` | Gap between the tags of a tag list. |
 | `--hm-progress-height` | `--hm-track-size` | Height of progress bars. |
 | `--hm-progress-radius` | `--hm-radius-round` | Corner radius of progress bars. |
 | `--hm-progress-track-color` | `--hm-color-surface-sunken` | Background of progress bars. |

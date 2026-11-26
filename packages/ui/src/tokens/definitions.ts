@@ -647,12 +647,39 @@ export type ComponentTokenName =
   | "dialog-small-width"
   | "dialog-width"
   | "dialog-large-width"
+  | "card-bg"
+  | "card-fg"
+  | "card-border-color"
+  | "card-border-color-hover"
+  | "card-shadow-hover"
+  | "card-radius"
+  | "card-padding"
+  | "card-gap"
+  | "card-title-font-size"
   | "heading-font-size"
   | "spinner-size"
   | "spinner-thickness"
   | "spinner-color"
   | "spinner-track-color"
   | "spinner-duration"
+  | "tag-padding-y"
+  | "tag-padding-x"
+  | "tag-gap"
+  | "tag-radius"
+  | "tag-font-size"
+  | "tag-icon-size"
+  | "tag-bg"
+  | "tag-fg"
+  | "tag-border-color"
+  | "tag-accent-bg"
+  | "tag-accent-fg"
+  | "tag-success-bg"
+  | "tag-success-fg"
+  | "tag-warning-bg"
+  | "tag-warning-fg"
+  | "tag-danger-bg"
+  | "tag-danger-fg"
+  | "tag-list-gap"
   | "progress-height"
   | "progress-radius"
   | "progress-track-color"
@@ -871,12 +898,39 @@ const component = {
   "dialog-small-width": { fallback: "surface-width-small" },
   "dialog-width": { fallback: "surface-width-medium" },
   "dialog-large-width": { fallback: "surface-width-large" },
+  "card-bg": { fallback: "color-surface" },
+  "card-fg": { fallback: "color-text" },
+  "card-border-color": { fallback: "color-border" },
+  "card-border-color-hover": { fallback: "color-border-strong" },
+  "card-shadow-hover": { fallback: "shadow-raised" },
+  "card-radius": { fallback: "radius-surface" },
+  "card-padding": { fallback: "inset-normal" },
+  "card-gap": { fallback: "gap-normal" },
+  "card-title-font-size": { fallback: "font-size-body" },
   "heading-font-size": { fallback: "font-size-title" },
   "spinner-size": { fallback: "icon-size" },
   "spinner-thickness": { fallback: "focus-ring-width" },
   "spinner-color": { fallback: "color-accent" },
   "spinner-track-color": { fallback: "color-border" },
   "spinner-duration": { fallback: "motion-duration-loop" },
+  "tag-padding-y": { fallback: "gap-tight" },
+  "tag-padding-x": { fallback: "inset-tight" },
+  "tag-gap": { fallback: "gap-tight" },
+  "tag-radius": { fallback: "radius-round" },
+  "tag-font-size": { fallback: "font-size-small" },
+  "tag-icon-size": { fallback: "font-size-body" },
+  "tag-bg": { fallback: "color-control" },
+  "tag-fg": { fallback: "color-text" },
+  "tag-border-color": { fallback: "color-border" },
+  "tag-accent-bg": { fallback: "color-accent-subtle" },
+  "tag-accent-fg": { fallback: "color-text" },
+  "tag-success-bg": { fallback: "color-success-subtle" },
+  "tag-success-fg": { fallback: "color-success-text" },
+  "tag-warning-bg": { fallback: "color-warning-subtle" },
+  "tag-warning-fg": { fallback: "color-warning-text" },
+  "tag-danger-bg": { fallback: "color-danger-subtle" },
+  "tag-danger-fg": { fallback: "color-danger-text" },
+  "tag-list-gap": { fallback: "gap-normal" },
   "progress-height": { fallback: "track-size" },
   "progress-radius": { fallback: "radius-round" },
   "progress-track-color": { fallback: "color-surface-sunken" },

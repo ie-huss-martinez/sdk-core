@@ -252,6 +252,7 @@ export const pdfEditorMessages: {
     readonly "colorPicker.hue.blue": "blue";
     readonly "colorPicker.hue.purple": "purple";
     readonly "colorPicker.hue.pink": "pink";
+    readonly "buttonLink.newTab": "(opens in a new tab)";
     readonly "errors.INVALID_PDF": "This file isn't a PDF, or it's too damaged to open.";
     readonly "errors.PASSWORD_REQUIRED": "This PDF is protected with a password.";
     readonly "errors.PROCESSING_FAILED": "Something went wrong while processing this PDF. Please try again.";

@@ -103,6 +103,7 @@ describe("the built package on a server", () => {
       AnnouncerProvider: {},
       Button: { children: "Save", startIcon: icon },
       IconButton: { label: "Rotate", icon },
+      ButtonLink: { href: "/guides", target: "_blank", startIcon: icon, children: "Guides" },
       ToggleButton: { label: "Loop", icon, defaultPressed: true },
       TextField: { label: "File name", defaultValue: "report" },
       TextArea: { label: "Caption", defaultValue: "One\nTwo" },
@@ -178,6 +179,13 @@ describe("the built package on a server", () => {
       },
       FileDropZone: { accept: ".pdf", onFiles: noop, children: "Open a document" },
       Dialog: { open: true, onOpenChange: noop, title: "Title", children: "Body" },
+      Card: {
+        title: createElement("a", { href: "/notebooks/1" }, "Travel"),
+        eyebrow: "Notebook",
+        media: createElement("img", { src: "/cover.png", alt: "" }),
+        footer: "12 notes",
+        children: "Body",
+      },
       Heading: { children: "Selection" },
       HeadingLevelProvider: { level: 3, children: "Selection" },
       Spinner: {},
@@ -205,6 +213,11 @@ describe("the built package on a server", () => {
         items: [{ id: "a", label: "A", icon }],
       },
       Sheet: { open: true, onOpenChange: noop, title: "Title", children: "Body" },
+      Tag: { tone: "success", icon, children: "Stable" },
+      TagList: {
+        "aria-label": "Stack",
+        children: createElement(component("Tag"), null, "React"),
+      },
       SettingsPanel: {
         open: true,
         onOpenChange: noop,

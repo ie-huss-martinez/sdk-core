@@ -1,8 +1,45 @@
 # 0005. An icon set generated from Lucide
 
-- **Status:** Accepted; amended 2026-11-18 to allow a few glyphs ui draws itself, for icons Lucide has none for; amended 2026-11-19 to mirror icons that point along time
+- **Status:** Accepted; amended 2026-11-18 to allow a few glyphs ui draws itself, for icons Lucide has none for; amended 2026-11-19 to mirror icons that point along time; amended 2026-11-26 to add icons for pages, and to say what the set leaves out
 - **Date:** 2026-11-12
 - **Amended:** 2026-11-12, after the set was built. Each icon is a plain module-level function, such as `function UndoIcon(props)`, calling a shared `renderIcon`, rather than a `createIcon()` factory with a pure annotation. Biome rejects component factories, and function declarations tree-shake without any annotation. `IconName` is generated into its own module with no imports, `icon-name.generated.ts`, so the server-safe entry exports it without reaching React, even as types, as sdk-core's `entry-no-react` rule requires
+
+## Amendment: icons for pages
+
+*2026-11-26.* The set was chosen for editors' toolbars. Pages built with `ui` ([ADR 0015](0015-tag-and-button-link.md)), such as Fish Memory and the maintainer's portfolio, need icons for content: a link that goes on, a reading time, a tip. Each drew them from its own copy of an icon library, with that library's markup and names.
+
+**What joins the set.** An icon joins when it stands for something interfaces say in many products, and something in the family needs it. It's still added on demand, one manifest entry in a pull request, and the pull request says what each is for.
+
+**What stays out.**
+
+- **Brand marks and logos:** an application's own mark, such as Fish Memory's fish, or a company's or a social network's. They're somebody's trademark, they aren't drawn on Lucide's grid, and Lucide itself has dropped them. An application draws its own with `currentColor` and passes it to any icon slot, which takes any element.
+- **An icon for one application's subject,** with no meaning outside it.
+
+**Added for the two sites.** Six they use were already in the set: `warning`, `check`, `close`, `layers`, `menu` and `search`.
+
+| Name | Lucide glyph | It's for |
+|---|---|---|
+| `arrow-right` | `arrow-right` | A link or a step that goes on: "Read the guide", then to now |
+| `external-link` | `arrow-up-right` | A link that leaves the site, or opens a new tab |
+| `mail` | `mail` | An email address or a contact link |
+| `location` | `map-pin` | A place |
+| `feed` | `rss` | A feed to subscribe to |
+| `sparkles` | `sparkles` | Something new or highlighted |
+| `book` | `book-open` | A guide, documentation, something to read |
+| `brain` | `brain` | Recall and memory, as learn-sdk's reviews are, and reasoning |
+| `tip` | `lightbulb` | A tip or an idea, beside `info` and `warning` |
+| `question` | `message-circle-question-mark` | A question to answer, or help |
+| `time` | `clock` | A duration or a time, such as a reading time |
+| `history` | `rotate-ccw-clock` | What came before: earlier versions, recent items |
+| `code` | `code-xml` | Source code |
+| `route` | `route` | A path through several steps, such as a learning track |
+
+**Names.** `arrow-right` is named for its drawing in left-to-right text, as `chevron-right` is. `arrow` stays what it was: the arrow an annotation tool draws.
+
+**Direction.** The rule of 2026-11-19 holds: an icon mirrors when it points along the reading order or along time.
+
+- **Mirrored:** `arrow-right`, which points onwards, and `external-link`, whose arrow leaves towards the end of the line, as platform guidance has "open in new" do.
+- **Not mirrored:** `question`, because a mirrored question mark is a different character; `time` and `history`, because a clock's hands turn the same way in every language; and `feed`, `code` and the rest, which point nowhere.
 
 ## Amendment: icons that point along time
 

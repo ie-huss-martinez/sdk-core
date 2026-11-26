@@ -12,7 +12,7 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0002](0002-visual-regression-in-a-pinned-container.md) | Visual regression in a pinned container | Accepted; image location superseded by [0004](0004-one-browser-test-image.md), runner replaced by [0007](0007-browser-tests-in-the-pinned-image.md); amended to stay stricter than sdk-core ADR 0054 |
 | [0003](0003-component-contract.md) | The component contract | Accepted; "`ui` ships no icon set" superseded by [0005](0005-icon-set.md) |
 | [0004](0004-one-browser-test-image.md) | One browser test image, in one place | Accepted; its unit tests replaced by [0007](0007-browser-tests-in-the-pinned-image.md) |
-| [0005](0005-icon-set.md) | An icon set generated from Lucide | Accepted; amended to allow a few glyphs ui draws itself, where Lucide has none, and to mirror icons that point along time |
+| [0005](0005-icon-set.md) | An icon set generated from Lucide | Accepted; amended to allow a few glyphs ui draws itself, where Lucide has none, to mirror icons that point along time, and to add icons for pages but no brand marks |
 | [0006](0006-overlays-in-the-top-layer.md) | Overlays in the top layer, placed without a library | Accepted |
 | [0007](0007-browser-tests-in-the-pinned-image.md) | Every browser test runs in the pinned image, through `sdk-config` | Accepted |
 | [0008](0008-colour-input-without-the-native-picker.md) | A colour input without the browser's picker | Accepted |
@@ -21,3 +21,5 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0011](0011-timeline.md) | A shared timeline: clips, a playhead and layers over whole units | Proposed; an amendment for lanes, clips with a start and dragging a clip is proposed in it |
 | [0012](0012-size-budgets-per-import.md) | Size budgets for what applications import, beside each entry's | Accepted; refined by [sdk-core ADR 0056](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0056-size-budgets-for-what-applications-import.md), whose floors round up to the next 0.1 kB |
 | [0013](0013-colour-picker.md) | A colour picker drawn in SVG, with an accessible slider for each axis | Accepted |
+| [0014](0014-card-and-morph-transition.md) | A card whose title is its action, and a morph into a dialog through view transitions | Accepted |
+| [0015](0015-tag-and-button-link.md) | A static tag, and a link that looks like a button | Accepted |

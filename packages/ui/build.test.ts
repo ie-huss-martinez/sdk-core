@@ -248,6 +248,23 @@ describe("what applications ship", () => {
       includes: ["hm-heading"],
       excludes: ["hm-dialog", "hm-button", "hm-icon", ROVING_FOCUS],
     });
+    await expectShipped(
+      'import { Tag, TagList } from "./react.js"; export const app = [Tag, TagList];',
+      {
+        includes: ["hm-tag", "hm-tag-list"],
+        excludes: ["hm-button", "hm-heading", "hm-visually-hidden", "dialog.close", ROVING_FOCUS],
+      },
+    );
+    // A link ships its own text, the new-tab hint, and none of the other
+    // components'; a button ships nothing of the link.
+    await expectShipped('import { ButtonLink } from "./react.js"; export const app = ButtonLink;', {
+      includes: ["hm-button-link", "buttonLink.newTab"],
+      excludes: ["aria-pressed", "hm-tag", "dialog.close", "INVALID_THEME_TOKEN", ROVING_FOCUS],
+    });
+    await expectShipped('import { Button } from "./react.js"; export const app = Button;', {
+      includes: ["hm-button"],
+      excludes: ["hm-button-link", "buttonLink.newTab", "noopener"],
+    });
   });
 
   it("drops everything from the root entry that isn't imported", async () => {
@@ -261,6 +278,7 @@ describe("what applications ship", () => {
 // Texts that only appear in development warnings.
 const WARNINGS = [
   "IconButton needs a label",
+  "ButtonLink refused a javascript: URL",
   "below WCAG 2.2 AA contrast",
   "copies of @hussmartinez/ui",
   "isn't a heading level",
@@ -269,7 +287,7 @@ const WARNINGS = [
 
 describe("development warnings", () => {
   const app =
-    'import { Heading, IconButton, ThemeProvider } from "./react.js"; import { createTheme, toHeadingLevel } from "./index.js"; export const app = [Heading, IconButton, ThemeProvider, createTheme, toHeadingLevel];';
+    'import { ButtonLink, Heading, IconButton, ThemeProvider } from "./react.js"; import { createTheme, toHeadingLevel } from "./index.js"; export const app = [ButtonLink, Heading, IconButton, ThemeProvider, createTheme, toHeadingLevel];';
 
   it("stay in development bundles", async () => {
     await expectShipped(app, { includes: WARNINGS, excludes: [] }, "development");

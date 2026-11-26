@@ -51,7 +51,14 @@ export interface ButtonProps
   readonly focusableWhenDisabled?: boolean | undefined;
 }
 
-function Icon({ children, className }: { children: ReactNode; className: string | undefined }) {
+/** The icon slot, hidden from assistive technology. `ButtonLink` renders it too. */
+export function Icon({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className: string | undefined;
+}) {
   return (
     <span className={cx("hm-button-icon", className)} aria-hidden="true">
       {children}

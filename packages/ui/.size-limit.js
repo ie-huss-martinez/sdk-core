@@ -107,7 +107,10 @@ export default [
   entryBudget({
     name: "Server-safe entry (.), with the shared code it loads",
     entry: "dist/index.js",
-    // 14 kB; 13.98 kB with the editor frame (sdk-core ADR 0067): about
+    // 14.5 kB; 14.19 kB with the tag's 18 component tokens and the link's
+    // new-tab text (docs/adr/0015); 14.06 kB with the card's nine component
+    // tokens before them (docs/adr/0014).
+    // Before, 14 kB; 13.98 kB with the editor frame (sdk-core ADR 0067): about
     // 1.2 kB of new text in `uiMessages` and 0.9 kB of token metadata for the
     // new components' tokens. Before, 12 kB; 11.6 kB with the button's
     // component tokens. Each
@@ -124,13 +127,19 @@ export default [
     //                                errors, registry, themeToCss
     // An application using only the built-in themes ships none of this: see
     // the ThemeProvider tree-shaking test in build.test.ts.
-    limit: "14 kB",
+    limit: "14.5 kB",
   }),
   entryBudget({
     name: "React entry (./react), with the shared code it loads",
     entry: "dist/react.js",
-    // 43 kB; 42.53 kB with useEditorPreferences, the preference glue the
-    // four media editors each carried before. Before, 42 kB; 41.73 kB with ThemeToggle's `inherit`, which reads the theme its
+    // 45 kB; 44.58 kB with useEditorPreferences, the preference glue the
+    // four media editors each carried before (0.73 kB). Before, 44 kB; 43.81 kB with Tag, TagList and ButtonLink (docs/adr/0015) and
+    // 14 icons for pages (docs/adr/0005, amended), which the every-icon
+    // scenario measures. The scenarios that leave them out ship the same code
+    // as before. Before, 42.5 kB; 42.43 kB with Card and startMorphTransition
+    // (docs/adr/0014),
+    // which the last two scenarios measure. Before, 42 kB; 41.73 kB with
+    // ThemeToggle's `inherit`, which reads the theme its
     // element inherits and follows its ancestors' changes. Before, 41.5 kB;
     // 41.05 kB with the editor frame's eleven components and the
     // colour picker (sdk-core ADR 0067, docs/adr/0013), which the two
@@ -142,12 +151,15 @@ export default [
     // content's headings. Every component counts here, though no
     // application ships them all, so a component's pull request raises it as
     // expected growth; review reads the import scenarios below to judge it.
-    limit: "43 kB",
+    limit: "45 kB",
   }),
   entryBudget({
     name: "Stylesheet (./styles.css)",
     entry: "dist/styles.css",
-    // 14 kB; 13.71 kB with the editor frame's components, the colour
+    // 15.5 kB; 15.07 kB with the tag's and the tag list's rules, five tones
+    // among them, and a link's one (docs/adr/0015).
+    // Before, 15 kB; 14.66 kB with the card and the morph's rules (docs/adr/0014).
+    // Before, 14 kB; 13.71 kB with the editor frame's components, the colour
     // picker (with its right-to-left strips) and the reduced-motion and
     // theme blocks of the new tokens.
     // Before, 9.5 kB; 9.05 kB with lanes that let presses through;
@@ -155,7 +167,7 @@ export default [
     // entry's is: to the measurement, rounded up to the next 0.5 kB. Every
     // application loads the whole stylesheet, so this one is the cost of
     // every component.
-    limit: "14 kB",
+    limit: "15.5 kB",
   }),
   // A floor: 0.6 kB; 0.56 kB, counting only the React names it uses
   // (sdk-config 0.12.1). A leak into every component shows here first.
@@ -176,8 +188,9 @@ export default [
     ["Timeline", "TimelineClips", "TimelinePlayhead", "TimelineLane"],
     "9.5 kB",
   ),
-  // 3.5 kB; 3.00 kB for 62 icons, about 0.05 kB each.
-  scenario("every icon", ICONS, "3.5 kB"),
+  // 4 kB; 3.88 kB for 84 icons, about 0.05 kB each, with the 14 for pages
+  // (docs/adr/0005, amended). Before, 3.5 kB; 3.21 kB for 70.
+  scenario("every icon", ICONS, "4 kB"),
   // 7.5 kB; 7.40 kB.
   scenario("an editor", EDITOR, "7.5 kB"),
   // 11.5 kB; 11.33 kB with useEditorPreferences, which every SDK editor now
@@ -208,4 +221,12 @@ export default [
   ),
   // 6 kB; 5.86 kB, with its colour names (docs/adr/0013).
   scenario("ColorPicker", ["ColorPicker", "addRecentColor"], "6 kB"),
+  // 1 kB; 0.61 kB, with the heading level's context (docs/adr/0014).
+  scenario("Card", ["Card"], "1 kB"),
+  // 2.5 kB; 2.48 kB: a card, its dialog and the view transition between them.
+  scenario(
+    "a Card that morphs into a Dialog",
+    ["Card", "Dialog", "startMorphTransition"],
+    "2.5 kB",
+  ),
 ];

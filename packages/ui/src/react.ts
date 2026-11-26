@@ -24,8 +24,12 @@ export type {
   ButtonVariant,
 } from "./components/button/Button.js";
 export { Button } from "./components/button/Button.js";
+export type { ButtonLinkProps } from "./components/button/ButtonLink.js";
+export { ButtonLink } from "./components/button/ButtonLink.js";
 export type { IconButtonProps } from "./components/button/IconButton.js";
 export { IconButton } from "./components/button/IconButton.js";
+export type { CardPart, CardProps } from "./components/card/Card.js";
+export { Card } from "./components/card/Card.js";
 export type {
   ColorFieldPart,
   ColorFieldProps,
@@ -84,6 +88,8 @@ export type {
 export { UiMessagesProvider, useUiMessages } from "./components/messages/UiMessagesProvider.js";
 export type { ModeSwitchProps } from "./components/mode-switch/ModeSwitch.js";
 export { ModeSwitch } from "./components/mode-switch/ModeSwitch.js";
+export type { MorphTransitionOptions } from "./components/morph-transition/morph-transition.js";
+export { startMorphTransition } from "./components/morph-transition/morph-transition.js";
 export type { NumberFieldProps } from "./components/number-field/NumberField.js";
 export { NumberField } from "./components/number-field/NumberField.js";
 export type { ProgressBarProps } from "./components/progress-bar/ProgressBar.js";
@@ -120,6 +126,8 @@ export type { SpinnerProps } from "./components/spinner/Spinner.js";
 export { Spinner } from "./components/spinner/Spinner.js";
 export type { TabBarItem, TabBarPart, TabBarProps } from "./components/tab-bar/TabBar.js";
 export { TabBar } from "./components/tab-bar/TabBar.js";
+export type { TagListProps, TagPart, TagProps, TagTone } from "./components/tag/Tag.js";
+export { Tag, TagList } from "./components/tag/Tag.js";
 export type { TextAreaProps } from "./components/text-area/TextArea.js";
 export { TextArea } from "./components/text-area/TextArea.js";
 export type { TextFieldProps, TextFieldType } from "./components/text-field/TextField.js";

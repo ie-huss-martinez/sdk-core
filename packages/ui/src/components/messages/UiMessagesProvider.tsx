@@ -108,6 +108,20 @@ export function useUiText(key: PlainMessageKey, part: EnglishPart = uiCoreText):
 }
 
 /**
+ * {@link useUiText} for a component whose text is a part of its own. It
+ * names the part, and nothing here falls back to the core part for it, so
+ * the component doesn't ship the other components' text.
+ */
+export function useUiPartText<Part extends EnglishPart>(
+  part: Part,
+  key: keyof Part & PlainMessageKey,
+): string {
+  checkSingleCopy();
+  const messages = useContext(UiMessagesContext);
+  return messages ? messages.t(key as PlainMessageKey) : (part[key] as string);
+}
+
+/**
  * Like {@link useUiText}, for a component that looks up many keys, or keys
  * chosen at render: one hook call, and a function for every key.
  */
