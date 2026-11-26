@@ -647,6 +647,15 @@ export type ComponentTokenName =
   | "dialog-small-width"
   | "dialog-width"
   | "dialog-large-width"
+  | "card-bg"
+  | "card-fg"
+  | "card-border-color"
+  | "card-border-color-hover"
+  | "card-shadow-hover"
+  | "card-radius"
+  | "card-padding"
+  | "card-gap"
+  | "card-title-font-size"
   | "heading-font-size"
   | "spinner-size"
   | "spinner-thickness"
@@ -871,6 +880,15 @@ const component = {
   "dialog-small-width": { fallback: "surface-width-small" },
   "dialog-width": { fallback: "surface-width-medium" },
   "dialog-large-width": { fallback: "surface-width-large" },
+  "card-bg": { fallback: "color-surface" },
+  "card-fg": { fallback: "color-text" },
+  "card-border-color": { fallback: "color-border" },
+  "card-border-color-hover": { fallback: "color-border-strong" },
+  "card-shadow-hover": { fallback: "shadow-raised" },
+  "card-radius": { fallback: "radius-surface" },
+  "card-padding": { fallback: "inset-normal" },
+  "card-gap": { fallback: "gap-normal" },
+  "card-title-font-size": { fallback: "font-size-body" },
   "heading-font-size": { fallback: "font-size-title" },
   "spinner-size": { fallback: "icon-size" },
   "spinner-thickness": { fallback: "focus-ring-width" },
