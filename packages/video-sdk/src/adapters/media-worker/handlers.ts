@@ -16,13 +16,13 @@ export function mediaWorkerHandlers(hooks?: PlaybackHooks): WorkerHandlers<Media
     ...playbackHandlers(hooks),
     probe: ({ file, limits }, { signal }) => probeFile(file, videoLimits.resolve(limits), signal),
     async support({ file, limits, probe }, { signal }) {
-      // The same front check as a probe, before mediabunny reads the file.
-      await frontCheck(file, videoLimits.resolve(limits));
-      return checkDecoderSupport(file, probe, signal);
+      // The same front check as a probe, before anything else reads the file.
+      const front = await frontCheck(file, videoLimits.resolve(limits));
+      return checkDecoderSupport(file, probe, front, signal);
     },
     async peaks({ file, limits, probe }, { signal }) {
-      await frontCheck(file, videoLimits.resolve(limits));
-      return audioPeaks(file, probe, signal);
+      const front = await frontCheck(file, videoLimits.resolve(limits));
+      return audioPeaks(file, probe, front, signal);
     },
   };
 }

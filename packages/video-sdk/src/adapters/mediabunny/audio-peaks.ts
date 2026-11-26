@@ -1,7 +1,8 @@
 import type { VideoPeaks, VideoProbe } from "../../core/model/source.js";
+import type { FrontCheck } from "../front-check/types.js";
+import { openTracks } from "../open-tracks.js";
 import { createPeakBuilder } from "../peaks.js";
 import { decodeAudioData } from "./audio-decoder.js";
-import { familyOf, openInput, pickTracks } from "./tracks.js";
 
 /**
  * Decodes a probed file's audio track in the worker, and builds its waveform
@@ -13,19 +14,20 @@ import { familyOf, openInput, pickTracks } from "./tracks.js";
 export async function audioPeaks(
   file: Blob,
   probe: VideoProbe,
+  front: FrontCheck,
   signal?: AbortSignal,
 ): Promise<VideoPeaks | null> {
-  const input = openInput(file, familyOf(probe.container));
+  // A probe without sound, such as a track this browser can't decode, has no peaks.
+  if (probe.audio === null) return null;
+  const tracks = await openTracks(file, front);
   try {
-    // A probe without sound, such as a track this browser can't decode, has no peaks.
-    if (probe.audio === null) return null;
-    const { audio } = await pickTracks(input, probe.container);
-    const config = audio && (await audio.getDecoderConfig());
+    const { audio } = tracks;
+    const config = audio && (await audio.config());
     if (!audio || !config) return null;
     const peaks = createPeakBuilder(probe.start, probe.duration);
     let buffers: Float32Array[] = [];
     await decodeAudioData(
-      audio,
+      audio.packets(),
       config,
       { from: Number.NEGATIVE_INFINITY, to: Number.POSITIVE_INFINITY },
       (data, timestamp) => {
@@ -54,6 +56,6 @@ export async function audioPeaks(
     );
     return peaks.finish();
   } finally {
-    input.dispose();
+    tracks.dispose();
   }
 }

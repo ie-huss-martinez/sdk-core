@@ -143,7 +143,7 @@ try {
 
 | | Containers | Codecs |
 |---|---|---|
-| Opening | MP4, MOV, WebM and Matroska, recognised by signature, never by name | Whatever the browser's WebCodecs decodes, such as H.264, VP8, VP9, AV1, AAC and Opus |
+| Opening | MP4, MOV, WebM and Matroska, and DAV recordings from Dahua recorders (`DHAV`), recognised by signature, never by name | Whatever the browser's WebCodecs decodes, such as H.264, VP8, VP9, AV1, AAC and Opus. In DAV: H.264, or HEVC where the browser has it, with G.711 or 16-bit PCM sound |
 | Exporting | MP4, or WebM | H.264 with AAC, or with Opus where the browser has no AAC encoder; VP9 or VP8 with Opus in WebM |
 
 Decoding and encoding are the browser's own, in workers, so support varies by browser: the SDK asks the one it runs in, and a file whose picture it can't decode fails with `UNSUPPORTED_CODEC`. A file whose sound it can't decode opens without sound, with a warning; and where it can't encode sound, an export fails with `UNSUPPORTED_CODEC` for the audio track, and `session.export({ audio: "omit" })` makes it without sound. [`docs/capabilities.md`](docs/capabilities.md) shows what Chromium, Firefox and WebKit offer in the test image. Encrypted files, files with several edits in an edit list and files without a video track are refused, with a reason ([ADR 0001](docs/adr/0001-video-engines.md)).

@@ -1,9 +1,10 @@
-import type { InputAudioTrack, InputVideoTrack } from "mediabunny";
 import { isVideoError, VideoError } from "../../core/errors/video-error.js";
 import type { VideoProbe } from "../../core/model/source.js";
+import type { FrontCheck } from "../front-check/types.js";
+import { openTracks } from "../open-tracks.js";
+import type { OpenTracks } from "../packets.js";
 import { type AudioRange, decodeAudioData } from "./audio-decoder.js";
 import { frameBounds } from "./frame-bounds.js";
-import { familyOf, openInput, pickTracks } from "./tracks.js";
 import { decodeVideoFrames, type FrameRange } from "./video-decoder.js";
 
 /**
@@ -38,28 +39,26 @@ export interface FrameReader {
  * Opens a file that has passed the front check for playback: the same video
  * track the probe read, its decoder configuration, and its frame bounds.
  *
- * Throws `VideoError`: `INVALID_VIDEO` when mediabunny can't give a decoder
- * configuration, and the codes of {@link pickTracks}.
+ * Throws `VideoError`: `INVALID_VIDEO` when the reader can't give a decoder
+ * configuration, and the codes of {@link openTracks}.
  *
  * @internal
  */
-export async function openFrameReader(file: Blob, probe: VideoProbe): Promise<FrameReader> {
-  const input = openInput(file, familyOf(probe.container));
-  let track: InputVideoTrack;
+export async function openFrameReader(
+  file: Blob,
+  probe: VideoProbe,
+  front: FrontCheck,
+): Promise<FrameReader> {
+  let tracks: OpenTracks | undefined;
   let config: VideoDecoderConfig | null;
-  let audioTrack: InputAudioTrack | undefined;
   let audioConfig: AudioDecoderConfig | null = null;
   try {
-    const tracks = await pickTracks(input, probe.container);
-    track = tracks.video;
-    config = await track.getDecoderConfig();
+    tracks = await openTracks(file, front);
+    config = await tracks.video.config();
     // Only the audio track the probe found; a file probed without audio plays silent.
-    if (probe.audio && tracks.audio) {
-      audioTrack = tracks.audio;
-      audioConfig = await audioTrack.getDecoderConfig();
-    }
+    if (probe.audio && tracks.audio) audioConfig = await tracks.audio.config();
   } catch (error) {
-    input.dispose();
+    tracks?.dispose();
     if (isVideoError(error)) throw error;
     throw new VideoError("INVALID_VIDEO", "The file couldn't be read.", {
       details: { container: probe.container, reason: "demux" },
@@ -67,11 +66,12 @@ export async function openFrameReader(file: Blob, probe: VideoProbe): Promise<Fr
     });
   }
   if (config === null) {
-    input.dispose();
+    tracks.dispose();
     throw new VideoError("INVALID_VIDEO", "The video track has no decoder configuration.", {
       details: { container: probe.container, reason: "demux" },
     });
   }
+  const { video, audio: audioTrack } = tracks;
   const decoderConfig = config;
   const bounds = frameBounds(probe);
   const audio =
@@ -81,13 +81,13 @@ export async function openFrameReader(file: Blob, probe: VideoProbe): Promise<Fr
             range: AudioRange,
             onData: (data: AudioData, timestamp: number) => void | Promise<void>,
             signal: AbortSignal,
-          ) => decodeAudioData(audioTrack, audioConfig, range, onData, signal),
+          ) => decodeAudioData(audioTrack.packets(), audioConfig, range, onData, signal),
         }
       : null;
   return {
     decode: (range, onFrame, signal) =>
-      decodeVideoFrames(track, decoderConfig, bounds, range, onFrame, signal),
+      decodeVideoFrames(video.packets(), decoderConfig, bounds, range, onFrame, signal),
     audio,
-    dispose: () => input.dispose(),
+    dispose: () => tracks.dispose(),
   };
 }

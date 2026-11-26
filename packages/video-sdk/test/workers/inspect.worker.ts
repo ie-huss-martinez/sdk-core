@@ -3,6 +3,7 @@
 // the SDK's own probe and decoder, so it checks the file as a user's player
 // would read it, in the engine that made it.
 import { exposeWorker } from "@hussmartinez/sdk-core";
+import { EncodedPacketSink } from "mediabunny";
 import { frameBounds } from "../../src/adapters/mediabunny/frame-bounds.js";
 import { familyOf, openInput, pickTracks } from "../../src/adapters/mediabunny/tracks.js";
 import { decodeVideoFrames } from "../../src/adapters/mediabunny/video-decoder.js";
@@ -27,6 +28,8 @@ export interface InspectContract {
 exposeWorker<InspectContract>({
   async inspect(file) {
     const probe = await probeFile(file, videoLimits.resolve());
+    // An export is MP4 or WebM, which mediabunny reads: its tags are read here too.
+    if (probe.container === "dav") throw new TypeError("An export is never a DAV file.");
     const input = openInput(file, familyOf(probe.container));
     try {
       const { video } = await pickTracks(input, probe.container);
@@ -38,7 +41,7 @@ exposeWorker<InspectContract>({
       const numbers: number[] = [];
       const timestamps: number[] = [];
       await decodeVideoFrames(
-        video,
+        new EncodedPacketSink(video),
         config,
         frameBounds(probe),
         { from: Number.NEGATIVE_INFINITY, to: Number.POSITIVE_INFINITY },

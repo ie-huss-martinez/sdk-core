@@ -11,6 +11,7 @@ import {
 } from "./contracts/video-processor.contract.js";
 import exportA from "./fixtures/video/export-a.webm?url";
 import exportB from "./fixtures/video/export-b.webm?url";
+import numberedDav from "./fixtures/video/numbered.dav?url";
 import { unreadable } from "./support/codecs.js";
 import { DEV_WORKER_START_TIMEOUT } from "./support/load.js";
 import type { ExportTestContract } from "./workers/export.worker.js";
@@ -150,6 +151,32 @@ describe("an export's file", () => {
     expect(silent.peakDb).toBe(Number.NEGATIVE_INFINITY);
     expect(silent.clippedFrames).toBe(0);
     await teardown();
+  });
+
+  // A recording read by the SDK's own DHAV reader (docs/adr/0009): 25
+  // pictures a second and A-law at 8 kHz, exported on the plan's 30 frames a
+  // second and 48 kHz like any other source.
+  it("exports a DAV recording to MP4, with its pictures in order and its sound", async (context) => {
+    const reason = await unreadable();
+    if (reason) context.skip(reason);
+    const engine = createVideoEngine({ startTimeout: DEV_WORKER_START_TIMEOUT });
+    const file = await blob(numberedDav);
+    const source = await engine.open("dav", file, await engine.probe(file));
+    expect(source).toMatchObject({ container: "dav", duration: 3_000_000 });
+    const processor = createVideoProcessor({ engine });
+    const result = await processor.export({ plan: smallPlan(clipOf("x", source, 1_000_000, 30)) });
+    const read = await inspector.call("inspect", result.blob);
+    expect(read.container).toBe("mp4");
+    expect(read.videoCodec).toMatch(/^avc1\./);
+    expect(["mp4a.40.2", "opus"]).toContain(read.audioCodec);
+    // Each output frame shows the picture whose 40 ms it falls in, from 1 s.
+    expect(read.numbers).toEqual(
+      Array.from({ length: 30 }, (_, n) => 25 + Math.floor(Math.round(n * FRAME) / 40_000)),
+    );
+    // The tone was decoded and mixed: the export isn't silent.
+    expect(result.peakDb).toBeGreaterThan(-20);
+    await processor.destroy();
+    await engine.destroy();
   });
 
   it("writes WebM when asked, with VP9 or VP8 and Opus", async (context) => {

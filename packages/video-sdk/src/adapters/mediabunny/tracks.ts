@@ -1,5 +1,6 @@
 import {
   BlobSource,
+  EncodedPacketSink,
   Input,
   type InputAudioTrack,
   type InputFormat,
@@ -12,16 +13,20 @@ import {
 } from "mediabunny";
 import { VideoError } from "../../core/errors/video-error.js";
 import type { VideoContainer } from "../../core/model/source.js";
-import type { FrontCheck } from "../front-check/types.js";
+import type { MediabunnyFrontCheck } from "../front-check/types.js";
+import type { OpenTracks } from "../packets.js";
+
+/** A family of mediabunny's readers. */
+type Family = MediabunnyFrontCheck["family"];
 
 /** The only formats mediabunny is given, per family: never `ALL_FORMATS` (ADR 0001). */
-const FORMATS: Record<FrontCheck["family"], InputFormat[]> = {
+const FORMATS: Record<Family, InputFormat[]> = {
   isobmff: [MP4, QTFF],
   matroska: [MATROSKA, WEBM],
 };
 
 /** The family of mediabunny's readers that reads a container. */
-export function familyOf(container: VideoContainer): FrontCheck["family"] {
+export function familyOf(container: MediabunnyFrontCheck["container"]): Family {
   return container === "mp4" || container === "mov" ? "isobmff" : "matroska";
 }
 
@@ -29,7 +34,7 @@ export function familyOf(container: VideoContainer): FrontCheck["family"] {
  * Opens a front-checked file with mediabunny, restricted to its family's
  * formats. The caller disposes of it.
  */
-export function openInput(file: Blob, family: FrontCheck["family"]): Input {
+export function openInput(file: Blob, family: Family): Input {
   return new Input({ source: new BlobSource(file), formats: FORMATS[family] });
 }
 
@@ -71,4 +76,42 @@ export async function pickTracks(
     if ((await codecOf(track)) !== null) return { video, videoCodec, audio: track };
   }
   return { video, videoCodec, audio: undefined };
+}
+
+/**
+ * Opens a front-checked file with mediabunny and picks its tracks, as
+ * {@link pickTracks}, behind the shape every reader gives (docs/adr/0009).
+ * The caller disposes of it.
+ *
+ * Throws the codes of {@link pickTracks}, and whatever mediabunny throws for
+ * a file it can't read.
+ */
+export async function openMediabunnyTracks(
+  file: Blob,
+  container: MediabunnyFrontCheck["container"],
+): Promise<OpenTracks> {
+  const input = openInput(file, familyOf(container));
+  try {
+    const { video, videoCodec, audio } = await pickTracks(input, container);
+    const audioCodec = audio && (await codecOf(audio));
+    return {
+      video: {
+        codec: videoCodec,
+        config: () => video.getDecoderConfig(),
+        packets: () => new EncodedPacketSink(video),
+      },
+      audio:
+        audio && audioCodec
+          ? {
+              codec: audioCodec,
+              config: () => audio.getDecoderConfig(),
+              packets: () => new EncodedPacketSink(audio),
+            }
+          : undefined,
+      dispose: () => input.dispose(),
+    };
+  } catch (error) {
+    input.dispose();
+    throw error;
+  }
 }

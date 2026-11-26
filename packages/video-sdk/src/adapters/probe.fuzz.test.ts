@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
+import { DHAV_TYPES, dhavFrame, dhavTags } from "../../test/builders/dhav.js";
 import { ebmlFile, element, IDS, trackEntry } from "../../test/builders/ebml.js";
 import { ascii, box, isoFile, trak, u32 } from "../../test/builders/isobmff.js";
 import { isVideoError, type VideoErrorCode } from "../core/errors/video-error.js";
@@ -49,7 +50,7 @@ async function settles(bytes: Uint8Array, label: string): Promise<void> {
 }
 
 describe("the probe against truncated files", () => {
-  it.each(["tiny.mp4", "tiny.webm"])(
+  it.each(["tiny.mp4", "tiny.webm", "hevc.dav"])(
     "settles for %s cut at every byte offset",
     async (name) => {
       const bytes = await fixture(name);
@@ -80,6 +81,8 @@ describe("the probe against mutated files", () => {
     "rotated.mov",
     "tiny.mp4",
     "tiny.webm",
+    "numbered.dav",
+    "hevc.dav",
   ])(
     "settles for %s with random bytes overwritten",
     async (name) => {
@@ -103,6 +106,8 @@ describe("the probe against garbage", () => {
       new Uint8Array(0),
       box("ftyp", [ascii("isom"), u32(0)]),
       element(IDS.EBML, [element(IDS.DOC_TYPE, ascii("webm"))]),
+      ascii("DHAV"),
+      dhavFrame({ type: DHAV_TYPES.key, extension: dhavTags.video(0x08, 25) }).subarray(0, 28),
     );
     await fc.assert(
       fc.asyncProperty(prefix, fc.uint8Array({ maxLength: 2_048 }), async (head, tail) => {
@@ -170,8 +175,38 @@ describe("the probe against garbage", () => {
           ...elements.map(({ id, size, body }) => element(id, body, size)),
         ]),
       );
+    const dhavTree = fc
+      .array(
+        fc.record({
+          type: fc.constantFrom(0xfd, 0xfc, 0xf0, 0xf1, 0x00),
+          length: fc.option(
+            fc.oneof(fc.constantFrom(0, 23, 24, 31, 32, 0xffffffff), fc.nat(4_096)),
+            {
+              nil: undefined,
+            },
+          ),
+          extension: fc.uint8Array({ maxLength: 24 }),
+          payload: fc.uint8Array({ maxLength: 64 }),
+          timestamp: fc.nat(0xffff),
+          date: fc.nat(0xffffffff),
+          channel: fc.nat(3),
+        }),
+        { maxLength: 12 },
+      )
+      .map((frames) => {
+        const parts = frames.map(({ length, ...frame }) =>
+          dhavFrame(length === undefined ? frame : { ...frame, length }),
+        );
+        const bytes = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+        let at = 0;
+        for (const part of parts) {
+          bytes.set(part, at);
+          at += part.length;
+        }
+        return bytes;
+      });
     await fc.assert(
-      fc.asyncProperty(fc.oneof(isoTree, ebmlTree), async (bytes) => {
+      fc.asyncProperty(fc.oneof(isoTree, ebmlTree, dhavTree), async (bytes) => {
         await settles(bytes, "tree");
       }),
       { numRuns: 400 },
