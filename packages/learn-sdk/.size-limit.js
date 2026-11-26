@@ -186,4 +186,31 @@ export default [
     imports: "{ LearnPlayer }",
     limit: "10.7 kB",
   }),
+  // The editor (ADR 0008): its blocks, and the editor with them all. Its text
+  // is built in a pure call, so none of it reaches the player's imports: the
+  // React floor stayed at 1.82 kB with the editor added.
+  importBudget({
+    name: "React: multipleChoiceEditor",
+    entry: react,
+    imports: "{ multipleChoiceEditor }",
+    limit: "4 kB",
+  }),
+  importBudget({
+    name: "React: gapFillEditor",
+    entry: react,
+    imports: "{ gapFillEditor }",
+    limit: "4.5 kB",
+  }),
+  importBudget({
+    name: "React: wordOrderEditor",
+    entry: react,
+    imports: "{ wordOrderEditor }",
+    limit: "5 kB",
+  }),
+  importBudget({
+    name: "React: LearnEditor",
+    entry: react,
+    imports: "{ LearnEditor }",
+    limit: "15.5 kB",
+  }),
 ];

@@ -1,6 +1,6 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { targets } from "../targets.js";
+import { hydrated, noViolations, watch } from "./checks.js";
 
 /**
  * The player on each built example, as a host serves it (sdk-core ADR 0007,
@@ -10,49 +10,6 @@ import { targets } from "../targets.js";
  * strict Content Security Policy, with no violation, no error, no axe
  * finding and no request to another origin.
  */
-
-interface Problems {
-  console: string[];
-  errors: string[];
-  foreignRequests: string[];
-}
-
-function watch(page: Page, origin: string): Problems {
-  const problems: Problems = { console: [], errors: [], foreignRequests: [] };
-  page.on("console", (message) => {
-    // A Content Security Policy violation or a hydration mismatch is reported here.
-    if (message.type() === "error" || message.type() === "warning") {
-      problems.console.push(`${message.type()}: ${message.text()}`);
-    }
-  });
-  page.on("pageerror", (error) => problems.errors.push(error.message));
-  page.on("request", (request) => {
-    const url = new URL(request.url());
-    if (url.protocol.startsWith("http") && url.origin !== origin)
-      problems.foreignRequests.push(url.href);
-  });
-  return problems;
-}
-
-/** Waits until React owns the player, so keys and clicks reach it. */
-async function hydrated(page: Page): Promise<void> {
-  await page.waitForFunction(() => {
-    const player = document.querySelector(".hm-learn-player");
-    return player !== null && Object.keys(player).some((key) => key.startsWith("__react"));
-  });
-}
-
-async function noViolations(page: Page): Promise<void> {
-  const results = await new AxeBuilder({ page })
-    .include(".hm-learn-player")
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze();
-  expect(
-    results.violations.map(
-      (v) => `${v.id}: ${v.help} at ${v.nodes.map((n) => n.target.join(" ")).join("; ")}`,
-    ),
-  ).toEqual([]);
-}
 
 const status = (page: Page) => page.locator(".hm-announcer [role=status]");
 // The announcer says messages sent in the same frame together, in order

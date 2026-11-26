@@ -23,7 +23,9 @@ export interface EditorFieldProps {
    */
   readonly taught?: LanguageProfile | undefined;
   readonly multiline?: boolean | undefined;
-  /** Shown after the field, such as its Remove button. */
+  /** Shown before the input, in its row, such as a radio button. */
+  readonly leading?: ReactNode;
+  /** Shown after the input, in its row, such as its Remove button. */
   readonly actions?: ReactNode;
 }
 
@@ -52,6 +54,7 @@ export function EditorField({
   messages,
   taught,
   multiline = false,
+  leading,
   actions,
 }: EditorFieldProps): ReactNode {
   const text = useCommittedText(value, onCommit, { multiline });
@@ -65,15 +68,23 @@ export function EditorField({
       }
     : {};
   return (
-    <div className="hm-learn-editor-field">
-      <Field label={label} description={description} error={issueText(messages, issue)}>
+    // The input and its buttons share a row, so they line up with the input,
+    // and the problem, below the row, never pushes them out of line.
+    <Field
+      className="hm-learn-editor-field"
+      label={label}
+      description={description}
+      error={issueText(messages, issue)}
+    >
+      <div className="hm-learn-editor-control">
+        {leading}
         {multiline ? (
           <TextArea rows={2} {...language} {...text} />
         ) : (
           <TextField {...language} {...text} />
         )}
-      </Field>
-      {actions}
-    </div>
+        {actions}
+      </div>
+    </Field>
   );
 }

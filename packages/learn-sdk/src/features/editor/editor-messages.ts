@@ -10,11 +10,10 @@ import { learnMessages } from "../../messages/en.js";
  *
  * @public
  */
-export const learnEditorMessages = /* @__PURE__ */ defineMessages({
-  ...learnMessages,
-  ...uiMessages,
-  ...editorText,
-});
+// Built in a pure call: a spread at module level may run getters, so bundlers
+// keep it, and with it the editor's text, in apps that only play exercises.
+export const learnEditorMessages = /* @__PURE__ */ (() =>
+  defineMessages({ ...learnMessages, ...uiMessages, ...editorText }))();
 
 /**
  * The type of `learnEditorMessages`, from `./react`, for typing overrides with

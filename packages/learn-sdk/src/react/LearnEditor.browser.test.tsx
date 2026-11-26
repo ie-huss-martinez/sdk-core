@@ -245,6 +245,81 @@ describe("LearnEditor", () => {
     });
   });
 
+  it("writes a gap-fill exercise with the keyboard alone, choices included", async () => {
+    const ref = createRef<LearnEditorHandle>();
+    const element = render({ initialContent: undefined }, ref);
+    button(element, "Add fill the gap").focus();
+    await userEvent.keyboard("{Enter}");
+    field(element, "Sentence").focus();
+    await userEvent.keyboard("ฉัน___ข้าว");
+    field(element, "Answer 1").focus();
+    await userEvent.keyboard("กิน");
+    button(element, "Add a choice").focus();
+    await userEvent.keyboard("{Enter}");
+    // Focus goes to the new choice's field.
+    expect(document.activeElement).toBe(field(element, "Choice 1"));
+    await userEvent.keyboard("กิน");
+    button(element, "Add a choice").focus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard("ดื่ม");
+    await userEvent.tab();
+    expect(ref.current?.getContent().exercises[0]?.payload).toEqual({
+      items: [{ sentence: "ฉัน___ข้าว", answers: ["กิน"], options: ["กิน", "ดื่ม"] }],
+    });
+  });
+
+  it("writes a word-order exercise with the keyboard alone, moving a word with buttons", async () => {
+    const ref = createRef<LearnEditorHandle>();
+    const element = render({ initialContent: undefined }, ref);
+    button(element, "Add word order").focus();
+    await userEvent.keyboard("{Enter}");
+    field(element, "Word 1").focus();
+    await userEvent.keyboard("ข้าว");
+    field(element, "Word 2").focus();
+    await userEvent.keyboard("กิน");
+    button(element, "Add a word").focus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard("ฉัน");
+    button(element, "Move word 3 earlier").focus();
+    await userEvent.keyboard("{Enter}");
+    // Focus follows the word to its new place.
+    expect(document.activeElement).toBe(button(element, "Move word 2 earlier"));
+    await userEvent.keyboard("{Enter}");
+    field(element, "Translation").focus();
+    await userEvent.keyboard("I eat rice.");
+    await userEvent.tab();
+    expect(ref.current?.getContent().exercises[0]?.payload).toEqual({
+      items: [{ tiles: ["ฉัน", "ข้าว", "กิน"], translation: "I eat rice." }],
+    });
+  });
+
+  it("keeps focus on Undo after undoing, and passes axe on the start cards", async () => {
+    const element = render({ initialContent: undefined, defaultPreferences: { mode: "easy" } });
+    expect(element.querySelectorAll(".hm-learn-editor-card")).toHaveLength(3);
+    await expectNoAxeViolations(element);
+    await userEvent.click(button(element, "Write a multiple-choice question"));
+    field(element, "Title").focus();
+    await userEvent.keyboard("Drinks");
+    // Ctrl+Z inside a field is the browser's own text undo; the editor's is its button and shortcut.
+    await userEvent.click(button(element, "Undo"));
+    expect(field(element, "Title").value).toBe("");
+    expect(document.activeElement).toBe(button(element, "Undo"));
+  });
+
+  it("moves the tools into the tab bar on a narrow screen", async () => {
+    const element = render();
+    act(() => {
+      (element as HTMLElement).style.inlineSize = "360px";
+    });
+    const shown = (selector: string) => {
+      const found = element.querySelector(selector);
+      return found !== null && getComputedStyle(found).display !== "none";
+    };
+    await expect.poll(() => shown(".hm-editor-frame-tab-bar")).toBe(true);
+    expect(shown(".hm-editor-frame-tools")).toBe(false);
+    await expectNoAxeViolations(element);
+  });
+
   describe("single", () => {
     it("edits one exercise, with no outline and no structural tools", async () => {
       const element = render({ single: true, initialContent: one });

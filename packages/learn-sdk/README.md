@@ -6,6 +6,39 @@ It's published as **`@hussmartinez/learn-sdk`**, from `packages/learn-sdk` in th
 
 > Status: `0.x`, so the API may still change between minor versions. The player and the headless core are published; the editor is in progress.
 
+## Teacher's editor
+
+`LearnEditor`, from `@hussmartinez/learn-sdk/react`, lets teachers write exercises ([ADR 0008](docs/adr/0008-learn-editor.md)). It renders through `@hussmartinez/ui`'s editor frame, so import ui's stylesheet first, then this package's, and give the editor a height in your CSS.
+
+```tsx
+import "@hussmartinez/ui/styles.css";
+import "@hussmartinez/learn-sdk/styles.css";
+import { LearnEditor, type LearnEditorHandle } from "@hussmartinez/learn-sdk/react";
+import { useRef, useState } from "react";
+
+const thai = { code: "th", direction: "ltr" } as const;
+
+export function Editor({ content, save }: { content: unknown; save: (c: unknown) => Promise<void> }) {
+  const editor = useRef<LearnEditorHandle>(null);
+  const [valid, setValid] = useState(false);
+  return (
+    <>
+      <LearnEditor ref={editor} initialContent={content} profile={thai} onChange={(_, problems) => setValid(problems.valid)} />
+      <button type="button" disabled={!valid} onClick={() => save(editor.current?.getContent())}>
+        Save
+      </button>
+    </>
+  );
+}
+```
+
+- **Saving stays yours.** `onChange(draft, { issues, valid })` reports every edit, undo and redo. The draft may be invalid while a teacher writes; save through the handle's `getContent()`, which commits any typing and returns validated `hm-learn-content`, or throws `INVALID_DOCUMENT` with every issue.
+- **One exercise at a time:** with `single`, the editor edits a document of exactly one exercise, with no outline and no adding or removing. Empty content opens on a card per exercise type. A host that stores exercises one per row wraps a row in a one-exercise document and stores `getContent().exercises[0]`.
+- **The language being taught:** `profile` gives its fields `lang` and `dir`, with spellcheck and autocorrect off. Typing is committed as one undo step per burst, and never while an input method is composing.
+- **Your own exercise types:** pass an editor block per type in `blocks`, made with `defineEditorBlock({ edit, create })`. `edit` builds the whole payload; `create` is a new exercise's payload.
+- **Preferences** (mode, theme, panels) are the frame's, controlled with `preferences` and `onPreferencesChange` or left to the editor, as in every family editor (sdk-core ADR 0067).
+- **Text** comes from `learnEditorMessages`; override any of it with `messages`, typed as `MessageOverrides<LearnEditorMessageCatalogue>`.
+
 ## Development
 
 This folder is the published package, laid out as in the family's [standard layout](https://github.com/ie-huss-martinez/sdk-core/blob/main/STANDARDS.md#repository-layout): the source is in [`src`](src). It also holds the test applications ([ADR 0039](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0039-test-applications-in-each-repository.md)): [`examples/vite`](examples/vite) and [`examples/next`](examples/next), which run the built player under a strict Content Security Policy, the second rendered on the server, and the [`e2e`](e2e) Playwright suite that tests them. They're also where the [screen-reader pass](docs/testing/screen-reader-pass.md) is done before a release.

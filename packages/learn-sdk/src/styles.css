@@ -245,14 +245,23 @@
   }
 
   /* The editor (ADR 0008): in ui's frame, which lays out its regions. */
+  /* It fills the box the host gives it, and the frame scrolls inside, as image-sdk's does. */
   .hm-learn-editor {
+    container-type: inline-size;
     display: flex;
     flex-direction: column;
-    min-block-size: 0;
+    /* 24rem: room for the top bar, a field or two and the start of a panel. */
+    min-block-size: calc(var(--hm-space-12) * 4);
+    block-size: 100%;
     color: var(--hm-color-text);
     font-family: var(--hm-font-family);
     font-size: var(--hm-font-size-body);
     line-height: var(--hm-line-height-body);
+  }
+
+  .hm-learn-editor > .hm-editor-frame {
+    flex: 1 1 auto;
+    min-block-size: 0;
   }
 
   .hm-learn-editor-name {
@@ -298,20 +307,16 @@
     font-weight: var(--hm-font-weight-strong);
   }
 
-  .hm-learn-editor-field,
-  .hm-learn-editor-choice {
+  /* The input with its buttons in one row; the field's label and problem stay ui's. */
+  .hm-learn-editor-control {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     gap: var(--hm-gap-tight);
   }
 
-  .hm-learn-editor-field > :first-child {
+  .hm-learn-editor-control > :not(button, input[type="radio"]) {
     flex: 1;
     min-inline-size: 0;
-  }
-
-  .hm-learn-editor-choice > .hm-learn-editor-field {
-    flex: 1;
   }
 
   /* The right answer's radio: ui has no radio yet, so the native one, sized to a target. */
@@ -380,8 +385,10 @@
     padding: var(--hm-gap-normal);
   }
 
-  .hm-learn-editor-outline-title {
-    display: block;
+  /* Each outline entry: its title, then its type and problems on a line of their own. */
+  .hm-learn-editor-outline-entry {
+    display: flex;
+    flex-direction: column;
   }
 
   .hm-learn-editor-cards {

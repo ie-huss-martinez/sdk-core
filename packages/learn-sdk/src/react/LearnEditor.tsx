@@ -567,13 +567,15 @@ function Editor({
                           id={exercise.id}
                           label={`${label}, ${problems}`}
                         >
-                          <span className="hm-learn-editor-outline-title">
-                            {exercise.title ?? t.t("editor.untitled")}
-                          </span>
-                          {/* The name holds the visible text, in the same words (WCAG 2.5.3);
+                          <span className="hm-learn-editor-outline-entry">
+                            <span className="hm-learn-editor-outline-title">
+                              {exercise.title ?? t.t("editor.untitled")}
+                            </span>
+                            {/* The name holds the visible text, in the same words (WCAG 2.5.3);
                               the space keeps the two apart in the text. */}{" "}
-                          <span className="hm-learn-editor-outline-meta">
-                            {`${typeLabel(t, exercise.type)}, ${problems}`}
+                            <span className="hm-learn-editor-outline-meta">
+                              {`${typeLabel(t, exercise.type)}, ${problems}`}
+                            </span>
                           </span>
                         </ReorderableListItem>
                       );

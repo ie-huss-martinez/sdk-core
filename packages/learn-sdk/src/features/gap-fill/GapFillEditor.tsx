@@ -47,7 +47,7 @@ function Item({
   readonly item: GapFillItem;
   readonly index: number;
   readonly count: number;
-  readonly focusAfter: (key: string) => void;
+  readonly focusAfter: (key: string, control?: string) => void;
 }): ReactNode {
   const number = index + 1;
   const mine = issuesUnder(issues, ["items", index]);

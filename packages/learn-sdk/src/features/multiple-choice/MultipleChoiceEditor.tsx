@@ -49,7 +49,7 @@ function Question({
   readonly payload: MultipleChoicePayload;
   readonly index: number;
   readonly count: number;
-  readonly focusAfter: (key: string) => void;
+  readonly focusAfter: (key: string, control?: string) => void;
 }): ReactNode {
   const question = questionsOf(payload)[index] as MultipleChoiceQuestion;
   const choices = Array.isArray(question.choices) ? question.choices : [];
@@ -94,14 +94,6 @@ function Question({
             className="hm-learn-editor-choice"
             data-hm-focus-key={`q${index}-c${at}`}
           >
-            <input
-              type="radio"
-              name={name}
-              className="hm-learn-editor-radio"
-              checked={question.correct === at}
-              aria-label={messages.t("multipleChoice.correctFor", { number: at + 1 })}
-              onChange={() => change((current) => ({ ...current, correct: at }))}
-            />
             <EditorField
               label={messages.t("multipleChoice.choice", { number: at + 1 })}
               value={choice}
@@ -114,6 +106,16 @@ function Question({
               issue={issueAt(mine, ["choices", at])}
               messages={messages}
               taught={profile}
+              leading={
+                <input
+                  type="radio"
+                  name={name}
+                  className="hm-learn-editor-radio"
+                  checked={question.correct === at}
+                  aria-label={messages.t("multipleChoice.correctFor", { number: at + 1 })}
+                  onChange={() => change((current) => ({ ...current, correct: at }))}
+                />
+              }
               actions={
                 <IconButton
                   variant="quiet"

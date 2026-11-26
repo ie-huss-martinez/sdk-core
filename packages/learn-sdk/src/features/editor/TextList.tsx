@@ -35,7 +35,7 @@ export interface TextListProps {
   };
   /** The prefix of each entry's `data-hm-focus-key`, followed by its index. */
   readonly focusKey: string;
-  readonly focusAfter: (key: string) => void;
+  readonly focusAfter: (key: string, control?: string) => void;
 }
 
 const moved = (values: readonly string[], from: number, to: number): string[] => {
@@ -103,22 +103,24 @@ export function TextList({
                       variant="quiet"
                       icon={<MoveUpIcon />}
                       label={moveLabels.earlier(index + 1)}
+                      data-hm-focus-control="earlier"
                       disabled={index === 0}
                       focusableWhenDisabled
                       onClick={() => {
                         onChange((current) => moved(current, index, index - 1));
-                        focusAfter(`${focusKey}${index - 1}`);
+                        focusAfter(`${focusKey}${index - 1}`, "earlier");
                       }}
                     />
                     <IconButton
                       variant="quiet"
                       icon={<MoveDownIcon />}
                       label={moveLabels.later(index + 1)}
+                      data-hm-focus-control="later"
                       disabled={index === values.length - 1}
                       focusableWhenDisabled
                       onClick={() => {
                         onChange((current) => moved(current, index, index + 1));
-                        focusAfter(`${focusKey}${index + 1}`);
+                        focusAfter(`${focusKey}${index + 1}`, "later");
                       }}
                     />
                   </>

@@ -57,6 +57,7 @@ function Alternative({
   onRemove,
   removeLabel,
   error,
+  language,
 }: {
   readonly tiles: readonly string[];
   readonly order: readonly string[];
@@ -66,6 +67,8 @@ function Alternative({
   readonly onRemove: () => void;
   readonly removeLabel: string;
   readonly error: string | undefined;
+  /** The taught language, for the words: never on the buttons beside them. */
+  readonly language: { readonly lang: string; readonly dir: "ltr" | "rtl" };
 }): ReactNode {
   // Each row's id is its tile's position in the right order, which moves keep.
   const positions = tilePositions(tiles, order);
@@ -74,17 +77,21 @@ function Alternative({
   );
   return (
     <div className="hm-learn-editor-alternative" data-hm-focus-key={`alt${number}`}>
-      <ReorderableList
-        label={label}
-        onMove={(id, to) => {
-          const from = ids.indexOf(id);
-          if (from >= 0) onOrder(movedTo(order, from, to));
-        }}
-      >
-        {order.map((text, index) => (
-          <ReorderableListItem key={ids[index]} id={ids[index] as string} label={text} />
-        ))}
-      </ReorderableList>
+      <div lang={language.lang} dir={language.dir}>
+        <ReorderableList
+          label={label}
+          onMove={(id, to) => {
+            const from = ids.indexOf(id);
+            if (from >= 0) onOrder(movedTo(order, from, to));
+          }}
+        >
+          {order.map((text, index) => (
+            <ReorderableListItem key={ids[index]} id={ids[index] as string} label={text}>
+              {text}
+            </ReorderableListItem>
+          ))}
+        </ReorderableList>
+      </div>
       {error && <p className="hm-learn-editor-error">{error}</p>}
       <IconButton variant="quiet" icon={<DeleteIcon />} label={removeLabel} onClick={onRemove} />
     </div>
@@ -104,7 +111,7 @@ function Item({
   readonly item: WordOrderItem;
   readonly index: number;
   readonly count: number;
-  readonly focusAfter: (key: string) => void;
+  readonly focusAfter: (key: string, control?: string) => void;
 }): ReactNode {
   const number = index + 1;
   const mine = issuesUnder(issues, ["items", index]);
@@ -142,11 +149,9 @@ function Item({
         focusKey={`i${index}-t`}
         focusAfter={focusAfter}
       />
-      <fieldset className="hm-learn-editor-list" lang={profile.code} dir={profile.direction}>
-        <legend lang="">{messages.t("wordOrder.alternatives")}</legend>
-        <p className="hm-learn-editor-description" lang="">
-          {messages.t("wordOrder.alternativesHelp")}
-        </p>
+      <fieldset className="hm-learn-editor-list">
+        <legend>{messages.t("wordOrder.alternatives")}</legend>
+        <p className="hm-learn-editor-description">{messages.t("wordOrder.alternativesHelp")}</p>
         {alternatives.map((order, at) => (
           <Alternative
             // biome-ignore lint/suspicious/noArrayIndexKey: orders are identified by position
@@ -176,6 +181,7 @@ function Item({
             }}
             removeLabel={messages.t("wordOrder.removeAlternative", { number: at + 1 })}
             error={issueText(messages, issueAt(mine, ["alternatives", at]))}
+            language={{ lang: profile.code, dir: profile.direction }}
           />
         ))}
         <Button
