@@ -355,6 +355,27 @@ describe("LearnEditor", () => {
     expect(field(element, "Title").value).toBe("อาหาร");
   });
 
+  it("commits pending typing before a list moves, and never moves a refusal to another entry", async () => {
+    const ref = createRef<LearnEditorHandle>();
+    const element = render({ limits: { maxTextLength: 15 } }, ref);
+    await userEvent.click(element.querySelectorAll("[role=row]")[1] as HTMLElement);
+    // Typing waits in Word 1; the move runs without focus leaving the field.
+    field(element, "Word 1").focus();
+    await userEvent.keyboard("{Control>}a{/Control}เธอ");
+    act(() => button(element, "Move word 1 later").click());
+    expect(ref.current?.getContent().exercises[1]?.payload).toMatchObject({
+      items: [{ tiles: ["กิน", "เธอ", "ข้าว"] }],
+    });
+    // A refused word shows its problem only where it was refused, not after a move.
+    field(element, "Word 1").focus();
+    await userEvent.keyboard("{Control>}a{/Control}far too long for a word");
+    await userEvent.tab();
+    expect(field(element, "Word 1").getAttribute("aria-invalid")).toBe("true");
+    act(() => button(element, "Move word 1 later").click());
+    expect(field(element, "Word 1").getAttribute("aria-invalid")).toBeNull();
+    expect(field(element, "Word 2").getAttribute("aria-invalid")).toBeNull();
+  });
+
   it("shows a limit the draft passed, which no field can show", async () => {
     const element = render({ limits: { maxChoices: 2 } });
     await userEvent.click(button(element, "Add a choice"));

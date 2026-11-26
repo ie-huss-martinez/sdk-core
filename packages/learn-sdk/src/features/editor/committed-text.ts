@@ -88,14 +88,20 @@ export function useCommittedText(
 ): CommittedTextProps {
   // Typing not yet committed, or null when the field shows the draft's value.
   const [typed, setTyped] = useState<string | null>(null);
-  const [refused, setRefused] = useState<unknown>(null);
+  // A refusal, with the draft value it was refused over: it shows only while
+  // the field still holds that value, so it never moves to another entry with
+  // a list's rows, and any later change of the value ends it.
+  const [refusal, setRefusal] = useState<{ readonly error: unknown; readonly over: string } | null>(
+    null,
+  );
   // The same, for handlers and timers that run outside a render.
   const pending = useRef<string | null>(null);
   const composing = useRef(false);
   const pausedWhileComposing = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The latest commit, taken as each render commits (sdk-core ADR 0063).
+  // The latest commit and draft value, taken as each render commits (sdk-core ADR 0063).
   const latestCommit = useLatest(commit);
+  const latestCommitted = useLatest(committed);
   const pendingText = useContext(PendingTextContext);
 
   const clearTimer = useCallback(() => {
@@ -120,16 +126,16 @@ export function useCommittedText(
       setTyped(null);
       try {
         latestCommit.current(value);
-        setRefused(null);
+        setRefusal(null);
       } catch (error) {
         // A bug, not a refusal, still throws.
         if (!isLearnError(error)) throw error;
         // Not applied: the field shows the draft again, with the reason, and
         // nothing is thrown from a timer or a handler.
-        setRefused(error);
+        setRefusal({ error, over: latestCommitted.current });
       }
     },
-    [clearTimer, latestCommit],
+    [clearTimer, latestCommit, latestCommitted],
   );
 
   // The editor commits this field before undo, structural edits and saving;
@@ -143,11 +149,11 @@ export function useCommittedText(
   }, [pendingText, flush]);
 
   return {
-    refused,
+    refused: refusal !== null && refusal.over === committed ? refusal.error : null,
     value: typed ?? committed,
     onChange: (event) => {
       const value = event.currentTarget.value;
-      setRefused(null);
+      setRefusal(null);
       pending.current = value;
       setTyped(value);
       clearTimer();

@@ -46,6 +46,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
   useCallback,
+  useContext,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -740,8 +741,12 @@ function ExerciseForm({
       field,
       value: value === "" ? null : value,
     });
+  const pendingText = useContext(PendingTextContext);
   const onPayload = useCallback(
     (next: unknown) => {
+      // Typing waiting in other fields goes first, so a structural edit, such
+      // as a list's move, never leaves it to land on another entry (ADR 0008).
+      pendingText?.flush();
       const latest = editor.getSnapshot().draft.exercises.find((each) => each.id === exercise.id);
       if (!latest) return;
       const payload =
@@ -752,7 +757,7 @@ function ExerciseForm({
         payload: payload as object,
       });
     },
-    [editor, exercise.id],
+    [editor, exercise.id, pendingText],
   );
   const Edit = block?.edit;
   return (

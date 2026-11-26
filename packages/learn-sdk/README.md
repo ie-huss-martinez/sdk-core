@@ -23,23 +23,33 @@ export function Editor({ content, save }: { content: unknown; save: (c: unknown)
   const editor = useRef<LearnEditorHandle>(null);
   // The editor opens valid content only, so it starts valid; onChange reports every edit after.
   const [valid, setValid] = useState(true);
+  const [saveFailed, setSaveFailed] = useState(false);
   return (
     <>
       <LearnEditor ref={editor} initialContent={content} profile={thai} onChange={(_, problems) => setValid(problems.valid)} />
       <button
         type="button"
         disabled={!valid}
-        onClick={() => {
+        onClick={async () => {
+          let saved: unknown;
           try {
-            void save(editor.current?.getContent());
+            saved = editor.current?.getContent();
           } catch (error) {
             // Content the editor couldn't open, or a draft with problems: the editor shows why.
             if (!isLearnError(error)) throw error;
+            return;
+          }
+          try {
+            await save(saved);
+            setSaveFailed(false);
+          } catch {
+            setSaveFailed(true); // your own storage failed: say so, and keep the editor open
           }
         }}
       >
         Save
       </button>
+      {saveFailed && <p role="alert">Saving failed. Try again.</p>}
     </>
   );
 }
