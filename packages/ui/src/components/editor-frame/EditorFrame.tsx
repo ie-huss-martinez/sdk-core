@@ -327,7 +327,14 @@ export const EditorFrame = /* @__PURE__ */ forwardRef(function EditorFrame(
         }
         measure();
       });
-      children.observe(body, { childList: true, subtree: true, characterData: true });
+      // And class or style changes, which can change a margin without a
+      // resize; not every attribute, as a slider's change on each step.
+      children.observe(body, {
+        attributeFilter: ["class", "style"],
+        characterData: true,
+        childList: true,
+        subtree: true,
+      });
       // The footer's own content too: WebKit doesn't always report a resize
       // of a footer that's laid out invisibly, without room.
       const content = new MutationObserver(measure);
