@@ -1,7 +1,10 @@
+import { testBrowsers } from "@hussmartinez/sdk-config/testing/browsers";
 import { defineConfig, devices } from "@playwright/test";
 import { API_KEY, APP_PORT, APP_URL, PROVIDER_URL } from "./constants.ts";
 
 const ci = Boolean(process.env["CI"]);
+// Every engine in CI, Chromium on a draft pull request (sdk-core ADR 0068).
+const browsers = testBrowsers();
 
 /**
  * End-to-end tests of the built Next.js example, whose server calls a local
@@ -23,7 +26,7 @@ export default defineConfig({
       ["webkit", "Desktop Safari"],
     ] as const
   )
-    .filter(([name]) => ci || name === "chromium")
+    .filter(([name]) => browsers.includes(name))
     .map(([name, device]) => ({ name, use: { ...devices[device] } })),
   webServer: [
     {

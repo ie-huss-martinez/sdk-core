@@ -305,6 +305,7 @@ describe("dockerRunArgs", () => {
 
   it("passes on what the end-to-end and smoke suites read, by name, so values stay out of the arguments", () => {
     const env = {
+      HM_BROWSERS: "chromium",
       SMOKE_ENGINES: "chromium,firefox",
       SMOKE_BASE_URL: "https://pdf.example.test",
       SMOKE_ANALYTICS: "1",
@@ -314,6 +315,8 @@ describe("dockerRunArgs", () => {
     };
 
     expect(passedEnvArgs({ root: "/home/me/image-sdk", workdir: "", env })).toEqual([
+      "--env",
+      "HM_BROWSERS",
       "--env",
       "PLAYWRIGHT_BASE_URL",
       "--env",
@@ -327,6 +330,7 @@ describe("dockerRunArgs", () => {
       "CI",
       "DEBUG",
       "HM_BROWSER_DIAGNOSTICS",
+      "HM_BROWSERS",
       "PLAYWRIGHT_BASE_URL",
       "SMOKE_ANALYTICS",
       "SMOKE_BASE_URL",

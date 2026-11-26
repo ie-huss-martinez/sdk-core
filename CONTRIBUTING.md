@@ -22,7 +22,7 @@ pnpm verify        # everything CI runs; it needs Docker for the browser tests
 
 The git hooks run on their own: a secret scan, a hidden-character check and lint of staged files on commit, a Conventional Commits check of each message, and `pnpm verify:fast` on push. Don't bypass them with `--no-verify`. If a hook is wrong or too slow, fix it in its own pull request.
 
-**The hooks are the local bar, and CI is the merge gate** ([ADR 0053](docs/adr/0053-ci-is-the-merge-gate.md)). You don't need to run the full `pnpm verify` before opening a pull request: CI runs it on every push, on all three browser engines. Run it, or part of it, when you want to diagnose a failure or reproduce one from CI.
+**The hooks are the local bar, and CI is the merge gate** ([ADR 0053](docs/adr/0053-ci-is-the-merge-gate.md)). You don't need to run the full `pnpm verify` before opening a pull request: CI runs it on every push, on all three browser engines, or on Chromium alone while the pull request is a draft ([ADR 0068](docs/adr/0068-a-faster-pull-request-loop.md)). Run it, or part of it, when you want to diagnose a failure or reproduce one from CI.
 
 ## Make a change
 
@@ -52,8 +52,9 @@ The git hooks run on their own: a secret scan, a hidden-character check and lint
 - **Title:** a Conventional Commit of at most 65 characters, because it becomes the commit title on `main`, followed by ` (#NNN)`, and that must fit in 72. Put explanations in the description. The `pr-title` check enforces both.
 - **Description:** fill in the template: what changed, why, and how you tested it, including what you ran locally and what you left to CI. Be as detailed as is useful; the description doesn't go into git history.
 - **Changeset:** add one if the pull request changes what a package publishes. See [Changesets](#changesets).
+- **Drafts:** while you iterate, keep the pull request a draft. Its CI tests in Chromium only, and its `verify` check fails by design, so a draft's run can never pass the merge gate. Marking it ready runs every engine ([ADR 0068](docs/adr/0068-a-faster-pull-request-loop.md)).
 - **Checks:** `verify`, `changeset` and `pr-title` must pass on the current head, and the branch must be up to date with `main`.
-- **Automated review:** CodeRabbit reviews every pull request, and reviews again after each push. Its check on the pull request shows when the review of the current head has finished. Fix or answer each thread it opens, then resolve it.
+- **Automated review:** CodeRabbit reviews every pull request once it's ready for review, and then what each later push changed, as [`.coderabbit.yaml`](.coderabbit.yaml) configures it. Its check on the pull request shows when the review of the current head has finished. Fix or answer each thread it opens, then resolve it.
 
 The pull request is ready once it's up to date with `main`, the checks are green, the automated review of the current head has finished, and no review thread is open. A check that fails only in CI is a real failure: find its cause, and don't loosen the test or rerun until it passes.
 

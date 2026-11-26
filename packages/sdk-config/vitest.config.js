@@ -1,17 +1,14 @@
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 import { browserInstances } from "./src/testing/browser-instances.js";
+import { testBrowsers } from "./src/testing/browsers.js";
 import { browserTimeouts, unitTimeouts } from "./src/testing/timeouts.js";
-
-const ALL_BROWSERS = /** @type {const} */ (["chromium", "firefox", "webkit"]);
 
 // Browser tests run on Chromium locally, and on all three engines in CI or
 // with --mode all-browsers (ADR 0015).
 export default defineConfig(({ mode }) => {
-  const browsers =
-    process.env["CI"] || mode === "all-browsers"
-      ? ALL_BROWSERS
-      : /** @type {const} */ (["chromium"]);
+  // On a draft pull request, CI narrows them to Chromium (ADR 0068).
+  const browsers = testBrowsers({ all: mode === "all-browsers" });
   return {
     test: {
       projects: [

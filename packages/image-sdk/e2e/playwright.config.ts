@@ -1,11 +1,13 @@
+import { testBrowsers } from "@hussmartinez/sdk-config/testing/browsers";
 import { fontLaunchEnv } from "@hussmartinez/sdk-config/testing/fonts";
 import { webServersFor } from "@hussmartinez/sdk-config/testing/require-image";
 import { endToEndTimeouts } from "@hussmartinez/sdk-config/testing/timeouts";
 import { defineConfig, devices } from "@playwright/test";
 
 const ci = Boolean(process.env["CI"]);
-// Regenerating docs/capabilities.md needs every engine.
-const allBrowsers = ci || Boolean(process.env["UPDATE_CAPABILITIES"]);
+// Regenerating docs/capabilities.md needs every engine. Otherwise every
+// engine in CI, Chromium on a draft pull request (sdk-core ADR 0068).
+const browsers = testBrowsers({ all: Boolean(process.env["UPDATE_CAPABILITIES"]) });
 
 /**
  * End-to-end tests against the built Vite example: the browser capability
@@ -40,7 +42,7 @@ export default defineConfig({
       ["webkit", "Desktop Safari"],
     ] as const
   )
-    .filter(([name]) => allBrowsers || name === "chromium")
+    .filter(([name]) => browsers.includes(name))
     .map(([name, device]) => ({ name, use: { ...devices[device] } })),
   // Started with Node directly, as in the pinned browser image, where
   // hm-in-image runs the suite (sdk-core ADR 0049). Playwright starts it

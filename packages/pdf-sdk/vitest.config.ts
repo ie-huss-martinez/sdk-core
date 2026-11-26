@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import { testBrowsers } from "@hussmartinez/sdk-config/testing/browsers";
 import { browserTimeouts, unitTimeouts } from "@hussmartinez/sdk-config/testing/timeouts";
 import { playwright } from "@vitest/browser-playwright";
 import type { Page, Request } from "playwright";
@@ -48,13 +49,12 @@ const stopRecordingRequests: BrowserCommand<[], RecordedRequest[]> = async (cont
   return recording.requests;
 };
 
-const ALL_BROWSERS = ["chromium", "firefox", "webkit"] as const;
-
 // Browser tests run on Chromium locally, and on all three engines in CI or
 // with --mode all-browsers (ADR 0015).
 export default defineConfig(({ mode }) => {
-  const browsers =
-    process.env["CI"] || mode === "all-browsers" ? ALL_BROWSERS : (["chromium"] as const);
+  // The rule is sdk-config's testBrowsers: on a draft pull request, CI
+  // narrows it to Chromium (sdk-core ADR 0068).
+  const browsers = testBrowsers({ all: mode === "all-browsers" });
   return {
     // Serves pdf.js's data files to the SDK, as in the build (docs/adr/0002).
     plugins: [pdfJsData(), qpdfWasm(), testAssets()],

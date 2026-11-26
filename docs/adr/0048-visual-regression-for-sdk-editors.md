@@ -2,6 +2,7 @@
 
 - **Status:** Accepted; the comparison threshold that "no tolerance" left at Playwright's default is set by [0054](0054-visual-comparison-tolerance.md)
 - **Date:** 2026-11-14
+- **Amended:** 2026-11-26, by [ADR 0068](0068-a-faster-pull-request-loop.md): only an editor's main states, and its right-to-left and element states, are captured in every theme and density; the others in light-comfortable only
 - **Refines:** [0039](0039-test-applications-in-each-repository.md), by adding screenshots to the end-to-end suite; follows `ui`'s ADR 0002 and ADR 0004
 
 ## Context

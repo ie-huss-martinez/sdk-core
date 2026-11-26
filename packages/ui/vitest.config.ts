@@ -1,3 +1,4 @@
+import { testBrowsers } from "@hussmartinez/sdk-config/testing/browsers";
 import { fontLaunchEnv } from "@hussmartinez/sdk-config/testing/fonts";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
@@ -14,8 +15,6 @@ const setColorScheme: BrowserCommand<[scheme: "light" | "dark"]> = async (contex
   await context.page.emulateMedia({ colorScheme: scheme });
 };
 
-const ALL_BROWSERS = ["chromium", "firefox", "webkit"] as const;
-
 /** Emulates `prefers-reduced-motion`, so browser tests can check motion fallbacks. */
 const setReducedMotion: BrowserCommand<[reduce: boolean]> = async (context, reduce) => {
   if (context.provider.name !== "playwright") {
@@ -28,8 +27,9 @@ const setReducedMotion: BrowserCommand<[reduce: boolean]> = async (context, redu
 // with --mode all-browsers (ADR 0015), always in the browser test image
 // (docs/adr/0007).
 export default defineConfig(({ mode }) => {
-  const browsers =
-    process.env["CI"] || mode === "all-browsers" ? ALL_BROWSERS : (["chromium"] as const);
+  // The rule is sdk-config's testBrowsers: on a draft pull request, CI
+  // narrows it to Chromium (sdk-core ADR 0068).
+  const browsers = testBrowsers({ all: mode === "all-browsers" });
   return {
     test: {
       projects: [

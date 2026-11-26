@@ -1,4 +1,4 @@
-import { applyVisualVariant, visualVariants } from "@hussmartinez/sdk-config/testing/visual";
+import { applyVisualVariant, variantsFor } from "@hussmartinez/sdk-config/testing/visual";
 import { expect, type Page, test } from "@playwright/test";
 import {
   fixture,
@@ -9,9 +9,10 @@ import {
 import { FIRST_RENDER_TIMEOUT } from "../timeouts.js";
 
 /**
- * The editor's designed states, as screenshots (sdk-core ADR 0048). Each is
- * captured in light and dark, compact and comfortable, on the built example
- * as a host renders it.
+ * The editor's designed states, as screenshots (sdk-core ADR 0048), on the
+ * built example as a host renders it. The main states, in FULL, are captured
+ * in light and dark, compact and comfortable; the rest in light-comfortable
+ * only (sdk-core ADR 0068).
  *
  * | State | What it shows |
  * |---|---|
@@ -433,6 +434,22 @@ async function repainted(page: Page): Promise<void> {
   );
 }
 
+/**
+ * The states captured in every theme and density (sdk-core ADR 0068): the
+ * frame's main states, and every right-to-left and element state, which
+ * show how the page's direction and the host's styles meet each variant.
+ */
+const FULL: readonly string[] = [
+  "empty",
+  "open",
+  "settings",
+  "phone",
+  "advanced-open",
+  "easy-start",
+  ...Object.keys(RIGHT_TO_LEFT),
+  ...Object.keys(ELEMENT),
+];
+
 for (const [path, states] of [
   ["/editor.html?mode=expert", EDITOR],
   ["/editor.html", ADVANCED],
@@ -443,7 +460,7 @@ for (const [path, states] of [
   ["/element.html", ELEMENT],
 ] as const) {
   for (const [state, reach] of Object.entries(states)) {
-    for (const variant of visualVariants) {
+    for (const variant of variantsFor(state, { full: FULL })) {
       test(`${state}, ${variant.name}`, async ({ page }) => {
         // No request may leave the page's origin (sdk-core ADR 0012).
         const foreign: string[] = [];
