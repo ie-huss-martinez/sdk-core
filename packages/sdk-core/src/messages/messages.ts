@@ -2,6 +2,7 @@ import { isSdkError } from "../errors/sdk-error.js";
 import { warnInDevelopment } from "../internal/development.js";
 import { checkSingleCopy } from "../internal/single-copy.js";
 import {
+  canonicalLocale,
   dateTimeFormat,
   formatDuration,
   formatFileSize,
@@ -155,6 +156,14 @@ export interface Messages<Catalogue extends MessageCatalogue> {
  * (ADR 0014, ADR 0019). Formatting uses `Intl` only, and formatters are
  * cached per locale.
  *
+ * Plain text and placeholders given text need no `Intl`. A plural, a
+ * number, or a placeholder with a format, such as `{size, fileSize}`, needs
+ * the `Intl` constructor behind it, which an engine such as Hermes, in React
+ * Native, may lack: `t()` then throws an `SdkError` with the code
+ * `UNSUPPORTED_ENVIRONMENT`, and `details.feature` names it, such as
+ * `Intl.PluralRules` (ADR 0069). Where the engine can't canonicalise a
+ * locale, a well-formed tag is used as given.
+ *
  * @example
  * ```ts
  * const messages = createMessages(en, { locale: props.locale, overrides: props.messages });
@@ -288,13 +297,9 @@ function resolveLocale(locale: string | undefined): string {
   if (locale === undefined) {
     return "en";
   }
-  try {
-    const [canonical] = Intl.getCanonicalLocales(locale);
-    if (canonical !== undefined) {
-      return canonical;
-    }
-  } catch {
-    // An invalid tag falls through to the warning.
+  const canonical = canonicalLocale(locale);
+  if (canonical !== undefined) {
+    return canonical;
   }
   if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
     warnInDevelopment(`"${locale}" isn't a valid locale. Using "en".`);

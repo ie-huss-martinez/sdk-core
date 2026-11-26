@@ -23,7 +23,9 @@ const REFUSED = /[<>:"|?*]/gu;
  * control or bidirectional formatting characters, none of the characters
  * Windows refuses (`< > : " | ? *`), no leading dots, no whitespace at
  * either end, and at most {@link MAX_FILE_NAME_LENGTH} code points. Cleaning
- * a clean name returns it unchanged.
+ * a clean name returns it unchanged. On an engine without
+ * `String.prototype.normalize`, as Hermes can be, the name keeps the form it
+ * came in, clean in every other way (ADR 0069).
  *
  * It's safe as text content and as a download's name. It isn't escaped for
  * anything else: never put it in markup, a URL, or a usage event.
@@ -49,7 +51,12 @@ export function cleanFileName(raw: unknown): string | undefined {
   name = name.slice(Math.max(name.lastIndexOf("/"), name.lastIndexOf("\\")) + 1);
   // Normalised after the removals, which could leave a base letter and its
   // combining mark side by side.
-  name = name.replace(REFUSED, "").normalize("NFC");
+  name = name.replace(REFUSED, "");
+  // An engine without `normalize`, as Hermes can be (ADR 0069), keeps the
+  // name in the form it came in: clean, and only not composed.
+  if (typeof name.normalize === "function") {
+    name = name.normalize("NFC");
+  }
   // Leading dots would hide the file on some systems, or leave only an
   // extension; whitespace at either end is never meant.
   name = name.replace(/^[\s.]+/u, "").trimEnd();

@@ -86,9 +86,9 @@ function refusal(kind: (typeof nativeTokenKinds)[keyof NativeThemeTokens], value
         ? undefined
         : 'a font weight is "100" to "900"';
     case "easing": {
-      // Copied first: `every` skips the holes of a sparse array, and a copy
-      // has none.
-      const curve: unknown[] = Array.isArray(value) ? Array.from(value) : [];
+      // The length first, so nothing longer is ever traversed. Then a copy:
+      // `every` skips the holes of a sparse array, and a copy has none.
+      const curve: unknown[] = Array.isArray(value) && value.length === 4 ? Array.from(value) : [];
       const [x1, , x2] = curve;
       return curve.length === 4 &&
         curve.every((point) => typeof point === "number" && Number.isFinite(point)) &&
