@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMemoryNotesStore } from "../../src/adapters/memory-store/memory-store.js";
 import type { NotesStore } from "../../src/core/ports/notes-store.js";
 import {
@@ -493,5 +493,52 @@ describe("a notebook session's snapshot", () => {
     await session.flush();
     expect(published).toBe(0);
     expect(session.getSnapshot()).toBe(before);
+  });
+});
+
+describe("a notebook session's save timer", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** A session on the default delay, and the times its saves finished at. */
+  async function timed() {
+    vi.useFakeTimers();
+    const start = Date.now();
+    const saves: number[] = [];
+    const session = await openNotesSession({
+      store: await seeded(),
+      notebook: "book",
+      now: tickingClock(),
+      onSaved: () => {
+        saves.push(Date.now() - start);
+      },
+    });
+    await session.loadPage("p1");
+    const write = (id: string) =>
+      session.execute({ type: "notes.addItems", page: "p1", items: [stroke(id)] });
+    return { saves, write };
+  }
+
+  it("saves a change 400 ms after it, when nothing follows", async () => {
+    const { saves, write } = await timed();
+    write("s1");
+    await vi.advanceTimersByTimeAsync(399);
+    expect(saves).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(saves).toEqual([400]);
+  });
+
+  it("saves steady writing within 2 s of its first unsaved change, though each change restarts the delay", async () => {
+    const { saves, write } = await timed();
+    // A change every 300 ms, for 3 s: never 400 ms without one.
+    for (let index = 0; index < 10; index += 1) {
+      write(`s${index}`);
+      await vi.advanceTimersByTimeAsync(300);
+    }
+    expect(saves).toEqual([2_000]);
+    // The last change, at 2,700 ms, is saved 400 ms later.
+    await vi.advanceTimersByTimeAsync(100);
+    expect(saves).toEqual([2_000, 3_100]);
   });
 });
