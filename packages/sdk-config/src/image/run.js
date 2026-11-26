@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, posix, relative, sep } from "node:path";
 import { parse, parseAllDocuments } from "yaml";
@@ -208,8 +209,8 @@ export function dockerfile(image, pnpm) {
 }
 
 /**
- * The image's tag and the prefix of its volumes: `hm-browser-` and the
- * workspace's name, in the characters Docker allows.
+ * The image's tag, and the start of its volumes' names: `hm-browser-` and
+ * the workspace's name, in the characters Docker allows.
  *
  * @param {string} name The root package.json's name.
  * @returns {string}
@@ -221,6 +222,29 @@ export function imageTag(name) {
     .replace(/^-+|-+$/g, "");
   return `hm-browser-${slug || "workspace"}`;
 }
+
+/**
+ * What tells one checkout's `node_modules` volumes from another's: the
+ * first ten hexadecimal digits of the SHA-256 of the checkout's path, with
+ * its symbolic links resolved, so a link to a checkout is that checkout.
+ *
+ * Clones and worktrees of one repository share its workspace name. With
+ * volumes named after that alone, two of them running at once installed
+ * into the same `node_modules`, and one saw the other's half-written
+ * (sdk-core#238).
+ *
+ * @param {string} root The checkout's absolute path.
+ * @returns {string}
+ */
+export function checkoutId(root) {
+  return createHash("sha256").update(realPath(root)).digest("hex").slice(0, 10);
+}
+
+/**
+ * The lock an install holds, in the pnpm store's volume: every checkout of
+ * a repository shares that store, so their installs take turns.
+ */
+export const INSTALL_LOCK = "/pnpm-store/.hm-install.lock";
 
 /**
  * Every folder `pnpm-workspace.yaml` covers that has a package.json, in
@@ -378,10 +402,15 @@ export function passedEnvArgs({ root, workdir, env }) {
 }
 
 /**
- * The arguments of `docker run`: the checkout mounted at `/work`, its own
- * volumes for every `node_modules` and the pnpm store, so the container never
+ * The arguments of `docker run`: the checkout mounted at `/work`, volumes
+ * for every `node_modules` and the pnpm store, so the container never
  * writes into the host's, and afterwards every root-owned file in the
  * checkout, such as new screenshots and results, handed back to the caller.
+ *
+ * The `node_modules` volumes are the checkout's own, named with its
+ * {@link checkoutId}. The store's is the repository's, shared by all its
+ * checkouts so each doesn't download everything again, and the install
+ * holds {@link INSTALL_LOCK} so two never write to it at once.
  *
  * @param {{ root: string, tag: string, dirs: string[], owner: string, workdir: string, command: string[], env?: Record<string, string | undefined> }} options
  *   `workdir` is relative to the root; `env` is where the variables in
@@ -390,13 +419,16 @@ export function passedEnvArgs({ root, workdir, env }) {
  * @throws {UsageError} As {@link passedEnvArgs} does.
  */
 export function dockerRunArgs({ root, tag, dirs, owner, workdir, command, env = process.env }) {
+  const checkout = checkoutId(root);
   const volume = (/** @type {string} */ name, /** @type {string} */ path) => [
     "--volume",
-    `${tag}-${name}:/work/${path}`,
+    `${tag}-${checkout}-${name}:/work/${path}`,
   ];
   const where = workdir === "" ? "/work" : `/work/${workdir}`;
   const script = [
-    "pnpm install --frozen-lockfile --store-dir /pnpm-store --reporter=silent",
+    // flock waits for another checkout's install to finish, then runs this
+    // one, and exits with its status.
+    `flock ${INSTALL_LOCK} pnpm install --frozen-lockfile --store-dir /pnpm-store --reporter=silent`,
     // pnpm exec puts the package's and the workspace's node_modules/.bin on
     // the PATH, as pnpm does for a script on the host.
     `&& cd ${shellQuote(where)} && pnpm exec ${command.map(shellQuote).join(" ")}; status=$?;`,
