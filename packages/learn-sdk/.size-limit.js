@@ -180,10 +180,42 @@ export default [
   // current ones in one step: 10.6 kB, was within 10.5 kB. learn-sdk's source
   // didn't change. Which of the three moved it is a follow-up to find, and
   // to fix if it's a leak.
+  // 11 kB with LearnEditor's pull request (#236): 10.75 kB, from keeping
+  // focus through reset() (the player's heading takes it when a reset removes
+  // it from inside). The floor stayed at 1.82 kB, so nothing leaked.
   importBudget({
     name: "React: LearnPlayer",
     entry: react,
     imports: "{ LearnPlayer }",
-    limit: "10.7 kB",
+    limit: "11 kB",
+  }),
+  // The editor (ADR 0008): its blocks, and the editor with them all. Its text
+  // is built in a pure call, so none of it reaches the player's imports: the
+  // React floor stayed at 1.82 kB with the editor added.
+  importBudget({
+    name: "React: multipleChoiceEditor",
+    entry: react,
+    imports: "{ multipleChoiceEditor }",
+    // 4.01 kB after the review's fixes to the fields' commits and refusals.
+    limit: "4.5 kB",
+  }),
+  importBudget({
+    name: "React: gapFillEditor",
+    entry: react,
+    imports: "{ gapFillEditor }",
+    limit: "4.5 kB",
+  }),
+  importBudget({
+    name: "React: wordOrderEditor",
+    entry: react,
+    imports: "{ wordOrderEditor }",
+    limit: "5 kB",
+  }),
+  importBudget({
+    name: "React: LearnEditor",
+    entry: react,
+    imports: "{ LearnEditor }",
+    // 15.51 kB after the review's fixes: refused commits, limit errors and focus targets.
+    limit: "16 kB",
   }),
 ];

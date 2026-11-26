@@ -60,19 +60,22 @@ function Item({
   const [bank] = useState(() => bankOrder(seed, item.tiles.length));
   const placedButtons = useRef<(HTMLButtonElement | null)[]>([]);
   const bankButtons = useRef<(HTMLButtonElement | null)[]>([]);
-  const [focusNext, setFocusNext] = useState<{
-    readonly where: "placed" | "bank";
-    readonly index: number;
-  } | null>(null);
+  // Where focus goes after the render a move or a choice causes: a tile's button
+  // can move or disappear, so it's focused once the new buttons are in place.
+  const focusNext = useRef<{ readonly where: "placed" | "bank"; readonly index: number } | null>(
+    null,
+  );
   const language = { lang: profile.code, dir: profile.direction };
   const count = item.tiles.length;
   const text = (tile: number) => item.tiles[tile] ?? "";
 
+  // Runs after every render, and acts only when a move or choice asked for focus.
   useEffect(() => {
-    if (!focusNext) return;
-    (focusNext.where === "placed" ? placedButtons : bankButtons).current[focusNext.index]?.focus();
-    setFocusNext(null);
-  }, [focusNext]);
+    const target = focusNext.current;
+    if (!target) return;
+    focusNext.current = null;
+    (target.where === "placed" ? placedButtons : bankButtons).current[target.index]?.focus();
+  });
 
   const move = useCallback(
     (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
@@ -86,7 +89,7 @@ function Item({
       const next = [...order];
       [next[index], next[target]] = [next[target] as number, next[index] as number];
       onOrder(next);
-      setFocusNext({ where: "placed", index: target });
+      focusNext.current = { where: "placed", index: target };
       announce(
         messages.t("wordOrder.moved", {
           tile: item.tiles[next[target] as number] ?? "",
@@ -125,7 +128,7 @@ function Item({
                 if (checked) return;
                 onOrder(order.filter((_, i) => i !== index));
                 // The tile leaves the sentence: focus goes to it in the bank.
-                setFocusNext({ where: "bank", index: bank.indexOf(tile) });
+                focusNext.current = { where: "bank", index: bank.indexOf(tile) };
                 announce(messages.t("wordOrder.returned", { tile: text(tile) }));
               }}
               {...rest}

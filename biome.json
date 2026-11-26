@@ -29,7 +29,7 @@
       }
     },
     {
-      "includes": ["packages/pdf-sdk/**", "packages/audio-sdk/**", "packages/learn-sdk/**"],
+      "includes": ["packages/pdf-sdk/**", "packages/audio-sdk/**"],
       "linter": {
         "rules": {
           "correctness": {
