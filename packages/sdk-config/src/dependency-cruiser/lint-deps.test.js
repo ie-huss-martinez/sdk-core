@@ -57,8 +57,12 @@ async function repository(files, { git = true, config } = {}) {
  * @param {string[]} args
  * @param {string[]} [nodeOptions]
  */
-function runCli(cwd, args, nodeOptions = []) {
-  return spawnSync(process.execPath, [...nodeOptions, CLI, ...args], { cwd, encoding: "utf8" });
+function runCli(cwd, args, nodeOptions = [], env = process.env) {
+  return spawnSync(process.execPath, [...nodeOptions, CLI, ...args], {
+    cwd,
+    encoding: "utf8",
+    env,
+  });
 }
 
 afterEach(async () => {
@@ -74,25 +78,21 @@ describe("hm-lint-deps", () => {
     expect(result.report).toContain("no dependency violations found");
   });
 
-  it("finds a package's files from a git hook in a linked worktree", async () => {
-    const inPackage = Object.fromEntries(
-      Object.entries({
-        ...SOURCES,
-        ".dependency-cruiser.js": `export { default } from ${JSON.stringify(PRESET_URL)};\n`,
-      }).map(([path, content]) => [`packages/a/${path}`, content]),
-    );
-    const root = await repository(inPackage);
-    // What git gives a hook there: the repository, and no work tree, so git
-    // would take the package's folder for the work tree's root.
-    const result = spawnSync(process.execPath, [CLI, "src"], {
-      cwd: join(root, "packages/a"),
-      encoding: "utf8",
-      env: { ...process.env, GIT_DIR: join(root, ".git"), GIT_PREFIX: "" },
+  it("finds the package's files from a hook, where git has set GIT_DIR", async () => {
+    // A git hook in a linked worktree runs with GIT_DIR set; git then takes
+    // the current directory as the top of the work tree.
+    const root = await repository({
+      ...Object.fromEntries(Object.entries(SOURCES).map(([path, text]) => [`pkg/${path}`, text])),
+      "pkg/.dependency-cruiser.js": `export { default } from ${JSON.stringify(PRESET_URL)};\n`,
+    });
+    const { status, stdout, stderr } = runCli(join(root, "pkg"), ["src"], [], {
+      ...process.env,
+      GIT_DIR: join(root, ".git"),
     });
 
-    expect(result.stderr).toBe("");
-    expect(result.status).toBe(EXIT_OK);
-    expect(result.stdout).toContain("no dependency violations found");
+    expect(stderr).toBe("");
+    expect(status).toBe(EXIT_OK);
+    expect(stdout).toContain("no dependency violations found");
   });
 
   it("fails and names the .ts files when TypeScript can't be loaded", async () => {

@@ -158,26 +158,16 @@ class GitError extends UsageError {
 }
 
 /**
- * The variables with which git tells a hook where its repository is. In a
- * linked worktree it sets `GIT_DIR` and no work tree, and git then takes the
- * folder it's run in as the work tree's root. From a package's folder, that
- * made `git ls-files src` look for `src/` at the root and find nothing, so
- * the pre-push hook failed in every worktree.
- */
-const HOOK_REPOSITORY_ENV = ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_PREFIX"];
-
-/**
- * The environment for git: the caller's, without a hook's repository
- * variables, so git finds the repository from `cwd`, as it does on a
- * command line.
+ * The environment for git, without the variables that pin it to a repository.
+ * Git sets `GIT_DIR` for hooks, and in a linked worktree that makes it treat
+ * `cwd` as the top of the work tree, so `git ls-files src` in a package would
+ * list nothing. The repository is always the one `cwd` is in.
  *
- * @param {Record<string, string | undefined>} env
- * @returns {Record<string, string | undefined>}
+ * @returns {NodeJS.ProcessEnv}
  */
-export function gitEnv(env) {
-  return Object.fromEntries(
-    Object.entries(env).filter(([name]) => !HOOK_REPOSITORY_ENV.includes(name)),
-  );
+function gitEnvironment() {
+  const { GIT_DIR: _dir, GIT_WORK_TREE: _workTree, ...environment } = process.env;
+  return environment;
 }
 
 /**
@@ -193,8 +183,8 @@ function git(args, cwd) {
     return execFileSync("git", args, {
       cwd,
       encoding: "utf8",
+      env: gitEnvironment(),
       stdio: ["ignore", "pipe", "pipe"],
-      env: gitEnv(process.env),
     });
   } catch (error) {
     const command = `git ${args[0]}`;
