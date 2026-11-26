@@ -216,6 +216,30 @@ describe("startMorphTransition", () => {
     await expect(result).rejects.toBe(failure);
   });
 
+  it("puts an element's own name back when morphs overlap on it", async () => {
+    const { card, dialog } = render();
+    dialog.style.setProperty("view-transition-name", "host-dialog");
+    const toCard = { current: card };
+    const toDialog = { current: dialog };
+    const original = document.startViewTransition.bind(document);
+    const transitions: ViewTransition[] = [];
+    vi.spyOn(document, "startViewTransition").mockImplementation((update) => {
+      const transition = original(update);
+      transitions.push(transition);
+      return transition;
+    });
+    const first = startMorphTransition({ from: toCard, to: toDialog, update: () => undefined });
+    // The first has moved its name to the dialog, and is still animating; the
+    // second starts from the dialog, and skips the first.
+    await transitions[0]?.updateCallbackDone;
+    expect(nameOf(dialog)).toMatch(/^hm-morph-\d+$/);
+    const second = startMorphTransition({ from: toDialog, to: toCard, update: () => undefined });
+    await Promise.allSettled([first, second]);
+    expect(nameOf(card)).toBe("");
+    expect(nameOf(dialog)).toBe("host-dialog");
+    expect(document.documentElement.hasAttribute("data-hm-morph")).toBe(false);
+  });
+
   it("puts the elements' own names back", async () => {
     const { card, dialog } = render();
     card.style.setProperty("view-transition-name", "host-card", "important");

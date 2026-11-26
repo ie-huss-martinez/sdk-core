@@ -28,6 +28,19 @@ const RUNNING = "data-hm-morph";
 let morphs = 0;
 /** Morphs still running; the attribute goes when the last one ends. */
 let running = 0;
+/** The names of the morphs still running. */
+const liveNames = /* @__PURE__ */ new Set<string>();
+
+/** An element's own `view-transition-name`, from before any morph named it. */
+interface OwnName {
+  readonly value: string;
+  readonly priority: string;
+}
+/**
+ * Each element's own name, kept while morphs overlap on it: a second morph
+ * would otherwise take the first one's name for the element's own.
+ */
+const ownNames = /* @__PURE__ */ new WeakMap<HTMLElement, OwnName>();
 
 function prefersReducedMotion(): boolean {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
@@ -36,18 +49,21 @@ function prefersReducedMotion(): boolean {
 /** Gives an element the morph's name, and returns what puts its own back. */
 function setName(element: HTMLElement, name: string): () => void {
   const { style } = element;
-  const previous = style.getPropertyValue("view-transition-name");
-  const priority = style.getPropertyPriority("view-transition-name");
+  const current = style.getPropertyValue("view-transition-name");
+  const own: OwnName = liveNames.has(current)
+    ? (ownNames.get(element) ?? { value: "", priority: "" })
+    : { value: current, priority: style.getPropertyPriority("view-transition-name") };
+  ownNames.set(element, own);
   style.setProperty("view-transition-name", name);
   // Only while the name is still the morph's: a later change stays.
   return () => {
     if (style.getPropertyValue("view-transition-name") !== name) {
       return;
     }
-    if (previous === "") {
+    if (own.value === "") {
       style.removeProperty("view-transition-name");
     } else {
-      style.setProperty("view-transition-name", previous, priority);
+      style.setProperty("view-transition-name", own.value, own.priority);
     }
   };
 }
@@ -102,6 +118,7 @@ export function startMorphTransition({ from, to, update }: MorphTransitionOption
 
   morphs += 1;
   const name = `hm-morph-${morphs}`;
+  liveNames.add(name);
   const root = document.documentElement;
   let restoreTarget = (): void => undefined;
 
@@ -129,6 +146,7 @@ export function startMorphTransition({ from, to, update }: MorphTransitionOption
   return transition.finished.finally(() => {
     restoreSource();
     restoreTarget();
+    liveNames.delete(name);
     running -= 1;
     if (running === 0) {
       root.removeAttribute(RUNNING);
