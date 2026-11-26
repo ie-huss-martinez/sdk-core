@@ -5,4 +5,4 @@
 "@hussmartinez/notes-sdk": patch
 ---
 
-`propertiesFooter`: host content under the properties panel, such as an app's ad slot. On a frame 60 rem wide or more it stays in the column on its own while the panel is hidden or absent; narrower, it hides with the panel.
+`propertiesFooter`: host content under the properties panel, such as an app's ad slot. On a frame 60 rem wide or more it stays in the column on its own while the panel is hidden or absent, if it fits the column's height; narrower, it hides with the panel. Under a shown panel, it hides whenever the panel's content and the footer don't both fit.
