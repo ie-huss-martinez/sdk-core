@@ -179,6 +179,13 @@ describe("the built package on a server", () => {
       },
       FileDropZone: { accept: ".pdf", onFiles: noop, children: "Open a document" },
       Dialog: { open: true, onOpenChange: noop, title: "Title", children: "Body" },
+      Card: {
+        title: createElement("a", { href: "/notebooks/1" }, "Travel"),
+        eyebrow: "Notebook",
+        media: createElement("img", { src: "/cover.png", alt: "" }),
+        footer: "12 notes",
+        children: "Body",
+      },
       Heading: { children: "Selection" },
       HeadingLevelProvider: { level: 3, children: "Selection" },
       Spinner: {},

@@ -1,0 +1,18 @@
+@layer hm.components {
+  /*
+   * While startMorphTransition runs (ADR 0014), the morph is the only
+   * animation: a dialog's own fade and rise would play inside it.
+   */
+  :root[data-hm-morph] .hm-dialog,
+  :root[data-hm-morph] .hm-dialog::backdrop {
+    transition: none;
+  }
+
+  /* The moving box, and the cross-fade inside it, take the panel motion. */
+  :root[data-hm-morph]::view-transition-group(*),
+  :root[data-hm-morph]::view-transition-old(*),
+  :root[data-hm-morph]::view-transition-new(*) {
+    animation-duration: var(--hm-motion-duration-panel);
+    animation-timing-function: var(--hm-motion-easing-panel);
+  }
+}

@@ -21,4 +21,5 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0011](0011-timeline.md) | A shared timeline: clips, a playhead and layers over whole units | Proposed; an amendment for lanes, clips with a start and dragging a clip is proposed in it |
 | [0012](0012-size-budgets-per-import.md) | Size budgets for what applications import, beside each entry's | Accepted; refined by [sdk-core ADR 0056](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0056-size-budgets-for-what-applications-import.md), whose floors round up to the next 0.1 kB |
 | [0013](0013-colour-picker.md) | A colour picker drawn in SVG, with an accessible slider for each axis | Accepted |
+| [0014](0014-card-and-morph-transition.md) | A card whose title is its action, and a morph into a dialog through view transitions | Accepted |
 | [0015](0015-tag-and-button-link.md) | A static tag, and a link that looks like a button | Accepted |

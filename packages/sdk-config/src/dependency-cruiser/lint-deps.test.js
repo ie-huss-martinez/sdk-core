@@ -57,8 +57,12 @@ async function repository(files, { git = true, config } = {}) {
  * @param {string[]} args
  * @param {string[]} [nodeOptions]
  */
-function runCli(cwd, args, nodeOptions = []) {
-  return spawnSync(process.execPath, [...nodeOptions, CLI, ...args], { cwd, encoding: "utf8" });
+function runCli(cwd, args, nodeOptions = [], env = process.env) {
+  return spawnSync(process.execPath, [...nodeOptions, CLI, ...args], {
+    cwd,
+    encoding: "utf8",
+    env,
+  });
 }
 
 afterEach(async () => {
@@ -72,6 +76,23 @@ describe("hm-lint-deps", () => {
 
     expect(result).toMatchObject({ exitCode: EXIT_OK, problems: "" });
     expect(result.report).toContain("no dependency violations found");
+  });
+
+  it("finds the package's files from a hook, where git has set GIT_DIR", async () => {
+    // A git hook in a linked worktree runs with GIT_DIR set; git then takes
+    // the current directory as the top of the work tree.
+    const root = await repository({
+      ...Object.fromEntries(Object.entries(SOURCES).map(([path, text]) => [`pkg/${path}`, text])),
+      "pkg/.dependency-cruiser.js": `export { default } from ${JSON.stringify(PRESET_URL)};\n`,
+    });
+    const { status, stdout, stderr } = runCli(join(root, "pkg"), ["src"], [], {
+      ...process.env,
+      GIT_DIR: join(root, ".git"),
+    });
+
+    expect(stderr).toBe("");
+    expect(status).toBe(EXIT_OK);
+    expect(stdout).toContain("no dependency violations found");
   });
 
   it("fails and names the .ts files when TypeScript can't be loaded", async () => {

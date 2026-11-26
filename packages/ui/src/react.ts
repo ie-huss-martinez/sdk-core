@@ -28,6 +28,8 @@ export type { ButtonLinkProps } from "./components/button/ButtonLink.js";
 export { ButtonLink } from "./components/button/ButtonLink.js";
 export type { IconButtonProps } from "./components/button/IconButton.js";
 export { IconButton } from "./components/button/IconButton.js";
+export type { CardPart, CardProps } from "./components/card/Card.js";
+export { Card } from "./components/card/Card.js";
 export type {
   ColorFieldPart,
   ColorFieldProps,
@@ -86,6 +88,8 @@ export type {
 export { UiMessagesProvider, useUiMessages } from "./components/messages/UiMessagesProvider.js";
 export type { ModeSwitchProps } from "./components/mode-switch/ModeSwitch.js";
 export { ModeSwitch } from "./components/mode-switch/ModeSwitch.js";
+export type { MorphTransitionOptions } from "./components/morph-transition/morph-transition.js";
+export { startMorphTransition } from "./components/morph-transition/morph-transition.js";
 export type { NumberFieldProps } from "./components/number-field/NumberField.js";
 export { NumberField } from "./components/number-field/NumberField.js";
 export type { ProgressBarProps } from "./components/progress-bar/ProgressBar.js";

@@ -91,6 +91,21 @@ export type ButtonSize = "medium" | "small";
 export type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";
 
 // @public
+export const Card: ForwardRefExoticComponent<CardProps & RefAttributes<HTMLElement>>;
+
+// @public
+export type CardPart = "root" | "title" | "eyebrow" | "media" | "body" | "footer";
+
+// @public
+export interface CardProps extends Omit<HTMLAttributes<HTMLElement>, "className" | "title">, StyleProps<CardPart> {
+    readonly eyebrow?: ReactNode;
+    readonly footer?: ReactNode;
+    readonly headingLevel?: HeadingLevel | undefined;
+    readonly media?: ReactNode;
+    readonly title: ReactNode;
+}
+
+// @public
 export function CheckIcon(props: IconProps): ReactElement;
 
 // @public
@@ -474,6 +489,13 @@ export interface ModeSwitchProps extends Omit<SegmentedControlProps<EditorMode>,
 export function MoreIcon(props: IconProps): ReactElement;
 
 // @public
+export interface MorphTransitionOptions {
+    readonly from: RefObject<HTMLElement | null>;
+    readonly to: RefObject<HTMLElement | null>;
+    readonly update: () => void;
+}
+
+// @public
 export function MoveDownIcon(props: IconProps): ReactElement;
 
 // @public
@@ -727,6 +749,9 @@ export interface SpinnerProps extends Omit<HTMLAttributes<HTMLSpanElement>, "cla
 
 // @public
 export function SplitIcon(props: IconProps): ReactElement;
+
+// @public
+export function startMorphTransition(input: MorphTransitionOptions): Promise<void>;
 
 // @public
 export function StopIcon(props: IconProps): ReactElement;
