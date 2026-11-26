@@ -12,6 +12,9 @@ import type { IconNode } from "./create-icon.js";
 import { type IconSource, iconManifest } from "./manifest.js";
 import { ownGlyphs } from "./own-glyphs.js";
 
+/** Kept in the built files, as a legal comment, wherever Lucide's shapes ship. */
+const LICENCE = `/*! Icons from Lucide (https://lucide.dev), ISC licence; those derived from Feather, MIT licence. See THIRD_PARTY_NOTICES.md in @hussmartinez/ui. The icons marked as ui's own glyphs are ui's, under its licence. */`;
+
 const NUMBER = /^-?(?:\d+(?:\.\d+)?|\.\d+)$/;
 // Path commands, numbers and separators, nothing else.
 const PATH_DATA = /^[MmLlHhVvCcSsQqTtAaZz\d.,\s-]+$/;
@@ -70,14 +73,19 @@ export function validateIconNode(name: string, data: unknown): IconNode {
   });
 }
 
+/** `rotate-left` becomes `rotateLeftIcon`: the name of its data in the native entry. */
+export function dataName(name: string): string {
+  return `${name.replace(/-([a-z0-9])/g, (_, letter: string) => letter.toUpperCase())}Icon`;
+}
+
 /** `rotate-left` becomes `RotateLeftIcon`. */
 export function componentName(name: string): string {
   return `${name.replace(/(?:^|-)([a-z0-9])/g, (_, letter: string) => letter.toUpperCase())}Icon`;
 }
 
 /**
- * The generated files, `icon-name.generated.ts` and `icons.generated.tsx`,
- * from Lucide's `icon-nodes.json` and the version of `lucide-static` it came
+ * The generated files, `icon-name.generated.ts`, `icons.generated.tsx` and
+ * the native entry's `icons.generated.ts`, from Lucide's `icon-nodes.json` and the version of `lucide-static` it came
  * from.
  */
 export function generateIconsSource(
@@ -87,6 +95,7 @@ export function generateIconsSource(
   own: Readonly<Record<string, unknown>> = ownGlyphs,
 ): GeneratedIconFiles {
   const names = Object.keys(manifest).sort();
+  const plain: string[] = [];
   const icons = names.map((name) => {
     const entry = manifest[name] as IconSource;
     if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(name)) {
@@ -111,6 +120,16 @@ export function generateIconsSource(
     const shapes = validateIconNode(name, data);
     const mirror = entry.mirror === true;
     const note = mirror ? ", mirrored in right-to-left text" : "";
+    plain.push(
+      [
+        `/**`,
+        ` * The \`${name}\` icon's shapes: ${source}${note}.`,
+        ` *`,
+        ` * @public`,
+        ` */`,
+        `export const ${dataName(name)}: IconData = ${JSON.stringify({ name, mirror, nodes: shapes })};`,
+      ].join("\n"),
+    );
     return [
       `/**`,
       ` * The \`${name}\` icon: ${source}${note}.`,
@@ -148,7 +167,7 @@ export function generateIconsSource(
       ``,
     ].join("\n"),
     "src/icons/icons.generated.tsx": [
-      `/*! Icons from Lucide (https://lucide.dev), ISC licence; those derived from Feather, MIT licence. See THIRD_PARTY_NOTICES.md in @hussmartinez/ui. The icons marked as ui's own glyphs are ui's, under its licence. */`,
+      LICENCE,
       ...header(""),
       `import type { ReactElement } from "react";`,
       `import { type IconProps, renderIcon } from "./create-icon.js";`,
@@ -156,10 +175,25 @@ export function generateIconsSource(
       icons.join("\n\n"),
       ``,
     ].join("\n"),
+    // The same shapes as plain data, with no React and no DOM, for the
+    // native entry's Icon to draw with react-native-svg (sdk-core ADR 0069).
+    "src/native/icons.generated.ts": [
+      LICENCE,
+      ...header("; the shapes as plain data, for React Native"),
+      `import type { IconData } from "./icon-data.js";`,
+      ``,
+      plain.join("\n\n"),
+      ``,
+    ].join("\n"),
   };
 }
 
 /** The generated files, by path from the package's root. */
 export type GeneratedIconFiles = Readonly<
-  Record<"src/icons/icon-name.generated.ts" | "src/icons/icons.generated.tsx", string>
+  Record<
+    | "src/icons/icon-name.generated.ts"
+    | "src/icons/icons.generated.tsx"
+    | "src/native/icons.generated.ts",
+    string
+  >
 >;
