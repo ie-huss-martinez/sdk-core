@@ -54,6 +54,12 @@ function Controlled({ follow, onAsk }: { follow: boolean; onAsk: (text: string) 
   });
 }
 
+/** A field whose owner listens to the input's own change event, not onValueChange. */
+function ControlledByChange() {
+  const [value, setValue] = useState("cors");
+  return field({ value, onChange: (event) => setValue(event.currentTarget.value) });
+}
+
 describe("SearchField before JavaScript", () => {
   it("is a search input in a styled box, with the browser's own way to clear it", () => {
     // A page rendered at build time that never hydrates, as Astro's is.
@@ -181,6 +187,28 @@ describe("SearchField", () => {
     act(() => root?.render(<Controlled follow onAsk={onAsk} />));
     await userEvent.click(clearOf(container) as HTMLElement);
     expect(inputOf(container).value).toBe("");
+  });
+
+  it("tells onChange too when it's cleared, for an owner that listens there", async () => {
+    const container = render(<ControlledByChange />);
+    expect(inputOf(container).value).toBe("cors");
+    await userEvent.click(clearOf(container) as HTMLElement);
+    expect(inputOf(container).value).toBe("");
+    expect(clearOf(container)).toBeNull();
+  });
+
+  it("offers to clear again after its form puts its first text back", async () => {
+    const container = render(
+      <form>
+        {field({ defaultValue: "cors" })}
+        <button type="reset">Reset</button>
+      </form>,
+    );
+    await userEvent.click(clearOf(container) as HTMLElement);
+    expect(clearOf(container)).toBeNull();
+    await userEvent.click(container.querySelector('[type="reset"]') as HTMLElement);
+    expect(inputOf(container).value).toBe("cors");
+    await expect.poll(() => clearOf(container)).not.toBeNull();
   });
 
   it("has no clear button while it's disabled or read-only", () => {

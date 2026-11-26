@@ -50,7 +50,10 @@ export interface SearchFieldProps
    * stays.
    */
   readonly defaultValue?: string | undefined;
-  /** Called with the new text as it changes, and with `""` when it's cleared. */
+  /**
+   * Called with the new text as it changes, as well as `onChange`. Clearing
+   * the field reports `""` through both.
+   */
   readonly onValueChange?: ((value: string) => void) | undefined;
   /** Replaces the search icon. It's decorative, and draws with `currentColor`. */
   readonly icon?: ReactNode;
@@ -136,8 +139,20 @@ export const SearchField = /* @__PURE__ */ forwardRef<HTMLInputElement, SearchFi
     const onInput = useCallback(
       (notify: () => void) => {
         const field = input.current;
+        const form = field?.form;
+        // A form puts its fields' first values back after its reset event, and
+        // says nothing more, so look again once it has.
+        let later: ReturnType<typeof setTimeout> | undefined;
+        const afterReset = (): void => {
+          later = setTimeout(notify);
+        };
         field?.addEventListener("input", notify);
-        return () => field?.removeEventListener("input", notify);
+        form?.addEventListener("reset", afterReset);
+        return () => {
+          clearTimeout(later);
+          field?.removeEventListener("input", notify);
+          form?.removeEventListener("reset", afterReset);
+        };
       },
       [input],
     );
@@ -154,16 +169,18 @@ export const SearchField = /* @__PURE__ */ forwardRef<HTMLInputElement, SearchFi
     };
     const clear = (): void => {
       const field = input.current;
-      // A field that keeps its own text holds it in the input, so it's
-      // emptied there; one that's controlled is emptied by its owner.
-      if (field && value === undefined) {
-        field.value = "";
-        // Setting the value says nothing; this tells what watches the input, above.
-        field.dispatchEvent(new Event("input", { bubbles: true }));
+      if (!field) {
+        return;
       }
-      onValueChange?.("");
+      // Emptied as a person would empty it: the input's own setter, which
+      // React doesn't watch, then the event typing sends. React reports it
+      // through onChange, so both callbacks hear it once, and a controlled
+      // field's owner decides, as for any change.
+      const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setValue?.call(field, "");
+      field.dispatchEvent(new Event("input", { bubbles: true }));
       // The button is about to go: focus returns to the field it cleared.
-      field?.focus();
+      field.focus();
     };
 
     return (
