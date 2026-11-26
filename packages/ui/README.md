@@ -253,6 +253,7 @@ The `@hussmartinez` SDKs build their editors from ui's components, so an applica
   export const myMessages = defineMessages({ ...sdkCoreMessages, ...uiMessages, ...ownMessages });
   ```
 
+- **Preferences:** an editor on `EditorFrame` passes its `preferences`, `defaultPreferences` and `onPreferencesChange` props to `useEditorPreferences`. It returns the preferences, `change(next)`, the root's `rootAttributes`, the `ThemeToggle`'s `themeToggleValue`, and `openSettings(root)` with `settings` to spread on `SettingsPanel`. The root inherits its page's theme, density and motion until the host or the person chooses them, and a field left alone in the settings never becomes the host's preference. Show what changed in your own words from its `onChange` ([sdk-core ADR 0067](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0067-editor-frame-modes-and-host-owned-preferences.md)).
 - **Key collisions:** keep a test that your own keys don't overlap `sdkCoreMessages` or `uiMessages`, so a later release can't silently replace your text. ui's keys use component names as prefixes, such as `dialog.` and `fileDropZone.`.
 - **Heading levels:** an editor that renders headings takes `headingLevel?: HeadingLevel`, as below.
 

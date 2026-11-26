@@ -18,6 +18,7 @@ import {
   ToolList,
   Tooltip,
   UiMessagesProvider,
+  useEditorPreferences,
   useToast,
 } from "@hussmartinez/ui/react";
 import {
@@ -44,15 +45,6 @@ import {
   VideoEditorProvider,
   type VideoEditorProviderProps,
 } from "./context.js";
-import {
-  fromSettings,
-  INHERITED,
-  type Inherited,
-  type InheritedValues,
-  inheritedValues,
-  settingsValue,
-} from "./editor/inherited.js";
-import { useEditorPreferences } from "./editor/preferences.js";
 import { START_CARDS, type StartCard, StartCards } from "./editor/StartCards.js";
 import { toolLists } from "./editor/tool-lists.js";
 import { ElementBridge } from "./element/bridge.js";
@@ -264,29 +256,30 @@ function Root(props: RootProps): ReactNode {
     runRef.current = run;
   }, [run]);
 
-  const [preferences, setPreferences] = useEditorPreferences(
-    props.preferences,
-    props.defaultPreferences,
-    props.onPreferencesChange,
-  );
-  // An embedded editor inherits the page's theme, density and motion until
-  // someone chooses them: the host, through its preferences or a default for
-  // that field, or the person, through the toggle or the settings.
-  const [picked, setPicked] = useState<ReadonlySet<Inherited>>(() => new Set());
-  const isChosen = (field: Inherited): boolean =>
-    picked.has(field) ||
-    props.preferences !== undefined ||
-    props.defaultPreferences?.[field] !== undefined;
+  // The host's preferences, or the editor's own; an embedded editor inherits
+  // the page's theme, density and motion until someone chooses them
+  // (sdk-core ADR 0067).
+  const prefs = useEditorPreferences({
+    preferences: props.preferences,
+    defaultPreferences: props.defaultPreferences,
+    onPreferencesChange: props.onPreferencesChange,
+    // Says what changed that isn't on screen.
+    onChange: ({ previous, preferences: next, chosen }) => {
+      if (next.mode !== previous.mode) {
+        toastTo.current.show({ message: t(`editor.mode.${next.mode}`) });
+      }
+      if (chosen.includes("theme")) {
+        toastTo.current.show({ message: t(`editor.theme.${next.theme}`) });
+      }
+    },
+  });
+  const { preferences } = prefs;
   // How the tools were last shown, to show them that way again for a start card.
   const lastTools = useRef<"full" | "icons">("full");
   useEffect(() => {
     if (preferences.tools !== "hidden") lastTools.current = preferences.tools;
   }, [preferences.tools]);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  // The page's values for the fields the editor inherits, read as the settings open.
-  const [inheritedAtOpen, setInheritedAtOpen] = useState<InheritedValues | null>(null);
-  const shownSettings = settingsValue(preferences, isChosen, inheritedAtOpen);
   const [tab, setTab] = useState<string | null>(null);
   const { mode } = preferences;
   const frames = snapshot.plan ? planFrames(snapshot.plan) : 0;
@@ -327,28 +320,6 @@ function Root(props: RootProps): ReactNode {
 
   // The tools panel's file picker, for the insert tool.
   useEffect(() => registerFileChooser(() => picker.current?.click()), [registerFileChooser]);
-
-  /**
-   * Applies a change of preferences, and says what changed that isn't on
-   * screen. `changed` are the inherited fields the person chose, which are
-   * the editor's own from then on: by default, those that differ from the
-   * preferences.
-   */
-  const changePreferences = (
-    next: EditorPreferences,
-    changed: readonly Inherited[] = INHERITED.filter((field) => next[field] !== preferences[field]),
-  ) => {
-    if (next.mode !== preferences.mode) {
-      toastTo.current.show({ message: t(`editor.mode.${next.mode}`) });
-    }
-    if (changed.includes("theme")) {
-      toastTo.current.show({ message: t(`editor.theme.${next.theme}`) });
-    }
-    if (changed.some((field) => !picked.has(field))) {
-      setPicked(new Set([...picked, ...changed]));
-    }
-    setPreferences(next);
-  };
 
   // Opening and adding videos show a toast, which screen readers hear too;
   // an added video's offers Undo. The session tells of them before its
@@ -457,7 +428,7 @@ function Root(props: RootProps): ReactNode {
       }
       setTab(group?.[0]?.id ?? null);
     } else if (preferences.tools === "hidden") {
-      changePreferences({ ...preferences, tools: lastTools.current });
+      prefs.change({ ...preferences, tools: lastTools.current });
     }
     pendingFocus.current = `[data-hm-tool-id="${target}"]`;
   };
@@ -526,9 +497,7 @@ function Root(props: RootProps): ReactNode {
       className={["hm-text", "hm-video-editor", className].filter(Boolean).join(" ")}
       aria-label={messages.t("editor.label")}
       // ui's colour mode, density and motion for the editor alone (sdk-core ADR 0067).
-      data-hm-theme={isChosen("theme") ? preferences.theme : undefined}
-      data-hm-density={isChosen("density") ? preferences.density : undefined}
-      data-hm-motion={isChosen("motion") ? preferences.motion : undefined}
+      {...prefs.rootAttributes}
       onKeyDown={onKeyDown}
     >
       {/* Outside the frame's toolbars, so it's no toolbar item; the insert tool opens it. */}
@@ -549,14 +518,14 @@ function Root(props: RootProps): ReactNode {
       <EditorFrame
         className="hm-video-editor-frame"
         toolsState={preferences.tools}
-        onToolsStateChange={(tools) => changePreferences({ ...preferences, tools })}
+        onToolsStateChange={(tools) => prefs.change({ ...preferences, tools })}
         propertiesState={
           mode === "easy" && chosenNow?.properties ? "shown" : preferences.properties
         }
         onPropertiesStateChange={(properties) => {
           // Hiding them leaves the card's choice behind, for this video.
           if (mode === "easy") setChosen(null);
-          changePreferences({ ...preferences, properties });
+          prefs.change({ ...preferences, properties });
         }}
         toolsLayout={preferences.toolsLayout}
         topBar={
@@ -569,7 +538,7 @@ function Root(props: RootProps): ReactNode {
               className="hm-video-editor-mode"
               size="small"
               value={mode}
-              onValueChange={(next) => changePreferences({ ...preferences, mode: next })}
+              onValueChange={(next) => prefs.change({ ...preferences, mode: next })}
             />
             <Toolbar label={t("toolbar.bar")} className="hm-video-editor-bar">
               {barButton(barTool("video.undo"))}
@@ -588,8 +557,8 @@ function Root(props: RootProps): ReactNode {
               ) : null}
               <ThemeToggle
                 // Until a theme is chosen, the toggle shows the page's.
-                value={isChosen("theme") ? preferences.theme : "inherit"}
-                onValueChange={(theme) => changePreferences({ ...preferences, theme })}
+                value={prefs.themeToggleValue}
+                onValueChange={(theme) => prefs.change({ ...preferences, theme })}
               />
               <Tooltip type="label" content={t("editor.settings")}>
                 <IconButton
@@ -597,12 +566,9 @@ function Root(props: RootProps): ReactNode {
                   label={t("editor.settings")}
                   icon={<SettingsIcon />}
                   aria-haspopup="dialog"
-                  onClick={() => {
-                    // The settings show what's in effect, the page's values
-                    // included, as they are when they open.
-                    setInheritedAtOpen(inheritedValues(root.current));
-                    setSettingsOpen(true);
-                  }}
+                  // The settings show what's in effect, the page's values
+                  // included, as they are when they open.
+                  onClick={() => prefs.openSettings(root.current)}
                 />
               </Tooltip>
             </Toolbar>
@@ -695,15 +661,7 @@ function Root(props: RootProps): ReactNode {
         items={lists.palette}
         onRun={runTool}
       />
-      <SettingsPanel
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-        value={shownSettings}
-        onValueChange={(next) => {
-          const choice = fromSettings(next, shownSettings, preferences, isChosen);
-          changePreferences(choice.preferences, choice.chosen);
-        }}
-      />
+      <SettingsPanel {...prefs.settings} />
       <VideoExportDialog
         {...(fileName === undefined ? {} : { fileName })}
         {...(onExport ? { onExport } : {})}
