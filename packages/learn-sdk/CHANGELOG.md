@@ -1,5 +1,27 @@
 # @hussmartinez/learn-sdk
 
+## 0.4.5
+
+### Patch Changes
+
+- [#249](https://github.com/ie-huss-martinez/sdk-core/pull/249) [`baaff02`](https://github.com/ie-huss-martinez/sdk-core/commit/baaff026372e2b49bd94dbc81e672e9cb378b3e5) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Add `<hm-learn-editor>`, `LearnEditor` as a custom element, to `@hussmartinez/learn-sdk/element` (ADR 0009).
+  
+  - **`defineLearnEditorElement()`** registers it; importing the entry registers nothing, and is safe on a server. It renders the editor into its light DOM.
+  - **Attributes** `theme`, `locale`, `heading-level` and `single`; **properties** `initialContent`, `types`, `blocks`, `profile`, `limits`, `newId`, `messages`, `preferences` and `defaultPreferences`. Setting `initialContent`, `single`, `types`, `limits` or `newId` again opens the editor afresh, as a new React `key` does.
+  - **Methods** `getContent()`, which returns a promise that waits for the editor's first render, `flush()`, `undo()` and `redo()`.
+  - **Events** `hm-learn-editor-change` with `{ draft, issues, valid }`, `-event`, `-error` with `{ code, details }`, and `-preferences`.
+  - The entry also exports `learnEditorMessages`.
+
+- [#236](https://github.com/ie-huss-martinez/sdk-core/pull/236) [`ec6a699`](https://github.com/ie-huss-martinez/sdk-core/commit/ec6a699255aeead3053676e6f2b4de0cf25868eb) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Add `LearnEditor`, the teacher's editor, to `@hussmartinez/learn-sdk/react` (ADR 0008).
+  
+  - **`LearnEditor`** edits `hm-learn-content` on the editor session. It renders through ui's editor frame, with an outline of exercises, tools to add, remove and move them, undo and redo with toasts, and start cards. Every problem is shown at its field. Pass `single` to edit a document of exactly one exercise, for hosts that store exercises one by one.
+  - **Saving stays yours:** `onChange(draft, { issues, valid })` reports every edit, and the handle's `getContent()` returns validated content, or throws `INVALID_DOCUMENT`. It also has `flush()`, `undo()` and `redo()`.
+  - **Typing** is committed as one edit per burst, and never while an input method is composing, so Thai, Chinese and Japanese input stay whole. Fields in the taught language get its `lang` and `dir` from `profile`, with spellcheck and autocorrect off.
+  - **Editor blocks** for the built-in types: `multipleChoiceEditor`, `gapFillEditor` and `wordOrderEditor`. Give your own types one with `defineEditorBlock({ edit, create })` and the `blocks` prop.
+  - **The editor's text** is `learnEditorMessages`, from `./react`; `LearnEditorMessageCatalogue` types overrides. New tools from `.`: `addExerciseTool(type, create)`, `moveExerciseUpTool` and `moveExerciseDownTool`.
+- Updated dependencies [[`0ba282b`](https://github.com/ie-huss-martinez/sdk-core/commit/0ba282b8f128846edc5e29b7457f18f300ea316f), [`0ba282b`](https://github.com/ie-huss-martinez/sdk-core/commit/0ba282b8f128846edc5e29b7457f18f300ea316f), [`9117d83`](https://github.com/ie-huss-martinez/sdk-core/commit/9117d83decaab57a7b0500a4d23e6f245b2097b7)]:
+  - @hussmartinez/ui@0.17.1
+
 ## 0.4.4
 
 ### Patch Changes

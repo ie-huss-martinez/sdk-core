@@ -1,5 +1,13 @@
 # @hussmartinez/audio-sdk
 
+## 0.12.1
+
+### Patch Changes
+
+- [#248](https://github.com/ie-huss-martinez/sdk-core/pull/248) [`0ba282b`](https://github.com/ie-huss-martinez/sdk-core/commit/0ba282b8f128846edc5e29b7457f18f300ea316f) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `propertiesFooter`: host content under the properties panel, such as an app's ad slot. On a frame 60 rem wide or more it stays in the column on its own while the panel is hidden or absent, if it fits the column's height; narrower, it hides with the panel. Under a shown panel, it hides whenever the panel's content and the footer don't both fit.
+- Updated dependencies [[`0ba282b`](https://github.com/ie-huss-martinez/sdk-core/commit/0ba282b8f128846edc5e29b7457f18f300ea316f), [`0ba282b`](https://github.com/ie-huss-martinez/sdk-core/commit/0ba282b8f128846edc5e29b7457f18f300ea316f), [`9117d83`](https://github.com/ie-huss-martinez/sdk-core/commit/9117d83decaab57a7b0500a4d23e6f245b2097b7)]:
+  - @hussmartinez/ui@0.17.1
+
 ## 0.12.0
 
 ### Minor Changes

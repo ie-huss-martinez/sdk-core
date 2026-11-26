@@ -1,5 +1,27 @@
 # @hussmartinez/ui
 
+## 0.17.1
+
+### Patch Changes
+
+- [#248](https://github.com/ie-huss-martinez/sdk-core/pull/248) [`0ba282b`](https://github.com/ie-huss-martinez/sdk-core/commit/0ba282b8f128846edc5e29b7457f18f300ea316f) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `EditorFrame` no longer keeps the tools rail's width beside the stage below 45 rem when it has a `tabBar`. The tab bar holds the tools there, but full tools in the sidebar layout still left an empty strip, 4.25 rem wide, at the stage's inline start on a phone. The stage now starts at the frame's edge.
+
+- [#248](https://github.com/ie-huss-martinez/sdk-core/pull/248) [`0ba282b`](https://github.com/ie-huss-martinez/sdk-core/commit/0ba282b8f128846edc5e29b7457f18f300ea316f) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `EditorFrame` takes `propertiesFooter`: host content under the properties panel, in the same column, such as an app's 160 × 600 ad slot (sdk-core ADR 0067, amended). An SDK editor passes it through from a prop of its own, unchanged.
+  
+  - **Where it goes:** the panel stays on top with its full content, and the footer sits at the foot of the column at its own size, never stretched or shrunk, and no wider than the panel. It's outside the panel's "Properties" landmark, and adds no landmark or tab stop of its own: what's inside is the host's.
+  - **When it shows:** only while the panel's content at its full height and the footer both fit in the column. Otherwise it hides and the panel keeps the whole column, scrolling as before. It's also hidden below 45 rem, where the properties sit under the stage. Its content stays mounted while it's hidden.
+  - **Without a panel:** with no `properties`, or `propertiesState` set to `"hidden"`, the column stays with just the footer at its foot, as wide as the panel, so the stage doesn't move when the panel comes back. That's from 60 rem, where the column sits beside the stage, and while the footer fits the column's height; otherwise the column goes as it does without a footer. Between 45 and 60 rem, where the properties float over the stage, the footer never floats there alone and hides. The properties toggle, the edge tab and the panel's `hidden` attribute behave as before.
+  - **New part:** `classNames.propertiesFooter`.
+  
+  Nothing changes without the prop, but the panel now sits in a new `.hm-editor-frame-properties-column`, which floats over the stage below 60 rem in its place: a stylesheet that positioned `.hm-editor-frame-properties` itself should target the column.
+
+- [#246](https://github.com/ie-huss-martinez/sdk-core/pull/246) [`9117d83`](https://github.com/ie-huss-martinez/sdk-core/commit/9117d83decaab57a7b0500a4d23e6f245b2097b7) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Add `SearchField` to `@hussmartinez/ui/react` (ui ADR 0017): a search box with a search icon and, while it holds text, a button that clears it.
+  
+  - **`SearchField`:** a native `<input type="search">` in a box styled like `TextField`, with its tokens. `label` names it; `value` and `onValueChange` control it, or `defaultValue` starts it; native input props and the ref go to the input. `icon` replaces the search icon, `end` shows something after the input, such as a shortcut hint, and `clearLabel` names the clear button. It works in a `Field`. Before it hydrates, the browser's own clear button stays.
+  - **`uiMessages` gains `searchField.clear`.** Nothing to do if you spread `uiMessages` into your catalogue; a hand-written object of that type, such as a test double, must add the key.
+  - **New tokens:** `--hm-search-field-gap` and `--hm-search-field-icon-fg`.
+  - **Filter chips** need no new component: use `ToggleButton`s in a `role="group"` with a name. The README and the catalogue show how.
+
 ## 0.17.0
 
 ### Minor Changes
