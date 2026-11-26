@@ -39,10 +39,12 @@ export default [
     entry: "dist/index.js",
     limit: "19 kB",
   }),
+  // 40.5 kB since the editor moved onto ui's frame (docs/adr/0010): the
+  // frame and the review's fixes to it took it to 40.01 kB.
   entryBudget({
     name: "React entry (./react), with the shared code it loads",
     entry: "dist/react.js",
-    limit: "40 kB",
+    limit: "40.5 kB",
   }),
   // 40.5 kB since the editor moved onto ui's frame (docs/adr/0010): the
   // frame, the tools panel, the palette, the settings, the toasts and the
