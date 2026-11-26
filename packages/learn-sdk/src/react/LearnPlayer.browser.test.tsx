@@ -289,6 +289,20 @@ describe("LearnPlayer", () => {
     act(() => ref.current?.reset());
     expect(text()).toContain("Exercise 1 of 3");
     expect(button("drink").getAttribute("aria-pressed")).toBe("false");
+    // Focus was on exercise 2's heading, inside the player: the reset gives it to exercise 1's.
+    expect(document.activeElement?.tagName).toMatch(/^H[2-6]$/);
+    expect(document.activeElement?.textContent).toBe("อาหาร");
+  });
+
+  it("leaves focus where it was when a reset happens with focus outside the player", () => {
+    const ref = createRef<LearnPlayerHandle>();
+    render({}, ref);
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    outside.focus();
+    act(() => ref.current?.reset());
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
   });
 });
 

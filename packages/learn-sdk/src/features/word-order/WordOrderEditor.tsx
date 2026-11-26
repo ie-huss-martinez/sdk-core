@@ -51,7 +51,7 @@ const movedTo = <T,>(values: readonly T[], from: number, to: number): T[] => {
 function Alternative({
   tiles,
   order,
-  number,
+  focusKey,
   label,
   onOrder,
   onRemove,
@@ -61,7 +61,8 @@ function Alternative({
 }: {
   readonly tiles: readonly string[];
   readonly order: readonly string[];
-  readonly number: number;
+  /** Its `data-hm-focus-key`, unique in the block: the item's and its own number. */
+  readonly focusKey: string;
   readonly label: string;
   readonly onOrder: (order: readonly string[]) => void;
   readonly onRemove: () => void;
@@ -76,7 +77,7 @@ function Alternative({
     positions[index] === null ? `x${index}` : `t${positions[index]}`,
   );
   return (
-    <div className="hm-learn-editor-alternative" data-hm-focus-key={`alt${number}`}>
+    <div className="hm-learn-editor-alternative" data-hm-focus-key={focusKey}>
       <div lang={language.lang} dir={language.dir}>
         <ReorderableList
           label={label}
@@ -158,7 +159,7 @@ function Item({
             key={at}
             tiles={tiles}
             order={order}
-            number={at + 1}
+            focusKey={`i${index}-alt${at + 1}`}
             label={messages.t("wordOrder.alternative", { number: at + 1 })}
             onOrder={(next) =>
               change((current) =>
@@ -195,7 +196,7 @@ function Item({
                 listOf<string>(current.tiles),
               ]),
             );
-            focusAfter(`alt${alternatives.length + 1}`);
+            focusAfter(`i${index}-alt${alternatives.length + 1}`);
           }}
         >
           {messages.t("wordOrder.addAlternative")}

@@ -1,6 +1,6 @@
-import { expect, type Page, test } from "@playwright/test";
 import { targets } from "../targets.js";
 import { hydrated, noViolations, watch } from "./checks.js";
+import { expect, type Page, test } from "./test.js";
 
 /**
  * The editor on each built example (ADR 0008): rendered on the server where

@@ -250,6 +250,9 @@ function Editor({
     : (exercises.find((exercise) => exercise.id === selected) ?? exercises[0]);
   // The selected exercise for the session's events, which arrive outside a render.
   const selectedRef = useLatest(current?.id ?? null);
+  // The exercise the last move moved: the outline can move a row it hasn't
+  // selected, so a move's position is the moved exercise's, not the selection's.
+  const movedRef = useRef<string | null>(null);
   const root = useRef<HTMLElement>(null);
   const focusWanted = useRef<"title" | "outline" | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -316,6 +319,7 @@ function Editor({
     const live = { snapshot: before, selected: target };
     if (!allowed(tool, before.draft.exercises.length) || !(tool.isEnabled?.(live) ?? true)) return;
     try {
+      if (tool.group === "exercises") movedRef.current = target;
       void tool.run({ editor, selected: target });
     } catch (error) {
       if (!isLearnError(error)) throw error;
@@ -347,7 +351,7 @@ function Editor({
     const position =
       Math.max(
         0,
-        now.findIndex((exercise) => exercise.id === selectedRef.current),
+        now.findIndex((exercise) => exercise.id === (movedRef.current ?? selectedRef.current)),
       ) + 1;
     const message =
       event.type === "edit_undone"
@@ -549,6 +553,7 @@ function Editor({
                     announceMoves={false}
                     onMove={(id, to) => {
                       pendingText.flush();
+                      movedRef.current = id;
                       editor.execute({ type: "learn.moveExercise", exerciseId: id, to });
                     }}
                     onRemove={(id) => run("learn.remove-exercise", id)}
@@ -653,6 +658,12 @@ function Editor({
             ) : (
               <p className="hm-learn-editor-empty">{t.t("editor.empty")}</p>
             )}
+            {/* A limit the draft passed, such as too many choices, has no field (ADR 0008). */}
+            {snapshot.error ? (
+              <p role="status" className="hm-learn-editor-limit">
+                {t.error(snapshot.error)}
+              </p>
+            ) : null}
             {snapshot.trimmed ? (
               <p className="hm-learn-editor-note">{t.t("editor.trimmed")}</p>
             ) : null}

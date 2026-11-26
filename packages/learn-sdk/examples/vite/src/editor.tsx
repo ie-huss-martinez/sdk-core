@@ -9,13 +9,13 @@ import content from "../../thai-basics.json" with { type: "json" };
 /**
  * The editor, as a host renders it, saving through the handle (ADR 0008):
  * Save is on only while the draft is valid, and shows what `getContent()`
- * returns. `?empty` opens it with nothing to edit.
+ * returns. `?empty` opens it with nothing to edit, read once at start-up:
+ * the editor opens its content once.
  */
-function Example() {
+function Example({ empty }: { readonly empty: boolean }) {
   const editor = useRef<LearnEditorHandle>(null);
   const [valid, setValid] = useState(true);
   const [saved, setSaved] = useState("");
-  const empty = new URLSearchParams(location.search).has("empty");
   return (
     <>
       <div className="example-editor">
@@ -39,4 +39,5 @@ function Example() {
 }
 
 const element = document.querySelector<HTMLElement>("#editor");
-if (element) createRoot(element).render(<Example />);
+const empty = new URLSearchParams(location.search).has("empty");
+if (element) createRoot(element).render(<Example empty={empty} />);

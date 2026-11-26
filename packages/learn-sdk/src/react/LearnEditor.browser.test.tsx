@@ -320,6 +320,32 @@ describe("LearnEditor", () => {
     await expectNoAxeViolations(element);
   });
 
+  it("focuses a list's Add button when its last entry is removed", async () => {
+    const element = render({ initialContent: undefined });
+    await userEvent.click(button(element, "Add fill the gap"));
+    await userEvent.click(button(element, "Remove answer 1"));
+    expect(document.activeElement).toBe(button(element, "Add an answer"));
+  });
+
+  it("keeps text the session refuses on screen, with the refusal as the field's problem", async () => {
+    // 15 code points: the content's own texts fit, the new title doesn't.
+    const onChange = vi.fn();
+    const element = render({ onChange, limits: { maxTextLength: 15 } });
+    field(element, "Title").focus();
+    await userEvent.keyboard("{Control>}a{/Control}A title far over ten");
+    await userEvent.tab();
+    const title = field(element, "Title");
+    expect(title.value).toBe("A title far over ten");
+    expect(title.getAttribute("aria-invalid")).toBe("true");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("shows a limit the draft passed, which no field can show", async () => {
+    const element = render({ limits: { maxChoices: 2 } });
+    await userEvent.click(button(element, "Add a choice"));
+    expect(element.querySelector(".hm-learn-editor-limit")?.textContent ?? "").not.toBe("");
+  });
+
   describe("single", () => {
     it("edits one exercise, with no outline and no structural tools", async () => {
       const element = render({ single: true, initialContent: one });
@@ -342,15 +368,16 @@ describe("LearnEditor", () => {
     });
 
     it("refuses content with more than one exercise", () => {
-      const element = render({ single: true });
-      expect(element.querySelector("[role=alert]")?.textContent).not.toBe("");
       const ref = createRef<LearnEditorHandle>();
-      render({ single: true }, ref);
+      const element = render({ single: true }, ref);
+      expect(element.querySelector("[role=alert]")?.textContent ?? "").not.toBe("");
+      let refusal: unknown;
       try {
         ref.current?.getContent();
       } catch (error) {
-        expect(isLearnError(error, "INVALID_DOCUMENT")).toBe(true);
+        refusal = error;
       }
+      expect(isLearnError(refusal, "INVALID_DOCUMENT")).toBe(true);
     });
   });
 

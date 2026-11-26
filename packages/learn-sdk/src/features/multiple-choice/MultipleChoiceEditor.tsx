@@ -67,7 +67,8 @@ function Question({
       correct:
         current.correct === at ? 0 : current.correct > at ? current.correct - 1 : current.correct,
     }));
-    focusAfter(`q${index}-c${Math.max(0, at - 1)}`);
+    // The neighbour, or the Add button once no choice is left.
+    focusAfter(choices.length > 1 ? `q${index}-c${Math.max(0, at - 1)}` : `q${index}-add`);
   };
 
   return (
@@ -136,6 +137,7 @@ function Question({
           <p className="hm-learn-editor-error">{issueText(messages, issueAt(mine, ["correct"]))}</p>
         )}
         <Button
+          data-hm-focus-key={`q${index}-add`}
           variant="secondary"
           startIcon={<AddIcon />}
           onClick={() => {

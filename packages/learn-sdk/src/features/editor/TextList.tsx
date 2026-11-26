@@ -131,7 +131,10 @@ export function TextList({
                   label={removeLabel(index + 1)}
                   onClick={() => {
                     onChange((current) => current.filter((_, at) => at !== index));
-                    focusAfter(`${focusKey}${Math.max(0, index - 1)}`);
+                    // The neighbour, or the Add button once the list is empty.
+                    focusAfter(
+                      values.length > 1 ? `${focusKey}${Math.max(0, index - 1)}` : `${focusKey}add`,
+                    );
                   }}
                 />
               </span>
@@ -145,6 +148,7 @@ export function TextList({
         </p>
       )}
       <Button
+        data-hm-focus-key={`${focusKey}add`}
         variant="secondary"
         startIcon={<AddIcon />}
         onClick={() => {

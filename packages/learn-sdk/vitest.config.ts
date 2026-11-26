@@ -44,6 +44,9 @@ export default defineConfig(({ mode }) => {
             // where Docker's network changes fail tests at random (sdk-core
             // ADR 0049). The unit project above still runs anywhere.
             globalSetup: ["@hussmartinez/sdk-config/testing/require-image"],
+            // The family's guard against a crash in Playwright's Firefox when
+            // userEvent and axe both read ariaLabelledByElements (ui#61).
+            setupFiles: ["@hussmartinez/sdk-config/testing/firefox-labelled-by/setup"],
             include: ["src/**/*.browser.test.{ts,tsx}", "test/**/*.browser.test.ts"],
             browser: {
               enabled: true,

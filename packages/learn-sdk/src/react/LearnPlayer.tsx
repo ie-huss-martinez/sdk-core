@@ -19,6 +19,7 @@ import {
 import {
   forwardRef,
   type ReactNode,
+  type RefObject,
   useCallback,
   useEffect,
   useId,
@@ -135,7 +136,7 @@ function Exercise({
   readonly player: LearnPlayerSession;
   readonly snapshot: LearnPlayerSnapshot;
 }): ReactNode {
-  const { messages, profile, blocks } = usePlayerContext();
+  const { messages, profile, blocks, refocusRef } = usePlayerContext();
   const announce = useAnnounce();
   const exercise = snapshot.content.exercises[snapshot.position];
   const state = snapshot.exercises[snapshot.position];
@@ -156,6 +157,17 @@ function Exercise({
     element.addEventListener("blur", () => element.removeAttribute("tabindex"), { once: true });
     element.focus();
   }, [snapshot.position]);
+
+  // After a reset that took focus from inside the player, the first exercise's
+  // heading takes it, as it does after moving (ADR 0005).
+  useEffect(() => {
+    const element = heading.current;
+    if (!refocusRef.current || !element) return;
+    refocusRef.current = false;
+    element.tabIndex = -1;
+    element.addEventListener("blur", () => element.removeAttribute("tabindex"), { once: true });
+    element.focus();
+  }, [refocusRef]);
 
   if (!exercise || !state) return null;
   const position = messages.t("player.position", {
@@ -212,9 +224,11 @@ function Exercise({
 function Session({
   player,
   className,
+  root,
 }: {
   readonly player: LearnPlayerSession;
   readonly className?: string | undefined;
+  readonly root: RefObject<HTMLElement | null>;
 }): ReactNode {
   const { messages, shortcuts, reportError } = usePlayerContext();
   const snapshot = usePlayerSnapshot(player) as LearnPlayerSnapshot;
@@ -250,6 +264,7 @@ function Session({
 
   return (
     <section
+      ref={root}
       className={classes("hm-learn-player", className)}
       aria-label={messages.t("player.label")}
       onKeyDown={(event) => {
@@ -299,24 +314,30 @@ const Shell = /* @__PURE__ */ forwardRef<
   LearnPlayerHandle,
   { readonly className?: string | undefined }
 >(function Shell({ className }, ref): ReactNode {
-  const { player, error, messages, reset } = usePlayerContext();
+  const { player, error, messages, reset, refocusRef } = usePlayerContext();
+  const root = useRef<HTMLElement>(null);
   useImperativeHandle(
     ref,
     () => ({
       check: () => player?.check(),
       next: () => player?.next(),
-      reset,
+      reset: () => {
+        // Focus inside the player goes with the remount, so the new first exercise takes it.
+        refocusRef.current = root.current?.contains(document.activeElement) ?? false;
+        reset();
+      },
     }),
-    [player, reset],
+    [player, reset, refocusRef],
   );
   return (
     // One Messages object for the SDK's text and ui's (sdk-core ADR 0046).
     <UiMessagesProvider messages={messages}>
       <AnnouncerProvider>
         {player ? (
-          <Session player={player} className={className} />
+          <Session player={player} className={className} root={root} />
         ) : (
           <section
+            ref={root}
             className={classes("hm-learn-player", className)}
             aria-label={messages.t("player.label")}
           >
@@ -356,8 +377,9 @@ export const LearnPlayer = /* @__PURE__ */ forwardRef<LearnPlayerHandle, LearnPl
     // Reset starts a new session by remounting the provider.
     const [generation, setGeneration] = useState(0);
     const reset = useCallback(() => setGeneration((current) => current + 1), []);
+    const refocusRef = useRef(false);
     return (
-      <LearnPlayerProvider key={generation} reset={reset} {...provider}>
+      <LearnPlayerProvider key={generation} reset={reset} refocusRef={refocusRef} {...provider}>
         <HeadingLevelProvider level={toHeadingLevel(headingLevel)}>
           <Shell ref={ref} className={className} />
         </HeadingLevelProvider>

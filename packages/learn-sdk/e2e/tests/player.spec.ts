@@ -1,6 +1,6 @@
-import { expect, type Page, test } from "@playwright/test";
 import { targets } from "../targets.js";
 import { hydrated, noViolations, watch } from "./checks.js";
+import { expect, type Page, test } from "./test.js";
 
 /**
  * The player on each built example, as a host serves it (sdk-core ADR 0007,

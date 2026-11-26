@@ -97,7 +97,8 @@ interface EditorBlockProps<Payload> {
 
 - A text field keeps what's typed and commits it as one command when it loses focus, on Enter in a one-line field, or after 700 ms without typing. A burst of typing is one undo step, as ADR 0007 asks.
 - **Nothing commits while an input method is composing** (between `compositionstart` and `compositionend`). Thai, Chinese and Japanese input methods build a character in several steps, and committing halfway would put half-built text into the history. If the 700 ms pause ends during a composition, the field commits on `compositionend` instead.
-- Undo, redo, adding, removing, moving, `flush()`, `getContent()` and unmounting commit pending typing first, so nothing typed is lost or applied out of order.
+- Undo, redo, adding, removing, moving, `flush()`, `getContent()`, leaving the field and unmounting commit pending typing first, so nothing typed is lost or applied out of order. These can't wait for a composition to end, so they commit the text as it stands: browsers end a composition before a field loses focus, so this happens only when a host asks for the content mid-composition, or the editor goes away. Only the pause waits for the composition.
+- **A commit the session refuses,** such as a title over `maxTextLength`, keeps the text on screen and pending, and the field shows the refusal as its problem, until a later commit succeeds. Text that isn't in the draft is never shown as if it were saved.
 - **Fields in the taught language** (prompts, choices, sentences, answers, tiles) get `lang` and `dir` from the profile, with `spellcheck`, `autocorrect` and `autocapitalize` off: a browser checking Thai against an English dictionary only gets in the way. **Fields in the teacher's language** (titles, instructions, explanations, translations) take the page's language and the browser's defaults.
 
 ### Problems at their fields

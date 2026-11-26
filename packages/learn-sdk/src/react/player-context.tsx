@@ -94,6 +94,11 @@ interface PlayerContext {
   readonly shortcuts: ShortcutRegistry;
   /** Starts the exercises again, from a new session. */
   readonly reset: () => void;
+  /**
+   * Set when a reset took focus from inside the player, so the new first
+   * exercise takes it: kept by `LearnPlayer`, which the reset doesn't remount.
+   */
+  readonly refocusRef: { current: boolean };
   /** Tells the host about an error an action caused, such as `INVALID_ANSWER`. */
   readonly reportError: (error: LearnError) => void;
 }
@@ -109,10 +114,12 @@ export function LearnPlayerProvider(
   props: Omit<LearnPlayerProps, "className" | "headingLevel"> & {
     /** Starts a new session: `LearnPlayer` remounts the provider with a new key. */
     readonly reset: () => void;
+    readonly refocusRef: { current: boolean };
     readonly children?: ReactNode;
   },
 ): ReactNode {
-  const { content, types, progressStore, scope, scheduler, limits, locale, reset } = props;
+  const { content, types, progressStore, scope, scheduler, limits, locale, reset, refocusRef } =
+    props;
   // The host's latest callbacks, taken as each render commits, never during it
   // (sdk-core ADR 0063). The session calls them through these stable functions.
   const latest = useLatest(props);
@@ -184,9 +191,10 @@ export function LearnPlayerProvider(
       tools,
       shortcuts,
       reset,
+      refocusRef,
       reportError: onError,
     }),
-    [session, messages, profile, blocks, tools, shortcuts, reset, onError],
+    [session, messages, profile, blocks, tools, shortcuts, reset, refocusRef, onError],
   );
   return <Context.Provider value={value}>{props.children}</Context.Provider>;
 }

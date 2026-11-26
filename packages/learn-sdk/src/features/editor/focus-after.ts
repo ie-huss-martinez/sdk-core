@@ -1,5 +1,8 @@
 import { type RefObject, useCallback, useEffect, useRef } from "react";
 
+/** A field, then a list's row, then a button: a new order can be rearranged at once. */
+const FOCUSABLE = "input:not([type=radio]), textarea, [role=gridcell][tabindex='0'], button";
+
 /**
  * Focus after an edit renders (ADR 0008): adding a choice focuses its field,
  * removing one focuses its neighbour, and moving a word keeps focus on the
@@ -23,10 +26,9 @@ export function useFocusAfter<Root extends HTMLElement>(): {
     const target = ref.current?.querySelector(`[data-hm-focus-key="${CSS.escape(focus.key)}"]`);
     const control = focus.control
       ? target?.querySelector<HTMLElement>(`[data-hm-focus-control="${CSS.escape(focus.control)}"]`)
-      : target?.querySelector<HTMLElement>(
-          // A list's row before its buttons, so a new order can be rearranged at once.
-          "input:not([type=radio]), textarea, [role=gridcell][tabindex='0'], button",
-        );
+      : target?.matches(FOCUSABLE)
+        ? (target as HTMLElement)
+        : target?.querySelector<HTMLElement>(FOCUSABLE);
     control?.focus();
   });
   const focusAfter = useCallback((key: string, control?: string) => {

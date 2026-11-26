@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { isLearnError } from "../../core/errors/learn-error.js";
 
 /** How long typing pauses before it's committed as one edit (ADR 0008). */
 export const COMMIT_PAUSE_MS = 700;
@@ -44,8 +45,14 @@ export function createPendingText(): PendingText {
 /** @internal */
 export const PendingTextContext = /* @__PURE__ */ createContext<PendingText | null>(null);
 
-/** What a text input needs from {@link useCommittedText}. */
+/** What a text input needs from {@link useCommittedText}, and why its last commit failed. */
 export interface CommittedTextProps {
+  /**
+   * The error that refused the last commit, such as a text over
+   * `maxTextLength`, while its text is still pending; null otherwise. Not an
+   * input attribute: the field shows it as its problem.
+   */
+  readonly refused: unknown;
   readonly value: string;
   readonly onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   readonly onBlur: () => void;
@@ -59,9 +66,15 @@ export interface CommittedTextProps {
 /**
  * A text field whose typing becomes one edit (ADR 0008): it shows what's
  * typed at once, and commits it when the field loses focus, on Enter in a
- * one-line field, after a pause, or when the editor flushes. Nothing commits
- * while an input method is composing; a pause that ends mid-composition
- * commits when the composition ends.
+ * one-line field, after a pause, or when the editor flushes. A pause never
+ * commits while an input method is composing: one that ends mid-composition
+ * commits when the composition ends. A flush that can't wait does commit
+ * what's there: the editor's `flush()` or `getContent()`, a structural edit,
+ * leaving the field, or the field going away (ADR 0008).
+ *
+ * A commit the session refuses, such as a text over `maxTextLength`, keeps
+ * the text on screen and pending, and reports the error as `refused`, so the
+ * field shows why it isn't saved, and the next commit tries again.
  *
  * `committed` is the value in the draft; `commit` turns a new value into a
  * command. Until the field has typing of its own, it shows `committed`, so
@@ -74,6 +87,7 @@ export function useCommittedText(
 ): CommittedTextProps {
   // Typing not yet committed, or null when the field shows the draft's value.
   const [typed, setTyped] = useState<string | null>(null);
+  const [refused, setRefused] = useState<unknown>(null);
   // The same, for handlers and timers that run outside a render.
   const pending = useRef<string | null>(null);
   const composing = useRef(false);
@@ -97,10 +111,19 @@ export function useCommittedText(
         return;
       }
       const value = pending.current;
-      pending.current = null;
       pausedWhileComposing.current = false;
       if (value === null) return;
-      latestCommit.current(value);
+      try {
+        latestCommit.current(value);
+      } catch (error) {
+        // A bug, not a refusal, still throws.
+        if (!isLearnError(error)) throw error;
+        // Kept pending and on screen, with the reason; never thrown from a timer or handler.
+        setRefused(error);
+        return;
+      }
+      pending.current = null;
+      setRefused(null);
       setTyped(null);
     },
     [clearTimer, latestCommit],
@@ -117,6 +140,7 @@ export function useCommittedText(
   }, [pendingText, flush]);
 
   return {
+    refused,
     value: typed ?? committed,
     onChange: (event) => {
       const value = event.currentTarget.value;

@@ -20,7 +20,8 @@ const thai = { code: "th", direction: "ltr" } as const;
 
 export function Editor({ content, save }: { content: unknown; save: (c: unknown) => Promise<void> }) {
   const editor = useRef<LearnEditorHandle>(null);
-  const [valid, setValid] = useState(false);
+  // The editor opens valid content only, so it starts valid; onChange reports every edit after.
+  const [valid, setValid] = useState(true);
   return (
     <>
       <LearnEditor ref={editor} initialContent={content} profile={thai} onChange={(_, problems) => setValid(problems.valid)} />

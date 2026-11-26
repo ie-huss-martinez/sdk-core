@@ -1,5 +1,6 @@
 import { Field, TextArea, TextField } from "@hussmartinez/ui/react";
 import type { ReactNode } from "react";
+import { isLearnError } from "../../core/errors/learn-error.js";
 import type { LearnIssue } from "../../core/errors/learn-issues.js";
 import type { LanguageProfile } from "../../core/model/language-profile.js";
 import { useCommittedText } from "./committed-text.js";
@@ -57,7 +58,9 @@ export function EditorField({
   leading,
   actions,
 }: EditorFieldProps): ReactNode {
-  const text = useCommittedText(value, onCommit, { multiline });
+  const { refused, ...text } = useCommittedText(value, onCommit, { multiline });
+  // A refused commit is the field's problem until a commit succeeds.
+  const problem = isLearnError(refused) ? messages.error(refused) : issueText(messages, issue);
   const language = taught
     ? {
         lang: taught.code,
@@ -74,7 +77,7 @@ export function EditorField({
       className="hm-learn-editor-field"
       label={label}
       description={description}
-      error={issueText(messages, issue)}
+      error={problem}
     >
       <div className="hm-learn-editor-control">
         {leading}

@@ -360,6 +360,7 @@
   }
 
   .hm-learn-editor-error,
+  .hm-learn-editor-limit,
   .hm-learn-editor-issues {
     margin: 0;
     color: var(--hm-color-danger-text);
