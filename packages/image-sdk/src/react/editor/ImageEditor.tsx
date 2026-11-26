@@ -73,6 +73,7 @@ interface BodyProps
     | "preferences"
     | "defaultPreferences"
     | "onPreferencesChange"
+    | "propertiesFooter"
   > {
   readonly handle: ForwardedRef<ImageEditorHandle>;
   /** Listens to the session's events until the returned function is called. */
@@ -478,6 +479,7 @@ function ImageEditorBody(props: BodyProps): ReactNode {
             prefs.change({ ...preferences, properties });
           }}
           toolsLayout={preferences.toolsLayout}
+          propertiesFooter={props.propertiesFooter}
           topBar={
             <>
               <span className="hm-image-editor-title">
@@ -661,6 +663,7 @@ export const ImageEditor = /* @__PURE__ */ forwardRef(function ImageEditor(
     preferences,
     defaultPreferences,
     onPreferencesChange,
+    propertiesFooter,
     ...provider
   } = props;
   // The editor listens to the session's events for its announcements, and
@@ -709,6 +712,7 @@ export const ImageEditor = /* @__PURE__ */ forwardRef(function ImageEditor(
             {...(preferences ? { preferences } : {})}
             {...(defaultPreferences ? { defaultPreferences } : {})}
             {...(onPreferencesChange ? { onPreferencesChange } : {})}
+            propertiesFooter={propertiesFooter}
           />
         </ToastProvider>
       </AnnouncerProvider>

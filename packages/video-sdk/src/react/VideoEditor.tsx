@@ -97,6 +97,15 @@ export interface VideoEditorProps extends Omit<VideoEditorProviderProps, "childr
   readonly defaultPreferences?: Partial<EditorPreferences>;
   /** Called with the whole preferences when the person changes one. */
   readonly onPreferencesChange?: (preferences: EditorPreferences) => void;
+  /**
+   * Host content under the properties panel, in its column, such as an app's
+   * ad slot, passed to ui's `EditorFrame` unchanged (sdk-core ADR 0067). It
+   * shows only while the panel's content and it both fit in the column's
+   * height. Without a panel shown, it stays in the column alone from 60 rem
+   * and hides below that. `<hm-video-editor>` has no equivalent, as it
+   * takes no React content.
+   */
+  readonly propertiesFooter?: ReactNode;
 }
 
 /**
@@ -140,6 +149,7 @@ type RootProps = Pick<
   | "preferences"
   | "defaultPreferences"
   | "onPreferencesChange"
+  | "propertiesFooter"
 >;
 
 const Shell = /* @__PURE__ */ forwardRef<
@@ -528,6 +538,7 @@ function Root(props: RootProps): ReactNode {
           prefs.change({ ...preferences, properties });
         }}
         toolsLayout={preferences.toolsLayout}
+        propertiesFooter={props.propertiesFooter}
         topBar={
           <>
             <span className="hm-video-editor-title">
@@ -710,6 +721,7 @@ export const VideoEditor = /* @__PURE__ */ forwardRef<VideoEditorHandle, VideoEd
       preferences,
       defaultPreferences,
       onPreferencesChange,
+      propertiesFooter,
       ...provider
     },
     ref,
@@ -725,6 +737,7 @@ export const VideoEditor = /* @__PURE__ */ forwardRef<VideoEditorHandle, VideoEd
           {...(preferences ? { preferences } : {})}
           {...(defaultPreferences ? { defaultPreferences } : {})}
           {...(onPreferencesChange ? { onPreferencesChange } : {})}
+          propertiesFooter={propertiesFooter}
         />
       </VideoEditorProvider>
     );

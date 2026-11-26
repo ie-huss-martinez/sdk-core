@@ -197,6 +197,7 @@ describe("the built package on a server", () => {
         topBar: "Image editor",
         tools: "Tools",
         properties: "Properties",
+        propertiesFooter: "Ad",
         bottom: "Timeline",
         children: "Stage",
       },

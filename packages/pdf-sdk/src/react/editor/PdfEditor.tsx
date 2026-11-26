@@ -171,6 +171,7 @@ interface BodyProps
     | "preferences"
     | "defaultPreferences"
     | "onPreferencesChange"
+    | "propertiesFooter"
   > {
   readonly handle: ForwardedRef<PdfEditorHandle>;
 }
@@ -643,6 +644,7 @@ function PdfEditorBody(props: BodyProps): ReactNode {
         toolsState={preferences.tools}
         onToolsStateChange={(tools) => prefs.change({ ...preferences, tools })}
         toolsLayout={preferences.toolsLayout}
+        propertiesFooter={props.propertiesFooter}
         topBar={
           <>
             <span className="hm-pdf-editor-title">
@@ -860,6 +862,7 @@ export const PdfEditor = /* @__PURE__ */ forwardRef(function PdfEditor(
     preferences,
     defaultPreferences,
     onPreferencesChange,
+    propertiesFooter,
     messages: overrides,
     locale = "en",
     ...source
@@ -894,6 +897,7 @@ export const PdfEditor = /* @__PURE__ */ forwardRef(function PdfEditor(
           {...(preferences ? { preferences } : {})}
           {...(defaultPreferences ? { defaultPreferences } : {})}
           {...(onPreferencesChange ? { onPreferencesChange } : {})}
+          propertiesFooter={propertiesFooter}
         />
       </UiMessagesProvider>
     </PdfContext.Provider>

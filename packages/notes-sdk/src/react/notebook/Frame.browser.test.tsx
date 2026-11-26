@@ -273,3 +273,13 @@ describe("the recording's transport (docs/adr/0007, docs/adr/0008)", () => {
     await waitFor(() => expect(toasts()).toContain("The recording was saved with the notebook."));
   });
 });
+
+describe("the properties footer (sdk-core ADR 0067)", () => {
+  it("passes a host's footer to the open notebook's frame, under the properties", async () => {
+    await mounted({ propertiesFooter: <div className="host-footer" /> });
+    await newNotebook();
+    expect(
+      document.querySelector(".hm-editor-frame-properties-footer > .host-footer"),
+    ).not.toBeNull();
+  });
+});

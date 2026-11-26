@@ -187,3 +187,10 @@ describe("toasts (sdk-core ADR 0067)", () => {
     expect(undos(view)).toEqual([]);
   });
 });
+
+describe("the properties footer (sdk-core ADR 0067)", () => {
+  it("passes a host's footer to the frame, under the properties", async () => {
+    const { view } = await setUp({ propertiesFooter: <div className="host-footer" /> });
+    expect(view.querySelector(".hm-editor-frame-properties-footer > .host-footer")).not.toBeNull();
+  });
+});

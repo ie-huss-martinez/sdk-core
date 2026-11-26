@@ -96,11 +96,38 @@
     align-items: center;
   }
 
+  /*
+   * The properties' column: the panel, and under it a host's footer, such
+   * as an app's ad slot (sdk-core ADR 0067). The panel fills the column.
+   */
+  .hm-editor-frame-properties-column {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    min-block-size: 0;
+  }
+
+  /*
+   * The footer without room is placed against the column. Only then: a
+   * positioned column would paint over what spills from the stage, such
+   * as a floating bar's shadow. Without specificity, so the narrow
+   * layouts' absolute column keeps its place.
+   */
+  :where(
+    .hm-editor-frame-properties-column:has(> .hm-editor-frame-properties-footer[data-hm-no-room])
+  ) {
+    position: relative;
+  }
+
+  .hm-editor-frame-properties-column[hidden] {
+    display: none;
+  }
+
   /* The properties panel. */
   .hm-editor-frame-properties {
     box-sizing: border-box;
     display: flex;
-    flex: none;
+    flex: 1 1 auto;
     flex-direction: column;
     inline-size: var(--hm-editor-frame-inspector-width, var(--hm-inspector-width));
     min-block-size: 0;
@@ -133,6 +160,52 @@
   /* Under the hide button, which only a frame without a top bar has. */
   .hm-editor-frame-properties-head + .hm-editor-frame-properties-body {
     padding-block-start: 0;
+  }
+
+  /*
+   * The host's footer, at its own size and no wider than the panel. It
+   * hides, rather than squeeze the panel, when they don't both fit.
+   */
+  .hm-editor-frame-properties-footer {
+    align-items: flex-start;
+    box-sizing: border-box;
+    contain: inline-size;
+    display: flex;
+    flex: none;
+    justify-content: center;
+    padding: var(--hm-editor-frame-inset, var(--hm-inset-normal));
+  }
+
+  /*
+   * Without room under the panel it stays laid out, out of the flow and
+   * invisible, so the frame can tell when new content would fit.
+   */
+  .hm-editor-frame-properties-footer[data-hm-no-room] {
+    inset-block-end: 0;
+    inset-inline: 0;
+    pointer-events: none;
+    position: absolute;
+    visibility: hidden;
+  }
+
+  /*
+   * Without a panel shown, the column holds just the footer, at its foot
+   * and as wide as the panel, so the stage doesn't move when the panel
+   * comes back. Without room, the footer leaves the flow and the column
+   * takes no width, as if there were no footer.
+   */
+  .hm-editor-frame-properties-column[data-hm-footer-only] {
+    justify-content: flex-end;
+  }
+
+  .hm-editor-frame-properties-column[data-hm-footer-only] > .hm-editor-frame-properties-footer {
+    inline-size: var(--hm-editor-frame-inspector-width, var(--hm-inspector-width));
+  }
+
+  /* Laid out invisibly from the column's end, over the stage, rather than past the frame. */
+  .hm-editor-frame-properties-column[data-hm-footer-only]
+    > .hm-editor-frame-properties-footer[data-hm-no-room] {
+    inset-inline-start: auto;
   }
 
   /* Edge tabs bring a hidden panel back. */
@@ -200,7 +273,7 @@
   /* Below 60 rem, full tools float over the stage and the properties over its end. */
   @container hm-editor-frame (width < 60rem) {
     .hm-editor-frame[data-hm-layout="sidebar"][data-hm-tools="full"] .hm-editor-frame-tools,
-    .hm-editor-frame-properties {
+    .hm-editor-frame-properties-column {
       inset-block: 0;
       position: absolute;
       z-index: var(--hm-z-sticky);
@@ -210,8 +283,13 @@
       inset-inline-start: 0;
     }
 
-    .hm-editor-frame .hm-editor-frame-properties {
+    .hm-editor-frame .hm-editor-frame-properties-column {
       inset-inline-end: 0;
+    }
+
+    /* The footer never floats over the stage alone. */
+    .hm-editor-frame .hm-editor-frame-properties-column[data-hm-footer-only] {
+      display: none;
     }
 
     /* The stage keeps the rail's room, so it doesn't jump when the tools open. */
@@ -229,10 +307,6 @@
       display: none;
     }
 
-    .hm-editor-frame[data-hm-tab-bar] .hm-editor-frame-stage {
-      margin-inline-start: 0;
-    }
-
     .hm-editor-frame-tab-bar {
       display: block;
     }
@@ -244,18 +318,34 @@
     /*
      * The properties sit under the stage, in the flow, so they never cover
      * what's on it, such as a crop's handles. The stage keeps at least 60%
-     * of the height; the properties take the rest, and scroll.
+     * of the height; the properties take the rest, and scroll. There's no
+     * room left for a footer.
      */
-    .hm-editor-frame .hm-editor-frame-properties {
+    .hm-editor-frame .hm-editor-frame-properties-column {
       flex: 0 1 auto;
-      inline-size: auto;
       min-block-size: 0;
       position: static;
+    }
+
+    .hm-editor-frame .hm-editor-frame-properties {
+      inline-size: auto;
+    }
+
+    .hm-editor-frame-properties-footer {
+      display: none;
     }
 
     .hm-editor-frame[data-hm-layout] .hm-editor-frame-stage {
       flex: 1 1 0;
       min-block-size: 60%;
+    }
+
+    /*
+     * The tab bar holds the tools, so the stage keeps no room for their rail.
+     * As specific as the rule above that keeps it, and after it, so it wins.
+     */
+    .hm-editor-frame[data-hm-layout="sidebar"][data-hm-tab-bar] .hm-editor-frame-stage {
+      margin-inline-start: 0;
     }
 
     .hm-editor-frame-top {
@@ -304,6 +394,15 @@
       var(--hm-editor-frame-border-color, var(--hm-color-border));
   }
 
+  /* The footer continues the panel's surface, set apart from it by a rule. */
+  .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-properties-footer {
+    background: var(--hm-editor-frame-panel-bg, var(--hm-color-surface));
+    border-block-start: var(--hm-border-width) solid
+      var(--hm-editor-frame-border-color, var(--hm-color-border));
+    border-inline-start: var(--hm-border-width) solid
+      var(--hm-editor-frame-border-color, var(--hm-color-border));
+  }
+
   .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-bottom {
     background: var(--hm-editor-frame-panel-bg, var(--hm-color-surface));
     border-block-start: var(--hm-border-width) solid
@@ -336,7 +435,7 @@
   @container hm-editor-frame (width < 60rem) {
     .hm-editor-frame:not([data-hm-unstyled])[data-hm-layout="sidebar"][data-hm-tools="full"]
       .hm-editor-frame-tools,
-    .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-properties {
+    .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-properties-column {
       box-shadow: var(--hm-editor-frame-floating-shadow, var(--hm-shadow-floating));
     }
   }
@@ -344,6 +443,11 @@
   @container hm-editor-frame (width < 45rem) {
     .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-properties {
       border-inline-start: 0;
+    }
+
+    /* The column casts the panel's shadow, so it takes the panel's corners. */
+    .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-properties,
+    .hm-editor-frame:not([data-hm-unstyled]) .hm-editor-frame-properties-column {
       border-radius: var(--hm-radius-surface) var(--hm-radius-surface) 0 0;
     }
   }

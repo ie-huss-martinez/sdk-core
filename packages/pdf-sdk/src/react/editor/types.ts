@@ -1,6 +1,7 @@
 import type { MessageOverrides } from "@hussmartinez/sdk-core";
 import type { EditorPreferences } from "@hussmartinez/ui";
 import type { IconComponent } from "@hussmartinez/ui/react";
+import type { ReactNode } from "react";
 import type { PdfBytes } from "../../core/model/document.js";
 import type { PdfExportOptions, PdfOpenOptions, PdfSession } from "../../core/session/session.js";
 import type { PdfEditorMessageCatalogue } from "../editor-messages.js";
@@ -138,6 +139,15 @@ export interface PdfEditorProps extends Omit<PdfSessionProviderProps, "children"
   readonly defaultPreferences?: Partial<EditorPreferences>;
   /** Called with the whole preferences when the person changes one. */
   readonly onPreferencesChange?: (preferences: EditorPreferences) => void;
+  /**
+   * Host content under the properties panel, in its column, such as an app's
+   * ad slot, passed to ui's `EditorFrame` unchanged (sdk-core ADR 0067). This
+   * editor has no properties panel, so from 60 rem the footer has the column
+   * to itself, at its foot, while it fits the column's height; below 60 rem
+   * it hides. `<hm-pdf-editor>` has no equivalent, as it takes no React
+   * content.
+   */
+  readonly propertiesFooter?: ReactNode;
   /** Icon components by name, over the SDK's own from ui. */
   readonly icons?: Readonly<Record<string, IconComponent>>;
   /** Extra classes on the root. */

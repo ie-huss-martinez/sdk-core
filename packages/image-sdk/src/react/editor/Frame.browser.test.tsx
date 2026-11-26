@@ -351,3 +351,12 @@ describe("toasts (sdk-core ADR 0067)", () => {
     expect(undos).toHaveLength(1);
   });
 });
+
+describe("the properties footer (sdk-core ADR 0067)", () => {
+  it("passes a host's footer to the frame, under the properties", async () => {
+    await mounted({ propertiesFooter: <div className="host-footer" /> });
+    expect(
+      document.querySelector(".hm-editor-frame-properties-footer > .host-footer"),
+    ).not.toBeNull();
+  });
+});

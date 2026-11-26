@@ -104,6 +104,14 @@ export interface NotesNotebookProps extends NotesPreferenceProps {
    * mode's "Mark up a PDF" card. Without it, that card isn't offered.
    */
   readonly onOpenNotebook?: ((notebook: string) => void) | undefined;
+  /**
+   * Host content under the properties panel, in its column, such as an app's
+   * ad slot, passed to ui's `EditorFrame` unchanged (sdk-core ADR 0067). It
+   * shows only while the panel's content and it both fit in the column's
+   * height. Without a panel shown, it stays in the column alone from 60 rem
+   * and hides below that.
+   */
+  readonly propertiesFooter?: ReactNode;
 }
 
 /** A recording that has stopped, until it's stored with the notebook. */
@@ -1158,6 +1166,7 @@ function NotebookBody(props: BodyProps): ReactNode {
           prefs.change({ ...preferences, properties });
         }}
         toolsLayout={preferences.toolsLayout}
+        propertiesFooter={props.propertiesFooter}
         topBar={
           <>
             {barButton("notes.close")}

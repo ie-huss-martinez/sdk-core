@@ -273,7 +273,7 @@ export interface EditorFrameControls {
 }
 
 // @public
-export type EditorFramePart = "root" | "top" | "body" | "tools" | "stage" | "properties" | "bottom" | "tabBar" | "edge";
+export type EditorFramePart = "root" | "top" | "body" | "tools" | "stage" | "properties" | "propertiesFooter" | "bottom" | "tabBar" | "edge";
 
 // @public
 export type EditorFramePropertiesState = "shown" | "hidden";
@@ -286,6 +286,7 @@ export interface EditorFrameProps extends Omit<HTMLAttributes<HTMLDivElement>, "
     // (undocumented)
     readonly onToolsStateChange?: ((state: EditorFrameToolsState) => void) | undefined;
     readonly properties?: ReactNode;
+    readonly propertiesFooter?: ReactNode;
     readonly propertiesLabel?: string | undefined;
     readonly propertiesState?: EditorFramePropertiesState | undefined;
     readonly tabBar?: ReactNode;

@@ -168,6 +168,263 @@ describe("EditorFrame", () => {
       getComputedStyle(narrow.querySelector(".hm-editor-frame-tab-bar") as Element).display,
     ).toBe("block");
   });
+
+  it("starts the stage at the frame's inline start below 45 rem, where the tab bar holds the tools", () => {
+    // Full tools reserve a rail's width beside the stage below 60 rem; on a
+    // phone they're in the tab bar, so nothing is reserved.
+    const narrow = render(<Frame tabBar />, "24rem");
+    const stage = narrow.querySelector(".hm-editor-frame-stage") as HTMLElement;
+    expect(frameOf(narrow).dataset["hmTools"]).toBe("full");
+    expect(stage.getBoundingClientRect().left).toBe(frameOf(narrow).getBoundingClientRect().left);
+    expect(stage.getBoundingClientRect().width).toBe(frameOf(narrow).getBoundingClientRect().width);
+  });
+});
+
+/** A frame whose properties are a block `rows` pixels tall, with a 160 × `ad` footer under them. */
+function Footed({
+  rows = 40,
+  ad = 120,
+  properties = true,
+  propertiesState = "shown",
+}: {
+  rows?: number;
+  ad?: number;
+  properties?: boolean;
+  propertiesState?: EditorFramePropertiesState;
+}) {
+  return (
+    <EditorFrame
+      topBar="Image editor"
+      properties={
+        properties ? <div className="rows" style={{ blockSize: `${rows}px` }} /> : undefined
+      }
+      propertiesState={propertiesState}
+      propertiesFooter={
+        <div className="ad" style={{ inlineSize: "160px", blockSize: `${ad}px` }} />
+      }
+    >
+      <p>Stage</p>
+    </EditorFrame>
+  );
+}
+
+/** A footed frame whose panel starts hidden, with the top bar's toggle working. */
+function Toggled({ properties = true }: { properties?: boolean }) {
+  const [state, setState] = useState<EditorFramePropertiesState>("hidden");
+  return (
+    <EditorFrame
+      topBar="Image editor"
+      properties={properties ? <div className="rows" style={{ blockSize: "40px" }} /> : undefined}
+      propertiesState={state}
+      onPropertiesStateChange={setState}
+      propertiesFooter={<div className="ad" style={{ inlineSize: "160px", blockSize: "120px" }} />}
+    >
+      <p>Stage</p>
+    </EditorFrame>
+  );
+}
+
+describe("EditorFrame's properties footer", () => {
+  const part = (container: HTMLElement, name: string) =>
+    container.querySelector(`.hm-editor-frame-${name}`) as HTMLElement;
+  const box = (element: Element) => element.getBoundingClientRect();
+  const rerender = (element: React.ReactElement) => act(() => root?.render(element));
+  /** Whether the footer shows: not hidden with the column, and with room. */
+  const shown = (footer: HTMLElement) => footer.checkVisibility({ visibilityProperty: true });
+
+  it("shows under the panel, outside its landmark, at its own size when both fit", () => {
+    const container = render(<Footed />);
+    const panel = container.querySelector("aside") as HTMLElement;
+    const footer = part(container, "properties-footer");
+    expect(footer.hidden).toBe(false);
+    expect(panel.contains(footer)).toBe(false);
+    expect(footer.getAttribute("role")).toBeNull();
+    expect(footer.tabIndex).toBe(-1);
+    // The host's content keeps its size, centred under the panel.
+    const ad = box(container.querySelector(".ad") as Element);
+    expect([ad.width, ad.height]).toEqual([160, 120]);
+    // Within the footer's one-pixel rule at its inline start.
+    expect(Math.abs(ad.left - box(panel).left - (box(panel).right - ad.right))).toBeLessThanOrEqual(
+      1,
+    );
+    // The panel on top, the footer at the foot of the column, and the panel
+    // shows all of its content.
+    const column = box(part(container, "properties-column"));
+    expect(box(footer).bottom).toBeCloseTo(column.bottom, 1);
+    expect(box(panel).bottom).toBeCloseTo(box(footer).top, 1);
+    const body = part(container, "properties-body");
+    expect(body.scrollHeight).toBeLessThanOrEqual(body.clientHeight);
+  });
+
+  it("hides when the panel's content needs the room, and leaves the panel its full height", async () => {
+    const container = render(<Footed />);
+    const footer = part(container, "properties-footer");
+    const panel = container.querySelector("aside") as HTMLElement;
+    const columnHeight = box(part(container, "properties-column")).height;
+    rerender(<Footed rows={columnHeight - 100} />);
+    await vi.waitFor(() => expect(shown(footer)).toBe(false));
+    expect(box(panel).height).toBeCloseTo(columnHeight, 1);
+    // It comes back, at the size it had, once there's room again.
+    rerender(<Footed rows={40} />);
+    await vi.waitFor(() => expect(shown(footer)).toBe(true));
+    expect(box(container.querySelector(".ad") as Element).height).toBe(120);
+  });
+
+  it("leaves properties that fill the panel, with a percentage height, the whole column", async () => {
+    const container = render(
+      <EditorFrame
+        topBar="Image editor"
+        properties={<div className="fill" style={{ blockSize: "100%" }} />}
+        propertiesFooter={
+          <div className="ad" style={{ inlineSize: "160px", blockSize: "120px" }} />
+        }
+      >
+        <p>Stage</p>
+      </EditorFrame>,
+    );
+    const footer = part(container, "properties-footer");
+    await vi.waitFor(() => expect(shown(footer)).toBe(false));
+    const body = part(container, "properties-body");
+    const padding = Number.parseFloat(getComputedStyle(body).paddingBlockStart) * 2;
+    expect(box(container.querySelector(".fill") as Element).height).toBeCloseTo(
+      box(body).height - padding,
+      1,
+    );
+  });
+
+  it("comes back when its content changes to fit while it has no room", async () => {
+    const container = render(<Footed />);
+    const footer = part(container, "properties-footer");
+    const columnHeight = box(part(container, "properties-column")).height;
+    rerender(<Footed ad={columnHeight} />);
+    await vi.waitFor(() => expect(shown(footer)).toBe(false));
+    rerender(<Footed ad={120} />);
+    await vi.waitFor(() => expect(shown(footer)).toBe(true));
+  });
+
+  it("hides when text in the panel grows, alone or beside elements", async () => {
+    const lines = (count: number) =>
+      Array.from({ length: count }, () => "A line of text.").join(" ");
+    const frame = (text: string, beside: boolean) => (
+      <EditorFrame
+        topBar="Image editor"
+        properties={
+          beside ? (
+            <>
+              <div style={{ blockSize: "20px" }} />
+              {text}
+            </>
+          ) : (
+            text
+          )
+        }
+        propertiesFooter={
+          <div className="ad" style={{ inlineSize: "160px", blockSize: "120px" }} />
+        }
+      >
+        <p>Stage</p>
+      </EditorFrame>
+    );
+    for (const beside of [false, true]) {
+      const container = render(frame(lines(1), beside));
+      const footer = part(container, "properties-footer");
+      expect(shown(footer)).toBe(true);
+      rerender(frame(lines(400), beside));
+      await vi.waitFor(() => expect(shown(footer)).toBe(false));
+      act(() => root?.unmount());
+    }
+  });
+
+  it("stays in its column without a panel from 60 rem, hides below that, and keeps its content mounted", () => {
+    const container = render(<Footed propertiesState="hidden" />);
+    const footer = part(container, "properties-footer");
+    const ad = container.querySelector(".ad");
+    expect(shown(footer)).toBe(true);
+    rerender(<Footed properties={false} />);
+    expect(shown(footer)).toBe(true);
+    expect(container.querySelector("aside")).toBeNull();
+    rerender(<Footed />);
+    expect(shown(footer)).toBe(true);
+    // The same content, so an ad isn't requested again.
+    expect(container.querySelector(".ad")).toBe(ad);
+    act(() => root?.unmount());
+    const narrow = render(<Footed />, "30rem");
+    expect(getComputedStyle(part(narrow, "properties-footer")).display).toBe("none");
+    rerender(<Footed propertiesState="hidden" />);
+    expect(shown(part(narrow, "properties-footer"))).toBe(false);
+  });
+
+  it("stays at the foot of the column, at its own size, with the panel hidden or absent", async () => {
+    const container = render(<Toggled />);
+    const footer = part(container, "properties-footer");
+    const aside = container.querySelector("aside") as HTMLElement;
+    const stage = part(container, "stage");
+    const toggle = container.querySelector(".hm-editor-frame-properties-button") as HTMLElement;
+    const check = () => {
+      expect(shown(footer)).toBe(true);
+      // Outside any landmark, and adding none of its own.
+      expect(footer.closest("aside, nav, header, main, section, [role]")).toBeNull();
+      expect(footer.getAttribute("role")).toBeNull();
+      const ad = box(container.querySelector(".ad") as Element);
+      expect([ad.width, ad.height]).toEqual([160, 120]);
+      const column = box(part(container, "properties-column"));
+      expect(box(footer).bottom).toBeCloseTo(column.bottom, 1);
+      expect(box(footer).right).toBeCloseTo(column.right, 1);
+      return column.width;
+    };
+    // The panel is hidden; its controls behave as before.
+    expect(aside.hidden).toBe(true);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    const alone = check();
+    const stageWidth = box(stage).width;
+    // Toggling the panel back on shows it above the footer, in a column as wide.
+    await userEvent.click(toggle);
+    expect(aside.hidden).toBe(false);
+    expect(check()).toBeCloseTo(alone, 1);
+    expect(box(aside).bottom).toBeCloseTo(box(footer).top, 1);
+    expect(box(aside).width).toBeCloseTo(alone, 1);
+    // So the stage doesn't move.
+    expect(box(stage).width).toBeCloseTo(stageWidth, 1);
+    act(() => root?.unmount());
+
+    // Without properties at all, the column holds just the footer, as wide.
+    const bare = render(<Toggled properties={false} />);
+    expect(bare.querySelector("aside")).toBeNull();
+    expect(bare.querySelector(".hm-editor-frame-properties-button")).toBeNull();
+    expect(shown(part(bare, "properties-footer"))).toBe(true);
+    expect(box(part(bare, "properties-column")).width).toBeCloseTo(alone, 1);
+    const ad = box(bare.querySelector(".ad") as Element);
+    expect([ad.width, ad.height]).toEqual([160, 120]);
+    expect(box(part(bare, "properties-footer")).bottom).toBeCloseTo(
+      box(part(bare, "properties-column")).bottom,
+      1,
+    );
+  });
+
+  it("never floats over the stage alone between 45 and 60 rem", () => {
+    const container = render(<Footed propertiesState="hidden" />, "52rem");
+    expect(shown(part(container, "properties-footer"))).toBe(false);
+    rerender(<Footed properties={false} />);
+    expect(shown(part(container, "properties-footer"))).toBe(false);
+    // With the panel shown it floats over the stage's end with it, as before.
+    rerender(<Footed />);
+    expect(getComputedStyle(part(container, "properties-column")).position).toBe("absolute");
+    expect(shown(part(container, "properties-footer"))).toBe(true);
+  });
+
+  it("has no room without a panel when it's taller than the column, and the column takes none", async () => {
+    const container = render(<Footed propertiesState="hidden" />);
+    const footer = part(container, "properties-footer");
+    const column = part(container, "properties-column");
+    const columnHeight = box(column).height;
+    rerender(<Footed propertiesState="hidden" ad={columnHeight} />);
+    await vi.waitFor(() => expect(shown(footer)).toBe(false));
+    expect(footer.hasAttribute("data-hm-no-room")).toBe(true);
+    expect(box(column).width).toBe(0);
+    // It comes back once it fits again.
+    rerender(<Footed propertiesState="hidden" ad={120} />);
+    await vi.waitFor(() => expect(shown(footer)).toBe(true));
+  });
 });
 
 describe("ToolList", () => {

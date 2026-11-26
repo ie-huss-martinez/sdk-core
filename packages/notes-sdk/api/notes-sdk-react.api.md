@@ -50,6 +50,7 @@ export interface NotesEditorProps extends Omit<NotesProviderProps, "children">, 
     readonly initialSettings?: Partial<NotesInkSettings>;
     readonly onSettingsChange?: (settings: NotesInkSettings) => void;
     readonly onViewChange?: (view: NotesEditorView) => void;
+    readonly propertiesFooter?: ReactNode;
     readonly toolbar?: readonly (readonly string[])[];
     readonly tools?: readonly string[];
     readonly unstyled?: boolean;
@@ -121,6 +122,7 @@ export interface NotesNotebookProps extends NotesPreferenceProps {
     readonly onOpenNotebook?: ((notebook: string) => void) | undefined;
     // (undocumented)
     readonly onSettingsChange: (settings: NotesInkSettings) => void;
+    readonly propertiesFooter?: ReactNode;
     // Warning: (ae-forgotten-export) The symbol "NotesSession" needs to be exported by the entry point react.d.ts
     readonly session: NotesSession;
     readonly settings: NotesInkSettings;
