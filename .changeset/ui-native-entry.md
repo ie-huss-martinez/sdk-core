@@ -10,4 +10,4 @@ Add `@hussmartinez/ui/native`, an entry for React Native. The web entries are un
 - **Direction:** `isRTL(locale)`, which uses no `Intl`, `Dir`, `NoFlip` and `useDirection`.
 - **Preferences and accessibility:** `readNativePreferences`, `nativePreferenceOptions`, `useTextScale`, `useReducedMotion` and `announce`.
 
-`react-native` (`>=0.79`) and `react-native-svg` (`>=15`) are new optional peer dependencies: only an application that imports `@hussmartinez/ui/native` needs them.
+`react-native` (`>=0.81`) and `react-native-svg` (`>=15`) are new optional peer dependencies: only an application that imports `@hussmartinez/ui/native` needs them. ui's own checks build one configuration inside those ranges, Expo SDK 58 with React Native 0.88.1 and `react-native-svg` 15.16.0. Earlier versions the ranges accept, such as Expo SDK 57 with React Native 0.86, aren't built there. React Native 0.81 is the floor because `Pressable` reports focus from that version, which `Button` needs to show it.

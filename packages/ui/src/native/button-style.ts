@@ -74,6 +74,7 @@ export interface ButtonLook {
   readonly foreground: string;
   readonly container: {
     readonly minHeight: number;
+    readonly minWidth: number;
     readonly paddingHorizontal: number;
     readonly paddingVertical: number;
     readonly gap: number;
@@ -108,6 +109,8 @@ export function buttonLook(
     foreground: tokens[variant.foreground],
     container: {
       minHeight: tokens[large ? "control-height-large" : "control-height"] * options.textScale,
+      // A button with a small picture and no words is still a full target.
+      minWidth: tokens["target-size"] * options.textScale,
       paddingHorizontal: tokens[large ? "inset-loose" : "control-padding-x"],
       paddingVertical: tokens["inset-tight"],
       gap: tokens[large ? "gap-loose" : "control-gap"],

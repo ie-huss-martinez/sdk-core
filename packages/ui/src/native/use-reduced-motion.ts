@@ -26,20 +26,29 @@ export function useReducedMotion(): boolean {
     if (motion !== "system") {
       return undefined;
     }
-    let current = true;
+    // Whether the first reading still counts: not after the effect ends,
+    // and not after a change event, which is newer than a reading that was
+    // asked for before it and may arrive after it.
+    let awaited = true;
     AccessibilityInfo.isReduceMotionEnabled().then(
       (enabled) => {
-        if (current) {
+        if (awaited) {
           setDevice(enabled);
         }
       },
       // A platform that can't say keeps the safe answer.
       () => undefined,
     );
-    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", setDevice);
+    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", (enabled) => {
+      awaited = false;
+      setDevice(enabled);
+    });
     return () => {
-      current = false;
+      awaited = false;
       subscription.remove();
+      // Nobody is listening from here on, so what was known may go stale:
+      // back in `system`, the answer is the safe one until it's read again.
+      setDevice(undefined);
     };
   }, [motion]);
   return motion === "system" ? (device ?? true) : motion === "reduced";

@@ -85,16 +85,20 @@ function refusal(kind: (typeof nativeTokenKinds)[keyof NativeThemeTokens], value
       return typeof value === "string" && WEIGHT.test(value)
         ? undefined
         : 'a font weight is "100" to "900"';
-    case "easing":
-      return Array.isArray(value) &&
-        value.length === 4 &&
-        value.every((point) => typeof point === "number" && Number.isFinite(point)) &&
-        value[0] >= 0 &&
-        value[0] <= 1 &&
-        value[2] >= 0 &&
-        value[2] <= 1
+    case "easing": {
+      // Copied first: `every` skips the holes of a sparse array, and a copy
+      // has none.
+      const curve: unknown[] = Array.isArray(value) ? Array.from(value) : [];
+      const [x1, , x2] = curve;
+      return curve.length === 4 &&
+        curve.every((point) => typeof point === "number" && Number.isFinite(point)) &&
+        (x1 as number) >= 0 &&
+        (x1 as number) <= 1 &&
+        (x2 as number) >= 0 &&
+        (x2 as number) <= 1
         ? undefined
         : "a curve is four numbers, with both x values from 0 to 1";
+    }
   }
 }
 
@@ -116,7 +120,7 @@ function validateTokens(input: unknown): Partial<Record<keyof NativeThemeTokens,
     if (reason !== undefined) {
       throw invalidToken(name, value, reason);
     }
-    output[token] = Array.isArray(value) ? Object.freeze([...value]) : value;
+    output[token] = Array.isArray(value) ? Object.freeze(Array.from(value)) : value;
   }
   return output;
 }

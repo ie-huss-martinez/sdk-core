@@ -14,7 +14,7 @@ npm install @hussmartinez/ui
 
 For the React components, your application also needs `react` and `react-dom` 18.3 or later. They're optional peer dependencies, so the tokens and theme helpers work without them.
 
-A React Native application needs `react-native` 0.79 or later, and `react-native-svg` 15 or later for the icons, and imports [`@hussmartinez/ui/native`](#react-native) instead of the React entry and the stylesheet.
+A React Native application needs `react-native` 0.81 or later, and `react-native-svg` 15 or later for the icons, and imports [`@hussmartinez/ui/native`](#react-native) instead of the React entry and the stylesheet.
 
 ## Quick start
 
@@ -44,7 +44,7 @@ The package is ESM only ([ADR 0004](https://github.com/ie-huss-martinez/sdk-core
 | `@hussmartinez/ui` | Tokens, `createTheme`, `themeToCss`, the built-in themes and their types. No React and no DOM access on import, so it's safe in Server Components and build scripts |
 | `@hussmartinez/ui/react` | `ThemeProvider`, `UiMessagesProvider` and the components. Starts with `"use client"`. React and React DOM `>=18.3` are optional peer dependencies |
 | `@hussmartinez/ui/styles.css` | All styles: the built-in tokens and base styles, in the cascade layers `hm.tokens` and `hm.base`. Import it once in your application |
-| `@hussmartinez/ui/native` | For React Native: the themes as native values, the icons as data with `Icon`, `Text`, `Button`, `ChoiceList`, and helpers for direction, preferences and announcements. No DOM and no stylesheet. `react-native` `>=0.79` and `react-native-svg` `>=15` are optional peer dependencies. See [React Native](#react-native) |
+| `@hussmartinez/ui/native` | For React Native: the themes as native values, the icons as data with `Icon`, `Text`, `Button`, `ChoiceList`, and helpers for direction, preferences and announcements. No DOM and no stylesheet. `react-native` `>=0.81` and `react-native-svg` `>=15` are optional peer dependencies. See [React Native](#react-native) |
 
 JavaScript never imports CSS, so your application decides where the stylesheet loads. Your own unlayered CSS overrides every `hm` layer without `!important` ([ADR 0005](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0005-plain-css-with-cascade-layers.md)).
 
@@ -176,7 +176,7 @@ export function Question({ locale, preferences, question, choices, answer, t, ne
 - **Preferences** are the application's to keep: `readNativePreferences(value)` reads `{ theme, textScale, motion }` from anything, such as JSON from storage, and never throws; `nativePreferenceOptions` lists what a settings screen offers. `useReducedMotion()` follows the `motion` preference and the device's setting, and answers `true` until the device's is known.
 - **`announce(message)`** has the screen reader say a result, through `AccessibilityInfo`.
 
-`ui`'s own checks build against Expo SDK 58, with React Native 0.88 and `react-native-svg` 15.16. Earlier versions inside the peer ranges, from React Native 0.79, are accepted but not built here.
+`ui`'s own checks build against Expo SDK 58, with React Native 0.88 and `react-native-svg` 15.16. Earlier versions inside the peer ranges, from React Native 0.81, are accepted but not built here.
 
 Text is yours: the native components take every visible string and accessible name as a prop. Nothing renders on a device in `ui`'s own tests, so check a screen with VoiceOver and TalkBack when you first use a component.
 

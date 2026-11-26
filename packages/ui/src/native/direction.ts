@@ -49,7 +49,8 @@ const RTL_SCRIPTS: ReadonlySet<string> = /* @__PURE__ */ new Set([
 /**
  * Whether a locale is written from right to left, such as `ar`, `he-IL` or
  * `az-Arab`. A script subtag decides when the tag has one, so `ur-Latn` is
- * left to right; otherwise the language does. Anything it can't read is
+ * left to right; otherwise the language does. Extensions and private-use
+ * subtags don't count: `ar-u-nu-latn` is Arabic with Latin digits. Anything it can't read is
  * left to right.
  *
  * It uses no `Intl`, so it gives the same answer on every engine.
@@ -62,6 +63,12 @@ export function isRTL(locale: string): boolean {
     return false;
   }
   const [language = "", ...rest] = locale.toLowerCase().split(/[-_]/);
-  const script = rest.find((subtag) => /^[a-z]{4}$/.test(subtag));
-  return script === undefined ? RTL_LANGUAGES.has(language) : RTL_SCRIPTS.has(script);
+  // A script comes straight after the language and its extended language
+  // subtags, which are three letters each. Further on, four letters are a
+  // variant, an extension's value, such as the numbering system in
+  // `ar-u-nu-latn`, or private use.
+  const script = rest.find((subtag) => !/^[a-z]{3}$/.test(subtag));
+  return script !== undefined && /^[a-z]{4}$/.test(script)
+    ? RTL_SCRIPTS.has(script)
+    : RTL_LANGUAGES.has(language);
 }

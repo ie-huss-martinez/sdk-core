@@ -124,6 +124,9 @@ describe("buttonLook", () => {
     expect(look().container.minHeight).toBe(44);
     expect(look({ size: "large" }).container.minHeight).toBe(64);
     expect(look({ size: "large", textScale: 1.4 }).container.minHeight).toBeCloseTo(89.6);
+    // Wide enough too, whatever it holds: a small picture alone is narrower.
+    expect(look().container.minWidth).toBe(44);
+    expect(look({ textScale: 1.4 }).container.minWidth).toBeCloseTo(61.6);
   });
 
   it("shows focus on the border without changing the button's size", () => {
@@ -142,6 +145,14 @@ describe("buttonLook", () => {
     );
   });
 });
+
+/** A curve of length four whose y coordinates were never set. */
+function sparseCurve(): number[] {
+  const curve = new Array<number>(4);
+  curve[0] = 0;
+  curve[2] = 1;
+  return curve;
+}
 
 describe("createNativeTheme", () => {
   it("changes only the tokens given, and returns a frozen theme", () => {
@@ -183,6 +194,8 @@ describe("createNativeTheme", () => {
       { "motion-easing-enter": [2, 0, 0, 1] },
       "motion-easing-enter",
     ],
+    // `new Array(4)` with two coordinates set: the others are holes.
+    ["a curve with holes", { "motion-easing-enter": sparseCurve() }, "motion-easing-enter"],
   ])("refuses %s, naming the token", (_case, tokens, token) => {
     let thrown: unknown;
     try {

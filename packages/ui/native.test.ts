@@ -1,4 +1,5 @@
 import { mkdir, readFile, rm } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { createContext, runInContext } from "node:vm";
 import { build as esbuild, type Plugin } from "esbuild";
 import { build } from "vite";
@@ -40,7 +41,7 @@ async function inBareRealm(entry: string, probe: string): Promise<unknown> {
   const bundle = await esbuild({
     stdin: {
       contents: `import * as entry from "./${entry}";\nglobalThis.result = JSON.stringify((${probe})(entry));\n`,
-      resolveDir: directory.pathname,
+      resolveDir: fileURLToPath(directory),
       loader: "js",
     },
     bundle: true,
@@ -64,9 +65,9 @@ beforeAll(async () => {
   await mkdir(directory, { recursive: true });
   for (const config of ["vite.config.ts", "vite.native.config.ts"]) {
     await build({
-      configFile: new URL(config, import.meta.url).pathname,
+      configFile: fileURLToPath(new URL(config, import.meta.url)),
       logLevel: "silent",
-      build: { outDir: directory.pathname, emptyOutDir: false },
+      build: { outDir: fileURLToPath(directory), emptyOutDir: false },
     });
   }
 });
