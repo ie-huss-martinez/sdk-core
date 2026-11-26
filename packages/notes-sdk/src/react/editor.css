@@ -148,7 +148,6 @@
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-dialog {
     --hm-button-radius: var(--hm-radius-round);
-    --hm-radius-control: var(--hm-radius-control);
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-dialog[open] {

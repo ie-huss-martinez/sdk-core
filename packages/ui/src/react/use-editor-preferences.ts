@@ -160,9 +160,13 @@ export function useEditorPreferences(
   const [own, setOwn] = useState(() => readEditorPreferences(defaultPreferences, EMBEDDED));
   const controlled = options.preferences !== undefined;
   const preferences = controlled ? readEditorPreferences(options.preferences, EMBEDDED) : own;
-  const [picked, setPicked] = useState<ReadonlySet<InheritedEditorPreference>>(() => new Set());
-  const isChosen = (field: InheritedEditorPreference): boolean =>
-    picked.has(field) || controlled || defaultPreferences?.[field] !== undefined;
+  // The fields chosen so far: those the first render's defaults set, which
+  // the initial preferences were read from, and those changed since. A
+  // default added or removed later changes neither, as it changes no value.
+  const [picked, setPicked] = useState<ReadonlySet<InheritedEditorPreference>>(
+    () => new Set(INHERITED.filter((field) => defaultPreferences?.[field] !== undefined)),
+  );
+  const isChosen = (field: InheritedEditorPreference): boolean => picked.has(field) || controlled;
 
   const apply = (
     next: EditorPreferences,
@@ -172,7 +176,8 @@ export function useEditorPreferences(
   ): void => {
     onChange?.({ previous: preferences, preferences: next, chosen });
     if (chosen.some((field) => !picked.has(field))) {
-      setPicked(new Set([...picked, ...chosen]));
+      // From the latest pending set: two changes in one event both count.
+      setPicked((previous) => new Set([...previous, ...chosen]));
     }
     if (!controlled) {
       setOwn(next);

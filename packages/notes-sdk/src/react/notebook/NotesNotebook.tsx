@@ -198,6 +198,8 @@ function NotebookBody(props: BodyProps): ReactNode {
     if (editToast.current) toastRef.current.dismiss(editToast.current);
     editToast.current = null;
   }, [toastRef]);
+  // Its Undo is this notebook's: it goes when the notebook does.
+  useEffect(() => moved, [moved]);
   /** The session, telling the edit's toast when the notebook moves on. */
   const session = useMemo<NotesSession>(
     () => ({
@@ -264,6 +266,29 @@ function NotebookBody(props: BodyProps): ReactNode {
   const [work, setWork] = useState<
     { kind: "export" | "import"; fraction: number; abort: AbortController } | undefined
   >(undefined);
+  /** The PDF job running now, as the handlers see it before React renders it. */
+  const workRef = useRef<AbortController | null>(null);
+  /** Starts a PDF job, unless one is running. Returns its signal, or `null`. */
+  const startWork = (kind: "export" | "import"): AbortController | null => {
+    if (workRef.current) return null;
+    const abort = new AbortController();
+    workRef.current = abort;
+    setWork({ kind, fraction: 0, abort });
+    return abort;
+  };
+  /** Ends a PDF job: only its own record, never another's. */
+  const endWork = (abort: AbortController) => {
+    if (workRef.current === abort) workRef.current = null;
+    setWork((current) => (current?.abort === abort ? undefined : current));
+  };
+  // An import that outlives its notebook would open its result over another.
+  useEffect(
+    () => () => {
+      workRef.current?.abort();
+      workRef.current = null;
+    },
+    [],
+  );
   const [recording, setRecording] = useState<
     { id: string; session: NotesRecorderSession } | undefined
   >(undefined);
@@ -480,8 +505,8 @@ function NotebookBody(props: BodyProps): ReactNode {
   );
 
   const exportPdf = useCallback(() => {
-    const abort = new AbortController();
-    setWork({ kind: "export", fraction: 0, abort });
+    const abort = startWork("export");
+    if (!abort) return;
     const name = downloadName(
       latestRef.current.snapshot.notebook.title,
       "pdf",
@@ -496,7 +521,7 @@ function NotebookBody(props: BodyProps): ReactNode {
       .then((bytes) => saveFile(toBlob(bytes, "application/pdf"), name, "pdf"))
       .then(() => say("notebook.exported", "success"))
       .catch(fail)
-      .finally(() => setWork(undefined));
+      .finally(() => endWork(abort));
   }, [fail, images, latestRef, library, messages, saveFile, say, session]);
 
   /** Stores a stopped recording with the notebook. Resolves to whether it's stored. */
@@ -720,7 +745,8 @@ function NotebookBody(props: BodyProps): ReactNode {
     sidebar: sidebar.open,
     recording: recording !== undefined,
     canRecord: recorder.supported,
-    exporting: work?.kind === "export",
+    // Busy with a PDF, exporting or importing: one at a time.
+    exporting: work !== undefined,
     zoom,
     minZoom: MIN_ZOOM,
     maxZoom: MAX_ZOOM,
@@ -1022,8 +1048,8 @@ function NotebookBody(props: BodyProps): ReactNode {
 
   /** Imports a PDF as a new notebook, in this one's folder, and opens it. */
   const importPdf = (file: File) => {
-    const abort = new AbortController();
-    setWork({ kind: "import", fraction: 0, abort });
+    const abort = startWork("import");
+    if (!abort) return;
     const folder =
       library.getSnapshot().index.notebooks.find((entry) => entry.id === notebook.id)?.folder ??
       null;
@@ -1035,9 +1061,12 @@ function NotebookBody(props: BodyProps): ReactNode {
         onProgress: ({ fraction }) =>
           setWork((current) => (current ? { ...current, fraction } : current)),
       })
-      .then((id) => props.onOpenNotebook?.(id))
+      // Only while this notebook is still the one open: leaving it aborts the import.
+      .then((id) => {
+        if (!abort.signal.aborted) props.onOpenNotebook?.(id);
+      })
       .catch(fail)
-      .finally(() => setWork(undefined));
+      .finally(() => endWork(abort));
   };
 
   const chooseCard = (card: StartCard) => {

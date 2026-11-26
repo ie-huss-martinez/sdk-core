@@ -109,6 +109,33 @@ describe("useEditorPreferences, uncontrolled", () => {
   });
 });
 
+describe("useEditorPreferences, which fields are chosen", () => {
+  it("keeps a default's field chosen when the host drops the default, as its value stays", () => {
+    const rerender = render({ defaultPreferences: { density: "compact" } });
+    rerender({});
+    expect(current().isChosen("density")).toBe(true);
+    expect(attributes().density).toBe("compact");
+    // A default added later changes no value, so it chooses nothing.
+    rerender({ defaultPreferences: { motion: "reduced" } });
+    expect(current().isChosen("motion")).toBe(false);
+    expect(attributes().motion).toBeNull();
+  });
+
+  it("keeps both fields chosen when two changes come in one event", () => {
+    render({});
+    act(() => {
+      const { preferences } = current();
+      current().change({ ...preferences, density: "compact" });
+      // From the same render's preferences: this one chooses only motion.
+      current().change({ ...preferences, motion: "reduced" });
+    });
+    expect(current().isChosen("density")).toBe(true);
+    expect(current().isChosen("motion")).toBe(true);
+    // The last change's values win; the first one's field stays chosen.
+    expect(attributes()).toEqual({ theme: null, density: "comfortable", motion: "reduced" });
+  });
+});
+
 describe("useEditorPreferences, controlled", () => {
   it("shows the host's preferences, every field chosen, and only reports changes", () => {
     const onPreferencesChange = vi.fn();

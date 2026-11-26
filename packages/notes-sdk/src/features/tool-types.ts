@@ -80,7 +80,10 @@ export interface NotesToolState {
   /** Whether sound is being recorded, and whether this browser can record. */
   readonly recording: boolean;
   readonly canRecord: boolean;
-  /** Whether a PDF is being exported. */
+  /**
+   * Whether a PDF is being exported, or imported from a start card: export
+   * waits until it's done, as one PDF job runs at a time.
+   */
   readonly exporting: boolean;
   /** The zoom, where 1 fits the page's width, and its bounds. */
   readonly zoom: number;
