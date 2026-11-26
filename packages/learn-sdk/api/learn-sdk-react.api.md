@@ -276,6 +276,7 @@ export const learnEditorMessages: {
     readonly "colorPicker.hue.purple": "purple";
     readonly "colorPicker.hue.pink": "pink";
     readonly "buttonLink.newTab": "(opens in a new tab)";
+    readonly "searchField.clear": "Clear search";
     readonly "errors.UNSUPPORTED_FORMAT": "This isn't learning content this app can read.";
     readonly "content.unknownFormat": "This isn't learning content this app can read.";
     readonly "content.unknownFormatVersion": "This content may be from a newer version. Update the app, then open it again.";
