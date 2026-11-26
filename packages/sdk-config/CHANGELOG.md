@@ -1,5 +1,23 @@
 # @hussmartinez/sdk-config
 
+## 0.13.8
+
+### Patch Changes
+
+- [#231](https://github.com/ie-huss-martinez/sdk-core/pull/231) [`1ab7c1e`](https://github.com/ie-huss-martinez/sdk-core/commit/1ab7c1e70b1663befba134b84d7a46c27d491388) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Add `testBrowsers` and `variantsFor`, for faster draft pull requests and fewer screenshots.
+  
+  - **`@hussmartinez/sdk-config/testing/browsers`** is a new entry with no dependencies. `testBrowsers({ all })` returns the engines a Vitest browser project or a Playwright end-to-end configuration runs in: every engine with `all: true`, such as for `--mode all-browsers`; otherwise the ones `HM_BROWSERS` names, comma-separated; otherwise every engine when `CI` is set, and Chromium when it isn't. An engine it doesn't know throws. Replace a configuration's `process.env["CI"] || mode === "all-browsers" ? ALL_BROWSERS : ["chromium"]` with `testBrowsers({ all: mode === "all-browsers" })`, and a Playwright configuration's `ci || name === "chromium"` filter with `testBrowsers().includes(name)`.
+  - **`hm-in-image`** passes `HM_BROWSERS` into the container, so `HM_BROWSERS=firefox pnpm test:browser` runs Firefox alone.
+  - **`@hussmartinez/sdk-config/testing/visual`** adds `primaryVisualVariant`, light-comfortable, and `variantsFor(state, { full })`, which returns every variant for a state listed in `full` and `primaryVisualVariant` alone for any other. `visualVariants` is unchanged.
+
+- [#235](https://github.com/ie-huss-martinez/sdk-core/pull/235) [`42cf2be`](https://github.com/ie-huss-martinez/sdk-core/commit/42cf2be5f2c4af78df6f0e787a0cb44cd3b1cf9b) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `hm-lint-deps` now works in git hooks run from a linked worktree. Git sets `GIT_DIR` for hooks, which made `git ls-files` treat the package folder as the top of the work tree, so it found no tracked files and failed with "git tracks no source files". It now runs git without `GIT_DIR` and `GIT_WORK_TREE`, so it always uses the repository the package is in. Nothing changes for you otherwise.
+
+- [#240](https://github.com/ie-huss-martinez/sdk-core/pull/240) [`5bfc16f`](https://github.com/ie-huss-martinez/sdk-core/commit/5bfc16f905f6201806a5843c6ac3f66085b2404a) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `hm-in-image` and `hm-test-visual` give each checkout of a repository its own `node_modules` volumes, so clones and worktrees can run browser tests at the same time.
+  
+  - **What was wrong:** the volumes were named after the root `package.json`'s name alone, so every checkout of a repository installed into the same ones. Two runs at once could fail with `ERR_MODULE_NOT_FOUND` for a module the other was still writing.
+  - **Now:** a `node_modules` volume's name carries a short hash of the checkout's path, such as `hm-browser-sdk-core-workspace-d11d92ab5f-root-modules`. The image and the pnpm store are still one per repository, and each install waits for a lock in the store's volume, so a new checkout reuses what's already downloaded.
+  - **After updating:** the first run in each checkout installs into new volumes. The old ones, `hm-browser-<workspace name>-…-modules` without a hash, are no longer used: remove them with `docker volume rm`. The volumes of a checkout you delete stay until you remove them too; `docker volume ls --filter name=hm-browser-` lists them.
+
 ## 0.13.7
 
 ### Patch Changes

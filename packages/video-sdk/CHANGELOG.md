@@ -1,5 +1,51 @@
 # @hussmartinez/video-sdk
 
+## 0.11.0
+
+### Minor Changes
+
+- [#232](https://github.com/ie-huss-martinez/sdk-core/pull/232) [`6ae8e71`](https://github.com/ie-huss-martinez/sdk-core/commit/6ae8e71d37714cc7d68747f92f1adb9b0f5aa601) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `VideoEditor` renders through ui's editor frame (sdk-core ADR 0067, docs/adr/0010):
+  
+  - **The top bar** holds the mode switch, Undo, Redo, the theme toggle, Settings and Export.
+  - **A tools panel** lists the editing tools in two groups, Edit and Add. It shows full, as icons or hidden, with `Ctrl+\` to toggle it.
+  - **The inspector** is the frame's properties panel, beside the preview, or under it on a phone.
+  - **The transport, the zoom and the timeline** run across the foot, at full width.
+  - **On phones,** a tab bar opens each group of tools in a sheet.
+  
+  New:
+  
+  - **Levels and descriptions:** splitting, deleting, adding videos, and play and pause are Easy tools; muting and the previous and next frame are Advanced; the start and end are Expert. Each has a one-line description. Easy, Advanced and Expert modes decide what the tools panel lists and which buttons the transport shows, and the command palette (`Mod+K`) reaches every tool in every mode.
+  - **Start cards:** in Easy mode, each video opens on four cards: Cut a clip, Join clips, Remove a part and Mute the sound.
+  - **Toasts:** splitting, deleting, muting and adding a clip show a toast with Undo; undo, redo, opening a file and a change of mode or theme show one too.
+  - **Preferences:** new props `preferences`, `defaultPreferences` and `onPreferencesChange` take ui's `EditorPreferences`. The editor never stores them; keep them where you like, such as `localStorage`. Without them, the editor starts in Advanced mode, which lists every editing tool the toolbar had.
+  - **Messages:** new keys `tools.*.description`, `toolbar.add`, `toolbar.bar`, `editor.mode.*`, `editor.theme.*`, `editor.commands`, `editor.settings`, `editor.opened`, `editor.added`, `editor.split`, `editor.deleted`, `editor.muted`, `editor.unmuted` and `start.*`.
+  - **`VideoToolbar`** now announces what an edit did, such as "Deleted 2 clips.", as well as undo and redo.
+  
+  **Migrating:**
+  
+  - **Finding tools in the DOM:** rows in the tools panel carry `data-hm-tool-id`, and the bars' buttons `data-tool`. The editor no longer renders `VideoToolbar`, whose buttons keep `data-hm-tool`.
+  - **`toolbar`:** its groups now place tools: Undo, Redo and Export in the top bar, the zoom with the timeline, and the rest in the tools panel. `toolbar={[]}` still shows no tool, and keeps the shortcuts and the palette. The insert tool's `group` is now `add`.
+  - **The transport:** in Easy mode it shows only play and pause; Expert adds the start and end. Without preferences the editor is in Advanced mode, whose transport is the one it had.
+  - **Layout:** give the editor a bounded height; the preview takes what the bars leave. The inspector's 720-pixel container rule is gone: the frame places it.
+  - **Theme, density and motion:** unchanged unless you opt in: without preferences, or a default for the field, the editor inherits the page's until the person picks one in the settings, or the theme with the toggle, which shows the inherited theme.
+
+### Patch Changes
+
+- [#242](https://github.com/ie-huss-martinez/sdk-core/pull/242) [`bc27473`](https://github.com/ie-huss-martinez/sdk-core/commit/bc274734e86cfb7951b468ee6cd81dc27a00035d) Thanks [@hussmartinez](https://github.com/hussmartinez)! - **ui:** new `useEditorPreferences` hook in `@hussmartinez/ui/react`, for editors built on `EditorFrame` (sdk-core ADR 0067). It takes the editor's `preferences`, `defaultPreferences` and `onPreferencesChange` props, an `onChange` for the editor's own response to a change, such as a toast, and an optional host `theme`. It returns the preferences and everything around them: which inherited fields (theme, density, motion) have been chosen, `change(next)`, the root's `data-hm-*` attributes, the `ThemeToggle`'s value, and `openSettings(root)` with props to spread on `SettingsPanel`. Without preferences, the editor starts in Advanced mode and inherits its page's theme, density and motion until the host or the person chooses them. New types: `UseEditorPreferencesOptions`, `EditorPreferencesControls`, `EditorPreferencesChange` and `InheritedEditorPreference`.
+  
+  **image-sdk, pdf-sdk, video-sdk and audio-sdk:** the editor uses ui's shared editor preferences; no change in behaviour.
+
+- [#229](https://github.com/ie-huss-martinez/sdk-core/pull/229) [`9eff15e`](https://github.com/ie-huss-martinez/sdk-core/commit/9eff15e79e2c40406f02d9ddb4396c6cbd975a37) Thanks [@hussmartinez](https://github.com/hussmartinez)! - The SDK opens DAV recordings, the `DHAV` files Dahua recorders and cameras write. A `.dav` file probes, plays, trims and exports to MP4 or WebM like any other source, on the device: H.264, or HEVC where the browser decodes it, with G.711 or 16-bit PCM sound. The editor's file pickers and drop zone accept `.dav`.
+  
+  - `VideoContainer` gains `"dav"`, which a probe's and a source's `container` can now be. Code that handles every container, such as a `switch` with no default, needs a case for it.
+  - Gaps in a recording, and jumps in the recorder's clock, are closed: the timeline runs on as if nothing were missing, and the recording's dates aren't kept.
+  - A recording whose sound is AAC, MP2, MP3 or ADPCM opens with its picture and without sound, and its source's `unplayableAudio` names the codec, as for sound a browser can't decode.
+  
+  A host with its own file input adds `.dav` to its `accept`: browsers give these files no MIME type, so list the extension. Nothing else changes for existing callers.
+- Updated dependencies [[`1dd7dc7`](https://github.com/ie-huss-martinez/sdk-core/commit/1dd7dc70b724452d766d4013c9d8f6f318020aaa), [`6883c62`](https://github.com/ie-huss-martinez/sdk-core/commit/6883c623af809908c033952615f5af06979a782c), [`42cf2be`](https://github.com/ie-huss-martinez/sdk-core/commit/42cf2be5f2c4af78df6f0e787a0cb44cd3b1cf9b), [`6883c62`](https://github.com/ie-huss-martinez/sdk-core/commit/6883c623af809908c033952615f5af06979a782c), [`bc27473`](https://github.com/ie-huss-martinez/sdk-core/commit/bc274734e86cfb7951b468ee6cd81dc27a00035d), [`f545758`](https://github.com/ie-huss-martinez/sdk-core/commit/f54575877f29c5558031020c04e9bee78f4b13a9), [`1dd7dc7`](https://github.com/ie-huss-martinez/sdk-core/commit/1dd7dc70b724452d766d4013c9d8f6f318020aaa), [`562e33d`](https://github.com/ie-huss-martinez/sdk-core/commit/562e33d49cf54f796b393a33adcee8ed26aceb11), [`cd6a92e`](https://github.com/ie-huss-martinez/sdk-core/commit/cd6a92e868dcb90240eb7ae4c14b6911a3c683c9), [`b732a7d`](https://github.com/ie-huss-martinez/sdk-core/commit/b732a7df11a1307d550f4ad8ff881328efe6e513)]:
+  - @hussmartinez/sdk-core@0.4.9
+  - @hussmartinez/ui@0.17.0
+
 ## 0.10.6
 
 ### Patch Changes

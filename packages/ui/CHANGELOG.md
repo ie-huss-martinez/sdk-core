@@ -1,5 +1,82 @@
 # @hussmartinez/ui
 
+## 0.17.0
+
+### Minor Changes
+
+- [#223](https://github.com/ie-huss-martinez/sdk-core/pull/223) [`6883c62`](https://github.com/ie-huss-martinez/sdk-core/commit/6883c623af809908c033952615f5af06979a782c) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Add the editor frame and a new look (sdk-core ADR 0067).
+  
+  - **New components** in `@hussmartinez/ui/react`: `EditorFrame` with `useEditorFrame`, `ToolList`, `ModeSwitch`, `ThemeToggle`, `TabBar`, `Sheet`, `SettingsPanel`, `CommandPalette`, `ToastProvider` with `useToast`, `ProgressOverlay`, and `ColorPicker` with `addRecentColor` (ui ADR 0013).
+  - **Preferences:** `EditorPreferences`, `defaultEditorPreferences`, `editorPreferenceOptions` and `readEditorPreferences`, from both entries. The reader never throws, and gives each invalid field its default.
+  - **New look:** larger radii, pill-shaped buttons and segmented controls, softer shadows and calmer dark surfaces. New tokens: `color-control-disabled`, `color-surface-glass`, `shadow-floating`, `blur-glass`, `sidebar-width`, `rail-width`, `inspector-width`, `bar-height`, `motion-duration-panel`, `motion-easing-panel`, `motion-easing-spring`, the base tokens `radius-xl`, `radius-2xl`, `easing-emphasized` and `easing-spring`, and component tokens for each new component. Motion durations are now 150, 250 and 350 ms.
+  - **Disabled buttons look disabled:** every variant draws a disabled button in neutral colours (`--hm-button-disabled-bg` and `--hm-button-disabled-fg`) instead of its own colours at half opacity, in both themes.
+  - **Reduced motion is a token:** with `prefers-reduced-motion: reduce`, or `data-hm-motion="reduced"` on an ancestor, the motion durations are zero. `data-hm-motion="full"` keeps motion in a subtree, and `"system"` follows the system again.
+  - **New icons:** `panel-collapse`, `panel-expand`, `properties`, `settings`, `theme-dark`, `theme-light`, `command` and `eyedropper`.
+  
+  **Why a minor:** the new look changes how every component is drawn, so screenshot baselines of every host and SDK change, and a theme built with `createTheme` from a complete set of semantic tokens must add the new ones.
+
+### Patch Changes
+
+- [#235](https://github.com/ie-huss-martinez/sdk-core/pull/235) [`42cf2be`](https://github.com/ie-huss-martinez/sdk-core/commit/42cf2be5f2c4af78df6f0e787a0cb44cd3b1cf9b) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Add `Card` and `startMorphTransition` to `@hussmartinez/ui/react`.
+  
+  `Card` is an `<article>` for something the user opens, such as a notebook, a lesson or a recent file. Put your link or button in `title`: it covers the whole card, so a click anywhere follows it, with one Tab stop and the focus ring around the card. It takes `eyebrow` (a short label above the title), `media` (shown at the top, read after the title), `children` for the body and `footer`. Buttons and links in the footer keep their own clicks. The heading's level comes from `HeadingLevelProvider` or `headingLevel`. A card has no effects, so an `<a href>` card renders completely on the server and needs no hydration.
+  
+  ```tsx
+  <Card title={<a href="/notebooks/1">Travel</a>} eyebrow="Notebook" footer={<span>12 notes</span>} />
+  ```
+  
+  `startMorphTransition({ from, to, update })` runs your state change in a view transition, so the card grows into the dialog it opens, and shrinks back when you call it with `from` and `to` swapped. With reduced motion, or without the View Transitions API, it just runs `update`.
+  
+  ```tsx
+  <Card ref={card} title={<button onClick={() => startMorphTransition({ from: card, to: dialog, update: () => setOpen(true) })}>Fractions</button>} />
+  <Dialog ref={dialog} open={open} title="Fractions" onOpenChange={(next) => startMorphTransition({ from: dialog, to: card, update: () => setOpen(next) })} />
+  ```
+  
+  New component tokens: `--hm-card-bg`, `--hm-card-fg`, `--hm-card-border-color`, `--hm-card-border-color-hover`, `--hm-card-shadow-hover`, `--hm-card-radius`, `--hm-card-padding`, `--hm-card-gap` and `--hm-card-title-font-size`.
+
+- [#242](https://github.com/ie-huss-martinez/sdk-core/pull/242) [`bc27473`](https://github.com/ie-huss-martinez/sdk-core/commit/bc274734e86cfb7951b468ee6cd81dc27a00035d) Thanks [@hussmartinez](https://github.com/hussmartinez)! - **ui:** new `useEditorPreferences` hook in `@hussmartinez/ui/react`, for editors built on `EditorFrame` (sdk-core ADR 0067). It takes the editor's `preferences`, `defaultPreferences` and `onPreferencesChange` props, an `onChange` for the editor's own response to a change, such as a toast, and an optional host `theme`. It returns the preferences and everything around them: which inherited fields (theme, density, motion) have been chosen, `change(next)`, the root's `data-hm-*` attributes, the `ThemeToggle`'s value, and `openSettings(root)` with props to spread on `SettingsPanel`. Without preferences, the editor starts in Advanced mode and inherits its page's theme, density and motion until the host or the person chooses them. New types: `UseEditorPreferencesOptions`, `EditorPreferencesControls`, `EditorPreferencesChange` and `InheritedEditorPreference`.
+  
+  **image-sdk, pdf-sdk, video-sdk and audio-sdk:** the editor uses ui's shared editor preferences; no change in behaviour.
+
+- [#241](https://github.com/ie-huss-martinez/sdk-core/pull/241) [`f545758`](https://github.com/ie-huss-martinez/sdk-core/commit/f54575877f29c5558031020c04e9bee78f4b13a9) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Add `@hussmartinez/ui/native`, an entry for React Native. The web entries are unchanged.
+  
+  - **Themes:** `lightNativeTheme` and `darkNativeTheme` hold every semantic token under the web's name, resolved to native values when `ui` is built: hex colours, density-independent pixels, milliseconds. `createNativeTheme({ extends, tokens })` makes your own. Three hint colours, for a gentle "look again" that is never the danger colour, and a 64 dp `control-height-large` are native only.
+  - **Components:** `NativeUiProvider`, `Text`, `Button` with a `large` 64 dp size, and `ChoiceList`, which shows the right answer in the success colours and a wrong pick in the hint colours.
+  - **Icons:** every icon as plain data, such as `undoIcon`, and `Icon`, which draws it with `react-native-svg` and mirrors directional icons in right-to-left content.
+  - **Direction:** `isRTL(locale)`, which uses no `Intl`, `Dir`, `NoFlip` and `useDirection`.
+  - **Preferences and accessibility:** `readNativePreferences`, `nativePreferenceOptions`, `useTextScale`, `useReducedMotion` and `announce`.
+  
+  `react-native` (`>=0.81`) and `react-native-svg` (`>=15`) are new optional peer dependencies: only an application that imports `@hussmartinez/ui/native` needs them. ui's own checks build one configuration inside those ranges, Expo SDK 58 with React Native 0.88.1 and `react-native-svg` 15.16.0. Earlier versions the ranges accept, such as Expo SDK 57 with React Native 0.86, aren't built there. React Native 0.81 is the floor because `Pressable` reports focus from that version, which `Button` needs to show it.
+
+- [#244](https://github.com/ie-huss-martinez/sdk-core/pull/244) [`1dd7dc7`](https://github.com/ie-huss-martinez/sdk-core/commit/1dd7dc70b724452d766d4013c9d8f6f318020aaa) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `@hussmartinez/ui/native` is marked experimental in the README: it hasn't been checked on a device, or with VoiceOver and TalkBack, yet. Until it has, its API may change in any release.
+  
+  `createNativeTheme` checks a curve's length before copying it, so an array of the wrong length is refused at once, however long it is.
+
+- [#243](https://github.com/ie-huss-martinez/sdk-core/pull/243) [`562e33d`](https://github.com/ie-huss-martinez/sdk-core/commit/562e33d49cf54f796b393a33adcee8ed26aceb11) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Add `Tabs` to `@hussmartinez/ui/react` (ui ADR 0016): sections of which one shows at a time, chosen from a row of tabs, as the WAI-ARIA tabs pattern describes.
+  
+  - **One component:** `<Tabs label="…" tabs={[{ id, label, icon, content }]} />`. Uncontrolled from `defaultValue`, or controlled with `value` and `onValueChange`.
+  - **Keyboard:** one Tab stop for the row; the arrow keys, Home and End move between tabs and select, mirrored in right-to-left text; Tab again reaches the panel. `activation="manual"` makes the arrows only move focus, and Enter or Space select.
+  - **Complete before JavaScript:** on the server, and on a static page that never hydrates it, every panel is shown under a heading with its tab's label, at `headingLevel` or the closest `HeadingLevelProvider`'s level. It becomes tabs once it hydrates, and what's inside the panels is kept.
+  - **New tokens:** `--hm-tabs-*`.
+
+- [#239](https://github.com/ie-huss-martinez/sdk-core/pull/239) [`cd6a92e`](https://github.com/ie-huss-martinez/sdk-core/commit/cd6a92e868dcb90240eb7ae4c14b6911a3c683c9) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Add `Tag`, `TagList` and `ButtonLink` to `@hussmartinez/ui/react`, for pages as well as editors (ui ADR 0015). All three are complete as rendered on the server, so a static page needs no client JavaScript for them.
+  
+  - **`Tag`:** a short, static label, such as a category or a state. `tone` is `neutral` (the default), `accent`, `success`, `warning` or `danger`, and `icon` takes a decorative icon. It's text, not a control. New tokens: `--hm-tag-*`.
+  - **`TagList`:** a `<ul>` that wraps; a `Tag` directly inside it renders as its `<li>`.
+  - **`ButtonLink`:** a native `<a href>` that looks like `Button`, with its `variant`, `size`, `startIcon` and `endIcon`. With `target="_blank"`, `rel` defaults to `noopener noreferrer` and the link's name gains "(opens in a new tab)", hidden on screen; `newTabHint` replaces the text. A `javascript:` URL is refused: the link renders without an `href`.
+  - **`uiMessages` gains `buttonLink.newTab`.** Nothing to do if you spread `uiMessages` into your catalogue; a hand-written object of that type, such as a test double, must add the key.
+  - **New icons:** `arrow-right`, `external-link`, `mail`, `location`, `feed`, `sparkles`, `book`, `brain`, `tip`, `question`, `time`, `history`, `code` and `route`. `arrow-right` and `external-link` mirror in right-to-left text.
+
+- [#227](https://github.com/ie-huss-martinez/sdk-core/pull/227) [`b732a7d`](https://github.com/ie-huss-martinez/sdk-core/commit/b732a7df11a1307d550f4ad8ff881328efe6e513) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `ToolList` marks each row with its tool's id as `data-hm-tool-id`, so an editor can find a tool's row again, such as to return focus to it.
+  
+  `EditorFrame` keeps to its own width when a child, such as a top bar, is wider. Below 45 rem it puts the properties under the stage, in the flow, instead of over the stage's foot, so they never cover what's on the stage. The stage keeps at least 60% of the height there.
+  
+  `EditorFrame` puts one toggle for each panel in its top bar: ☰ for the tools at its start, with `Mod+\` in its tooltip, and the properties' toggle at its end. Each carries `aria-expanded` and is named for what pressing it does. With a top bar, hidden panels no longer leave an edge tab, and the panels drop their own hide buttons, so there's one control for each action.
+  
+  `ThemeToggle` takes `value="inherit"` for an editor that hasn't chosen a theme: it shows the theme its own element inherits from the page, read after mount and kept current as an ancestor's `data-hm-theme` or the system's preference changes, and light on the server.
+- Updated dependencies [[`1dd7dc7`](https://github.com/ie-huss-martinez/sdk-core/commit/1dd7dc70b724452d766d4013c9d8f6f318020aaa), [`6883c62`](https://github.com/ie-huss-martinez/sdk-core/commit/6883c623af809908c033952615f5af06979a782c)]:
+  - @hussmartinez/sdk-core@0.4.9
+
 ## 0.16.7
 
 ### Patch Changes
