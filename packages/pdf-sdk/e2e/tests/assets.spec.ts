@@ -1,7 +1,6 @@
 import { PDFDocument } from "@cantoo/pdf-lib";
-import { expect, test } from "@playwright/test";
 import { jpxPdf, pagesPdf, reportPdf } from "../../test/fixtures/pdfs.js";
-import { expectAnnounced, expectJpxColours, openPdf, watch } from "./helpers.js";
+import { expect, expectAnnounced, expectJpxColours, openPdf, test, watch } from "./helpers.js";
 
 const origin = "http://localhost:4320";
 

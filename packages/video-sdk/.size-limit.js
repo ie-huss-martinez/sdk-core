@@ -44,10 +44,13 @@ export default [
     entry: "dist/react.js",
     limit: "40 kB",
   }),
+  // 40.5 kB since the editor moved onto ui's frame (docs/adr/0010): the
+  // frame, the tools panel, the palette, the settings, the toasts and the
+  // start cards took it from 35.63 to 40.19 kB.
   entryBudget({
     name: "Element entry (./element), with the shared code it loads",
     entry: "dist/element.js",
-    limit: "40 kB",
+    limit: "40.5 kB",
   }),
   {
     // As built, as a file: not bundled again by size-limit's esbuild plugin.
@@ -156,8 +159,9 @@ export default [
   // Measured 1.75 kB: the toolbar and the tool registry it renders. It was
   // 2.05 kB before sdk-config 0.12.1.
   reactImport("Import: VideoToolbar (./react)", "{ VideoToolbar }", "2 kB"),
-  // Measured 2.22 kB: playback's controls and their notices.
-  reactImport("Import: VideoTransport (./react)", "{ VideoTransport }", "2.5 kB"),
+  // Measured 2.52 kB: playback's controls and their notices, with the start
+  // and end the editor's Expert mode shows (docs/adr/0010). It was 2.22 kB.
+  reactImport("Import: VideoTransport (./react)", "{ VideoTransport }", "3 kB"),
   // Measured 2.90 kB: the export dialog, its summary and progress. It was
   // 6.26 kB before sdk-core ADR 0059's split.
   reactImport("Import: VideoExportDialog (./react)", "{ VideoExportDialog }", "3 kB"),
@@ -168,8 +172,11 @@ export default [
   reactImport("Import: VideoStage (./react)", "{ VideoStage }", "5.5 kB"),
   // Measured 5.68 kB: the inspector's sound, picture and metadata.
   reactImport("Import: VideoInspector (./react)", "{ VideoInspector }", "6 kB"),
-  // Measured 13.59 kB: the provider, which makes the session and the engine.
-  reactImport("Import: VideoEditorProvider (./react)", "{ VideoEditorProvider }", "14 kB"),
-  // Measured 26.13 kB: the whole editor, what a typical application imports.
-  reactImport("Import: VideoEditor, the whole editor (./react)", "{ VideoEditor }", "26.5 kB"),
+  // Measured 14.23 kB: the provider, which makes the session and the engine,
+  // and passes the session's events to the editor's toasts (docs/adr/0010).
+  // It was 13.59 kB.
+  reactImport("Import: VideoEditorProvider (./react)", "{ VideoEditorProvider }", "14.5 kB"),
+  // Measured 29.77 kB: the whole editor, what a typical application imports,
+  // on ui's frame (docs/adr/0010). It was 26.13 kB before the frame.
+  reactImport("Import: VideoEditor, the whole editor (./react)", "{ VideoEditor }", "30 kB"),
 ];

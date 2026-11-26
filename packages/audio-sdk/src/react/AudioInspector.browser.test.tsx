@@ -29,18 +29,19 @@ async function enter(input: HTMLInputElement, text: string) {
   await step(() => userEvent.keyboard(`${text}{Enter}`));
 }
 
-describe("the inspector's place", () => {
-  it("is beside the timeline where both fit, and below it otherwise", async () => {
+describe("the inspector's place (docs/adr/0007)", () => {
+  it("is the frame's properties panel: beside the stage in a wide frame, under it on a phone", async () => {
     const box = (container: Element, selector: string) =>
       (container.querySelector(selector) as Element).getBoundingClientRect();
     const wide = await editorSized(1_200, recording());
     expect(box(wide.container, ".hm-audio-editor-inspector").left).toBeGreaterThanOrEqual(
-      box(wide.container, ".hm-audio-editor-work").right,
+      box(wide.container, ".hm-audio-editor-stage").right,
     );
     await cleanUp();
-    const narrow = await editorSized(900, recording());
+    // Under the frame's 45 rem.
+    const narrow = await editorSized(600, recording());
     expect(box(narrow.container, ".hm-audio-editor-inspector").top).toBeGreaterThanOrEqual(
-      box(narrow.container, ".hm-audio-editor-work").bottom,
+      box(narrow.container, ".hm-audio-editor-stage").bottom,
     );
   });
 });

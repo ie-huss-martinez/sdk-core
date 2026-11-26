@@ -149,11 +149,11 @@ describe("the export dialog", () => {
         onEvent={events.onEvent}
         onExport={(blob, result) => exported.push([blob, result])}
       />,
-      "width: 900px; height: 600px; display: grid; grid-template-rows: minmax(0, 1fr);",
+      "width: 1100px; height: 600px; display: grid; grid-template-rows: minmax(0, 1fr);",
     );
     await opened();
     await step(() => new Promise((resolve) => requestAnimationFrame(resolve)));
-    const exportTool = container.querySelector<HTMLButtonElement>('[data-hm-tool="audio.export"]');
+    const exportTool = container.querySelector<HTMLButtonElement>('[data-tool="audio.export"]');
     await step(() => userEvent.click(exportTool as HTMLButtonElement));
     await waitFor(() => expect(inDialog("Export")).toBeDefined());
     const done = events.nextExport();

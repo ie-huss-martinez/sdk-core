@@ -39,6 +39,12 @@ async function choose(container: HTMLElement, file: File): Promise<void> {
 const text = (container: HTMLElement) => container.textContent ?? "";
 
 /**
+ * Wide enough for the frame's desktop layout (docs/adr/0007), where the
+ * properties sit beside the stage rather than float over its end.
+ */
+const DESKTOP = "width: 1100px; height: 600px; display: grid; grid-template-rows: minmax(0, 1fr);";
+
+/**
  * Runs a step that starts the session's work, such as a file chosen or a
  * click, inside act(), as React asks of updates in tests. What it starts
  * later lands in waitFor's act() slices.
@@ -130,6 +136,7 @@ describe("AudioEditor", () => {
         onEvent={events.onEvent}
         filePolicy={{ maxDuration: { maximum: 3_600_000, warning: 500 } }}
       />,
+      DESKTOP,
     );
     const opened = events.nextLoad();
     await choose(container, recording());
@@ -153,6 +160,7 @@ describe("AudioEditor", () => {
           ref={ref}
           filePolicy={{ maxDuration: { maximum: 3_600_000, warning: 500 } }}
         />,
+        DESKTOP,
       );
       // Every message the polite region says, as a screen reader hears it.
       const said: string[] = [];
@@ -267,6 +275,10 @@ describe("AudioEditor", () => {
     expect(getComputedStyle(styled).display).toBe("flex");
     expect(getComputedStyle(styled).fontFamily).not.toMatch(/^"?Times/);
     expect(plain.classList.contains("hm-text")).toBe(false);
-    expect(getComputedStyle(plain).display).toBe("block");
+    // The layout the frame needs stays, as the frame's own does; its look goes
+    // with the frame's data-hm-unstyled (docs/adr/0007).
+    expect(getComputedStyle(plain).display).toBe("flex");
+    expect(plain.querySelector(".hm-editor-frame")?.hasAttribute("data-hm-unstyled")).toBe(true);
+    expect(styled.querySelector(".hm-editor-frame")?.hasAttribute("data-hm-unstyled")).toBe(false);
   });
 });

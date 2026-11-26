@@ -23,7 +23,7 @@ test.describe("Next.js App Router", () => {
       'aria-label="Audio editor"',
       'role="toolbar"',
       'aria-label="Tools"',
-      'data-hm-tool="audio.open"',
+      'data-tool="audio.open"',
       "Drop an audio file here, or choose one. It stays on your device.",
       'aria-live="polite"',
     ]) {
@@ -38,7 +38,7 @@ test.describe("Next.js App Router", () => {
     await page.goto(url);
     await expect(page.locator("[data-hydrated]")).toBeAttached();
 
-    // The toolbar is one tab stop.
+    // The tools panel is one tab stop.
     await expect(page.locator('[role="toolbar"][aria-label="Tools"] [tabindex="0"]')).toHaveCount(
       1,
     );

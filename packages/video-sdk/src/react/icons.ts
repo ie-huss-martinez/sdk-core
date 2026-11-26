@@ -1,0 +1,37 @@
+import {
+  AddIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  DeleteIcon,
+  DownloadIcon,
+  FitIcon,
+  type IconComponent,
+  MutedIcon,
+  PlayIcon,
+  RedoIcon,
+  SkipBackIcon,
+  SkipForwardIcon,
+  SplitIcon,
+  UndoIcon,
+  ZoomInIcon,
+  ZoomOutIcon,
+} from "@hussmartinez/ui/react";
+
+/** The icons the tools name, from ui's set. */
+export const ICONS: Readonly<Record<string, IconComponent>> = {
+  add: AddIcon,
+  undo: UndoIcon,
+  redo: RedoIcon,
+  split: SplitIcon,
+  delete: DeleteIcon,
+  download: DownloadIcon,
+  muted: MutedIcon,
+  play: PlayIcon,
+  "chevron-left": ChevronLeftIcon,
+  "chevron-right": ChevronRightIcon,
+  "skip-back": SkipBackIcon,
+  "skip-forward": SkipForwardIcon,
+  "zoom-in": ZoomInIcon,
+  "zoom-out": ZoomOutIcon,
+  fit: FitIcon,
+};

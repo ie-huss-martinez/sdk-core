@@ -92,8 +92,11 @@ export interface VideoEditorProviderProps {
    */
   readonly tools?: readonly string[];
   /**
-   * The toolbar's groups, by tool id. By default: adding videos, history,
-   * editing and zoom, from the present tools.
+   * The tools' groups, by tool id. Undo, Redo, Export and the zoom go in
+   * the frame's bars; the other groups make the tools panel, each named
+   * after its first tool's group (docs/adr/0010). By default: editing,
+   * adding videos, history, export and zoom, from the present tools. `[]`
+   * shows no tool, keeping the shortcuts and the command palette.
    */
   readonly toolbar?: readonly (readonly string[])[];
   readonly children?: ReactNode;
@@ -128,8 +131,17 @@ interface EditorContext {
   readonly setMaxZoom: (zoom: number) => void;
   /** The present tools, and the toolbar's groups of them. */
   readonly tools: ToolRegistry<VideoTool>;
-  /** The present tools' shortcuts, for this platform. */
+  /**
+   * The present tools' shortcuts, for this platform, and the command
+   * palette's, {@link PALETTE}, which only the editor answers.
+   */
   readonly shortcuts: ShortcutRegistry;
+  /**
+   * Listens to the session's usage events and the editor's own, such as
+   * `insert` and `download`, as the host's `onEvent` hears them. Returns
+   * what stops it.
+   */
+  readonly subscribeEvents: (listener: (event: VideoSessionEvent) => void) => () => void;
   /** Adds files at the end, one after another, until cancelled. */
   readonly insertFiles: (files: readonly Blob[]) => void;
   /** Cancels the inserts in progress. */
@@ -151,6 +163,14 @@ interface EditorContext {
    */
   readonly processor: () => VideoProcessor;
 }
+
+/**
+ * The command palette's place in the shortcut registry: a family action,
+ * not a tool (sdk-core ADR 0067).
+ *
+ * @internal
+ */
+export const PALETTE = "video.command-palette";
 
 /** A dialog the editor shows. */
 type VideoEditorDialog = "export";
@@ -178,6 +198,21 @@ export function VideoEditorProvider(props: VideoEditorProviderProps): ReactNode 
   const { engine: given, assetsUrl, filePolicy, locale } = props;
   // The host's latest onEvent, for the session's events and the editor's own.
   const onEvent = useLatest(props.onEvent);
+  // The editor's own listeners, such as its toasts, beside the host's.
+  const eventListeners = useRef(new Set<(event: VideoSessionEvent) => void>());
+  const emit = useCallback(
+    (event: VideoSessionEvent) => {
+      onEvent.current?.(event);
+      for (const listener of eventListeners.current) listener(event);
+    },
+    [onEvent],
+  );
+  const subscribeEvents = useCallback((listener: (event: VideoSessionEvent) => void) => {
+    eventListeners.current.add(listener);
+    return () => {
+      eventListeners.current.delete(listener);
+    };
+  }, []);
   const [engine] = useState(
     () =>
       given ??
@@ -203,7 +238,7 @@ export function VideoEditorProvider(props: VideoEditorProviderProps): ReactNode 
     createVideoSession({
       engine,
       ...(filePolicy ? { filePolicy } : {}),
-      onEvent: (event) => onEvent.current?.(event),
+      onEvent: (event) => emit(event),
       processor: {
         // The editor's processor, which is made on the first export (ADR 0005).
         export: (job, exportOptions) => exporter.current().export(job, exportOptions),
@@ -243,7 +278,11 @@ export function VideoEditorProvider(props: VideoEditorProviderProps): ReactNode 
     [toolsKey, toolbarKey],
   );
   const shortcuts = useMemo(
-    () => createShortcutRegistry({ platform, tools: tools.tools }),
+    () =>
+      createShortcutRegistry({
+        platform,
+        tools: [...tools.tools, { id: PALETTE, shortcuts: "command-palette" as const }],
+      }),
     [platform, tools],
   );
 
@@ -295,10 +334,7 @@ export function VideoEditorProvider(props: VideoEditorProviderProps): ReactNode 
     [locale, props.messages],
   );
 
-  const reportEvent = useCallback(
-    (event: VideoSessionEvent) => onEvent.current?.(event),
-    [onEvent],
-  );
+  const reportEvent = emit;
   const value = useMemo(
     () => ({
       engine,
@@ -319,6 +355,7 @@ export function VideoEditorProvider(props: VideoEditorProviderProps): ReactNode 
       setMaxZoom,
       tools,
       shortcuts,
+      subscribeEvents,
       insertFiles,
       cancelInsert,
       registerFileChooser,
@@ -341,6 +378,7 @@ export function VideoEditorProvider(props: VideoEditorProviderProps): ReactNode 
       maxZoom,
       tools,
       shortcuts,
+      subscribeEvents,
       insertFiles,
       cancelInsert,
       registerFileChooser,

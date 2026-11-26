@@ -255,13 +255,14 @@ for (const target of targets) {
       await page.keyboard.press("Enter");
       await expect(cropTop).toHaveValue("8");
       await expect(inspector.getByRole("button", { name: "Remove the crop" })).toBeEnabled();
-      const undoPicture = page.getByRole("button", { name: /^Undo/ });
+      // The top bar's Undo, not an edit toast's (docs/adr/0010).
+      const undoPicture = page.locator("header").getByRole("button", { name: /^Undo/ });
       await undoPicture.click();
       await undoPicture.click();
       await expect(inspector.getByRole("status")).toHaveText("0°");
 
       // Undo takes each back, a step at a time: the shape, the fade, the mute, the volume.
-      const undo = page.getByRole("button", { name: /^Undo/ });
+      const undo = page.locator("header").getByRole("button", { name: /^Undo/ });
       for (let step = 0; step < 3; step += 1) await undo.click();
       await expect(volume).toHaveAttribute("aria-valuetext", "-2 dB");
       await expect(fadeIn).toHaveValue("0");
@@ -277,3 +278,65 @@ for (const target of targets) {
     });
   });
 }
+
+/**
+ * The editor on ui's frame in the Vite example (docs/adr/0010, sdk-core ADR
+ * 0067): an app's preferences kept by the page, and the frame's states
+ * passing axe.
+ */
+test.describe("the editor's frame", () => {
+  const inline = "http://localhost:4330/inline.html";
+
+  test("opens an app's first visit in Easy mode, and the page keeps the preferences", async ({
+    page,
+    context,
+  }) => {
+    const problems = watch(page, new URL(inline).origin);
+    await page.goto(`${inline}?app`);
+    await open(page);
+    await expect(page.getByRole("region", { name: "What would you like to do?" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Cut a clip/ })).toBeFocused();
+    await page.getByRole("radio", { name: "Expert" }).click();
+
+    await page.reload();
+    await expect(page.getByRole("radio", { name: "Expert" })).toBeChecked();
+    await expect(page.getByRole("button", { name: "Commands" })).toBeVisible();
+    // Kept by the page, in localStorage, and never in a cookie.
+    const stored = await page.evaluate(() => localStorage.getItem("editor-prefs:video-example"));
+    expect(JSON.parse(stored ?? "{}")).toMatchObject({ mode: "expert" });
+    expect(await context.cookies()).toEqual([]);
+    expect(problems.errors).toEqual([]);
+    expect(problems.foreignRequests).toEqual([]);
+  });
+
+  test("passes axe with the start cards, the settings, the command palette and a phone's sheet", async ({
+    page,
+  }) => {
+    await page.goto(`${inline}?mode=easy`);
+    await open(page);
+    await expect(page.getByRole("region", { name: "What would you like to do?" })).toBeVisible();
+    await noViolations(page);
+
+    await page.getByRole("button", { name: "Just show me the editor" }).click();
+    await expect(page.getByRole("region", { name: "What would you like to do?" })).toBeHidden();
+    await page.getByRole("button", { name: "Settings" }).click();
+    await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+    await noViolations(page);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Settings" })).toBeHidden();
+
+    await page.keyboard.press("ControlOrMeta+k");
+    await expect(page.getByRole("combobox", { name: "Search tools" })).toBeFocused();
+    await page.keyboard.type("mute");
+    await noViolations(page);
+    await page.keyboard.press("Escape");
+
+    await page.setViewportSize({ width: 390, height: 800 });
+    await page
+      .getByRole("toolbar", { name: "Editing tools" })
+      .getByRole("button", { name: "Edit" })
+      .click();
+    await expect(page.getByRole("dialog", { name: "Edit" })).toBeVisible();
+    await noViolations(page);
+  });
+});

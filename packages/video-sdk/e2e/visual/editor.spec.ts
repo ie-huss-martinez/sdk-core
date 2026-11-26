@@ -10,13 +10,23 @@ import { video } from "../targets.js";
  * | State | What it shows |
  * |---|---|
  * | `empty` | The drop zone, before a video is open |
- * | `open` | Two clips on the timeline, the first frame on the stage, the transport, the toolbar and the inspector |
+ * | `open` | Two clips on the timeline, the first frame on the stage, the transport, the tools and the inspector |
  * | `selection` | Both clips selected, by a click and a Shift-click, with their tools enabled, and their sound in the inspector. Opening already selects the new clip, so one clip would look like `open` |
  * | `paused` | Paused at 1 s, frame 31: the playhead, the stage and the time there |
  * | `output` | No clip selected: the inspector's settings for the exported video, and its details |
  * | `export-summary` | The export dialog's summary and choices |
  * | `export-done` | The export dialog's result, with Download focused |
  * | `error` | A file that isn't a video, and the catalogue's text for it |
+ * | `settings` | The settings, in a sheet from the inline end |
+ * | `palette` | The command palette, searched for "spl" |
+ * | `phone` | A 390-pixel window: the tab bar, and the "Edit" group in a sheet from the bottom |
+ * | `advanced-open` | Two clips open in the editor as a host embeds it, with no preferences: Advanced mode |
+ * | `easy-start` | Easy mode: two clips just added, under the start cards |
+ *
+ * The editor's states are in Expert mode, where every tool is listed with
+ * its shortcut and the transport has every button, unless their name says
+ * otherwise (docs/adr/0010). Toasts stay where they are: the page's clock
+ * is fixed, so their timers never run out.
  *
  * Masks, each with its reason:
  *
@@ -51,8 +61,20 @@ async function opened(page: Page): Promise<void> {
   await expect(page.getByRole("img", { name: "Video preview, frame 1 of 120" })).toBeVisible();
 }
 
+/**
+ * Dismisses the toasts, as a person can. An export takes long enough for a
+ * toast's timer to run out in one run and not in the next, so the export's
+ * states start without them.
+ */
+async function noToasts(page: Page): Promise<void> {
+  const dismiss = page.locator(".hm-toast").getByRole("button", { name: "Dismiss" });
+  while ((await dismiss.count()) > 0) await dismiss.first().click();
+  await expect(page.locator(".hm-toast")).toHaveCount(0);
+}
+
 const exportDialog = async (page: Page) => {
   await opened(page);
+  await noToasts(page);
   await page.getByRole("button", { name: "Export the video", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Export the video" })).toBeVisible();
 };
@@ -113,6 +135,40 @@ const STATES: Readonly<Record<string, State>> = {
     },
     mask: (page) => [page.locator(".hm-video-export-result")],
   },
+  // The settings, in a sheet from the inline end (sdk-core ADR 0067).
+  settings: {
+    reach: async (page) => {
+      await opened(page);
+      await page.getByRole("button", { name: "Settings" }).click();
+      await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+    },
+  },
+  // The command palette, searched, with its first result active (sdk-core ADR 0067).
+  palette: {
+    reach: async (page) => {
+      await opened(page);
+      await page.keyboard.press("ControlOrMeta+k");
+      const search = page.getByRole("combobox", { name: "Search tools" });
+      await expect(search).toBeFocused();
+      await search.fill("spl");
+      await expect(page.getByRole("option", { name: "Split at the playhead" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    },
+  },
+  // A phone: the tab bar, and a group of tools open in a sheet from the bottom.
+  phone: {
+    reach: async (page) => {
+      await page.setViewportSize({ width: 390, height: 800 });
+      await opened(page);
+      await page
+        .getByRole("toolbar", { name: "Editing tools" })
+        .getByRole("button", { name: "Edit" })
+        .click();
+      await expect(page.getByRole("dialog", { name: "Edit" })).toBeVisible();
+    },
+  },
   error: {
     reach: async (page) => {
       const chooser = page.waitForEvent("filechooser");
@@ -128,26 +184,78 @@ const STATES: Readonly<Record<string, State>> = {
   },
 };
 
-for (const [state, { reach, mask }] of Object.entries(STATES)) {
-  for (const variant of visualVariants) {
-    test(`${state}, ${variant.name}`, async ({ page }) => {
-      // No request may leave the page's origin (sdk-core ADR 0012).
-      const foreign: string[] = [];
-      page.on("request", (request) => {
-        const url = new URL(request.url());
-        if (!["http:", "https:"].includes(url.protocol)) return;
-        if (url.origin !== ORIGIN) foreign.push(request.url());
+/** The editor as a host embeds it, with no preferences: Advanced mode. */
+const ADVANCED: Readonly<Record<string, State>> = {
+  "advanced-open": { reach: opened },
+};
+
+/** Easy mode: two clips just added, under the start cards (sdk-core ADR 0067). */
+const EASY: Readonly<Record<string, State>> = {
+  "easy-start": {
+    reach: async (page) => {
+      await opened(page);
+      await expect(page.getByRole("region", { name: "What would you like to do?" })).toBeVisible();
+      // The cards cover the preview, so focus is on the first of them.
+      await expect(page.getByRole("button", { name: /^Cut a clip/ })).toBeFocused();
+    },
+  },
+};
+
+/**
+ * Draws the whole page again, from nothing, just before the screenshot. The
+ * frame's panels share the page's layer with the preview, whose canvas the
+ * media worker draws at a different moment on each load, and Chromium
+ * rasterises that layer's anti-aliased edges a level or two apart depending
+ * on what was invalidated when. Changing the root's background invalidates
+ * every tile, so each capture is of the page drawn in one go. The
+ * comparison stays as strict as it was (sdk-core ADR 0054). image-sdk and
+ * pdf-sdk steady theirs the same way.
+ */
+async function repainted(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        const frames = (then: () => void) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => then()));
+        const root = document.documentElement;
+        const before = root.style.backgroundColor;
+        // A colour no theme uses, so the change always invalidates.
+        root.style.backgroundColor = "rgb(1, 2, 3)";
+        frames(() => {
+          root.style.backgroundColor = before;
+          frames(resolve);
+        });
+      }),
+  );
+}
+
+for (const [path, states] of [
+  ["/inline.html?mode=expert", STATES],
+  ["/inline.html", ADVANCED],
+  ["/inline.html?mode=easy", EASY],
+] as const) {
+  for (const [state, { reach, mask }] of Object.entries(states)) {
+    for (const variant of visualVariants) {
+      test(`${state}, ${variant.name}`, async ({ page }) => {
+        // No request may leave the page's origin (sdk-core ADR 0012).
+        const foreign: string[] = [];
+        page.on("request", (request) => {
+          const url = new URL(request.url());
+          if (!["http:", "https:"].includes(url.protocol)) return;
+          if (url.origin !== ORIGIN) foreign.push(request.url());
+        });
+        await page.clock.install({ time: NOW });
+        await page.goto(path);
+        await applyVisualVariant(page, variant);
+        await reach(page);
+        // The pointer rests outside the editor, so no hover styles show.
+        await page.mouse.move(0, 0);
+        await repainted(page);
+        await expect(page).toHaveScreenshot(`${state}-${variant.name}.png`, {
+          ...(mask ? { mask: mask(page) } : {}),
+        });
+        expect(foreign).toEqual([]);
       });
-      await page.clock.install({ time: NOW });
-      await page.goto("/inline.html");
-      await applyVisualVariant(page, variant);
-      await reach(page);
-      // The pointer rests outside the editor, so no hover styles show.
-      await page.mouse.move(0, 0);
-      await expect(page).toHaveScreenshot(`${state}-${variant.name}.png`, {
-        ...(mask ? { mask: mask(page) } : {}),
-      });
-      expect(foreign).toEqual([]);
-    });
+    }
   }
 }

@@ -17,7 +17,10 @@ const clips = (page: Page) =>
 const focusedKey = (page: Page) =>
   page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset["hmKey"]);
 
-/** Shift+Tab back into the toolbar, then Home and the arrows to a tool: it's one tab stop. */
+/**
+ * Shift+Tab back into the tools panel, then Home and the arrows down to a
+ * tool: it's one tab stop, a vertical list (docs/adr/0007).
+ */
 async function toTool(page: Page, tool: Locator) {
   const toolbar = page.getByRole("toolbar", { name: "Tools" });
   for (let i = 0; i < 60; i += 1) {
@@ -25,7 +28,7 @@ async function toTool(page: Page, tool: Locator) {
     await page.keyboard.press("Shift+Tab");
   }
   await page.keyboard.press("Home");
-  await arrowTo(page, tool);
+  await arrowTo(page, tool, "ArrowDown");
 }
 
 test("edits and exports with the keyboard alone, with focus where it belongs", async ({
@@ -76,7 +79,7 @@ test("edits and exports with the keyboard alone, with focus where it belongs", a
   await expect.poll(async () => (await clips(page))[1]?.at).toBe(4_080);
   await expect.poll(() => focusedKey(page)).toBe(after.key);
 
-  // Set a fade from the toolbar, on the selected clip, then undo it.
+  // Set a fade from the tools panel, on the selected clip, then undo it.
   const fadeIn = page.getByRole("button", { name: "Fade in", exact: true });
   await toTool(page, fadeIn);
   await page.keyboard.press("Enter");
@@ -101,8 +104,10 @@ test("edits and exports with the keyboard alone, with focus where it belongs", a
     await expect(play).toBeFocused();
   }
 
-  // Export: the dialog's summary, then Download, which gets focus.
-  await toTool(page, page.getByRole("button", { name: "Export", exact: true }));
+  // Export, the top bar's primary button, backwards from the transport, as
+  // Firefox doesn't wrap Tab: the dialog's summary, then Download, which
+  // gets focus.
+  await tabTo(page, page.getByRole("button", { name: "Export", exact: true }), true);
   await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: "Export" });
   await expect(dialog.getByText("0:02.00 long, at 8,000 Hz, Mono.")).toBeVisible();

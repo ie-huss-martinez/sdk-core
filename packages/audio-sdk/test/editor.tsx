@@ -22,9 +22,14 @@ export async function step(run: () => unknown): Promise<void> {
 export const disabled = (element: Element): boolean =>
   element.getAttribute("aria-disabled") === "true";
 
-/** An editor with these recordings open, each on a track of its own, and its latest plan. */
+/**
+ * An editor with these recordings open, each on a track of its own, and its
+ * latest plan. It's wide enough for the frame's desktop layout, with the tools
+ * panel beside the stage, and in Expert mode, which lists every tool in it
+ * (docs/adr/0007).
+ */
 export function editor(...files: File[]) {
-  return editorSized(900, ...files);
+  return editorSized(1100, ...files);
 }
 
 /** {@link editor}, `width` CSS pixels wide. */
@@ -33,13 +38,18 @@ export async function editorSized(width: number, ...files: File[]) {
   const ref = createRef<AudioEditorHandle>();
   const latest: { plan?: AudioPlan } = {};
   const container = await mount(
-    <AudioEditor ref={ref} onEvent={events.onEvent} onChange={(plan) => (latest.plan = plan)} />,
+    <AudioEditor
+      ref={ref}
+      defaultPreferences={{ mode: "expert" }}
+      onEvent={events.onEvent}
+      onChange={(plan) => (latest.plan = plan)}
+    />,
     `width: ${width}px; height: 600px; display: grid; grid-template-rows: minmax(0, 1fr);`,
   );
   const [first, ...rest] = files;
   if (first) await step(() => ref.current?.open(first));
   for (const file of rest) await step(() => ref.current?.insert(file));
-  // ui's announcer says "Recording opened." in the next animation frame:
+  // ui's announcer says the open's toast in the next animation frame:
   // let that frame run inside act(), so it never updates React outside one.
   // Frames run in the order they were asked for, so this one comes after it.
   await step(() => new Promise((resolve) => requestAnimationFrame(resolve)));
@@ -48,7 +58,10 @@ export async function editorSized(width: number, ...files: File[]) {
     container.querySelector<HTMLButtonElement>(
       `button[aria-label="${label}"]`,
     ) as HTMLButtonElement;
+  // A bar's button carries data-tool, and a tools panel's row data-hm-tool-id.
   const tool = (id: string) =>
-    container.querySelector<HTMLButtonElement>(`[data-hm-tool="${id}"]`) as HTMLButtonElement;
+    container.querySelector<HTMLButtonElement>(
+      `[data-tool="${id}"], [data-hm-tool-id="${id}"]`,
+    ) as HTMLButtonElement;
   return { container, events, ref, plan, button, tool };
 }

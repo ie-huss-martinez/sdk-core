@@ -4,6 +4,7 @@
 
 ```ts
 
+import type { EditorPreferences } from '@hussmartinez/ui';
 import { FilePolicy } from '@hussmartinez/sdk-core';
 import { FilePolicyOverrides } from '@hussmartinez/sdk-core';
 import { ForwardRefExoticComponent } from 'react';
@@ -74,9 +75,12 @@ export const videoEditorMessages: VideoEditorMessageCatalogue;
 // @public
 export interface VideoEditorProps extends Omit<VideoEditorProviderProps, "children"> {
     readonly className?: string;
+    readonly defaultPreferences?: Partial<EditorPreferences>;
     readonly fileName?: string;
     readonly initialFiles?: readonly Blob[];
     readonly onExport?: (blob: Blob, result: VideoExportResult) => void;
+    readonly onPreferencesChange?: (preferences: EditorPreferences) => void;
+    readonly preferences?: EditorPreferences;
 }
 
 // @public

@@ -4,6 +4,7 @@
 
 ```ts
 
+import type { EditorPreferences } from '@hussmartinez/ui';
 import { FilePolicyOverrides } from '@hussmartinez/sdk-core';
 import { ForwardRefExoticComponent } from 'react';
 import { HeadingLevel } from '@hussmartinez/ui/react';
@@ -49,12 +50,15 @@ export type AudioEditorPart = "root" | "toolbar" | "notices" | "stage" | "timeli
 export interface AudioEditorProps extends Omit<AudioEditorProviderProps, "children"> {
     readonly className?: string;
     readonly classNames?: Readonly<Partial<Record<AudioEditorPart, string>>>;
+    readonly defaultPreferences?: Partial<EditorPreferences>;
     readonly fileName?: string;
     readonly headingLevel?: HeadingLevel;
     readonly initialFile?: Blob;
     // Warning: (ae-forgotten-export) The symbol "AudioPlan" needs to be exported by the entry point react.d.ts
     readonly onChange?: (plan: AudioPlan) => void;
     readonly onExport?: (blob: Blob, result: AudioRenderResult) => void;
+    readonly onPreferencesChange?: (preferences: EditorPreferences) => void;
+    readonly preferences?: EditorPreferences;
     readonly theme?: "light" | "dark" | "system";
     readonly unstyled?: boolean;
 }

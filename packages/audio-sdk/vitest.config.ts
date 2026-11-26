@@ -65,8 +65,9 @@ export default defineConfig(({ mode }) => {
             name: "browser",
             ...browserTimeouts,
             include: ["src/**/*.browser.test.{ts,tsx}", "test/**/*.browser.test.{ts,tsx}"],
-            // Firefox crashes when two worlds read ariaLabelledByElements (#76).
-            setupFiles: ["./test/firefox-labelled-by-guard.ts"],
+            // Playwright's Firefox 159 crashes a page whose ariaLabelledByElements
+            // userEvent and axe both read; the guard removes it, in Firefox only.
+            setupFiles: ["@hussmartinez/sdk-config/testing/firefox-labelled-by/setup"],
             // Refuses to start outside the pinned image, where Docker's
             // network changes make Chromium fail at random (#73, sdk-core
             // ADR 0049).
