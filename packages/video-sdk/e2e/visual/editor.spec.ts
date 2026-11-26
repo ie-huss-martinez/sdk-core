@@ -1,11 +1,12 @@
-import { applyVisualVariant, visualVariants } from "@hussmartinez/sdk-config/testing/visual";
+import { applyVisualVariant, variantsFor } from "@hussmartinez/sdk-config/testing/visual";
 import { expect, type Page, test } from "@playwright/test";
 import { video } from "../targets.js";
 
 /**
- * The editor's designed states, as screenshots (sdk-core ADR 0048). Each is
- * captured in light and dark, compact and comfortable, on the built Vite
- * example as a host renders it, with its workers inlined.
+ * The editor's designed states, as screenshots (sdk-core ADR 0048), on the
+ * built Vite example as a host renders it, with its workers inlined. The
+ * main states, in FULL, are captured in light and dark, compact and
+ * comfortable; the rest in light-comfortable only (sdk-core ADR 0068).
  *
  * | State | What it shows |
  * |---|---|
@@ -229,13 +230,26 @@ async function repainted(page: Page): Promise<void> {
   );
 }
 
+/**
+ * The states captured in every theme and density (sdk-core ADR 0068): the
+ * frame's main states. video-sdk has no right-to-left or element states yet.
+ */
+const FULL: readonly string[] = [
+  "empty",
+  "open",
+  "settings",
+  "phone",
+  "advanced-open",
+  "easy-start",
+];
+
 for (const [path, states] of [
   ["/inline.html?mode=expert", STATES],
   ["/inline.html", ADVANCED],
   ["/inline.html?mode=easy", EASY],
 ] as const) {
   for (const [state, { reach, mask }] of Object.entries(states)) {
-    for (const variant of visualVariants) {
+    for (const variant of variantsFor(state, { full: FULL })) {
       test(`${state}, ${variant.name}`, async ({ page }) => {
         // No request may leave the page's origin (sdk-core ADR 0012).
         const foreign: string[] = [];
