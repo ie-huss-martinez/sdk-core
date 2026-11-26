@@ -684,6 +684,23 @@ export function RotateRightIcon(props: IconProps): ReactElement;
 export function RouteIcon(props: IconProps): ReactElement;
 
 // @public
+export const SearchField: ForwardRefExoticComponent<SearchFieldProps & RefAttributes<HTMLInputElement>>;
+
+// @public
+export type SearchFieldPart = "root" | "icon" | "input" | "clear" | "end";
+
+// @public
+export interface SearchFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "className" | "type" | "value" | "defaultValue">, StyleProps<SearchFieldPart> {
+    readonly clearLabel?: string | undefined;
+    readonly defaultValue?: string | undefined;
+    readonly end?: ReactNode;
+    readonly icon?: ReactNode;
+    readonly label?: string | undefined;
+    readonly onValueChange?: ((value: string) => void) | undefined;
+    readonly value?: string | undefined;
+}
+
+// @public
 export function SearchIcon(props: IconProps): ReactElement;
 
 // @public
@@ -1367,6 +1384,8 @@ export const uiMessages: {
     readonly "colorPicker.hue.pink": "pink";
 } & {
     readonly "buttonLink.newTab": "(opens in a new tab)";
+} & {
+    readonly "searchField.clear": "Clear search";
 };
 
 // @public

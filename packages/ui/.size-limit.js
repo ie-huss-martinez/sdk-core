@@ -159,10 +159,12 @@ export default [
   entryBudget({
     name: "React entry (./react), with the shared code it loads",
     entry: "dist/react.js",
-    // 46 kB; 45.73 kB with the editor frame's `propertiesFooter`, a host's
+    // 46.5 kB; 46.3 kB with the editor frame's `propertiesFooter`, a host's
     // footer under the properties that shows only while both fit, which the
-    // editor-frame scenario measures (0.50 kB). Before, 45.5 kB;
-    // 45.23 kB with useEditorPreferences, the preference glue the
+    // editor-frame scenario measures (0.50 kB). Before, 46 kB; 45.75 kB with
+    // SearchField (docs/adr/0017), 1.82 kB to an application that imports it,
+    // with the icon button that clears it.
+    // Before, 45.5 kB; 45.23 kB with useEditorPreferences, the preference glue the
     // four media editors each carried before (0.73 kB). Before, 44.5 kB;
     // 44.49 kB with Tabs (docs/adr/0016), 1.43 kB to an application
     // that imports it, with the heading it shows before it's ready.
@@ -184,12 +186,14 @@ export default [
     // content's headings. Every component counts here, though no
     // application ships them all, so a component's pull request raises it as
     // expected growth; review reads the import scenarios below to judge it.
-    limit: "46 kB",
+    limit: "46.5 kB",
   }),
   entryBudget({
     name: "Stylesheet (./styles.css)",
     entry: "dist/styles.css",
-    // 16 kB; 15.59 kB with the tabs' rules (docs/adr/0016).
+    // 16.5 kB; 16.2 kB with the search field's rules (docs/adr/0017) and the
+    // editor frame's properties column and footer.
+    // Before, 16 kB; 15.59 kB with the tabs' rules (docs/adr/0016).
     // Before, 15.5 kB; 15.07 kB with the tag's and the tag list's rules, five tones
     // among them, and a link's one (docs/adr/0015).
     // Before, 15 kB; 14.66 kB with the card and the morph's rules (docs/adr/0014).
@@ -201,7 +205,7 @@ export default [
     // entry's is: to the measurement, rounded up to the next 0.5 kB. Every
     // application loads the whole stylesheet, so this one is the cost of
     // every component.
-    limit: "16 kB",
+    limit: "16.5 kB",
   }),
   // A floor: 0.6 kB; 0.56 kB, counting only the React names it uses
   // (sdk-config 0.12.1). A leak into every component shows here first.

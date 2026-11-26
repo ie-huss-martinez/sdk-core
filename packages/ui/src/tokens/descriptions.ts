@@ -365,6 +365,8 @@ export const tokenDescriptions: Readonly<Record<TokenName, string>> = {
   "text-field-invalid-border-color":
     "Border of a text field marked invalid. It needs 3:1 contrast with the surface.",
   "text-area-padding-y": "Space above and below a text area's text.",
+  "search-field-gap": "Gap between a search field's icon, its input and what follows.",
+  "search-field-icon-fg": "Colour of a search field's icon.",
   "reorderable-list-gap": "Space between a reorderable list's rows, and between a row's cells.",
   "reorderable-list-row-height": "Height of a reorderable list's row.",
   "reorderable-list-row-padding-x": "Space at the start and end of a reorderable list's item.",

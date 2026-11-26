@@ -66,6 +66,8 @@ for (const app of apps) {
         // Tabs are sections under headings until they hydrate.
         '<h3 class="hm-heading hm-tabs-title">PDF</h3><p>Pages and annotations.</p>',
         '<h3 class="hm-heading hm-tabs-title">Image</h3><p>Layers and filters.</p>',
+        // The search field has no clear button of its own until it hydrates.
+        '<div class="hm-search-field">',
         "<progress",
         'class="hm-slider"',
         'class="hm-field"',
@@ -130,6 +132,13 @@ for (const app of apps) {
       await page.getByRole("tab", { name: "Image" }).click();
       await expect(page.getByRole("tabpanel", { name: "Image" })).toHaveText("Layers and filters.");
       await expect(page.getByText("Pages and annotations.")).toBeHidden();
+
+      // The search field keeps its own text, and has its clear button once it hydrates.
+      const search = page.getByRole("searchbox", { name: "Search pages" });
+      await expect(search).toHaveValue("invoice");
+      await page.getByRole("button", { name: "Clear search" }).click();
+      await expect(search).toHaveValue("");
+      await expect(search).toBeFocused();
 
       // The slider keeps its own value and moves with the keyboard.
       const volume = page.getByRole("slider", { name: "Volume" });
