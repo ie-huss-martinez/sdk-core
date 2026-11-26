@@ -15,3 +15,4 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0005](0005-accessible-exercise-types.md) | Every exercise works with the keyboard and a single tap; drag is only an enhancement | Accepted |
 | [0006](0006-portable-formats.md) | Portable formats: named and versioned documents, the family's rejection codes, and lengths in code points | Accepted; supersedes parts of [0001](0001-package-shape-props-and-ports.md), [0002](0002-content-as-hostile-input.md) and [0003](0003-learners-data-events-and-audio.md) |
 | [0007](0007-player-and-editor-sessions.md) | The player and editor sessions: what a learner's check records, and edits as a portable command format | Accepted; refines the sessions of [0001](0001-package-shape-props-and-ports.md) |
+| [0008](0008-learn-editor.md) | LearnEditor: the teacher's editor, in the family's frame, on the editor session | Proposed |
