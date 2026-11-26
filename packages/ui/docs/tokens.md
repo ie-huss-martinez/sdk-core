@@ -212,6 +212,15 @@ Fine-grained overrides for one component. `ui` never declares them: each compone
 | `--hm-dialog-small-width` | `--hm-surface-width-small` | Width of small dialogs. |
 | `--hm-dialog-width` | `--hm-surface-width-medium` | Width of dialogs. |
 | `--hm-dialog-large-width` | `--hm-surface-width-large` | Width of large dialogs. |
+| `--hm-card-bg` | `--hm-color-surface` | Background of cards. |
+| `--hm-card-fg` | `--hm-color-text` | Text of cards. |
+| `--hm-card-border-color` | `--hm-color-border` | Border of cards. |
+| `--hm-card-border-color-hover` | `--hm-color-border-strong` | Border of a card while the pointer is over its main action. |
+| `--hm-card-shadow-hover` | `--hm-shadow-raised` | Shadow of a card while the pointer is over its main action. |
+| `--hm-card-radius` | `--hm-radius-surface` | Corner radius of cards. |
+| `--hm-card-padding` | `--hm-inset-normal` | Padding inside cards; their media reaches the edges. |
+| `--hm-card-gap` | `--hm-gap-normal` | Gap between a card's parts, and between its footer's items. |
+| `--hm-card-title-font-size` | `--hm-font-size-body` | Size of card titles. |
 | `--hm-heading-font-size` | `--hm-font-size-title` | Size of headings from the Heading component. |
 | `--hm-spinner-size` | `--hm-icon-size` | Size of spinners. |
 | `--hm-spinner-thickness` | `--hm-focus-ring-width` | Thickness of a spinner's ring. |
