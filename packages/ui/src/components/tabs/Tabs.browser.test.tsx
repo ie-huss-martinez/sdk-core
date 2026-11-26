@@ -4,6 +4,7 @@ import { renderToStaticMarkup, renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 import { cleanUp, loadStyles, mount } from "../../test/dom.js";
+import { Heading } from "../heading/Heading.js";
 import { Tabs, type TabsProps } from "./Tabs.js";
 
 let root: Root | undefined;
@@ -128,6 +129,24 @@ describe("Tabs before JavaScript", () => {
     // The same element as before, not a new one: a panel's own state survives.
     expect(paragraph.isConnected).toBe(true);
     expect(paragraph.parentElement?.getAttribute("role")).toBe("tabpanel");
+  });
+
+  it("moves a panel's own headings up to its title's level once the title is gone", () => {
+    const page = (
+      <Tabs
+        label="Implementations"
+        headingLevel={3}
+        tabs={[{ id: "next", label: "Next.js", content: <Heading>Routing</Heading> }]}
+      />
+    );
+    const container = mount(renderToString(page));
+    expect(container.querySelector("h4")?.textContent).toBe("Routing");
+    act(() => {
+      root = hydrateRoot(container, page);
+    });
+    // The tab isn't a heading, so the panel's headings follow the page's, with no level skipped.
+    expect(container.querySelector("h3")?.textContent).toBe("Routing");
+    expect(container.querySelector("h4")).toBeNull();
   });
 });
 

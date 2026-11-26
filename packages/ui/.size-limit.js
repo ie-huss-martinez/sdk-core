@@ -159,7 +159,7 @@ export default [
   entryBudget({
     name: "React entry (./react), with the shared code it loads",
     entry: "dist/react.js",
-    // 44.5 kB; 44.44 kB with Tabs (docs/adr/0016), 1.35 kB to an application
+    // 44.5 kB; 44.49 kB with Tabs (docs/adr/0016), 1.43 kB to an application
     // that imports it, with the heading it shows before it's ready.
     // Before, 44 kB; 43.81 kB with Tag, TagList and ButtonLink (docs/adr/0015) and
     // 14 icons for pages (docs/adr/0005, amended), which the every-icon

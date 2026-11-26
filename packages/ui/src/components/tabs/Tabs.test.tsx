@@ -1,6 +1,6 @@
 import { renderToStaticMarkup, renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { HeadingLevelProvider } from "../heading/Heading.js";
+import { Heading, HeadingLevelProvider } from "../heading/Heading.js";
 import { Tabs } from "./Tabs.js";
 
 const tabs = [
@@ -40,6 +40,16 @@ describe("Tabs on the server", () => {
         </HeadingLevelProvider>,
       ),
     ).toContain('<h3 class="hm-heading hm-tabs-title">Astro</h3>');
+  });
+
+  it("puts a panel's own headings one level under its title, and never past 6", () => {
+    const withHeadings = [{ id: "next", label: "Next.js", content: <Heading>Routing</Heading> }];
+    expect(renderToString(<Tabs label="Stack" tabs={withHeadings} headingLevel={3} />)).toContain(
+      '<h3 class="hm-heading hm-tabs-title">Next.js</h3><h4 class="hm-heading">Routing</h4>',
+    );
+    expect(renderToString(<Tabs label="Stack" tabs={withHeadings} headingLevel={6} />)).toContain(
+      '<h6 class="hm-heading hm-tabs-title">Next.js</h6><h6 class="hm-heading">Routing</h6>',
+    );
   });
 
   it("adds className and classNames per part, marks unstyled and passes native props", () => {

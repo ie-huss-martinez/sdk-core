@@ -11,8 +11,12 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import type { HeadingLevel } from "../../heading/heading-level.js";
-import { Heading } from "../heading/Heading.js";
+import {
+  type HeadingLevel,
+  nestedHeadingLevel,
+  toHeadingLevel,
+} from "../../heading/heading-level.js";
+import { Heading, HeadingLevelContext, useHeadingLevel } from "../heading/Heading.js";
 import { cx, type StyleProps, unstyledAttribute } from "../shared/style-props.js";
 
 /**
@@ -64,7 +68,9 @@ export interface TabsProps
   /**
    * The level of the headings shown over each panel before the tabs are
    * ready, `2` to `6`. Defaults to the closest `HeadingLevelProvider`'s, or
-   * `2`.
+   * `2`. A `Heading` inside a panel is one level below it while that title
+   * is there, and at this level once the tabs are ready and the title is
+   * gone.
    */
   readonly headingLevel?: HeadingLevel | undefined;
 }
@@ -121,6 +127,8 @@ export const Tabs = /* @__PURE__ */ forwardRef(function Tabs(
   // False on the server and while hydrating, so both render the same markup;
   // true in the render right after, and at once when rendered in the browser.
   const ready = useSyncExternalStore(tabsNeverChange, tabsInBrowser, tabsOnServer);
+  const inherited = useHeadingLevel();
+  const level = headingLevel === undefined ? inherited : toHeadingLevel(headingLevel);
   const [own, setOwn] = useState(defaultValue);
   const wanted = value ?? own;
   // An id that names no tab, or none at all, selects the first.
@@ -250,14 +258,17 @@ export const Tabs = /* @__PURE__ */ forwardRef(function Tabs(
         >
           {ready ? null : (
             <Heading
-              level={headingLevel}
+              level={level}
               unstyled={unstyled}
               className={cx("hm-tabs-title", classNames?.title)}
             >
               {tab.label}
             </Heading>
           )}
-          {tab.content}
+          {/* Under its title, a panel's own headings are a level down; without one, they take its level. */}
+          <HeadingLevelContext.Provider value={ready ? level : nestedHeadingLevel(level)}>
+            {tab.content}
+          </HeadingLevelContext.Provider>
         </div>
       ))}
     </div>
