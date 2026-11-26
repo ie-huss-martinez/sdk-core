@@ -1,5 +1,13 @@
 # @hussmartinez/learn-sdk
 
+## 0.4.4
+
+### Patch Changes
+
+- Updated dependencies [[`1dd7dc7`](https://github.com/ie-huss-martinez/sdk-core/commit/1dd7dc70b724452d766d4013c9d8f6f318020aaa), [`6883c62`](https://github.com/ie-huss-martinez/sdk-core/commit/6883c623af809908c033952615f5af06979a782c), [`42cf2be`](https://github.com/ie-huss-martinez/sdk-core/commit/42cf2be5f2c4af78df6f0e787a0cb44cd3b1cf9b), [`6883c62`](https://github.com/ie-huss-martinez/sdk-core/commit/6883c623af809908c033952615f5af06979a782c), [`bc27473`](https://github.com/ie-huss-martinez/sdk-core/commit/bc274734e86cfb7951b468ee6cd81dc27a00035d), [`f545758`](https://github.com/ie-huss-martinez/sdk-core/commit/f54575877f29c5558031020c04e9bee78f4b13a9), [`1dd7dc7`](https://github.com/ie-huss-martinez/sdk-core/commit/1dd7dc70b724452d766d4013c9d8f6f318020aaa), [`562e33d`](https://github.com/ie-huss-martinez/sdk-core/commit/562e33d49cf54f796b393a33adcee8ed26aceb11), [`cd6a92e`](https://github.com/ie-huss-martinez/sdk-core/commit/cd6a92e868dcb90240eb7ae4c14b6911a3c683c9), [`b732a7d`](https://github.com/ie-huss-martinez/sdk-core/commit/b732a7df11a1307d550f4ad8ff881328efe6e513)]:
+  - @hussmartinez/sdk-core@0.4.9
+  - @hussmartinez/ui@0.17.0
+
 ## 0.4.3
 
 ### Patch Changes
