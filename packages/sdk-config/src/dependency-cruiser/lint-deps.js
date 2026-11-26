@@ -158,6 +158,19 @@ class GitError extends UsageError {
 }
 
 /**
+ * The environment for git, without the variables that pin it to a repository.
+ * Git sets `GIT_DIR` for hooks, and in a linked worktree that makes it treat
+ * `cwd` as the top of the work tree, so `git ls-files src` in a package would
+ * list nothing. The repository is always the one `cwd` is in.
+ *
+ * @returns {NodeJS.ProcessEnv}
+ */
+function gitEnvironment() {
+  const { GIT_DIR: _dir, GIT_WORK_TREE: _workTree, ...environment } = process.env;
+  return environment;
+}
+
+/**
  * Runs git and returns its output, or throws a {@link GitError} with git's own
  * first error line, such as `git ls-files failed: … is outside repository`.
  *
@@ -167,7 +180,12 @@ class GitError extends UsageError {
  */
 function git(args, cwd) {
   try {
-    return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    return execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      env: gitEnvironment(),
+      stdio: ["ignore", "pipe", "pipe"],
+    });
   } catch (error) {
     const command = `git ${args[0]}`;
     if (/** @type {NodeJS.ErrnoException} */ (error).code === "ENOENT") {
