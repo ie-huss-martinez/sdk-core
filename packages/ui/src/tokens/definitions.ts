@@ -680,6 +680,17 @@ export type ComponentTokenName =
   | "tag-danger-bg"
   | "tag-danger-fg"
   | "tag-list-gap"
+  | "tabs-gap"
+  | "tabs-list-gap"
+  | "tabs-list-border-color"
+  | "tabs-tab-height"
+  | "tabs-tab-padding-x"
+  | "tabs-tab-radius"
+  | "tabs-tab-fg"
+  | "tabs-tab-bg-hover"
+  | "tabs-tab-selected-fg"
+  | "tabs-indicator-color"
+  | "tabs-indicator-size"
   | "progress-height"
   | "progress-radius"
   | "progress-track-color"
@@ -931,6 +942,17 @@ const component = {
   "tag-danger-bg": { fallback: "color-danger-subtle" },
   "tag-danger-fg": { fallback: "color-danger-text" },
   "tag-list-gap": { fallback: "gap-normal" },
+  "tabs-gap": { fallback: "gap-loose" },
+  "tabs-list-gap": { fallback: "gap-tight" },
+  "tabs-list-border-color": { fallback: "color-border" },
+  "tabs-tab-height": { fallback: "control-height" },
+  "tabs-tab-padding-x": { fallback: "control-padding-x" },
+  "tabs-tab-radius": { fallback: "radius-control" },
+  "tabs-tab-fg": { fallback: "color-text-muted" },
+  "tabs-tab-bg-hover": { fallback: "color-control-hover" },
+  "tabs-tab-selected-fg": { fallback: "color-text" },
+  "tabs-indicator-color": { fallback: "color-accent" },
+  "tabs-indicator-size": { fallback: "focus-ring-width" },
   "progress-height": { fallback: "track-size" },
   "progress-radius": { fallback: "radius-round" },
   "progress-track-color": { fallback: "color-surface-sunken" },

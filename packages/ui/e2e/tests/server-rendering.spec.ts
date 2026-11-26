@@ -63,6 +63,9 @@ for (const app of apps) {
         'class="hm-button hm-button--secondary hm-button-link"',
         'rel="noopener noreferrer"',
         "(opens in a new tab)",
+        // Tabs are sections under headings until they hydrate.
+        '<h3 class="hm-heading hm-tabs-title">PDF</h3><p>Pages and annotations.</p>',
+        '<h3 class="hm-heading hm-tabs-title">Image</h3><p>Layers and filters.</p>',
         "<progress",
         'class="hm-slider"',
         'class="hm-field"',
@@ -120,6 +123,13 @@ for (const app of apps) {
       const loop = page.getByRole("button", { name: "Loop" });
       await loop.click();
       await expect(loop).toHaveAttribute("aria-pressed", "true");
+
+      // Tabs were sections on the server. Hydrated, they're tabs, even with
+      // panels passed from a Server Component.
+      await expect(page.getByRole("tab", { name: "PDF" })).toHaveAttribute("aria-selected", "true");
+      await page.getByRole("tab", { name: "Image" }).click();
+      await expect(page.getByRole("tabpanel", { name: "Image" })).toHaveText("Layers and filters.");
+      await expect(page.getByText("Pages and annotations.")).toBeHidden();
 
       // The slider keeps its own value and moves with the keyboard.
       const volume = page.getByRole("slider", { name: "Volume" });

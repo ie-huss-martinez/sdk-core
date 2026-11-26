@@ -245,6 +245,17 @@ Fine-grained overrides for one component. `ui` never declares them: each compone
 | `--hm-tag-danger-bg` | `--hm-color-danger-subtle` | Background of danger tags. |
 | `--hm-tag-danger-fg` | `--hm-color-danger-text` | Text and icon of danger tags. |
 | `--hm-tag-list-gap` | `--hm-gap-normal` | Gap between the tags of a tag list. |
+| `--hm-tabs-gap` | `--hm-gap-loose` | Gap between a tab list and its panel, and between the sections shown before the tabs are ready. |
+| `--hm-tabs-list-gap` | `--hm-gap-tight` | Gap between tabs. |
+| `--hm-tabs-list-border-color` | `--hm-color-border` | Line under a tab list. |
+| `--hm-tabs-tab-height` | `--hm-control-height` | Height of tabs. |
+| `--hm-tabs-tab-padding-x` | `--hm-control-padding-x` | Inline padding of tabs. |
+| `--hm-tabs-tab-radius` | `--hm-radius-control` | Corner radius of a tab's top corners. |
+| `--hm-tabs-tab-fg` | `--hm-color-text-muted` | Text and icon of tabs that aren't selected. |
+| `--hm-tabs-tab-bg-hover` | `--hm-color-control-hover` | Background of a tab under the pointer. |
+| `--hm-tabs-tab-selected-fg` | `--hm-color-text` | Text and icon of the selected tab, and of a tab under the pointer. |
+| `--hm-tabs-indicator-color` | `--hm-color-accent` | Line under the selected tab. |
+| `--hm-tabs-indicator-size` | `--hm-focus-ring-width` | Thickness of the line under the selected tab. |
 | `--hm-progress-height` | `--hm-track-size` | Height of progress bars. |
 | `--hm-progress-radius` | `--hm-radius-round` | Corner radius of progress bars. |
 | `--hm-progress-track-color` | `--hm-color-surface-sunken` | Background of progress bars. |

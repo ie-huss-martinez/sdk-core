@@ -17,7 +17,7 @@
  * from someone you wouldn't let run code on this machine.
  */
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,6 +25,7 @@ import { runnerImport } from "vite";
 import type { SizeResult } from "./size-table-format.js";
 
 const PACKAGE = "packages/ui";
+const NATIVE_CONFIG = "vite.native.config.ts";
 const here = fileURLToPath(new URL("../", import.meta.url));
 
 const args = process.argv.slice(2);
@@ -42,6 +43,12 @@ const run = (command: string, commandArgs: string[], cwd: string): string =>
 function measure(root: string): SizeResult[] {
   const cwd = join(root, PACKAGE);
   run("pnpm", ["exec", "vite", "build"], cwd);
+  // The React Native entry is a build of its own, into the same folder
+  // (sdk-core ADR 0069), and its budgets read it. A base from before it
+  // existed has no such configuration, and nothing to build.
+  if (existsSync(join(cwd, NATIVE_CONFIG))) {
+    run("pnpm", ["exec", "vite", "build", "--config", NATIVE_CONFIG], cwd);
+  }
   let json: string;
   try {
     json = run("pnpm", ["exec", "size-limit", "--json"], cwd);
