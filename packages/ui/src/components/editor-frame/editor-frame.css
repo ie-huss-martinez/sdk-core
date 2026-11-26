@@ -105,6 +105,8 @@
     flex: none;
     flex-direction: column;
     min-block-size: 0;
+    /* The footer without room is placed against it. */
+    position: relative;
   }
 
   .hm-editor-frame-properties-column[hidden] {
@@ -166,6 +168,18 @@
 
   .hm-editor-frame-properties-footer[hidden] {
     display: none;
+  }
+
+  /*
+   * Without room under the panel it stays laid out, out of the flow and
+   * invisible, so the frame can tell when new content would fit.
+   */
+  .hm-editor-frame-properties-footer[data-hm-no-room] {
+    inset-block-end: 0;
+    inset-inline: 0;
+    pointer-events: none;
+    position: absolute;
+    visibility: hidden;
   }
 
   /* Edge tabs bring a hidden panel back. */

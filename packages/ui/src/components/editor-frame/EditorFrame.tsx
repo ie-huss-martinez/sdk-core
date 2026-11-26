@@ -312,8 +312,13 @@ export const EditorFrame = /* @__PURE__ */ forwardRef(function EditorFrame(
           resizes.observe(element);
         }
       }
+      // Text changes too, anywhere in the content: an inline element or a
+      // text node that grows has no box a ResizeObserver reports.
       const children = new MutationObserver((records) => {
         for (const record of records) {
+          if (record.target !== body) {
+            continue;
+          }
           for (const node of record.addedNodes) {
             if (node instanceof Element) {
               resizes.observe(node);
@@ -322,7 +327,7 @@ export const EditorFrame = /* @__PURE__ */ forwardRef(function EditorFrame(
         }
         measure();
       });
-      children.observe(body, { childList: true });
+      children.observe(body, { childList: true, subtree: true, characterData: true });
       columnObserver.current = () => {
         resizes.disconnect();
         children.disconnect();
@@ -465,7 +470,11 @@ export const EditorFrame = /* @__PURE__ */ forwardRef(function EditorFrame(
                 <div
                   ref={footer}
                   className={cx("hm-editor-frame-properties-footer", classNames?.propertiesFooter)}
-                  hidden={!(panelShown && footerFits)}
+                  hidden={!panelShown}
+                  // Without room it's laid out out of the flow and invisible,
+                  // out of focus and the accessibility tree, so a change of
+                  // its content is still measured.
+                  data-hm-no-room={footerFits ? undefined : ""}
                 >
                   {propertiesFooter}
                 </div>
@@ -517,7 +526,8 @@ function footerFitsIn(
   if (!panel || !footer || column.getClientRects().length === 0) {
     return undefined;
   }
-  // A footer that's hidden has no box, so it's measured while it shows.
+  // A footer without room keeps a box, out of the flow, so this is its
+  // current height; one hidden with the column has none, and keeps its last.
   if (footer.getClientRects().length > 0) {
     footerHeight.current = footer.getBoundingClientRect().height;
   }
@@ -530,10 +540,13 @@ function footerFitsIn(
   // body, with a percentage height, still can; they need the whole column.
   const box = body.getBoundingClientRect();
   let end = box.top + Number.parseFloat(getComputedStyle(body).paddingBlockStart);
-  if (body.children.length === 0 && body.firstChild) {
-    const range = document.createRange();
-    range.selectNodeContents(body);
-    end = range.getBoundingClientRect().bottom;
+  // Text directly in the body, beside elements or alone, has no element box.
+  for (const node of body.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
+      const range = document.createRange();
+      range.selectNode(node);
+      end = Math.max(end, range.getBoundingClientRect().bottom);
+    }
   }
   for (const child of body.children) {
     const margin = Number.parseFloat(getComputedStyle(child).marginBlockEnd) || 0;

@@ -180,13 +180,15 @@ describe("EditorFrame", () => {
   });
 });
 
-/** A frame whose properties are a block `rows` pixels tall, with a 160 × 120 footer under them. */
+/** A frame whose properties are a block `rows` pixels tall, with a 160 × `ad` footer under them. */
 function Footed({
   rows = 40,
+  ad = 120,
   properties = true,
   propertiesState = "shown",
 }: {
   rows?: number;
+  ad?: number;
   properties?: boolean;
   propertiesState?: EditorFramePropertiesState;
 }) {
@@ -197,7 +199,9 @@ function Footed({
         properties ? <div className="rows" style={{ blockSize: `${rows}px` }} /> : undefined
       }
       propertiesState={propertiesState}
-      propertiesFooter={<div className="ad" style={{ inlineSize: "160px", blockSize: "120px" }} />}
+      propertiesFooter={
+        <div className="ad" style={{ inlineSize: "160px", blockSize: `${ad}px` }} />
+      }
     >
       <p>Stage</p>
     </EditorFrame>
@@ -209,6 +213,8 @@ describe("EditorFrame's properties footer", () => {
     container.querySelector(`.hm-editor-frame-${name}`) as HTMLElement;
   const box = (element: Element) => element.getBoundingClientRect();
   const rerender = (element: React.ReactElement) => act(() => root?.render(element));
+  /** Whether the footer shows: not hidden with the column, and with room. */
+  const shown = (footer: HTMLElement) => footer.checkVisibility({ visibilityProperty: true });
 
   it("shows under the panel, outside its landmark, at its own size when both fit", () => {
     const container = render(<Footed />);
@@ -240,12 +246,11 @@ describe("EditorFrame's properties footer", () => {
     const panel = container.querySelector("aside") as HTMLElement;
     const columnHeight = box(part(container, "properties-column")).height;
     rerender(<Footed rows={columnHeight - 100} />);
-    await vi.waitFor(() => expect(footer.hidden).toBe(true));
+    await vi.waitFor(() => expect(shown(footer)).toBe(false));
     expect(box(panel).height).toBeCloseTo(columnHeight, 1);
-    expect(footer.checkVisibility()).toBe(false);
     // It comes back, at the size it had, once there's room again.
     rerender(<Footed rows={40} />);
-    await vi.waitFor(() => expect(footer.hidden).toBe(false));
+    await vi.waitFor(() => expect(shown(footer)).toBe(true));
     expect(box(container.querySelector(".ad") as Element).height).toBe(120);
   });
 
@@ -262,7 +267,7 @@ describe("EditorFrame's properties footer", () => {
       </EditorFrame>,
     );
     const footer = part(container, "properties-footer");
-    await vi.waitFor(() => expect(footer.hidden).toBe(true));
+    await vi.waitFor(() => expect(shown(footer)).toBe(false));
     const body = part(container, "properties-body");
     const padding = Number.parseFloat(getComputedStyle(body).paddingBlockStart) * 2;
     expect(box(container.querySelector(".fill") as Element).height).toBeCloseTo(
@@ -271,12 +276,55 @@ describe("EditorFrame's properties footer", () => {
     );
   });
 
+  it("comes back when its content changes to fit while it has no room", async () => {
+    const container = render(<Footed />);
+    const footer = part(container, "properties-footer");
+    const columnHeight = box(part(container, "properties-column")).height;
+    rerender(<Footed ad={columnHeight} />);
+    await vi.waitFor(() => expect(shown(footer)).toBe(false));
+    rerender(<Footed ad={120} />);
+    await vi.waitFor(() => expect(shown(footer)).toBe(true));
+  });
+
+  it("hides when text in the panel grows, alone or beside elements", async () => {
+    const lines = (count: number) =>
+      Array.from({ length: count }, () => "A line of text.").join(" ");
+    const frame = (text: string, beside: boolean) => (
+      <EditorFrame
+        topBar="Image editor"
+        properties={
+          beside ? (
+            <>
+              <div style={{ blockSize: "20px" }} />
+              {text}
+            </>
+          ) : (
+            text
+          )
+        }
+        propertiesFooter={
+          <div className="ad" style={{ inlineSize: "160px", blockSize: "120px" }} />
+        }
+      >
+        <p>Stage</p>
+      </EditorFrame>
+    );
+    for (const beside of [false, true]) {
+      const container = render(frame(lines(1), beside));
+      const footer = part(container, "properties-footer");
+      expect(shown(footer)).toBe(true);
+      rerender(frame(lines(400), beside));
+      await vi.waitFor(() => expect(shown(footer)).toBe(false));
+      act(() => root?.unmount());
+    }
+  });
+
   it("hides with the panel, without one, and below 45 rem, keeping its content mounted", () => {
     const container = render(<Footed propertiesState="hidden" />);
     const footer = part(container, "properties-footer");
     const ad = container.querySelector(".ad");
     expect(footer.hidden).toBe(true);
-    expect(footer.checkVisibility()).toBe(false);
+    expect(shown(footer)).toBe(false);
     rerender(<Footed properties={false} />);
     expect(footer.hidden).toBe(true);
     expect(container.querySelector("aside")).toBeNull();
