@@ -3,6 +3,7 @@ import {
   forwardRef,
   type ReactElement,
   useCallback,
+  useMemo,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -10,6 +11,7 @@ import { ThemeDarkIcon } from "../../icons/icons.generated.js";
 import { uiEditorText } from "../../messages/editor.js";
 import { IconButton, type IconButtonProps } from "../button/IconButton.js";
 import { useUiText } from "../messages/UiMessagesProvider.js";
+import { forwardingRef } from "../shared/merged-ref.js";
 import { cx } from "../shared/style-props.js";
 
 /**
@@ -113,17 +115,9 @@ export const ThemeToggle = /* @__PURE__ */ forwardRef(function ThemeToggle(
   const inherited = useShowsDark(value === "inherit" ? element : null);
   const dark =
     value === "dark" || (value === "system" && system) || (value === "inherit" && inherited);
-  const setRefs = useCallback(
-    (node: HTMLButtonElement | null) => {
-      setElement(node);
-      if (typeof ref === "function") {
-        ref(node);
-      } else if (ref) {
-        ref.current = node;
-      }
-    },
-    [ref],
-  );
+  // The element for this toggle, and the host's ref, set and cleared on
+  // every attach and detach in React 18 and 19.
+  const setRefs = useMemo(() => forwardingRef(ref, setElement), [ref]);
   return (
     <IconButton
       {...props}

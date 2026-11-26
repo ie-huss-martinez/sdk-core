@@ -64,3 +64,27 @@ describe("ThemeToggle inheriting its page's theme", () => {
     expect(button().getAttribute("aria-pressed")).toBe("false");
   });
 });
+
+describe("ThemeToggle's ref", () => {
+  it("runs the cleanup a host's callback ref returns when it unmounts, and gives a plain one null", () => {
+    const container = mount("");
+    const cleanup = vi.fn();
+    const withCleanup = vi.fn((_: HTMLButtonElement | null) => cleanup);
+    const plain = vi.fn();
+    act(() => {
+      root = createRoot(container);
+      root.render(
+        <>
+          <ThemeToggle ref={withCleanup} value="light" onValueChange={() => {}} />
+          <ThemeToggle ref={plain} value="light" onValueChange={() => {}} />
+        </>,
+      );
+    });
+    expect(withCleanup).toHaveBeenCalledWith(expect.any(HTMLButtonElement));
+    act(() => root?.unmount());
+    root = undefined;
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(withCleanup).not.toHaveBeenCalledWith(null);
+    expect(plain).toHaveBeenLastCalledWith(null);
+  });
+});

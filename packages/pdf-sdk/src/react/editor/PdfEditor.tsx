@@ -53,16 +53,20 @@ import { useProvidedSession } from "../PdfSessionProvider.js";
 import { PdfThumbnails } from "../thumbnails/PdfThumbnails.js";
 import { pdfIcons } from "../toolbar/icons.js";
 import { PdfViewer } from "../viewer/PdfViewer.js";
+import {
+  fromSettings,
+  INHERITED,
+  type Inherited,
+  type InheritedValues,
+  inheritedValues,
+  settingsValue,
+} from "./inherited.js";
 import { PdfEditorStart } from "./PdfEditorStart.js";
 import { useEditorPreferences } from "./preferences.js";
 import { START_CARDS, type StartCard, StartCards } from "./StartCards.js";
 import { toolLists } from "./tool-lists.js";
 import type { PdfEditorChange, PdfEditorHandle, PdfEditorProps } from "./types.js";
 import { useSave } from "./use-save.js";
-
-/** Preferences the editor's root inherits from the page until they're chosen (sdk-core ADR 0067). */
-const INHERITED = ["theme", "density", "motion"] as const;
-type Inherited = (typeof INHERITED)[number];
 
 /** The command palette's place in the shortcut registry: a family action, not a tool. */
 const PALETTE = "pdf.command-palette";
@@ -275,6 +279,9 @@ function PdfEditorBody(props: BodyProps): ReactNode {
   }, [preferences.tools]);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // The page's values for the fields the editor inherits, read as the settings open.
+  const [inheritedAtOpen, setInheritedAtOpen] = useState<InheritedValues | null>(null);
+  const shownSettings = settingsValue(preferences, isChosen, inheritedAtOpen);
   const [tab, setTab] = useState<string | null>(null);
   const { mode } = preferences;
   const { status } = snapshot;
@@ -345,15 +352,22 @@ function PdfEditorBody(props: BodyProps): ReactNode {
     runTool(tool);
   };
 
-  /** Applies a change of preferences, and says what changed that isn't on screen. */
-  const changePreferences = (next: EditorPreferences) => {
+  /**
+   * Applies a change of preferences, and says what changed that isn't on
+   * screen. `changed` are the inherited fields the person chose, which are
+   * the editor's own from then on: by default, those that differ from the
+   * preferences.
+   */
+  const changePreferences = (
+    next: EditorPreferences,
+    changed: readonly Inherited[] = INHERITED.filter((field) => next[field] !== preferences[field]),
+  ) => {
     if (next.mode !== preferences.mode) {
       toastTo.current.show({ message: t(`editor.mode.${next.mode}`) });
     }
-    if (next.theme !== preferences.theme) {
+    if (changed.includes("theme")) {
       toastTo.current.show({ message: t(`editor.theme.${next.theme}`) });
     }
-    const changed = INHERITED.filter((field) => next[field] !== preferences[field]);
     if (changed.some((field) => !picked.has(field))) {
       setPicked(new Set([...picked, ...changed]));
     }
@@ -695,7 +709,12 @@ function PdfEditorBody(props: BodyProps): ReactNode {
                   label={t("editor.settings")}
                   icon={<SettingsIcon />}
                   aria-haspopup="dialog"
-                  onClick={() => setSettingsOpen(true)}
+                  onClick={() => {
+                    // The settings show what's in effect, the page's values
+                    // included, as they are when they open.
+                    setInheritedAtOpen(inheritedValues(root.current));
+                    setSettingsOpen(true);
+                  }}
                 />
               </Tooltip>
             </Toolbar>
@@ -810,8 +829,11 @@ function PdfEditorBody(props: BodyProps): ReactNode {
       <SettingsPanel
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
-        value={preferences}
-        onValueChange={changePreferences}
+        value={shownSettings}
+        onValueChange={(next) => {
+          const choice = fromSettings(next, shownSettings, preferences, isChosen);
+          changePreferences(choice.preferences, choice.chosen);
+        }}
         settings={SETTINGS}
       />
       <AnnouncerProvider>

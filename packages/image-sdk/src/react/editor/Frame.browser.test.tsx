@@ -213,7 +213,7 @@ describe("what the editor inherits from its page (sdk-core ADR 0067)", () => {
       const toggle = document.querySelector<HTMLElement>(".hm-theme-toggle");
       await until(() => toggle?.getAttribute("aria-pressed") === "true", "the inherited theme");
 
-      // Chosen in the settings, each one is the editor's own.
+      // The settings show what's in effect: the page's values.
       await click(named("Settings"));
       const option = (setting: string, text: string) =>
         [
@@ -221,8 +221,19 @@ describe("what the editor inherits from its page (sdk-core ADR 0067)", () => {
             `dialog[open] [aria-label="${setting}"] [role="radio"]`,
           ),
         ].find((radio) => radio.textContent === text);
+      const checked = (setting: string) =>
+        document.querySelector(
+          `dialog[open] [aria-label="${setting}"] [role="radio"][aria-checked="true"]`,
+        )?.textContent;
+      expect(checked("Density")).toBe("Compact");
+      expect(checked("Motion")).toBe("Reduced");
+      expect(checked("Appearance")).toBe("Dark");
+      // Choosing the one shown changes nothing; another is the editor's own.
       await click(option("Density", "Compact"));
-      expect(section()?.dataset["hmDensity"]).toBe("compact");
+      expect(section()?.hasAttribute("data-hm-density")).toBe(false);
+      await click(option("Density", "Comfortable"));
+      expect(section()?.dataset["hmDensity"]).toBe("comfortable");
+      expect(checked("Density")).toBe("Comfortable");
       expect(section()?.hasAttribute("data-hm-motion")).toBe(false);
       await click(option("Motion", "Full"));
       expect(section()?.dataset["hmMotion"]).toBe("full");

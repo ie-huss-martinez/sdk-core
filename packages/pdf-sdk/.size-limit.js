@@ -104,10 +104,11 @@ export default [
   }),
   forHosts({
     // What a typical application imports: the whole editor. 17.91 kB, then
-    // 20.63 kB on ui's frame (docs/adr/0012): about 2.4 kB of the editor's
+    // 20.85 kB on ui's frame (docs/adr/0012): about 2.6 kB of the editor's
     // own code for the tools panel and palette lists, start cards that always
     // reach their tool, preferences the page's theme, density and motion
-    // pass through until chosen, and toasts, and 0.3 kB of text. ui's
+    // pass through until chosen, settings that show the values in effect,
+    // and toasts, and 0.3 kB of text. ui's
     // components count in ui's budgets, not here.
     name: "React: PdfEditor",
     entry: "dist/react.js",

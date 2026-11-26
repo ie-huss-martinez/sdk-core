@@ -46,14 +46,18 @@ import { ImageInspector } from "../panels/Inspector.js";
 import { ImageStage } from "../stage/ImageStage.js";
 import { AnimationBar } from "../timeline/AnimationBar.js";
 import { imageIcons } from "../toolbar/icons.js";
+import {
+  fromSettings,
+  INHERITED,
+  type Inherited,
+  type InheritedValues,
+  inheritedValues,
+  settingsValue,
+} from "./inherited.js";
 import { useEditorPreferences } from "./preferences.js";
 import { START_CARDS, type StartCard, StartCards } from "./StartCards.js";
 import { toolLists } from "./tool-lists.js";
 import type { ImageEditorHandle, ImageEditorProps } from "./types.js";
-
-/** Preferences the editor's root inherits from the page until they're chosen (sdk-core ADR 0067). */
-const INHERITED = ["theme", "density", "motion"] as const;
-type Inherited = (typeof INHERITED)[number];
 
 /** The command palette's place in the shortcut registry: a family action, not a tool. */
 const PALETTE = "image.command-palette";
@@ -318,6 +322,9 @@ function ImageEditorBody(props: BodyProps): ReactNode {
     props.defaultPreferences?.[field] !== undefined;
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // The page's values for the fields the editor inherits, read as the settings open.
+  const [inheritedAtOpen, setInheritedAtOpen] = useState<InheritedValues | null>(null);
+  const shownSettings = settingsValue(preferences, isChosen, inheritedAtOpen);
   const [tab, setTab] = useState<string | null>(null);
   // Easy mode's start cards show once per image, until one is chosen or skipped.
   const [startShownFor, setStartShownFor] = useState<string | null>(null);
@@ -340,12 +347,16 @@ function ImageEditorBody(props: BodyProps): ReactNode {
   };
 
   /** Applies a change of preferences, and says what changed that isn't on screen. */
-  const changePreferences = (next: EditorPreferences) => {
+  // `changed` are the inherited fields the person chose, which are the
+  // editor's own from then on: by default, those that differ from the preferences.
+  const changePreferences = (
+    next: EditorPreferences,
+    changed: readonly Inherited[] = INHERITED.filter((field) => next[field] !== preferences[field]),
+  ) => {
     if (next.mode !== preferences.mode) toast.show({ message: t(`editor.mode.${next.mode}`) });
-    if (next.theme !== preferences.theme) {
+    if (changed.includes("theme")) {
       toast.show({ message: t(`editor.theme.${next.theme}`) });
     }
-    const changed = INHERITED.filter((field) => next[field] !== preferences[field]);
     if (changed.some((field) => !picked.has(field))) {
       setPicked(new Set([...picked, ...changed]));
     }
@@ -543,7 +554,12 @@ function ImageEditorBody(props: BodyProps): ReactNode {
                     label={t("editor.settings")}
                     icon={<SettingsIcon />}
                     aria-haspopup="dialog"
-                    onClick={() => setSettingsOpen(true)}
+                    onClick={() => {
+                      // The settings show what's in effect, the page's values
+                      // included, as they are when they open.
+                      setInheritedAtOpen(inheritedValues(root.current));
+                      setSettingsOpen(true);
+                    }}
                   />
                 </Tooltip>
               </Toolbar>
@@ -628,8 +644,11 @@ function ImageEditorBody(props: BodyProps): ReactNode {
         <SettingsPanel
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
-          value={preferences}
-          onValueChange={changePreferences}
+          value={shownSettings}
+          onValueChange={(next) => {
+            const choice = fromSettings(next, shownSettings, preferences, isChosen);
+            changePreferences(choice.preferences, choice.chosen);
+          }}
           settings={
             props.theme
               ? ["mode", "toolsLayout", "tools", "properties", "density", "motion", "tips"]

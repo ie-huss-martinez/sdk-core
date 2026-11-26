@@ -202,7 +202,7 @@ describe("the editor's modes (sdk-core ADR 0067)", () => {
       const toggle = first.container.querySelector(".hm-theme-toggle") as HTMLElement;
       await waitFor(() => expect(toggle.getAttribute("aria-pressed")).toBe("true"));
 
-      // Chosen in the settings, each one is the editor's own.
+      // The settings show what's in effect: the page's values.
       await act(() => userEvent.click(named(first.container, "Settings") as HTMLElement));
       const option = (setting: string, text: string) =>
         [
@@ -210,19 +210,36 @@ describe("the editor's modes (sdk-core ADR 0067)", () => {
             `dialog[open] [aria-label="${setting}"] [role="radio"]`,
           ),
         ].find((radio) => radio.textContent === text) as HTMLElement;
+      const checked = (setting: string) =>
+        first.container.querySelector(
+          `dialog[open] [aria-label="${setting}"] [role="radio"][aria-checked="true"]`,
+        )?.textContent;
+      expect(checked("Density")).toBe("Compact");
+      expect(checked("Motion")).toBe("Reduced");
+      expect(checked("Appearance")).toBe("Dark");
+      // Choosing the one shown changes nothing: it's already in effect.
       await act(() => userEvent.click(option("Density", "Compact")));
-      expect(editorRoot.dataset["hmDensity"]).toBe("compact");
+      expect(editorRoot.hasAttribute("data-hm-density")).toBe(false);
+      expect(onPreferencesChange).not.toHaveBeenCalled();
+      // Choosing another makes it the editor's own, even the preference's default.
+      await act(() => userEvent.click(option("Density", "Comfortable")));
+      expect(editorRoot.dataset["hmDensity"]).toBe("comfortable");
+      expect(checked("Density")).toBe("Comfortable");
       expect(editorRoot.hasAttribute("data-hm-motion")).toBe(false);
       await act(() => userEvent.click(option("Motion", "Full")));
       expect(editorRoot.dataset["hmMotion"]).toBe("full");
       expect(editorRoot.hasAttribute("data-hm-theme")).toBe(false);
+      // The page's values never become the host's preferences.
+      expect(onPreferencesChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({ theme: "system", density: "comfortable", motion: "full" }),
+      );
       await act(() => userEvent.keyboard("{Escape}"));
 
       // Pressing the toggle chooses the other theme from the one shown.
       await act(() => userEvent.click(toggle));
       expect(editorRoot.dataset["hmTheme"]).toBe("light");
       expect(onPreferencesChange).toHaveBeenLastCalledWith(
-        expect.objectContaining({ theme: "light", density: "compact", motion: "full" }),
+        expect.objectContaining({ theme: "light", density: "comfortable", motion: "full" }),
       );
       await waitFor(() => expect(toasts(first.container)).toContain("Light theme"));
       await cleanUp();

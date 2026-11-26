@@ -28,3 +28,43 @@ export function useMergedRef<T>(
   );
   return [local, setRef];
 }
+
+/**
+ * A callback ref that gives an element to the component, through `own`, and
+ * to the ref its host forwarded, for React 18 and 19 alike.
+ *
+ * - **React 19** calls the cleanup this returns when the element detaches,
+ *   instead of calling the ref with `null`. The cleanup runs the cleanup the
+ *   host's callback ref returned, if it did, and otherwise gives the host's
+ *   ref `null`, as React would have.
+ * - **React 18** ignores the cleanup and calls the ref with `null`, which
+ *   reaches both.
+ *
+ * Either way, `own` gets `null` on every detach.
+ */
+export function forwardingRef<T>(
+  forwarded: ForwardedRef<T>,
+  own: (node: T | null) => void,
+): (node: T | null) => (() => void) | undefined {
+  return (node) => {
+    own(node);
+    if (node === null) {
+      assignRef(forwarded, null);
+      return undefined;
+    }
+    let hostCleanup: unknown;
+    if (typeof forwarded === "function") {
+      hostCleanup = (forwarded as (node: T | null) => unknown)(node);
+    } else if (forwarded) {
+      forwarded.current = node;
+    }
+    return () => {
+      own(null);
+      if (typeof hostCleanup === "function") {
+        hostCleanup();
+      } else {
+        assignRef(forwarded, null);
+      }
+    };
+  };
+}
