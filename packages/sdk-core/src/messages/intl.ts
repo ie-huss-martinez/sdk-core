@@ -29,17 +29,29 @@ function intl<Feature extends IntlFeature>(feature: Feature): (typeof Intl)[Feat
 
 /**
  * The canonical form of a locale, or `undefined` for a tag that isn't one.
- * Where the engine can't canonicalise, a well-formed tag is used as given.
+ *
+ * Where the engine can't canonicalise, the tag is used as given once it's
+ * known to be one: the number formatter is asked, when there is one, since
+ * it refuses a malformed tag as it would when formatting; with no `Intl` at
+ * all, nothing will read the tag, and its shape is enough.
  */
 export function canonicalLocale(locale: string): string | undefined {
-  if (typeof Intl !== "object" || Intl === null || typeof Intl.getCanonicalLocales !== "function") {
-    return /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(locale) ? locale : undefined;
-  }
+  const engine = typeof Intl === "object" && Intl !== null ? Intl : undefined;
   try {
-    return Intl.getCanonicalLocales(locale)[0];
+    if (typeof engine?.getCanonicalLocales === "function") {
+      return engine.getCanonicalLocales(locale)[0];
+    }
+    if (typeof engine?.NumberFormat?.supportedLocalesOf === "function") {
+      // It throws a RangeError for a tag that isn't well formed.
+      engine.NumberFormat.supportedLocalesOf(locale);
+      return locale;
+    }
   } catch {
     return undefined;
   }
+  // A language, then subtags of one to eight letters or digits, which
+  // covers the singleton of an extension, as in `de-DE-u-nu-latn`.
+  return /^[a-z]{2,3}(?:-[a-z0-9]{1,8})*$/i.test(locale) ? locale : undefined;
 }
 
 /** The part of `Intl.DurationFormat` this module uses, where the browser has it. */

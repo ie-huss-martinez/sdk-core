@@ -686,8 +686,26 @@ describe("createMessages on an engine with little or no Intl (ADR 0069)", () => 
     const german = createMessages(catalogue, { locale: "de-DE" });
     expect(german.t("files.size", { size: 1_300_000 })).toBe("It's 1,3 MB.");
     expect(warn).not.toHaveBeenCalled();
-    const invalid = createMessages(catalogue, { locale: "not a locale" });
-    expect(invalid.t("files.size", { size: 1_300_000 })).toBe("It's 1.3 MB.");
+    // An extension's singleton is one character, and the tag is well formed.
+    const extended = createMessages(catalogue, { locale: "de-DE-u-nu-latn" });
+    expect(extended.t("files.size", { size: 1_300_000 })).toBe("It's 1,3 MB.");
+    expect(warn).not.toHaveBeenCalled();
+    // The formatter refuses these, so they're "en" with a warning each,
+    // not a RangeError from t().
+    for (const locale of ["not a locale", "en-12"]) {
+      const invalid = createMessages(catalogue, { locale });
+      expect(invalid.t("files.size", { size: 1_300_000 })).toBe("It's 1.3 MB.");
+    }
+    expect(warn).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
+  });
+
+  it("reads a locale by its shape when there's no Intl to ask", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.stubGlobal("Intl", undefined);
+    createMessages(catalogue, { locale: "de-DE-u-nu-latn" });
+    expect(warn).not.toHaveBeenCalled();
+    createMessages(catalogue, { locale: "not a locale" });
     expect(warn).toHaveBeenCalledTimes(1);
     warn.mockRestore();
   });
