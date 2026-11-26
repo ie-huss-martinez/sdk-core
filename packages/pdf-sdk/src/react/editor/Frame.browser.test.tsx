@@ -464,3 +464,12 @@ describe("on a phone (sdk-core ADR 0067)", () => {
     await waitFor(() => expect(container.querySelector("dialog[open]")).toBeNull());
   });
 });
+
+describe("the properties footer (sdk-core ADR 0067)", () => {
+  it("passes a host's footer to the frame, which keeps it hidden without a properties panel", async () => {
+    const { container } = await setUp({ propertiesFooter: <div className="host-footer" /> });
+    expect(
+      container.querySelector(".hm-editor-frame-properties-footer[hidden] > .host-footer"),
+    ).not.toBeNull();
+  });
+});

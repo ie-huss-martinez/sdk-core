@@ -96,6 +96,7 @@ export interface ImageEditorProps extends Omit<ImageEditorProviderProps, "childr
     // Warning: (ae-forgotten-export) The symbol "ImagePlan" needs to be exported by the entry point react.d.ts
     readonly plan?: ImagePlan;
     readonly preferences?: EditorPreferences;
+    readonly propertiesFooter?: ReactNode;
     readonly theme?: ImageEditorTheme;
     readonly toolbar?: readonly (readonly string[])[];
     readonly tools?: readonly string[];

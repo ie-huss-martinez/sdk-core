@@ -81,6 +81,7 @@ export interface VideoEditorProps extends Omit<VideoEditorProviderProps, "childr
     readonly onExport?: (blob: Blob, result: VideoExportResult) => void;
     readonly onPreferencesChange?: (preferences: EditorPreferences) => void;
     readonly preferences?: EditorPreferences;
+    readonly propertiesFooter?: ReactNode;
 }
 
 // @public

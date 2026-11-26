@@ -1,5 +1,6 @@
 import type { EditorPreferences } from "@hussmartinez/ui";
 import type { IconComponent } from "@hussmartinez/ui/react";
+import type { ReactNode } from "react";
 import type { ImagePlan } from "../../core/model/plan.js";
 import type { ImageCommand } from "../../core/operations/commands.js";
 import type { ImageExportFormat } from "../../core/ports/image-processor.js";
@@ -92,6 +93,14 @@ export interface ImageEditorProps extends Omit<ImageEditorProviderProps, "childr
   readonly defaultPreferences?: Partial<EditorPreferences>;
   /** Called with the whole preferences when the person changes one. */
   readonly onPreferencesChange?: (preferences: EditorPreferences) => void;
+  /**
+   * Host content under the properties panel, in its column, such as an app's
+   * ad slot, passed to ui's `EditorFrame` unchanged (sdk-core ADR 0067). It
+   * shows only while the panel's content and it both fit in the column's
+   * height, and hides with the panel and below 45 rem. `<hm-image-editor>`
+   * has no equivalent, as it takes no React content.
+   */
+  readonly propertiesFooter?: ReactNode;
   /**
    * Takes the exported file instead of the export dialog's download button;
    * the dialog closes once it's called.

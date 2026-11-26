@@ -59,6 +59,7 @@ export interface AudioEditorProps extends Omit<AudioEditorProviderProps, "childr
     readonly onExport?: (blob: Blob, result: AudioRenderResult) => void;
     readonly onPreferencesChange?: (preferences: EditorPreferences) => void;
     readonly preferences?: EditorPreferences;
+    readonly propertiesFooter?: ReactNode;
     readonly theme?: "light" | "dark" | "system";
     readonly unstyled?: boolean;
 }

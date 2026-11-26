@@ -1,6 +1,7 @@
 import type { MessageOverrides } from "@hussmartinez/sdk-core";
 import type { EditorPreferences } from "@hussmartinez/ui";
 import type { IconComponent } from "@hussmartinez/ui/react";
+import type { ReactNode } from "react";
 import type { PdfBytes } from "../../core/model/document.js";
 import type { PdfExportOptions, PdfOpenOptions, PdfSession } from "../../core/session/session.js";
 import type { PdfEditorMessageCatalogue } from "../editor-messages.js";
@@ -138,6 +139,15 @@ export interface PdfEditorProps extends Omit<PdfSessionProviderProps, "children"
   readonly defaultPreferences?: Partial<EditorPreferences>;
   /** Called with the whole preferences when the person changes one. */
   readonly onPreferencesChange?: (preferences: EditorPreferences) => void;
+  /**
+   * Host content under the properties panel, in its column, such as an app's
+   * ad slot, passed to ui's `EditorFrame` unchanged (sdk-core ADR 0067). The
+   * frame shows it only under a properties panel, and this editor has none,
+   * so for now it never shows: it's here so a host can pass the same props
+   * to every editor in the family. `<hm-pdf-editor>` has no equivalent, as
+   * it takes no React content.
+   */
+  readonly propertiesFooter?: ReactNode;
   /** Icon components by name, over the SDK's own from ui. */
   readonly icons?: Readonly<Record<string, IconComponent>>;
   /** Extra classes on the root. */

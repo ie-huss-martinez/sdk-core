@@ -170,6 +170,116 @@ describe("EditorFrame", () => {
   });
 });
 
+/** A frame whose properties are a block `rows` pixels tall, with a 160 × 120 footer under them. */
+function Footed({
+  rows = 40,
+  properties = true,
+  propertiesState = "shown",
+}: {
+  rows?: number;
+  properties?: boolean;
+  propertiesState?: EditorFramePropertiesState;
+}) {
+  return (
+    <EditorFrame
+      topBar="Image editor"
+      properties={
+        properties ? <div className="rows" style={{ blockSize: `${rows}px` }} /> : undefined
+      }
+      propertiesState={propertiesState}
+      propertiesFooter={<div className="ad" style={{ inlineSize: "160px", blockSize: "120px" }} />}
+    >
+      <p>Stage</p>
+    </EditorFrame>
+  );
+}
+
+describe("EditorFrame's properties footer", () => {
+  const part = (container: HTMLElement, name: string) =>
+    container.querySelector(`.hm-editor-frame-${name}`) as HTMLElement;
+  const box = (element: Element) => element.getBoundingClientRect();
+  const rerender = (element: React.ReactElement) => act(() => root?.render(element));
+
+  it("shows under the panel, outside its landmark, at its own size when both fit", () => {
+    const container = render(<Footed />);
+    const panel = container.querySelector("aside") as HTMLElement;
+    const footer = part(container, "properties-footer");
+    expect(footer.hidden).toBe(false);
+    expect(panel.contains(footer)).toBe(false);
+    expect(footer.getAttribute("role")).toBeNull();
+    expect(footer.tabIndex).toBe(-1);
+    // The host's content keeps its size, centred under the panel.
+    const ad = box(container.querySelector(".ad") as Element);
+    expect([ad.width, ad.height]).toEqual([160, 120]);
+    // Within the footer's one-pixel rule at its inline start.
+    expect(Math.abs(ad.left - box(panel).left - (box(panel).right - ad.right))).toBeLessThanOrEqual(
+      1,
+    );
+    // The panel on top, the footer at the foot of the column, and the panel
+    // shows all of its content.
+    const column = box(part(container, "properties-column"));
+    expect(box(footer).bottom).toBeCloseTo(column.bottom, 1);
+    expect(box(panel).bottom).toBeCloseTo(box(footer).top, 1);
+    const body = part(container, "properties-body");
+    expect(body.scrollHeight).toBeLessThanOrEqual(body.clientHeight);
+  });
+
+  it("hides when the panel's content needs the room, and leaves the panel its full height", async () => {
+    const container = render(<Footed />);
+    const footer = part(container, "properties-footer");
+    const panel = container.querySelector("aside") as HTMLElement;
+    const columnHeight = box(part(container, "properties-column")).height;
+    rerender(<Footed rows={columnHeight - 100} />);
+    await vi.waitFor(() => expect(footer.hidden).toBe(true));
+    expect(box(panel).height).toBeCloseTo(columnHeight, 1);
+    expect(footer.checkVisibility()).toBe(false);
+    // It comes back, at the size it had, once there's room again.
+    rerender(<Footed rows={40} />);
+    await vi.waitFor(() => expect(footer.hidden).toBe(false));
+    expect(box(container.querySelector(".ad") as Element).height).toBe(120);
+  });
+
+  it("leaves properties that fill the panel, with a percentage height, the whole column", async () => {
+    const container = render(
+      <EditorFrame
+        topBar="Image editor"
+        properties={<div className="fill" style={{ blockSize: "100%" }} />}
+        propertiesFooter={
+          <div className="ad" style={{ inlineSize: "160px", blockSize: "120px" }} />
+        }
+      >
+        <p>Stage</p>
+      </EditorFrame>,
+    );
+    const footer = part(container, "properties-footer");
+    await vi.waitFor(() => expect(footer.hidden).toBe(true));
+    const body = part(container, "properties-body");
+    const padding = Number.parseFloat(getComputedStyle(body).paddingBlockStart) * 2;
+    expect(box(container.querySelector(".fill") as Element).height).toBeCloseTo(
+      box(body).height - padding,
+      1,
+    );
+  });
+
+  it("hides with the panel, without one, and below 45 rem, keeping its content mounted", () => {
+    const container = render(<Footed propertiesState="hidden" />);
+    const footer = part(container, "properties-footer");
+    const ad = container.querySelector(".ad");
+    expect(footer.hidden).toBe(true);
+    expect(footer.checkVisibility()).toBe(false);
+    rerender(<Footed properties={false} />);
+    expect(footer.hidden).toBe(true);
+    expect(container.querySelector("aside")).toBeNull();
+    rerender(<Footed />);
+    expect(footer.hidden).toBe(false);
+    // The same content, so an ad isn't requested again.
+    expect(container.querySelector(".ad")).toBe(ad);
+    act(() => root?.unmount());
+    const narrow = render(<Footed />, "30rem");
+    expect(getComputedStyle(part(narrow, "properties-footer")).display).toBe("none");
+  });
+});
+
 describe("ToolList", () => {
   it("runs a tool on click and Enter, moves with arrows, and never runs a disabled one", async () => {
     onRun.mockClear();

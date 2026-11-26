@@ -4,6 +4,7 @@
 - **Date:** 2026-11-24
 - **Refines:** [ADR 0006](0006-design-tokens-and-theming.md), with motion and surface tokens and a `data-hm-motion` attribute; [ADR 0030](0030-tools-and-keyboard-shortcuts.md), with a level on every tool and two family shortcuts
 - **Amended:** 2026-11-25: each panel has one control in the top bar, and edge tabs only where there's no top bar. The maintainer saw the first preview with the tools hidden, showing a ☰ in the top bar and a "☰ Tools" tab over the stage, two identical controls for one action, and found it confusing. See "States"
+- **Amended:** 2026-11-27: `EditorFrame` has a `propertiesFooter` region under the properties panel, which every SDK editor passes through, for the apps' ad slot. See "Questions decided after acceptance"
 
 ## Context
 
@@ -129,7 +130,8 @@ It searches tools only, by their labels and descriptions. Actions such as "Expor
 
 ## Questions decided after acceptance
 
-Both were the maintainer's to decide, and he did on 2026-11-26. Neither changes what an SDK does: both are decisions for the family's apps, built in editor-apps.
+Both were the maintainer's to decide, and he did on 2026-11-26. Both are decisions for the family's apps, built in editor-apps. The ad slot also needed a place in the frame, which `ui` and the SDKs added (amended 2026-11-27).
 
 - **One theme per app.** Each app keeps its own light or dark choice in its own `localStorage`. There's no shared cookie: editor-apps ADR 0002's no-cookie rule stands, and the apps on their different subdomains don't share the choice.
 - **The ad slot goes under the properties panel, in the same column.** The panel is on top, and the 160 × 600 slot sits below it when there's height for both. The editor keeps its width. When the panel needs the room, the slot hides rather than moving or shrinking. editor-apps records how this fits its ADR 0007, which requires that a shown slot never moves or resizes.
+  - **How it's built** (amended 2026-11-27): `EditorFrame` takes `propertiesFooter`, host content rendered under the panel in the same column, outside its "Properties" landmark, at its own size. It hides with `hidden`, and the panel keeps the whole column, while there's no panel (no `properties`, or `propertiesState` is `hidden`), below 45 rem, or when the panel's content at its full height and the footer don't both fit in the column's height. Its content stays mounted while it's hidden. Each SDK editor takes `propertiesFooter` and passes it to the frame unchanged; the custom elements don't, as they take no React content. `PdfEditor` has no properties panel, so it shows no footer.

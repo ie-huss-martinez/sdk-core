@@ -333,6 +333,7 @@ export interface PdfEditorProps extends Omit<PdfSessionProviderProps, "children"
     readonly onExport?: (bytes: Uint8Array, info: PdfExportInfo) => void | Promise<void>;
     readonly onPreferencesChange?: (preferences: EditorPreferences) => void;
     readonly preferences?: EditorPreferences;
+    readonly propertiesFooter?: ReactNode;
     readonly toolbar?: readonly (readonly string[])[];
     readonly tools?: readonly string[];
     readonly unstyled?: boolean;

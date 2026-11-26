@@ -7,11 +7,13 @@ import {
   type KeyboardEvent,
   type ReactElement,
   type ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useId,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import {
   CloseIcon,
@@ -53,6 +55,7 @@ export type EditorFramePart =
   | "tools"
   | "stage"
   | "properties"
+  | "propertiesFooter"
   | "bottom"
   | "tabBar"
   | "edge";
@@ -74,6 +77,29 @@ export interface EditorFrameProps
   readonly tools?: ReactNode;
   /** The properties of the selected tool or object. Without them there's no properties panel. */
   readonly properties?: ReactNode;
+  /**
+   * Host content under the properties panel, in the same column, such as an
+   * app's ad slot. What goes in it, and any landmark or name it needs, is
+   * the host's; the frame adds no landmark or tab stop of its own.
+   *
+   * The panel is on top, with its full content, and the footer sits at the
+   * foot of the column at its own size, never stretched or shrunk. It's no
+   * wider than the panel. It shows only when there's room for both, and
+   * otherwise hides, with `hidden`, rather than squeeze the panel, which
+   * then has the whole column and scrolls as it does without a footer. It
+   * hides whenever:
+   *
+   * - there's no properties panel: `properties` isn't given, or
+   *   `propertiesState` is `hidden`;
+   * - the frame is narrower than 45 rem, where the properties sit under the
+   *   stage;
+   * - the panel's content, at its full height, and the footer don't both fit
+   *   in the column's height.
+   *
+   * Its content stays mounted while it's hidden, so an ad isn't requested
+   * again each time the panel comes back.
+   */
+  readonly propertiesFooter?: ReactNode;
   /** Full width under the stage, such as a timeline and transport. */
   readonly bottom?: ReactNode;
   /**
@@ -142,6 +168,8 @@ const TOGGLE_TOOLS = [{ id: "toggle-tools", shortcuts: "toggle-tools" as const }
  *   the tools and the properties sit under the stage.
  * - **Landmarks:** the top bar is a `header`, the tools a `nav` and the
  *   properties a `complementary` region. The stage is the SDK's own.
+ * - **A host's footer** under the properties, such as an app's ad slot,
+ *   shows only while both fit in the column (`propertiesFooter`).
  *
  * The host gives the frame its height; it fills it.
  *
@@ -165,6 +193,7 @@ export const EditorFrame = /* @__PURE__ */ forwardRef(function EditorFrame(
     topBar,
     tools,
     properties,
+    propertiesFooter,
     bottom,
     tabBar,
     toolsState = "full",
@@ -237,6 +266,70 @@ export const EditorFrame = /* @__PURE__ */ forwardRef(function EditorFrame(
 
   const hasTools = tools != null;
   const hasProperties = properties != null;
+  const hasFooter = propertiesFooter != null;
+  const panelShown = hasProperties && propertiesState !== "hidden";
+
+  // The footer under the properties shows only while the panel's content at
+  // its full height and the footer both fit in the column.
+  const [footerFits, setFooterFits] = useState(true);
+  const panel = useRef<HTMLElement>(null);
+  const panelBody = useRef<HTMLDivElement>(null);
+  const footer = useRef<HTMLDivElement>(null);
+  // Its last height, kept while it's hidden and has none.
+  const footerHeight = useRef<number | undefined>(undefined);
+  // Stops watching the column, set while it's watched.
+  const columnObserver = useRef<(() => void) | undefined>(undefined);
+  // A ref callback, not a layout effect: React calls it again whenever
+  // whether there's a footer to fit changes, and it measures before the
+  // browser paints, so a footer with no room never shows for a frame. A
+  // layout effect would too, but React 18 warns about one on the server.
+  const measureColumn = useCallback(
+    (column: HTMLDivElement | null): void => {
+      columnObserver.current?.();
+      columnObserver.current = undefined;
+      const body = panelBody.current;
+      if (!column || !body || !hasFooter || !panelShown) {
+        return;
+      }
+      const measure = (): void => {
+        const fits = footerFitsIn(column, panel.current, body, footer.current, footerHeight);
+        if (fits !== undefined) {
+          setFooterFits(fits);
+        }
+      };
+      measure();
+      if (typeof ResizeObserver === "undefined") {
+        return;
+      }
+      // What decides is the column's height, the panel's content and the
+      // footer's own size, none of which change when the footer hides, so
+      // hiding it can't undo the reason it hid. The content is the body's
+      // children, which the properties can replace, so new ones are watched
+      // too. The body itself isn't: its size follows the footer's.
+      const resizes = new ResizeObserver(measure);
+      for (const element of [column, footer.current, ...body.children]) {
+        if (element) {
+          resizes.observe(element);
+        }
+      }
+      const children = new MutationObserver((records) => {
+        for (const record of records) {
+          for (const node of record.addedNodes) {
+            if (node instanceof Element) {
+              resizes.observe(node);
+            }
+          }
+        }
+        measure();
+      });
+      children.observe(body, { childList: true });
+      columnObserver.current = () => {
+        resizes.disconnect();
+        children.disconnect();
+      };
+    },
+    [hasFooter, panelShown],
+  );
 
   return (
     <EditorFrameContext.Provider value={controls}>
@@ -335,29 +428,49 @@ export const EditorFrame = /* @__PURE__ */ forwardRef(function EditorFrame(
             </button>
           ) : null}
           <div className={cx("hm-editor-frame-stage", classNames?.stage)}>{children}</div>
-          {hasProperties ? (
-            <aside
-              id={propertiesId}
-              aria-label={propertiesLabel ?? text.properties}
-              className={cx("hm-editor-frame-properties", classNames?.properties)}
-              hidden={propertiesState === "hidden"}
+          {hasProperties || hasFooter ? (
+            <div
+              ref={measureColumn}
+              className="hm-editor-frame-properties-column"
+              hidden={!panelShown}
             >
-              {/* With a top bar, its toggle is the one control that hides the properties. */}
-              {topBar == null ? (
-                <div className="hm-editor-frame-properties-head">
-                  <IconButton
-                    variant="quiet"
-                    size="small"
-                    label={text.hideProperties}
-                    icon={<CloseIcon />}
-                    aria-controls={propertiesId}
-                    unstyled={unstyled}
-                    onClick={() => setPropertiesState("hidden")}
-                  />
+              {hasProperties ? (
+                <aside
+                  ref={panel}
+                  id={propertiesId}
+                  aria-label={propertiesLabel ?? text.properties}
+                  className={cx("hm-editor-frame-properties", classNames?.properties)}
+                  hidden={propertiesState === "hidden"}
+                >
+                  {/* With a top bar, its toggle is the one control that hides the properties. */}
+                  {topBar == null ? (
+                    <div className="hm-editor-frame-properties-head">
+                      <IconButton
+                        variant="quiet"
+                        size="small"
+                        label={text.hideProperties}
+                        icon={<CloseIcon />}
+                        aria-controls={propertiesId}
+                        unstyled={unstyled}
+                        onClick={() => setPropertiesState("hidden")}
+                      />
+                    </div>
+                  ) : null}
+                  <div ref={panelBody} className="hm-editor-frame-properties-body">
+                    {properties}
+                  </div>
+                </aside>
+              ) : null}
+              {hasFooter ? (
+                <div
+                  ref={footer}
+                  className={cx("hm-editor-frame-properties-footer", classNames?.propertiesFooter)}
+                  hidden={!(panelShown && footerFits)}
+                >
+                  {propertiesFooter}
                 </div>
               ) : null}
-              <div className="hm-editor-frame-properties-body">{properties}</div>
-            </aside>
+            </div>
           ) : null}
           {hasProperties && propertiesState === "hidden" && topBar == null ? (
             <button
@@ -388,6 +501,50 @@ export const EditorFrame = /* @__PURE__ */ forwardRef(function EditorFrame(
     </EditorFrameContext.Provider>
   );
 });
+
+/**
+ * Whether the footer fits under the properties panel, with all of the
+ * panel's content in view, in the column; or `undefined` while that can't
+ * be told, before the column or the footer has been laid out once.
+ */
+function footerFitsIn(
+  column: HTMLElement,
+  panel: HTMLElement | null,
+  body: HTMLElement,
+  footer: HTMLElement | null,
+  footerHeight: { current: number | undefined },
+): boolean | undefined {
+  if (!panel || !footer || column.getClientRects().length === 0) {
+    return undefined;
+  }
+  // A footer that's hidden has no box, so it's measured while it shows.
+  if (footer.getClientRects().length > 0) {
+    footerHeight.current = footer.getBoundingClientRect().height;
+  }
+  if (footerHeight.current === undefined) {
+    return undefined;
+  }
+  // The body as tall as its content: from its top, as if it weren't
+  // scrolled, to its last child's margin edge, and its padding under that.
+  // The content isn't wrapped to be measured, so properties that fill the
+  // body, with a percentage height, still can; they need the whole column.
+  const box = body.getBoundingClientRect();
+  let end = box.top + Number.parseFloat(getComputedStyle(body).paddingBlockStart);
+  if (body.children.length === 0 && body.firstChild) {
+    const range = document.createRange();
+    range.selectNodeContents(body);
+    end = range.getBoundingClientRect().bottom;
+  }
+  for (const child of body.children) {
+    const margin = Number.parseFloat(getComputedStyle(child).marginBlockEnd) || 0;
+    end = Math.max(end, child.getBoundingClientRect().bottom + margin);
+  }
+  const content =
+    end - box.top + body.scrollTop + Number.parseFloat(getComputedStyle(body).paddingBlockEnd);
+  const panelHeight = panel.getBoundingClientRect().height - box.height + content;
+  // A pixel to spare, so rounding never leaves the panel a scroll bar.
+  return panelHeight + footerHeight.current + 1 <= column.getBoundingClientRect().height;
+}
 
 /**
  * The top bar's toggle for one panel: one control for one action, always in

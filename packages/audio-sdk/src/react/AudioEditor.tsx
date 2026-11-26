@@ -137,6 +137,14 @@ export interface AudioEditorProps extends Omit<AudioEditorProviderProps, "childr
   readonly defaultPreferences?: Partial<EditorPreferences>;
   /** Called with the whole preferences when the person changes one. */
   readonly onPreferencesChange?: (preferences: EditorPreferences) => void;
+  /**
+   * Host content under the properties panel, in its column, such as an app's
+   * ad slot, passed to ui's `EditorFrame` unchanged (sdk-core ADR 0067). It
+   * shows only while the panel's content and it both fit in the column's
+   * height, and hides with the panel and below 45 rem. `<hm-audio-editor>`
+   * has no equivalent, as it takes no React content.
+   */
+  readonly propertiesFooter?: ReactNode;
 }
 
 /**
@@ -167,7 +175,10 @@ export interface AudioEditorHandle {
 }
 
 interface ShellProps
-  extends Pick<AudioEditorProps, "preferences" | "defaultPreferences" | "onPreferencesChange"> {
+  extends Pick<
+    AudioEditorProps,
+    "preferences" | "defaultPreferences" | "onPreferencesChange" | "propertiesFooter"
+  > {
   readonly initialFile: Blob | undefined;
   readonly fileName: string | undefined;
   readonly onChange: ((plan: AudioPlan) => void) | undefined;
@@ -604,6 +615,7 @@ function Root(props: ShellProps): ReactNode {
           prefs.change({ ...preferences, properties });
         }}
         toolsLayout={preferences.toolsLayout}
+        propertiesFooter={props.propertiesFooter}
         topBar={
           <>
             <span className="hm-audio-editor-title">
@@ -799,6 +811,7 @@ export const AudioEditor = /* @__PURE__ */ forwardRef<AudioEditorHandle, AudioEd
       preferences,
       defaultPreferences,
       onPreferencesChange,
+      propertiesFooter,
       ...provider
     },
     ref,
@@ -819,6 +832,7 @@ export const AudioEditor = /* @__PURE__ */ forwardRef<AudioEditorHandle, AudioEd
           {...(preferences ? { preferences } : {})}
           {...(defaultPreferences ? { defaultPreferences } : {})}
           {...(onPreferencesChange ? { onPreferencesChange } : {})}
+          propertiesFooter={propertiesFooter}
         />
       </AudioEditorProvider>
     );
