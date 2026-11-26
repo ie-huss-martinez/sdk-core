@@ -5,7 +5,9 @@
  */
 import { createTheme, themeToCss, tokens } from "@hussmartinez/ui";
 import {
+  ArrowRightIcon,
   Button,
+  ButtonLink,
   ColorField,
   Field,
   Heading,
@@ -14,6 +16,8 @@ import {
   ProgressBar,
   Slider,
   Spinner,
+  Tag,
+  TagList,
   TextArea,
   TextField,
   ThemeProvider,
@@ -59,6 +63,16 @@ export default function Page() {
           <Heading id="status-title">Status</Heading>
           <Spinner label="Loading pages" />
           <ProgressBar value={40} label="Exporting" />
+          <TagList aria-label="Formats">
+            <Tag>PDF</Tag>
+            <Tag tone="success">Ready</Tag>
+          </TagList>
+          <ButtonLink href="#status-title" endIcon={<ArrowRightIcon />}>
+            Back to the status
+          </ButtonLink>
+          <ButtonLink variant="quiet" href="/" target="_blank">
+            This page again
+          </ButtonLink>
         </section>
         <Field label="Volume" description="For playback only">
           <Slider defaultValue={40} />

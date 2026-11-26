@@ -662,6 +662,24 @@ export type ComponentTokenName =
   | "spinner-color"
   | "spinner-track-color"
   | "spinner-duration"
+  | "tag-padding-y"
+  | "tag-padding-x"
+  | "tag-gap"
+  | "tag-radius"
+  | "tag-font-size"
+  | "tag-icon-size"
+  | "tag-bg"
+  | "tag-fg"
+  | "tag-border-color"
+  | "tag-accent-bg"
+  | "tag-accent-fg"
+  | "tag-success-bg"
+  | "tag-success-fg"
+  | "tag-warning-bg"
+  | "tag-warning-fg"
+  | "tag-danger-bg"
+  | "tag-danger-fg"
+  | "tag-list-gap"
   | "progress-height"
   | "progress-radius"
   | "progress-track-color"
@@ -895,6 +913,24 @@ const component = {
   "spinner-color": { fallback: "color-accent" },
   "spinner-track-color": { fallback: "color-border" },
   "spinner-duration": { fallback: "motion-duration-loop" },
+  "tag-padding-y": { fallback: "gap-tight" },
+  "tag-padding-x": { fallback: "inset-tight" },
+  "tag-gap": { fallback: "gap-tight" },
+  "tag-radius": { fallback: "radius-round" },
+  "tag-font-size": { fallback: "font-size-small" },
+  "tag-icon-size": { fallback: "font-size-body" },
+  "tag-bg": { fallback: "color-control" },
+  "tag-fg": { fallback: "color-text" },
+  "tag-border-color": { fallback: "color-border" },
+  "tag-accent-bg": { fallback: "color-accent-subtle" },
+  "tag-accent-fg": { fallback: "color-text" },
+  "tag-success-bg": { fallback: "color-success-subtle" },
+  "tag-success-fg": { fallback: "color-success-text" },
+  "tag-warning-bg": { fallback: "color-warning-subtle" },
+  "tag-warning-fg": { fallback: "color-warning-text" },
+  "tag-danger-bg": { fallback: "color-danger-subtle" },
+  "tag-danger-fg": { fallback: "color-danger-text" },
+  "tag-list-gap": { fallback: "gap-normal" },
   "progress-height": { fallback: "track-size" },
   "progress-radius": { fallback: "radius-round" },
   "progress-track-color": { fallback: "color-surface-sunken" },

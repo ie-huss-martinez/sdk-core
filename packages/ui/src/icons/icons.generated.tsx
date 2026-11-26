@@ -41,6 +41,68 @@ export function ArrowIcon(props: IconProps): ReactElement {
 }
 
 /**
+ * The `arrow-right` icon: Lucide's `arrow-right`, mirrored in right-to-left text.
+ *
+ * @public
+ */
+export function ArrowRightIcon(props: IconProps): ReactElement {
+  return renderIcon(
+    "arrow-right",
+    [
+      ["path", { d: "M5 12h14" }],
+      ["path", { d: "m12 5 7 7-7 7" }],
+    ],
+    true,
+    props,
+  );
+}
+
+/**
+ * The `book` icon: Lucide's `book-open`.
+ *
+ * @public
+ */
+export function BookIcon(props: IconProps): ReactElement {
+  return renderIcon(
+    "book",
+    [
+      ["path", { d: "M12 5v16" }],
+      [
+        "path",
+        {
+          d: "M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z",
+        },
+      ],
+    ],
+    false,
+    props,
+  );
+}
+
+/**
+ * The `brain` icon: Lucide's `brain`.
+ *
+ * @public
+ */
+export function BrainIcon(props: IconProps): ReactElement {
+  return renderIcon(
+    "brain",
+    [
+      ["path", { d: "M12 18V5" }],
+      ["path", { d: "M15 13a4.17 4.17 0 01-3-4 4.17 4.17 0 01-3 4" }],
+      ["path", { d: "M17.707 6.294A3 3 0 1012 5a3 3 0 10-5.707 1.294" }],
+      ["path", { d: "M17.996 5.125a4 4 0 012.526 5.77" }],
+      ["path", { d: "M18 18a4 4 0 002-7.465" }],
+      ["path", { d: "M19.967 17.482a4 4 0 11-7.967.517 4 4 0 11-7.967-.517" }],
+      ["path", { d: "M6 18a4 4 0 01-2-7.465" }],
+      ["path", { d: "M6.004 5.125a4 4 0 00-2.526 5.77" }],
+    ],
+    false,
+    props,
+  );
+}
+
+/**
  * The `check` icon: Lucide's `check`.
  *
  * @public
@@ -87,6 +149,24 @@ export function CloseIcon(props: IconProps): ReactElement {
     [
       ["path", { d: "M18 6 6 18" }],
       ["path", { d: "m6 6 12 12" }],
+    ],
+    false,
+    props,
+  );
+}
+
+/**
+ * The `code` icon: Lucide's `code-xml`.
+ *
+ * @public
+ */
+export function CodeIcon(props: IconProps): ReactElement {
+  return renderIcon(
+    "code",
+    [
+      ["path", { d: "m18 16 4-4-4-4" }],
+      ["path", { d: "m6 8-4 4 4 4" }],
+      ["path", { d: "m14.5 4-5 16" }],
     ],
     false,
     props,
@@ -194,6 +274,23 @@ export function EllipseIcon(props: IconProps): ReactElement {
 }
 
 /**
+ * The `external-link` icon: Lucide's `arrow-up-right`, mirrored in right-to-left text.
+ *
+ * @public
+ */
+export function ExternalLinkIcon(props: IconProps): ReactElement {
+  return renderIcon(
+    "external-link",
+    [
+      ["path", { d: "M7 7h10v10" }],
+      ["path", { d: "M7 17 17 7" }],
+    ],
+    true,
+    props,
+  );
+}
+
+/**
  * The `eyedropper` icon: Lucide's `pipette`.
  *
  * @public
@@ -251,6 +348,24 @@ export function FadeOutIcon(props: IconProps): ReactElement {
       ["path", { d: "M19 21v-6" }],
     ],
     true,
+    props,
+  );
+}
+
+/**
+ * The `feed` icon: Lucide's `rss`.
+ *
+ * @public
+ */
+export function FeedIcon(props: IconProps): ReactElement {
+  return renderIcon(
+    "feed",
+    [
+      ["path", { d: "M4 11a9 9 0 0 1 9 9" }],
+      ["path", { d: "M4 4a16 16 0 0 1 16 16" }],
+      ["circle", { cx: "5", cy: "19", r: "1" }],
+    ],
+    false,
     props,
   );
 }
@@ -377,6 +492,24 @@ export function HighlighterIcon(props: IconProps): ReactElement {
 }
 
 /**
+ * The `history` icon: Lucide's `rotate-ccw-clock`.
+ *
+ * @public
+ */
+export function HistoryIcon(props: IconProps): ReactElement {
+  return renderIcon(
+    "history",
+    [
+      ["path", { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" }],
+      ["path", { d: "M3 3v5h5" }],
+      ["path", { d: "M12 7v5l4 2" }],
+    ],
+    false,
+    props,
+  );
+}
+
+/**
  * The `image` icon: Lucide's `image`.
  *
  * @public
@@ -436,6 +569,28 @@ export function LayersIcon(props: IconProps): ReactElement {
 }
 
 /**
+ * The `location` icon: Lucide's `map-pin`.
+ *
+ * @public
+ */
+export function LocationIcon(props: IconProps): ReactElement {
+  return renderIcon(
+    "location",
+    [
+      [
+        "path",
+        {
+          d: "M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0",
+        },
+      ],
+      ["circle", { cx: "12", cy: "10", r: "3" }],
+    ],
+    false,
+    props,
+  );
+}
+
+/**
  * The `loop` icon: Lucide's `repeat`.
  *
  * @public
@@ -448,6 +603,23 @@ export function LoopIcon(props: IconProps): ReactElement {
       ["path", { d: "M3 11v-1a4 4 0 0 1 4-4h14" }],
       ["path", { d: "m7 22-4-4 4-4" }],
       ["path", { d: "M21 13v1a4 4 0 0 1-4 4H3" }],
+    ],
+    false,
+    props,
+  );
+}
+
+/**
+ * The `mail` icon: Lucide's `mail`.
+ *
+ * @public
+ */
+export function MailIcon(props: IconProps): ReactElement {
+  return renderIcon(
+    "mail",
+    [
+      ["path", { d: "m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7" }],
+      ["rect", { x: "2", y: "4", width: "20", height: "16", rx: "2" }],
     ],
     false,
     props,
@@ -774,6 +946,29 @@ export function PropertiesIcon(props: IconProps): ReactElement {
 }
 
 /**
+ * The `question` icon: Lucide's `message-circle-question-mark`.
+ *
+ * @public
+ */
+export function QuestionIcon(props: IconProps): ReactElement {
+  return renderIcon(
+    "question",
+    [
+      [
+        "path",
+        {
+          d: "M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719",
+        },
+      ],
+      ["path", { d: "M9 9.5a3 2.5 0 016 0c0 2-2 2-3 3.5" }],
+      ["path", { d: "M12 17h.01" }],
+    ],
+    false,
+    props,
+  );
+}
+
+/**
  * The `range-end` icon: ui's own `range-end` glyph, mirrored in right-to-left text.
  *
  * @public
@@ -928,6 +1123,24 @@ export function RotateRightIcon(props: IconProps): ReactElement {
 }
 
 /**
+ * The `route` icon: Lucide's `route`.
+ *
+ * @public
+ */
+export function RouteIcon(props: IconProps): ReactElement {
+  return renderIcon(
+    "route",
+    [
+      ["path", { d: "M9 5h8.5a1 1 0 010 7h-11a1 1 0 000 7H15" }],
+      ["circle", { cx: "18", cy: "19", r: "3" }],
+      ["circle", { cx: "6", cy: "5", r: "3" }],
+    ],
+    false,
+    props,
+  );
+}
+
+/**
  * The `search` icon: Lucide's `search`.
  *
  * @public
@@ -1055,6 +1268,30 @@ export function SnapIcon(props: IconProps): ReactElement {
 }
 
 /**
+ * The `sparkles` icon: Lucide's `sparkles`.
+ *
+ * @public
+ */
+export function SparklesIcon(props: IconProps): ReactElement {
+  return renderIcon(
+    "sparkles",
+    [
+      [
+        "path",
+        {
+          d: "M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z",
+        },
+      ],
+      ["path", { d: "M20 2v4" }],
+      ["path", { d: "M22 4h-4" }],
+      ["circle", { cx: "4", cy: "20", r: "2" }],
+    ],
+    false,
+    props,
+  );
+}
+
+/**
  * The `split` icon: Lucide's `scissors`.
  *
  * @public
@@ -1145,6 +1382,46 @@ export function ThemeLightIcon(props: IconProps): ReactElement {
       ["path", { d: "M20 12h2" }],
       ["path", { d: "m6.34 17.66-1.41 1.41" }],
       ["path", { d: "m19.07 4.93-1.41 1.41" }],
+    ],
+    false,
+    props,
+  );
+}
+
+/**
+ * The `time` icon: Lucide's `clock`.
+ *
+ * @public
+ */
+export function TimeIcon(props: IconProps): ReactElement {
+  return renderIcon(
+    "time",
+    [
+      ["circle", { cx: "12", cy: "12", r: "10" }],
+      ["path", { d: "M12 6v6l4 2" }],
+    ],
+    false,
+    props,
+  );
+}
+
+/**
+ * The `tip` icon: Lucide's `lightbulb`.
+ *
+ * @public
+ */
+export function TipIcon(props: IconProps): ReactElement {
+  return renderIcon(
+    "tip",
+    [
+      [
+        "path",
+        {
+          d: "M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5",
+        },
+      ],
+      ["path", { d: "M9 18h6" }],
+      ["path", { d: "M10 22h4" }],
     ],
     false,
     props,

@@ -79,6 +79,15 @@
   }
 
   /*
+   * A link that looks like a button (docs/adr/0015): it loses a link's
+   * underline, as a button has none. Its colours are the button's, visited or
+   * not.
+   */
+  .hm-button-link:not([data-hm-unstyled]) {
+    text-decoration: none;
+  }
+
+  /*
    * Only hover and press fade in, as feedback. A change of state, such as a
    * button becoming available, shows at once: fading from the disabled
    * colours would leave a button that can be used looking unusable, and

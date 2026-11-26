@@ -24,20 +24,23 @@ const icons = Object.entries(ui)
   .filter(([name]) => /^[A-Z]\w*Icon$/.test(name))
   .map(([name, component]) => ({ name: kebab(name), Icon: component as IconComponent }));
 
+/*
+ * Each icon beside its name, in rows short enough that the whole set fits the
+ * 768 px the visual tests paint: anything below that is left out of a
+ * screenshot, and so out of the comparison.
+ */
 const grid = {
   display: "grid",
   gap: "var(--hm-gap-normal)",
-  gridTemplateColumns: "repeat(auto-fill, minmax(7.5rem, 1fr))",
+  gridTemplateColumns: "repeat(auto-fill, minmax(9.5rem, 1fr))",
   listStyle: "none",
   margin: 0,
   padding: 0,
 } as const;
 const cell = {
   alignItems: "center",
-  display: "grid",
-  gap: "var(--hm-gap-tight)",
-  justifyItems: "center",
-  padding: "var(--hm-inset-tight)",
+  display: "flex",
+  gap: "var(--hm-gap-normal)",
 } as const;
 const caption = { fontFamily: "var(--hm-font-family-mono)", fontSize: "var(--hm-font-size-small)" };
 
