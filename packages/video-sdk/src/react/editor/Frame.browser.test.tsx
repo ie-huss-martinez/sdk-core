@@ -121,6 +121,24 @@ describe("the editor's modes (sdk-core ADR 0067)", () => {
     expect(named(view, "Commands")).not.toBeUndefined();
   });
 
+  it("leaves out the transport's start and end, and their card, when the host leaves out their tools", async () => {
+    const { view, insert } = setUp({
+      defaultPreferences: { mode: "expert" },
+      tools: ["video.undo", "video.split", "video.delete", "video.insert", "video.mute"],
+      // Mute is present but not in the toolbar, so no row leads to it.
+      toolbar: [["video.split", "video.delete"], ["video.insert"]],
+    });
+    expect(transport(view)).toEqual(["Previous frame", "Play", "Next frame"]);
+    await insert();
+    act(() => {
+      // Easy mode now, to see the cards.
+      named(view, "Easy")?.click();
+    });
+    await vi.waitFor(() =>
+      expect(cards(view)).toEqual(["Cut a clip", "Join clips", "Remove a part"]),
+    );
+  });
+
   it("reaches a tool Easy doesn't list from the command palette, with Ctrl+K", async () => {
     const { view, insert } = setUp({ defaultPreferences: { mode: "easy" } });
     await insert();

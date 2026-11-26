@@ -50,7 +50,7 @@ export function VideoTransport(props: VideoTransportProps): ReactNode {
 export function Transport(
   props: VideoTransportProps & { readonly mode?: EditorMode | undefined },
 ): ReactNode {
-  const { messages, locale } = useVideoEditor();
+  const { messages, locale, tools } = useVideoEditor();
   const { snapshot } = useVideoSession();
   const { output, snapshot: playback } = useVideoOutput();
   const frame = useVideoPlayhead();
@@ -87,13 +87,17 @@ export function Transport(
   });
 
   const steps = props.mode !== "easy";
+  // The start and end are tools of Expert mode's: a host that leaves them
+  // out of `tools` gets neither the buttons nor their keys.
   const ends = props.mode === "expert";
+  const start = ends && tools.get("video.start") !== undefined;
+  const end = ends && tools.get("video.end") !== undefined;
   return (
     <fieldset
       className={["hm-video-transport", props.className].filter(Boolean).join(" ")}
       aria-label={messages.t("transport.label")}
     >
-      {ends ? (
+      {start ? (
         <IconButton
           label={messages.t("tools.start")}
           icon={<SkipBackIcon />}
@@ -132,7 +136,7 @@ export function Transport(
           onClick={() => output?.step(1)}
         />
       ) : null}
-      {ends ? (
+      {end ? (
         <IconButton
           label={messages.t("tools.end")}
           icon={<SkipForwardIcon />}

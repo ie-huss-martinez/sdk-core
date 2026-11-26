@@ -200,9 +200,18 @@ export function VideoEditorProvider(props: VideoEditorProviderProps): ReactNode 
   const onEvent = useLatest(props.onEvent);
   // The editor's own listeners, such as its toasts, beside the host's.
   const eventListeners = useRef(new Set<(event: VideoSessionEvent) => void>());
+  // The host's handler comes first. One that throws can't keep the event from
+  // the editor's own listeners: its error is thrown again in a microtask, so
+  // it's still reported, as an uncaught error.
   const emit = useCallback(
     (event: VideoSessionEvent) => {
-      onEvent.current?.(event);
+      try {
+        onEvent.current?.(event);
+      } catch (error) {
+        queueMicrotask(() => {
+          throw error;
+        });
+      }
       for (const listener of eventListeners.current) listener(event);
     },
     [onEvent],

@@ -318,9 +318,11 @@ function Root(props: RootProps): ReactNode {
   // What takes focus once the next render commits, by selector.
   const pendingFocus = useRef<string | null>(null);
 
+  // A tool that ran closes the start cards; one that couldn't leaves them.
   const runTool = (id: string): boolean => {
-    if (sourceId !== undefined) setStartShownFor(sourceId);
-    return run(id);
+    const ran = run(id);
+    if (ran && sourceId !== undefined) setStartShownFor(sourceId);
+    return ran;
   };
 
   // The tools panel's file picker, for the insert tool.
@@ -380,8 +382,14 @@ function Root(props: RootProps): ReactNode {
   // Only the cards whose tools the host kept. Their tools act on the
   // playhead and the selection, so they're shown whether or not they can
   // run yet.
+  //
+  // A card that leads to a row needs its tool in the host's toolbar, where
+  // the row is; one that runs its tool, opening the picker, needs it present.
   const present = (id: string) => lists.palette.some((item) => item.id === id);
-  const cards = START_CARDS.filter((card) => card.tools.some(present));
+  const placed = (id: string) =>
+    registry.toolbar.some((group) => group.some((tool) => tool.id === id));
+  const reachable = (card: StartCard) => (card.run ? present : placed);
+  const cards = START_CARDS.filter((card) => card.tools.some(reachable(card)));
   const startShown =
     cards.length > 0 && mode === "easy" && sourceId !== undefined && startShownFor !== sourceId;
 
@@ -426,14 +434,16 @@ function Root(props: RootProps): ReactNode {
    */
   const chooseCard = (card: StartCard) => {
     if (sourceId === undefined) return;
+    const usable = card.tools.filter(reachable(card));
+    const target =
+      usable.find((id) => lists.palette.some((item) => item.id === id && !item.disabled)) ??
+      usable[0];
+    if (target === undefined) return;
+    // The picker opens within the click, as browsers require. A tool that
+    // can't run leaves the cards open, with focus on the card.
+    if (card.run && !run(target)) return;
     setStartShownFor(sourceId);
     setChosen({ source: sourceId, card });
-    const target =
-      card.tools.find((id) => lists.palette.some((item) => item.id === id && !item.disabled)) ??
-      card.tools.find(present);
-    if (target === undefined) return;
-    // The picker opens within the click, as browsers require.
-    if (card.run) run(target);
     const group = registry.toolbar.find((tools) => tools.some((tool) => tool.id === target));
     const tabs = root.current?.querySelector<HTMLElement>(".hm-tab-bar");
     if (tabs?.checkVisibility()) {

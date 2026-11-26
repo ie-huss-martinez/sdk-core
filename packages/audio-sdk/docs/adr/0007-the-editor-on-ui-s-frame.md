@@ -45,7 +45,7 @@ The audio editor differs from the other two in three ways that shape the move:
   - The export dialog keeps its own announcements: it's modal, and the toasts sit behind it.
   - A change of mode or theme says its name.
 - **Preferences:** `AudioEditor` takes `preferences`, `defaultPreferences` and `onPreferencesChange`, and never stores them.
-  - Without them, it starts in Advanced mode. The family's apps pass their own, with Easy on a first visit.
+  - Without them, it starts in Advanced mode, so a host that embedded it before keeps most of its tools in the panel. Moving tracks up and down, moving clips to the track above or below, Ripple, and going to the start or end are Expert tools: in Advanced they're in the command palette, with their shortcuts, but not the panel, and the transport has no start or end button. A host that wants them listed passes `defaultPreferences={{ mode: "expert" }}`, as image-sdk's does for Layers. The family's apps pass their own, with Easy on a first visit.
   - The theme, density and motion are each set on the root once chosen: when the host passes preferences, or a default for that field, or the person changes it. Until then, the editor inherits the page's. The theme toggle and the settings show the values in effect, the page's included.
   - **The `theme` prop wins,** as image-sdk's does: with it, the top bar has no theme toggle and the settings leave the theme out.
 - **The root keeps its layout when `unstyled`.** It's a column that the frame fills, and the frame keeps its own layout with `unstyled`; what goes is the look: the frame's and the editor's colours, and `hm-text`.

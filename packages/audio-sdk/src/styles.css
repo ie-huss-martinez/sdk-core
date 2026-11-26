@@ -80,6 +80,23 @@
   }
 
   /*
+   * The stage takes what the bars leave, and the timeline scrolls in it.
+   * Layout, kept with unstyled, so a host's fixed height still reaches every
+   * track.
+   */
+  .hm-audio-editor-stage {
+    flex: 1 1 auto;
+    display: grid;
+    align-content: start;
+    min-block-size: 0;
+    overflow: auto;
+  }
+
+  .hm-audio-editor-stage[data-hm-empty] {
+    align-content: stretch;
+  }
+
+  /*
    * Easy mode's start cards, over the stage (sdk-core ADR 0067): the steps,
    * the question, and the cards in a grid that wraps.
    */
@@ -278,19 +295,9 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* The stage takes what the bars leave, and the timeline scrolls in it. */
   .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-stage {
-    flex: 1 1 auto;
-    display: grid;
     gap: var(--hm-gap-normal);
-    align-content: start;
-    min-block-size: 0;
-    overflow: auto;
     padding: var(--hm-inset-normal);
-  }
-
-  .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-stage[data-hm-empty] {
-    align-content: stretch;
   }
 
   .hm-audio-editor:not([data-hm-unstyled]) .hm-audio-editor-progress {
