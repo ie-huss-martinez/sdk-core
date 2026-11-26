@@ -93,6 +93,47 @@ describe("Card", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
+  it("keeps a control in the media above the main action, though the media is shown first", async () => {
+    const onOpen = vi.fn();
+    const onPlay = vi.fn();
+    const card = render(
+      <Card
+        style={{ inlineSize: "240px" }}
+        title={
+          <button type="button" onClick={onOpen}>
+            Travel
+          </button>
+        }
+        media={
+          <button type="button" onClick={onPlay}>
+            Play
+          </button>
+        }
+      />,
+    );
+    await userEvent.click(card.querySelector(".hm-card-media button") as HTMLElement);
+    expect(onPlay).toHaveBeenCalledOnce();
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("scales an image inside a picture to the card's width", () => {
+    const card = render(
+      <Card
+        style={{ inlineSize: "240px" }}
+        title={<a href="#travel">Travel</a>}
+        media={
+          <picture>
+            <img alt="" width={1200} height={600} />
+          </picture>
+        }
+      />,
+    );
+    const media = card.querySelector(".hm-card-media") as HTMLElement;
+    const image = card.querySelector("img") as HTMLElement;
+    expect(image.getBoundingClientRect().width).toBe(media.getBoundingClientRect().width);
+    expect(image.getBoundingClientRect().height).toBe(media.getBoundingClientRect().width / 2);
+  });
+
   it("shows the media, then the eyebrow, above the title", () => {
     const card = render(<TestCard onOpen={vi.fn()} onDelete={vi.fn()} />);
     const media = card.querySelector(".hm-card-media") as HTMLElement;

@@ -202,4 +202,29 @@ describe("startMorphTransition", () => {
     expect(nameOf(card)).toBe("");
     expect(document.documentElement.hasAttribute("data-hm-morph")).toBe(false);
   });
+
+  it("rejects, rather than throws, when update fails without motion", async () => {
+    await commands.setReducedMotion(true);
+    const failure = new Error("no");
+    const result = startMorphTransition({
+      from: { current: document.body },
+      to: { current: null },
+      update: () => {
+        throw failure;
+      },
+    });
+    await expect(result).rejects.toBe(failure);
+  });
+
+  it("puts the elements' own names back", async () => {
+    const { card, dialog } = render();
+    card.style.setProperty("view-transition-name", "host-card", "important");
+    dialog.style.setProperty("view-transition-name", "host-dialog");
+    await userEvent.click(card.querySelector("button") as HTMLElement);
+    await morph;
+    expect(dialog.open).toBe(true);
+    expect(nameOf(card)).toBe("host-card");
+    expect(card.style.getPropertyPriority("view-transition-name")).toBe("important");
+    expect(nameOf(dialog)).toBe("host-dialog");
+  });
 });

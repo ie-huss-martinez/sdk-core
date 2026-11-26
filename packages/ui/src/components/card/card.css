@@ -8,6 +8,8 @@
     display: flex;
     flex-direction: column;
     gap: var(--hm-card-gap, var(--hm-gap-normal));
+    /* Keeps the raised controls' stacking inside the card. */
+    isolation: isolate;
     overflow: hidden;
     padding: var(--hm-card-padding, var(--hm-inset-normal));
     position: relative;
@@ -30,7 +32,8 @@
     order: -2;
   }
 
-  .hm-card-media > :is(img, picture, video, svg, canvas) {
+  .hm-card-media > :is(img, picture, video, svg, canvas),
+  .hm-card-media > picture > img {
     block-size: auto;
     display: block;
     inline-size: 100%;
@@ -45,13 +48,15 @@
 
   /*
    * Other interactive elements sit above the main action, so they keep their
-   * own clicks: both are positioned, and they come later in the source. The
-   * rest, such as a footer's tags, follows the main action.
+   * own clicks. A stacking level, not source order, puts them there: `order`
+   * moves the media before the title. The rest, such as a footer's tags,
+   * follows the main action.
    */
   .hm-card
     > :not(.hm-card-title)
     :is(a[href], button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])) {
     position: relative;
+    z-index: var(--hm-z-raised);
   }
 
   .hm-card-footer {

@@ -33,15 +33,23 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 }
 
-function setName(element: HTMLElement, name: string): void {
-  element.style.setProperty("view-transition-name", name);
-}
-
-/** Takes the name off, unless something else has replaced it since. */
-function clearName(element: HTMLElement | null, name: string): void {
-  if (element?.style.getPropertyValue("view-transition-name") === name) {
-    element.style.removeProperty("view-transition-name");
-  }
+/** Gives an element the morph's name, and returns what puts its own back. */
+function setName(element: HTMLElement, name: string): () => void {
+  const { style } = element;
+  const previous = style.getPropertyValue("view-transition-name");
+  const priority = style.getPropertyPriority("view-transition-name");
+  style.setProperty("view-transition-name", name);
+  // Only while the name is still the morph's: a later change stays.
+  return () => {
+    if (style.getPropertyValue("view-transition-name") !== name) {
+      return;
+    }
+    if (previous === "") {
+      style.removeProperty("view-transition-name");
+    } else {
+      style.setProperty("view-transition-name", previous, priority);
+    }
+  };
 }
 
 /**
@@ -50,8 +58,9 @@ function clearName(element: HTMLElement | null, name: string): void {
  * (ADR 0014). Call it again with the two swapped to shrink back.
  *
  * - **Without motion:** with no View Transitions API, no `from` element, or
- *   when the user prefers reduced motion, it runs `update` directly and
- *   resolves.
+ *   when the user prefers reduced motion, it runs `update` directly.
+ * - **Names:** an element's own `view-transition-name` is put back
+ *   afterwards.
  * - **CSP:** the elements get a `view-transition-name` through the CSSOM
  *   only while the transition runs, never in markup.
  * - **Dialog:** its own fade and rise are off while a morph runs, so only
@@ -83,29 +92,33 @@ export function startMorphTransition({ from, to, update }: MorphTransitionOption
     typeof document.startViewTransition !== "function" ||
     prefersReducedMotion()
   ) {
-    update();
+    try {
+      update();
+    } catch (error) {
+      return Promise.reject(error);
+    }
     return Promise.resolve();
   }
 
   morphs += 1;
   const name = `hm-morph-${morphs}`;
   const root = document.documentElement;
-  let target: HTMLElement | null = null;
+  let restoreTarget = (): void => undefined;
 
   running += 1;
   root.setAttribute(RUNNING, "");
   // The "before" snapshot is taken with the name on `from`. In the update,
   // the name moves to `to`, so no two elements hold it at once, which would
   // skip the transition.
-  setName(source, name);
+  const restoreSource = setName(source, name);
   const transition = document.startViewTransition(() => {
-    clearName(source, name);
+    restoreSource();
     // React runs the effects of a flushSync render before it returns, so a
     // Dialog has called showModal() by the "after" snapshot (ADR 0014).
     flushSync(update);
-    target = to.current;
+    const target = to.current;
     if (target !== null && target !== source) {
-      setName(target, name);
+      restoreTarget = setName(target, name);
     }
   });
   // `ready` rejects when the transition is skipped, such as by another one
@@ -114,8 +127,8 @@ export function startMorphTransition({ from, to, update }: MorphTransitionOption
   transition.ready.catch(() => undefined);
   transition.updateCallbackDone.catch(() => undefined);
   return transition.finished.finally(() => {
-    clearName(source, name);
-    clearName(target, name);
+    restoreSource();
+    restoreTarget();
     running -= 1;
     if (running === 0) {
       root.removeAttribute(RUNNING);

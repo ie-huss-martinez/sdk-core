@@ -130,7 +130,7 @@ export default [
   entryBudget({
     name: "React entry (./react), with the shared code it loads",
     entry: "dist/react.js",
-    // 42.5 kB; 42.25 kB with Card and startMorphTransition (docs/adr/0014),
+    // 42.5 kB; 42.35 kB with Card and startMorphTransition (docs/adr/0014),
     // which the last two scenarios measure. Before, 42 kB; 41.73 kB with
     // ThemeToggle's `inherit`, which reads the theme its
     // element inherits and follows its ancestors' changes. Before, 41.5 kB;
@@ -149,7 +149,7 @@ export default [
   entryBudget({
     name: "Stylesheet (./styles.css)",
     entry: "dist/styles.css",
-    // 15 kB; 14.53 kB with the card and the morph's rules (docs/adr/0014).
+    // 15 kB; 14.66 kB with the card and the morph's rules (docs/adr/0014).
     // Before, 14 kB; 13.71 kB with the editor frame's components, the colour
     // picker (with its right-to-left strips) and the reduced-motion and
     // theme blocks of the new tokens.
@@ -208,9 +208,9 @@ export default [
   ),
   // 6 kB; 5.86 kB, with its colour names (docs/adr/0013).
   scenario("ColorPicker", ["ColorPicker", "addRecentColor"], "6 kB"),
-  // 1 kB; 0.60 kB, with the heading level's context (docs/adr/0014).
+  // 1 kB; 0.61 kB, with the heading level's context (docs/adr/0014).
   scenario("Card", ["Card"], "1 kB"),
-  // 2.5 kB; 2.37 kB: a card, its dialog and the view transition between them.
+  // 2.5 kB; 2.43 kB: a card, its dialog and the view transition between them.
   scenario(
     "a Card that morphs into a Dialog",
     ["Card", "Dialog", "startMorphTransition"],
