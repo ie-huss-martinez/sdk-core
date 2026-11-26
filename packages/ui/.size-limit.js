@@ -159,7 +159,7 @@ export default [
   entryBudget({
     name: "React entry (./react), with the shared code it loads",
     entry: "dist/react.js",
-    // 45 kB; 44.83 kB with SearchField (docs/adr/0017), 1.64 kB to an
+    // 45 kB; 44.94 kB with SearchField (docs/adr/0017), 1.74 kB to an
     // application that imports it, with the icon button that clears it.
     // Before, 44.5 kB; 44.49 kB with Tabs (docs/adr/0016), 1.43 kB to an application
     // that imports it, with the heading it shows before it's ready.

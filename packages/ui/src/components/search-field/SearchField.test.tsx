@@ -19,6 +19,10 @@ describe("SearchField on the server", () => {
     expect(html).toContain('class="hm-search-field-input"');
   });
 
+  it("adds no placeholder of its own", () => {
+    expect(renderToString(<SearchField label="Search guides" />)).not.toContain("placeholder");
+  });
+
   it("leaves clearing to the browser until its own button works", () => {
     const html = renderToString(<SearchField label="Search guides" defaultValue="cors" />);
     expect(html).toContain('value="cors"');

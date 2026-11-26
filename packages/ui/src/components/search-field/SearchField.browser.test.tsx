@@ -82,6 +82,22 @@ describe("SearchField before JavaScript", () => {
     expect(input.value).toBe("cors");
     expect(clearOf(container)?.getAttribute("aria-label")).toBe("Clear search");
   });
+
+  it("keeps what was typed before it hydrated, and offers to clear it", async () => {
+    const page = field();
+    const container = mount(renderToString(page));
+    // Someone who started typing before the page's JavaScript arrived.
+    await userEvent.click(inputOf(container));
+    await userEvent.keyboard("socket");
+    act(() => {
+      root = hydrateRoot(container, page);
+    });
+    expect(inputOf(container).value).toBe("socket");
+    expect(clearOf(container)).not.toBeNull();
+    await userEvent.click(clearOf(container) as HTMLElement);
+    expect(inputOf(container).value).toBe("");
+    expect(clearOf(container)).toBeNull();
+  });
 });
 
 describe("SearchField", () => {
@@ -124,7 +140,8 @@ describe("SearchField", () => {
     const container = render(field({ defaultValue: "cors", onValueChange }));
     await userEvent.click(clearOf(container) as HTMLElement);
     expect(inputOf(container).value).toBe("");
-    expect(onValueChange).toHaveBeenLastCalledWith("");
+    // Told once, not once by the button and again by the input.
+    expect(onValueChange.mock.calls).toEqual([[""]]);
     expect(document.activeElement).toBe(inputOf(container));
     expect(clearOf(container)).toBeNull();
   });
@@ -166,10 +183,15 @@ describe("SearchField", () => {
     expect(inputOf(container).value).toBe("");
   });
 
-  it("has no clear button while it's disabled", () => {
-    const container = render(field({ defaultValue: "cors", disabled: true }));
+  it("has no clear button while it's disabled or read-only", () => {
+    const container = render(
+      <>
+        {field({ defaultValue: "cors", disabled: true })}
+        {field({ defaultValue: "cors", readOnly: true })}
+      </>,
+    );
+    expect(container.querySelector(".hm-search-field-clear")).toBeNull();
     expect(inputOf(container).disabled).toBe(true);
-    expect(clearOf(container)).toBeNull();
   });
 
   it("meets the 24 px target size, the clear button too", () => {

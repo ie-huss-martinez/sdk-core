@@ -3,7 +3,7 @@ import {
   forwardRef,
   type InputHTMLAttributes,
   type ReactNode,
-  useState,
+  useCallback,
   useSyncExternalStore,
 } from "react";
 import { CloseIcon, SearchIcon } from "../../icons/icons.generated.js";
@@ -44,7 +44,11 @@ export interface SearchFieldProps
   readonly label?: string | undefined;
   /** The text, when you control it. */
   readonly value?: string | undefined;
-  /** The text at first, when the field keeps its own. */
+  /**
+   * The text at first, when the field keeps its own. The input is then the
+   * browser's to keep, so what's typed before the page's JavaScript runs
+   * stays.
+   */
   readonly defaultValue?: string | undefined;
   /** Called with the new text as it changes, and with `""` when it's cleared. */
   readonly onValueChange?: ((value: string) => void) | undefined;
@@ -99,6 +103,7 @@ export const SearchField = /* @__PURE__ */ forwardRef<HTMLInputElement, SearchFi
       end,
       clearLabel,
       disabled,
+      readOnly,
       className,
       classNames,
       unstyled,
@@ -122,22 +127,43 @@ export const SearchField = /* @__PURE__ */ forwardRef<HTMLInputElement, SearchFi
     const defaultClearLabel = useUiPartText(uiSearchText, "searchField.clear");
     // False on the server and while hydrating; true once the field can be cleared by its own button.
     const ready = useSyncExternalStore(searchNeverChanges, searchInBrowser, searchOnServer);
-    const [own, setOwn] = useState(defaultValue ?? "");
-    const text = value ?? own;
     const [input, setInput] = useMergedRef(ref);
 
-    const change = (next: string): void => {
-      setOwn(next);
-      onValueChange?.(next);
-    };
+    // Whether there's text to clear is read from the input, which holds it:
+    // the owner's value when it's controlled, and otherwise the browser's,
+    // which includes what was typed before the page's JavaScript arrived.
+    const startsWithText = (value ?? defaultValue ?? "") !== "";
+    const onInput = useCallback(
+      (notify: () => void) => {
+        const field = input.current;
+        field?.addEventListener("input", notify);
+        return () => field?.removeEventListener("input", notify);
+      },
+      [input],
+    );
+    const inputHoldsText = useSyncExternalStore(
+      onInput,
+      () => (input.current ? input.current.value !== "" : startsWithText),
+      () => startsWithText,
+    );
+    const holdsText = value === undefined ? inputHoldsText : value !== "";
+
     const handleChange = (event: ChangeEvent<HTMLInputElement>): void => {
       onChange?.(event);
-      change(event.currentTarget.value);
+      onValueChange?.(event.currentTarget.value);
     };
     const clear = (): void => {
-      change("");
+      const field = input.current;
+      // A field that keeps its own text holds it in the input, so it's
+      // emptied there; one that's controlled is emptied by its owner.
+      if (field && value === undefined) {
+        field.value = "";
+        // Setting the value says nothing; this tells what watches the input, above.
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      onValueChange?.("");
       // The button is about to go: focus returns to the field it cleared.
-      input.current?.focus();
+      field?.focus();
     };
 
     return (
@@ -154,13 +180,16 @@ export const SearchField = /* @__PURE__ */ forwardRef<HTMLInputElement, SearchFi
           {...fieldProps}
           ref={setInput}
           type="search"
-          value={text}
+          // Controlled only when the owner holds the text. Otherwise the
+          // input keeps it, text typed before hydration included.
+          {...(value === undefined ? { defaultValue } : { value })}
           disabled={disabled}
+          readOnly={readOnly}
           aria-label={label ?? props["aria-label"]}
           className={cx("hm-search-field-input", classNames?.input)}
           onChange={handleChange}
         />
-        {ready && text !== "" && !disabled ? (
+        {ready && holdsText && !disabled && !readOnly ? (
           <IconButton
             variant="quiet"
             size="small"
