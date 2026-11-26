@@ -4,6 +4,7 @@
 
 ```ts
 
+import type { EditorPreferences } from '@hussmartinez/ui';
 import { FilePolicyOverrides } from '@hussmartinez/sdk-core';
 import { ForwardRefExoticComponent } from 'react';
 import { HeadingLevel } from '@hussmartinez/ui/react';
@@ -42,7 +43,7 @@ export const notesEditorMessages: NotesEditorMessageCatalogue;
 export type NotesEditorPart = "root" | "library" | "notebook";
 
 // @public
-export interface NotesEditorProps extends Omit<NotesProviderProps, "children"> {
+export interface NotesEditorProps extends Omit<NotesProviderProps, "children">, NotesPreferenceProps {
     readonly className?: string;
     readonly classNames?: Readonly<Partial<Record<NotesEditorPart, string>>>;
     readonly headingLevel?: HeadingLevel;
@@ -53,6 +54,9 @@ export interface NotesEditorProps extends Omit<NotesProviderProps, "children"> {
     readonly tools?: readonly string[];
     readonly unstyled?: boolean;
 }
+
+// @public
+export type NotesEditorTheme = "light" | "dark" | "system";
 
 // @public
 export type NotesEditorView = {
@@ -111,9 +115,10 @@ export interface NotesNotebookHandle {
 }
 
 // @public
-export interface NotesNotebookProps {
+export interface NotesNotebookProps extends NotesPreferenceProps {
     readonly initialPage?: string | undefined;
     readonly onClose: () => void;
+    readonly onOpenNotebook?: ((notebook: string) => void) | undefined;
     // (undocumented)
     readonly onSettingsChange: (settings: NotesInkSettings) => void;
     // Warning: (ae-forgotten-export) The symbol "NotesSession" needs to be exported by the entry point react.d.ts
@@ -125,6 +130,14 @@ export interface NotesNotebookProps {
 
 // @public
 export type NotesPointerTool = "pen" | "highlighter" | "eraser" | "lasso" | "text" | "link" | "hand";
+
+// @public
+export interface NotesPreferenceProps {
+    readonly defaultPreferences?: Partial<EditorPreferences>;
+    readonly onPreferencesChange?: (preferences: EditorPreferences) => void;
+    readonly preferences?: EditorPreferences;
+    readonly theme?: NotesEditorTheme;
+}
 
 // @public
 export function NotesProvider(props: NotesProviderProps): ReactNode;

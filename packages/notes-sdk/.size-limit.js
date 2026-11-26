@@ -100,13 +100,26 @@ export default [
   }),
 
   // The React entry (./react).
-  entryBudget({ name: "React (./react), as built", entry: react, limit: "78 kB" }),
+  // 77.58 kB, then 82.08 kB on ui's frame (docs/adr/0008): the frame's wiring, start cards, toasts and text.
+  entryBudget({ name: "React (./react), as built", entry: react, limit: "82.5 kB" }),
   importBudget({
-    // The floor: the components' catalogue, which every component reads.
-    name: "React: the floor, notesEditorMessages",
+    // The floor: the cheapest import a component would make (sdk-core ADR
+    // 0056). It was the catalogue, until the notebook on ui's frame
+    // (docs/adr/0008) gave the catalogue 0.74 kB of its own text: tool
+    // descriptions, start cards and mode names. The catalogue keeps no code,
+    // so it moved by its own content, not a leak; it has a budget below.
+    name: "React: the floor, useNotesMessages",
+    entry: react,
+    imports: "{ useNotesMessages }",
+    limit: "0.3 kB",
+  }),
+  importBudget({
+    // The components' catalogue, which every component reads: text only.
+    // 3.30 kB, then 4.07 kB with the notebook on ui's frame (docs/adr/0008).
+    name: "React: notesEditorMessages",
     entry: react,
     imports: "{ notesEditorMessages }",
-    limit: "3.3 kB",
+    limit: "4.5 kB",
   }),
   importBudget({
     name: "React: NotesLibraryView",
@@ -116,31 +129,35 @@ export default [
   }),
   importBudget({
     // The open notebook: the ink engine, the canvas painting, the tools and the sidebar.
+    // 26.22 kB, then 28.6 kB on ui's frame (docs/adr/0008), with its tool lists, palette and cards.
     name: "React: NotesNotebook",
     entry: react,
     imports: "{ NotesNotebook }",
-    limit: "26.5 kB",
+    limit: "29 kB",
   }),
   importBudget({
-    // The provider brings the library and the stores.
+    // The provider brings the library and the stores. 33.66 kB, then 34.41 kB
+    // with the catalogue's text for the notebook on ui's frame (docs/adr/0008).
     name: "React: NotesProvider",
     entry: react,
     imports: "{ NotesProvider }",
-    limit: "34 kB",
+    limit: "34.5 kB",
   }),
   importBudget({
-    // What a typical application imports: the whole editor.
+    // What a typical application imports: the whole editor. 59.74 kB, then
+    // 63.1 kB on ui's frame (docs/adr/0008); ui's components count in ui's budgets.
     name: "React: NotesEditor",
     entry: react,
     imports: "{ NotesEditor }",
-    limit: "60 kB",
+    limit: "63.5 kB",
   }),
 
   // The element entry (./element) mounts the whole editor, so it has only a ceiling.
   entryBudget({
+    // 78.18 kB, then 82.09 kB with the editor on ui's frame (docs/adr/0008).
     name: "Element (./element), as built",
     entry: "dist/element.js",
-    limit: "78.5 kB",
+    limit: "82.5 kB",
   }),
 
   built({ name: "Stylesheet (./styles.css)", path: "dist/styles.css", limit: "10.5 kB" }),

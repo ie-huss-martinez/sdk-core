@@ -13,11 +13,12 @@ import { NotesEditor, type NotesEditorHandle, type NotesEditorProps } from "./No
 
 afterEach(cleanUp);
 
-// A frame tall enough to show a whole A4 page under the toolbar, so a test
+// A frame tall enough to show a whole A4 page under the top bar, so a test
 // can write anywhere on it: input sent through the browser lands only on
-// what's in view.
+// what's in view. It's wide enough for ui's frame to lay out as on a
+// desktop (sdk-core ADR 0067), with the properties beside the pages.
 beforeAll(async () => {
-  await page.viewport(900, 1500);
+  await page.viewport(1100, 1500);
 });
 
 const PAGE = ".hm-notes-page";
@@ -34,8 +35,15 @@ async function mountEditor(
 ): Promise<Mounted> {
   const handle = createRef<NotesEditorHandle>();
   const container = await mount(
-    <NotesEditor ref={handle} store={store} pdfEngine={createFakePdfEngine()} {...props} />,
-    "width: 800px; height: 1400px; display: grid; grid-template-rows: minmax(0, 1fr);",
+    // In Expert mode, every tool is listed in the frame's tools (docs/adr/0008).
+    <NotesEditor
+      ref={handle}
+      store={store}
+      pdfEngine={createFakePdfEngine()}
+      defaultPreferences={{ mode: "expert" }}
+      {...props}
+    />,
+    "width: 1000px; height: 1400px; display: grid; grid-template-rows: minmax(0, 1fr);",
   );
   await waitFor(() => expect(button(container, "New notebook")).toBeTruthy());
   return { container, handle, store };
@@ -128,9 +136,10 @@ describe("NotesEditor", () => {
     const { container } = mounted;
     expect(container.textContent).toContain("No notebooks yet");
     await newNotebook(mounted);
-    expect(container.querySelector('[role="toolbar"]')?.getAttribute("aria-label")).toBe(
-      "Notebook tools",
-    );
+    // The tools, in ui's frame's tools panel (docs/adr/0008).
+    expect(
+      container.querySelector('nav [role="toolbar"][aria-label="Notebook tools"]'),
+    ).toBeTruthy();
     expect(button(container, "Pen")?.getAttribute("aria-pressed")).toBe("true");
     expect(views.at(-1)).toBe("notebook");
 

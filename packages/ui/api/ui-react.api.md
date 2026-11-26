@@ -318,6 +318,33 @@ export interface EditorPreferences {
 }
 
 // @public
+export interface EditorPreferencesChange {
+    readonly chosen: readonly InheritedEditorPreference[];
+    readonly preferences: EditorPreferences;
+    readonly previous: EditorPreferences;
+}
+
+// @public
+export interface EditorPreferencesControls {
+    readonly change: (next: EditorPreferences) => void;
+    readonly isChosen: (field: InheritedEditorPreference) => boolean;
+    readonly openSettings: (root: Element | null) => void;
+    readonly preferences: EditorPreferences;
+    readonly rootAttributes: {
+        readonly "data-hm-theme": EditorPreferences["theme"] | undefined;
+        readonly "data-hm-density": EditorPreferences["density"] | undefined;
+        readonly "data-hm-motion": EditorPreferences["motion"] | undefined;
+    };
+    readonly settings: {
+        readonly open: boolean;
+        readonly onOpenChange: (open: boolean) => void;
+        readonly value: EditorPreferences;
+        readonly onValueChange: (value: EditorPreferences) => void;
+    };
+    readonly themeToggleValue: EditorPreferences["theme"] | "inherit";
+}
+
+// @public
 export function EllipseIcon(props: IconProps): ReactElement;
 
 // @public
@@ -460,6 +487,9 @@ export function ImageIcon(props: IconProps): ReactElement;
 
 // @public
 export function InfoIcon(props: IconProps): ReactElement;
+
+// @public
+export type InheritedEditorPreference = "theme" | "density" | "motion";
 
 // @public
 export function LayersIcon(props: IconProps): ReactElement;
@@ -1359,6 +1389,18 @@ export function useAnnounce(): Announce;
 
 // @public
 export function useEditorFrame(): EditorFrameControls | null;
+
+// @public
+export function useEditorPreferences(options?: UseEditorPreferencesOptions): EditorPreferencesControls;
+
+// @public
+export interface UseEditorPreferencesOptions {
+    readonly defaultPreferences?: Partial<EditorPreferences> | undefined;
+    readonly onChange?: ((change: EditorPreferencesChange) => void) | undefined;
+    readonly onPreferencesChange?: ((preferences: EditorPreferences) => void) | undefined;
+    readonly preferences?: EditorPreferences | undefined;
+    readonly theme?: EditorPreferences["theme"] | undefined;
+}
 
 // @public
 export function useHeadingLevel(): HeadingLevel;

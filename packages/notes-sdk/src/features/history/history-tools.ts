@@ -5,6 +5,7 @@ import type { NotesTool } from "../tool-types.js";
 export const undoTool: NotesTool = /* @__PURE__ */ defineTool({
   id: "notes.undo",
   label: "tools.undo",
+  description: "tools.undo.description",
   icon: "undo",
   group: "history",
   isEnabled: ({ snapshot }) => snapshot.canUndo,
@@ -18,6 +19,7 @@ export const undoTool: NotesTool = /* @__PURE__ */ defineTool({
 export const redoTool: NotesTool = /* @__PURE__ */ defineTool({
   id: "notes.redo",
   label: "tools.redo",
+  description: "tools.redo.description",
   icon: "redo",
   group: "history",
   isEnabled: ({ snapshot }) => snapshot.canRedo,

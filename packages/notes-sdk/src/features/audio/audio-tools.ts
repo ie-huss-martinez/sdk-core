@@ -5,6 +5,8 @@ import type { NotesTool } from "../tool-types.js";
 export const recordTool: NotesTool = /* @__PURE__ */ defineTool({
   id: "notes.record",
   label: "tools.record",
+  description: "tools.record.description",
+  level: "expert",
   icon: "microphone",
   group: "audio",
   isAvailable: ({ canRecord }) => canRecord,

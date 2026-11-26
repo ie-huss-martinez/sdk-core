@@ -10,7 +10,7 @@
   .hm-notes-library {
     position: relative;
     display: grid;
-    grid-template-columns: var(--hm-notes-rail-width, 30%) minmax(0, 1fr);
+    grid-template-columns: var(--hm-sidebar-width, 30%) minmax(0, 1fr);
     flex: 1;
     min-height: 0;
     overflow: hidden;
@@ -18,13 +18,13 @@
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-library {
     background: var(--hm-notes-canvas);
-    animation: hm-notes-fade-in var(--hm-notes-time-base) var(--hm-notes-ease-out) both;
+    animation: hm-notes-fade-in var(--hm-motion-duration-enter) var(--hm-motion-easing-enter) both;
   }
 
   /* --- The rail --- */
 
   .hm-notes-rail {
-    z-index: var(--hm-notes-layer-rail);
+    z-index: var(--hm-z-raised);
     display: flex;
     flex-direction: column;
     gap: var(--hm-space-5);
@@ -34,9 +34,9 @@
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-rail {
-    background: var(--hm-notes-glass);
-    border-inline-end: var(--hm-notes-hairline) solid var(--hm-notes-line);
-    backdrop-filter: blur(var(--hm-notes-glass-blur));
+    background: var(--hm-color-surface-glass);
+    border-inline-end: var(--hm-border-width) solid var(--hm-color-border);
+    backdrop-filter: blur(var(--hm-blur-glass));
   }
 
   .hm-notes-rail-brand {
@@ -65,8 +65,8 @@
       var(--hm-notes-cover-blue),
       var(--hm-notes-cover-blue-deep)
     );
-    border-radius: var(--hm-notes-radius-sm);
-    box-shadow: var(--hm-notes-shadow-sm), var(--hm-notes-shadow-inset);
+    border-radius: var(--hm-radius-control);
+    box-shadow: var(--hm-shadow-raised), var(--hm-notes-shadow-inset);
   }
 
   .hm-notes-rail-group {
@@ -111,27 +111,27 @@
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-rail-item {
-    border-radius: var(--hm-notes-radius-sm);
+    border-radius: var(--hm-radius-control);
     transition:
-      background-color var(--hm-notes-time-fast) var(--hm-notes-ease-out),
-      color var(--hm-notes-time-fast) var(--hm-notes-ease-out),
-      scale var(--hm-notes-time-fast) var(--hm-notes-ease-out);
+      background-color var(--hm-motion-duration-feedback) var(--hm-motion-easing-enter),
+      color var(--hm-motion-duration-feedback) var(--hm-motion-easing-enter),
+      scale var(--hm-motion-duration-feedback) var(--hm-motion-easing-enter);
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-rail-item:hover {
-    background: var(--hm-notes-hover);
+    background: var(--hm-color-control-hover);
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-rail-item:active {
-    background: var(--hm-notes-pressed);
+    background: var(--hm-color-control-active);
     scale: 0.98;
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-rail-item[aria-current="page"],
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-rail-item[aria-pressed="true"] {
     color: var(--hm-color-accent-text);
-    background: var(--hm-notes-tint);
-    font-weight: var(--hm-notes-weight-label);
+    background: var(--hm-color-accent-subtle);
+    font-weight: var(--hm-font-weight-strong);
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-rail-item[aria-disabled="true"] {
@@ -149,8 +149,8 @@
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-rail-note {
-    color: var(--hm-notes-ink-muted);
-    font-size: var(--hm-notes-caption-size);
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
   }
 
   /* --- The main column --- */
@@ -198,22 +198,22 @@
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-library-search > .hm-icon {
-    color: var(--hm-notes-ink-muted);
+    color: var(--hm-color-text-muted);
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-library-search-field {
     padding-inline-start: var(--hm-space-9);
-    background: var(--hm-notes-hover);
+    background: var(--hm-color-control-hover);
     border-color: transparent;
-    border-radius: var(--hm-notes-radius-pill);
+    border-radius: var(--hm-radius-round);
     transition:
-      background-color var(--hm-notes-time-fast) var(--hm-notes-ease-out),
-      box-shadow var(--hm-notes-time-fast) var(--hm-notes-ease-out);
+      background-color var(--hm-motion-duration-feedback) var(--hm-motion-easing-enter),
+      box-shadow var(--hm-motion-duration-feedback) var(--hm-motion-easing-enter);
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-library-search-field:focus-visible {
     background: var(--hm-color-surface-raised);
-    box-shadow: var(--hm-notes-shadow-md);
+    box-shadow: var(--hm-shadow-floating);
   }
 
   .hm-notes-library-actions {
@@ -240,21 +240,21 @@
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-library-title-row {
-    border-block-end: var(--hm-notes-hairline) solid var(--hm-notes-line);
+    border-block-end: var(--hm-border-width) solid var(--hm-color-border);
   }
 
   /* Pills, as everything you press in the library is. */
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-library-main,
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-toasts {
-    --hm-button-radius: var(--hm-notes-radius-pill);
-    --hm-segmented-control-radius: var(--hm-notes-radius-pill);
+    --hm-button-radius: var(--hm-radius-round);
+    --hm-segmented-control-radius: var(--hm-radius-round);
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-library-actions .hm-button {
     transition:
-      background-color var(--hm-notes-time-fast) var(--hm-notes-ease-out),
-      box-shadow var(--hm-notes-time-fast) var(--hm-notes-ease-out),
-      scale var(--hm-notes-time-fast) var(--hm-notes-ease-spring);
+      background-color var(--hm-motion-duration-feedback) var(--hm-motion-easing-enter),
+      box-shadow var(--hm-motion-duration-feedback) var(--hm-motion-easing-enter),
+      scale var(--hm-motion-duration-feedback) var(--hm-motion-easing-spring);
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-library-actions .hm-button:active {
@@ -262,7 +262,7 @@
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-library-actions .hm-button--primary {
-    box-shadow: var(--hm-notes-shadow-sm);
+    box-shadow: var(--hm-shadow-raised);
   }
 
   .hm-notes-library-title {
@@ -275,7 +275,7 @@
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-library-title {
-    animation: hm-notes-rise-in var(--hm-notes-time-slow) var(--hm-notes-ease-out) both;
+    animation: hm-notes-rise-in var(--hm-motion-duration-panel) var(--hm-motion-easing-enter) both;
   }
 
   .hm-notes-library-count {
@@ -283,7 +283,7 @@
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-library-count {
-    color: var(--hm-notes-ink-muted);
+    color: var(--hm-color-text-muted);
   }
 
   .hm-notes-library-trail {
@@ -298,7 +298,7 @@
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-library-trail > * + *::before {
     content: "›";
     margin-inline-end: var(--hm-space-3);
-    color: var(--hm-notes-ink-muted);
+    color: var(--hm-color-text-muted);
   }
 
   .hm-notes-library-results {
@@ -310,17 +310,17 @@
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-search-result {
     padding: var(--hm-space-3) var(--hm-space-4);
     background: var(--hm-color-surface-raised);
-    border-radius: var(--hm-notes-radius-md);
-    box-shadow: var(--hm-notes-shadow-xs);
-    animation: hm-notes-rise-in var(--hm-notes-time-base) var(--hm-notes-ease-out) both;
+    border-radius: var(--hm-radius-surface);
+    box-shadow: var(--hm-shadow-raised);
+    animation: hm-notes-rise-in var(--hm-motion-duration-enter) var(--hm-motion-easing-enter) both;
     transition:
-      box-shadow var(--hm-notes-time-fast) var(--hm-notes-ease-out),
-      translate var(--hm-notes-time-fast) var(--hm-notes-ease-out);
+      box-shadow var(--hm-motion-duration-feedback) var(--hm-motion-easing-enter),
+      translate var(--hm-motion-duration-feedback) var(--hm-motion-easing-enter);
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-search-result:hover {
-    box-shadow: var(--hm-notes-shadow-md);
-    translate: 0 calc(var(--hm-notes-hairline) * -1);
+    box-shadow: var(--hm-shadow-floating);
+    translate: 0 calc(var(--hm-border-width) * -1);
   }
 
   /* --- Loading, failing and empty --- */
@@ -343,7 +343,7 @@
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-library-state p {
-    color: var(--hm-notes-ink-muted);
+    color: var(--hm-color-text-muted);
   }
 
   .hm-notes-library-state .hm-notes-library-empty-title {
@@ -357,7 +357,7 @@
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-library-empty > * {
-    animation: hm-notes-rise-in var(--hm-notes-time-slow) var(--hm-notes-ease-out) both;
+    animation: hm-notes-rise-in var(--hm-motion-duration-panel) var(--hm-motion-easing-enter) both;
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-library-empty > :nth-child(2) {
@@ -427,7 +427,7 @@
       var(--hm-notes-cover-amber);
     border-inline-start-color: var(--hm-notes-cover-amber-deep);
     /* It leans in once, and stays: nothing in the library moves for ever. */
-    animation: hm-notes-sway var(--hm-notes-time-loop) var(--hm-notes-ease-spring) both;
+    animation: hm-notes-sway var(--hm-motion-duration-loop) var(--hm-motion-easing-spring) both;
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-empty-pen {
@@ -438,8 +438,8 @@
       var(--hm-notes-paper-edge) 86% 94%,
       var(--hm-notes-cover-gray-deep) 94%
     );
-    border-radius: var(--hm-notes-radius-pill);
-    box-shadow: var(--hm-notes-shadow-md);
+    border-radius: var(--hm-radius-round);
+    box-shadow: var(--hm-shadow-floating);
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) [data-hm-art="bin"] .hm-notes-empty-book {
@@ -469,7 +469,7 @@
 
   /* Dealt in, one after the other. From the seventeenth on they arrive together. */
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-library-item {
-    animation: hm-notes-deal-in var(--hm-notes-time-slow) var(--hm-notes-ease-out) both;
+    animation: hm-notes-deal-in var(--hm-motion-duration-panel) var(--hm-motion-easing-enter) both;
     animation-delay: calc(var(--hm-notes-time-stagger) * 16);
   }
 
@@ -562,7 +562,7 @@
   .hm-notes-folder:focus-visible {
     outline: var(--hm-focus-ring);
     outline-offset: var(--hm-space-2);
-    border-radius: var(--hm-notes-radius-sm);
+    border-radius: var(--hm-radius-control);
   }
 
   .hm-notes-cover-art,
@@ -581,12 +581,12 @@
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-folder-art {
     transform-origin: 50% 100%;
     transition:
-      translate var(--hm-notes-time-base) var(--hm-notes-ease-spring),
-      rotate var(--hm-notes-time-base) var(--hm-notes-ease-spring),
-      scale var(--hm-notes-time-fast) var(--hm-notes-ease-out),
-      box-shadow var(--hm-notes-time-base) var(--hm-notes-ease-out),
-      border-color var(--hm-notes-time-fast) var(--hm-notes-ease-out),
-      background-color var(--hm-notes-time-fast) var(--hm-notes-ease-out);
+      translate var(--hm-motion-duration-enter) var(--hm-motion-easing-spring),
+      rotate var(--hm-motion-duration-enter) var(--hm-motion-easing-spring),
+      scale var(--hm-motion-duration-feedback) var(--hm-motion-easing-enter),
+      box-shadow var(--hm-motion-duration-enter) var(--hm-motion-easing-enter),
+      border-color var(--hm-motion-duration-feedback) var(--hm-motion-easing-enter),
+      background-color var(--hm-motion-duration-feedback) var(--hm-motion-easing-enter);
   }
 
   /* --- A notebook's cover --- */
@@ -626,8 +626,8 @@
         to right,
         var(--hm-notes-cover-deep) 0 var(--hm-space-3),
         var(--hm-notes-cover-shade) var(--hm-space-3)
-          calc(var(--hm-space-3) + var(--hm-notes-hairline) * 2),
-        transparent calc(var(--hm-space-3) + var(--hm-notes-hairline) * 2)
+          calc(var(--hm-space-3) + var(--hm-border-width) * 2),
+        transparent calc(var(--hm-space-3) + var(--hm-border-width) * 2)
       ),
       var(--hm-notes-cover-color);
     border-radius: var(--hm-notes-cover-corner);
@@ -681,21 +681,21 @@
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-cover-label {
     padding: var(--hm-space-3) var(--hm-space-2);
-    font-size: var(--hm-notes-label-size);
-    font-weight: var(--hm-notes-weight-label);
+    font-size: var(--hm-font-size-small);
+    font-weight: var(--hm-font-weight-strong);
     line-height: var(--hm-line-height-tight);
     color: var(--hm-notes-cover-plate-text);
     background-color: var(--hm-notes-paper);
-    border-radius: var(--hm-notes-radius-xs);
-    box-shadow: var(--hm-notes-shadow-xs);
+    border-radius: var(--hm-radius-control);
+    box-shadow: var(--hm-shadow-raised);
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) [data-hm-template="lined"] .hm-notes-cover-label {
     background-image: repeating-linear-gradient(
       to bottom,
       transparent 0,
-      transparent calc(var(--hm-space-3) - var(--hm-notes-hairline)),
-      var(--hm-notes-paper-rule) calc(var(--hm-space-3) - var(--hm-notes-hairline)),
+      transparent calc(var(--hm-space-3) - var(--hm-border-width)),
+      var(--hm-notes-paper-rule) calc(var(--hm-space-3) - var(--hm-border-width)),
       var(--hm-notes-paper-rule) var(--hm-space-3)
     );
   }
@@ -705,15 +705,15 @@
       repeating-linear-gradient(
         to bottom,
         transparent 0,
-        transparent calc(var(--hm-space-3) - var(--hm-notes-hairline)),
-        var(--hm-notes-paper-rule) calc(var(--hm-space-3) - var(--hm-notes-hairline)),
+        transparent calc(var(--hm-space-3) - var(--hm-border-width)),
+        var(--hm-notes-paper-rule) calc(var(--hm-space-3) - var(--hm-border-width)),
         var(--hm-notes-paper-rule) var(--hm-space-3)
       ),
       repeating-linear-gradient(
         to right,
         transparent 0,
-        transparent calc(var(--hm-space-3) - var(--hm-notes-hairline)),
-        var(--hm-notes-paper-rule) calc(var(--hm-space-3) - var(--hm-notes-hairline)),
+        transparent calc(var(--hm-space-3) - var(--hm-border-width)),
+        var(--hm-notes-paper-rule) calc(var(--hm-space-3) - var(--hm-border-width)),
         var(--hm-notes-paper-rule) var(--hm-space-3)
       );
   }
@@ -721,8 +721,8 @@
   .hm-notes-editor:not([data-hm-unstyled]) [data-hm-template="dotted"] .hm-notes-cover-label {
     background-image: radial-gradient(
       circle,
-      var(--hm-notes-paper-rule) var(--hm-notes-hairline),
-      transparent calc(var(--hm-notes-hairline) * 2)
+      var(--hm-notes-paper-rule) var(--hm-border-width),
+      transparent calc(var(--hm-border-width) * 2)
     );
     background-size: var(--hm-space-3) var(--hm-space-3);
   }
@@ -750,7 +750,7 @@
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-folder-back {
     background: var(--hm-notes-folder-back);
-    border-radius: var(--hm-notes-radius-sm);
+    border-radius: var(--hm-radius-control);
   }
 
   /* The tab on the folder's back board. */
@@ -763,23 +763,23 @@
     height: var(--hm-space-4);
     margin-block-end: calc(var(--hm-space-2) * -1);
     background: var(--hm-notes-folder-back);
-    border-radius: var(--hm-notes-radius-sm) var(--hm-notes-radius-sm) 0 0;
+    border-radius: var(--hm-radius-control) var(--hm-radius-control) 0 0;
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-folder-sheet {
     background: var(--hm-notes-folder-sheet);
-    border-radius: var(--hm-notes-radius-xs);
-    box-shadow: var(--hm-notes-shadow-xs);
-    transition: translate var(--hm-notes-time-base) var(--hm-notes-ease-spring);
+    border-radius: var(--hm-radius-control);
+    box-shadow: var(--hm-shadow-raised);
+    transition: translate var(--hm-motion-duration-enter) var(--hm-motion-easing-spring);
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-folder-front {
     background: linear-gradient(to bottom, var(--hm-notes-cover-sheen), transparent 60%)
       var(--hm-notes-folder-front);
-    border-radius: var(--hm-notes-radius-sm);
-    box-shadow: var(--hm-notes-shadow-md), var(--hm-notes-shadow-inset);
+    border-radius: var(--hm-radius-control);
+    box-shadow: var(--hm-shadow-floating), var(--hm-notes-shadow-inset);
     transform-origin: 50% 100%;
-    transition: transform var(--hm-notes-time-base) var(--hm-notes-ease-spring);
+    transition: transform var(--hm-motion-duration-enter) var(--hm-motion-easing-spring);
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-folder:hover .hm-notes-folder-art {
@@ -801,7 +801,7 @@
   .hm-notes-item-title {
     padding-inline: var(--hm-control-height-small, 12%);
     overflow: hidden;
-    font-weight: var(--hm-notes-weight-label);
+    font-weight: var(--hm-font-weight-strong);
     text-align: center;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -812,8 +812,8 @@
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-item-meta {
-    color: var(--hm-notes-ink-muted);
-    font-size: var(--hm-notes-caption-size);
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
   }
 
   /* Beside the title, at the foot of the cover. */
@@ -834,10 +834,10 @@
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-item-more {
-    border-radius: var(--hm-notes-radius-pill);
+    border-radius: var(--hm-radius-round);
     transition:
-      background-color var(--hm-notes-time-fast) var(--hm-notes-ease-out),
-      rotate var(--hm-notes-time-base) var(--hm-notes-ease-spring);
+      background-color var(--hm-motion-duration-feedback) var(--hm-motion-easing-enter),
+      rotate var(--hm-motion-duration-enter) var(--hm-motion-easing-spring);
   }
 
   .hm-notes-item-actions {
@@ -866,10 +866,10 @@
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-banner {
     padding: var(--hm-space-3) var(--hm-space-4);
     background: var(--hm-color-surface-raised);
-    border: var(--hm-notes-hairline) solid var(--hm-notes-line);
-    border-radius: var(--hm-notes-radius-md);
-    box-shadow: var(--hm-notes-shadow-xs);
-    animation: hm-notes-rise-in var(--hm-notes-time-slow) var(--hm-notes-ease-out) both;
+    border: var(--hm-border-width) solid var(--hm-color-border);
+    border-radius: var(--hm-radius-surface);
+    box-shadow: var(--hm-shadow-raised);
+    animation: hm-notes-rise-in var(--hm-motion-duration-panel) var(--hm-motion-easing-enter) both;
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-banner > .hm-icon {
@@ -880,9 +880,9 @@
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-toast.hm-notes-notice,
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-toast.hm-notes-library-progress {
     color: var(--hm-color-text);
-    background: var(--hm-notes-glass-strong);
-    border: var(--hm-notes-hairline) solid var(--hm-notes-line);
-    backdrop-filter: blur(var(--hm-notes-glass-blur));
+    background: var(--hm-color-surface-glass);
+    border: var(--hm-border-width) solid var(--hm-color-border);
+    backdrop-filter: blur(var(--hm-blur-glass));
   }
 
   .hm-notes-library-progress {
@@ -900,7 +900,7 @@
 
   @container hm-notes-editor (width < 60rem) {
     .hm-notes-library {
-      grid-template-columns: var(--hm-notes-rail-width-compact, 12%) minmax(0, 1fr);
+      grid-template-columns: var(--hm-rail-width, 12%) minmax(0, 1fr);
     }
 
     .hm-notes-rail {
@@ -921,8 +921,8 @@
     /* Still read by assistive technology, only not drawn. */
     .hm-notes-rail-text {
       position: absolute;
-      width: var(--hm-notes-hairline);
-      height: var(--hm-notes-hairline);
+      width: var(--hm-border-width);
+      height: var(--hm-border-width);
       overflow: hidden;
       clip-path: inset(50%);
       white-space: nowrap;
@@ -958,7 +958,7 @@
 
     .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-rail {
       border-inline-end: 0;
-      border-block-start: var(--hm-notes-hairline) solid var(--hm-notes-line);
+      border-block-start: var(--hm-border-width) solid var(--hm-color-border);
     }
 
     .hm-notes-rail-group {
