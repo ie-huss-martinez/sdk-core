@@ -16,7 +16,7 @@ import { shortAnswer } from "../test/test-types.js";
 import { LearnEditor, type LearnEditorHandle, type LearnEditorProps } from "./LearnEditor.js";
 
 // The editor (ADR 0008): each built-in type authored with the keyboard alone,
-// typing as one undo step and never mid-composition, problems at their
+// typing as one undo step, no pause commit mid-composition, problems at their
 // fields, the one-exercise case, focus after structural edits, and axe's
 // WCAG 2.2 AA rules in its main states.
 

@@ -93,7 +93,7 @@ interface EditorBlockProps<Payload> {
   - **Word order:** items, each its tiles in the right order (text fields, with buttons to move a tile earlier or later), other orders that are also right (each a `ReorderableList` of the same tiles, started from the right order), and an optional translation. A tile's new text changes it in the other orders too. `ReorderableList` is a layout grid that keeps the arrow keys for itself, so it holds rows of fixed text, not text fields.
 - Items, questions, choices, answers and tiles are added, removed and moved with buttons, never only by drag ([ADR 0005](0005-accessible-exercise-types.md)).
 
-### Typing: one undo step per burst, and never mid-composition
+### Typing: one undo step per burst, and no pause mid-composition
 
 - A text field keeps what's typed and commits it as one command when it loses focus, on Enter in a one-line field, or after 700 ms without typing. A burst of typing is one undo step, as ADR 0007 asks.
 - **Typing waits for a composition to end.** While an input method is composing (between `compositionstart` and `compositionend`), the pause never commits; if it ends mid-composition, the field commits on `compositionend`, and otherwise the composed text gets the usual pause. Thai, Chinese and Japanese input methods build a character in several steps, and committing halfway would put half-built text into the history.
@@ -136,7 +136,7 @@ learn-sdk adopts `hm-lint-react` with every rule on, in this change ([ADR 0063](
 
 ### How it's tested
 
-- Browser tests, in all three engines in CI: authoring each type with the keyboard only; every problem tied to its field; typing as one undo step; a Thai input-method composition, driven with composition events, that commits nothing until it ends, including when the pause ends mid-composition; pending typing committed on unmount; `single` refusing a second exercise; focus after adding, removing, undo and redo.
+- Browser tests, in all three engines in CI: authoring each type with the keyboard only; every problem tied to its field; typing as one undo step; a Thai input-method composition, driven with composition events, where the pause commits nothing until it ends, including when the pause ends mid-composition; a flush during a composition, which commits the text as it stands, and the final text that `compositionend` brings, which then gets the usual pause; pending typing committed on unmount; `single` refusing a second exercise; focus after adding, removing, undo and redo.
 - axe with the WCAG 2.2 AA rules, in the empty, open, invalid and `single` states.
 - Virtual screen-reader tests (ADR 0065) for adding, removing with its toast, moving in the outline, undo and redo, and the problem count.
 - Screenshots per [ADR 0068](../../../../docs/adr/0068-a-faster-pull-request-loop.md): the frame's main states in every variant, each type's block in one.
