@@ -8,10 +8,11 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 
 | # | Decision | Status |
 |---|---|---|
-| [0001](0001-a-familiar-layout-with-our-own-assets.md) | A familiar layout, with assets of our own | Accepted |
+| [0001](0001-a-familiar-layout-with-our-own-assets.md) | A familiar layout, with assets of our own | Accepted; its open notebook and design values refined by [0008](0008-the-notebook-on-ui-s-frame.md) |
 | [0002](0002-the-ink-engine.md) | The ink engine: pointer events, two canvases, and a pen that writes while fingers move the page | Accepted |
 | [0003](0003-a-library-on-the-device.md) | A library on the device: the model, its formats, commands and stores | Accepted |
 | [0004](0004-notes-limits.md) | Notes limits, and checking pictures before they're decoded | Accepted |
 | [0005](0005-backup-and-restore.md) | Backup and restore: a zip of the library's own documents | Accepted |
 | [0006](0006-pdfs-under-the-ink-and-as-export.md) | PDFs under the ink, and export with the ink as vector paths | Accepted |
 | [0007](0007-sound-alongside-the-ink.md) | Sound recorded alongside the ink | Accepted |
+| [0008](0008-the-notebook-on-ui-s-frame.md) | The notebook on ui's frame: the dock, the blue bar, levels, start cards, toasts and preferences | Accepted; refines [0001](0001-a-familiar-layout-with-our-own-assets.md) |

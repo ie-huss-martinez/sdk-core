@@ -31,6 +31,9 @@ import type { NotesPageText, NotesStore } from "../ports/notes-store.js";
  */
 export type NotesSaveState = "saved" | "pending" | "saving" | "failed";
 
+/** The longest a change waits to be saved while writing goes on, in milliseconds. */
+const MAX_SAVE_WAIT = 2_000;
+
 /**
  * A limit the notebook has passed the warning threshold of.
  *
@@ -88,7 +91,8 @@ export interface NotesSessionOptions {
   readonly now?: () => number;
   /**
    * How long after a change the notebook is saved, in milliseconds. Changes
-   * within that time are saved together. Defaults to 400.
+   * within that time are saved together. Defaults to 400. Steady writing
+   * still saves at least every 2 seconds, or every `saveDelay` if longer.
    */
   readonly saveDelay?: number;
   /** Called after each save, with the notebook as stored. */
@@ -185,6 +189,9 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
   };
   const now = options.now ?? Date.now;
   const saveDelay = options.saveDelay ?? 400;
+  // Each change restarts the delay, so steady writing would never save:
+  // the first unsaved change is saved within this, however much follows it.
+  const saveMaxWait = Math.max(MAX_SAVE_WAIT, saveDelay);
   const policy: NotesFilePolicy = notesLimits.resolve(options.filePolicy);
   const limits = {
     maxPages: policy.limits.maxPages.maximum,
@@ -244,6 +251,8 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
   const dirty = { notebook: false, pages: new Set<string>(), removed: new Set<string>() };
   const loading = new Map<string, Promise<NotesPage>>();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  /** The save the first unsaved change is due by, however much follows it. */
+  let deadline: ReturnType<typeof setTimeout> | undefined;
   let saving: Promise<void> | undefined;
   let closing: Promise<void> | undefined;
   /** Giving the notebook back, once that has begun. */
@@ -259,7 +268,9 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
 
   const cancelTimer = () => {
     if (timer !== undefined) clearTimeout(timer);
+    if (deadline !== undefined) clearTimeout(deadline);
     timer = undefined;
+    deadline = undefined;
   };
 
   const mark = (commands: readonly NotesCommand[]) => {
@@ -281,15 +292,20 @@ export async function openNotesSession(options: NotesSessionOptions): Promise<No
   const schedule = () => {
     if (closed) return;
     if (saveState !== "saving") saveState = "pending";
-    cancelTimer();
     // While the session closes, close() saves what's due itself.
-    if (closing) return;
-    timer = setTimeout(() => {
-      timer = undefined;
+    if (closing) {
+      cancelTimer();
+      return;
+    }
+    const due = () => {
+      cancelTimer();
       void save().catch(() => {
         // The failure is in the snapshot; the next change or flush() retries.
       });
-    }, saveDelay);
+    };
+    if (timer !== undefined) clearTimeout(timer);
+    timer = setTimeout(due, saveDelay);
+    deadline ??= setTimeout(due, saveMaxWait);
   };
 
   const hasChanges = () => dirty.notebook || dirty.pages.size > 0 || dirty.removed.size > 0;

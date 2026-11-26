@@ -60,23 +60,41 @@ export const notesTools: readonly NotesTool[] = [
   deleteSelectionTool,
 ];
 
-/** The toolbar's default groups. Selection tools have keys, and no button of their own. */
+/**
+ * The tools' default groups (docs/adr/0008): the top bar's, then the tools
+ * panel's, each named after its first tool's group. Selecting everything
+ * and deleting the selection have keys, and no button of their own: they're
+ * in the command palette.
+ *
+ * @internal
+ */
 export const DEFAULT_TOOLBAR: readonly (readonly string[])[] = [
-  ["notes.close", "notes.sidebar", "notes.search"],
-  [
-    "notes.pen",
-    "notes.highlighter",
-    "notes.eraser",
-    "notes.lasso",
-    "notes.text",
-    "notes.image",
-    "notes.link",
-    "notes.hand",
-  ],
-  ["notes.straighten", "notes.finger"],
-  ["notes.record"],
-  ["notes.add-page", "notes.delete-page"],
-  ["notes.export-pdf"],
+  ["notes.close"],
   ["notes.undo", "notes.redo"],
+  ["notes.sidebar", "notes.search"],
+  ["notes.pen", "notes.highlighter", "notes.eraser", "notes.text"],
+  ["notes.lasso", "notes.image", "notes.link"],
+  ["notes.hand", "notes.straighten", "notes.finger"],
+  ["notes.add-page", "notes.delete-page"],
+  ["notes.record"],
   ["notes.zoom-out", "notes.zoom-fit", "notes.zoom-in"],
+  ["notes.export-pdf"],
 ];
+
+/**
+ * Tools the top bar and the stage hold, never the tools panel: they have no
+ * level (sdk-core ADR 0067).
+ *
+ * @internal
+ */
+export const BAR_TOOLS: ReadonlySet<string> = /* @__PURE__ */ new Set([
+  "notes.close",
+  "notes.undo",
+  "notes.redo",
+  "notes.sidebar",
+  "notes.search",
+  "notes.zoom-out",
+  "notes.zoom-fit",
+  "notes.zoom-in",
+  "notes.export-pdf",
+]);

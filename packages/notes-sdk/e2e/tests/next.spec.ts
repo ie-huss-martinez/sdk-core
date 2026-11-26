@@ -16,8 +16,10 @@ import {
 const url = "http://localhost:4351/";
 const origin = new URL(url).origin;
 
-// Tall enough to show a whole page under the toolbar, so a test can write anywhere on it.
-test.use({ viewport: { width: 900, height: 1500 } });
+// Tall enough to show a whole page under the top bar, so a test can write
+// anywhere on it, and wide enough for ui's frame to lay out as on a desktop,
+// with the tool's options beside the pages (docs/adr/0008).
+test.use({ viewport: { width: 1100, height: 1500 } });
 
 /**
  * The editor in a Next.js App Router application (ADR 0007 in sdk-core): a

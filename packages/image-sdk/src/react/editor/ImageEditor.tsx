@@ -1,5 +1,4 @@
 import { createShortcutRegistry, createToolRegistry } from "@hussmartinez/sdk-core";
-import type { EditorPreferences } from "@hussmartinez/ui";
 import {
   AnnouncerProvider,
   Button,
@@ -17,6 +16,7 @@ import {
   Toolbar,
   ToolList,
   Tooltip,
+  useEditorPreferences,
   useLatest,
   usePlatform,
   useToast,
@@ -46,15 +46,6 @@ import { ImageInspector } from "../panels/Inspector.js";
 import { ImageStage } from "../stage/ImageStage.js";
 import { AnimationBar } from "../timeline/AnimationBar.js";
 import { imageIcons } from "../toolbar/icons.js";
-import {
-  fromSettings,
-  INHERITED,
-  type Inherited,
-  type InheritedValues,
-  inheritedValues,
-  settingsValue,
-} from "./inherited.js";
-import { useEditorPreferences } from "./preferences.js";
 import { START_CARDS, type StartCard, StartCards } from "./StartCards.js";
 import { toolLists } from "./tool-lists.js";
 import type { ImageEditorHandle, ImageEditorProps } from "./types.js";
@@ -307,33 +298,33 @@ function ImageEditorBody(props: BodyProps): ReactNode {
     target?.focus();
   }, [tool]);
 
-  const [preferences, setPreferences] = useEditorPreferences(
-    props.preferences,
-    props.defaultPreferences,
-    props.onPreferencesChange,
-  );
-  // An embedded editor inherits the page's theme, density and motion until
-  // someone chooses them: the host, through its preferences or a default for
-  // that field, or the person, through the toggle or the settings.
-  const [picked, setPicked] = useState<ReadonlySet<Inherited>>(() => new Set());
-  const isChosen = (field: Inherited): boolean =>
-    picked.has(field) ||
-    props.preferences !== undefined ||
-    props.defaultPreferences?.[field] !== undefined;
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  // The page's values for the fields the editor inherits, read as the settings open.
-  const [inheritedAtOpen, setInheritedAtOpen] = useState<InheritedValues | null>(null);
-  const shownSettings = settingsValue(preferences, isChosen, inheritedAtOpen);
-  const [tab, setTab] = useState<string | null>(null);
-  // Easy mode's start cards show once per image, until one is chosen or skipped.
-  const [startShownFor, setStartShownFor] = useState<string | null>(null);
   // A start card can show the properties in Easy mode, which otherwise hides them.
   // It's for the image the card was chosen on: another image starts without it.
   const [easyPropertiesFor, setEasyPropertiesFor] = useState<string | null>(null);
   const easyProperties = easyPropertiesFor !== null && easyPropertiesFor === snapshot.source?.id;
   const setEasyProperties = (on: boolean) =>
     setEasyPropertiesFor(on ? (snapshot.source?.id ?? null) : null);
+
+  // The host's preferences, or the editor's own; an embedded editor inherits
+  // the page's theme, density and motion until someone chooses them
+  // (sdk-core ADR 0067).
+  const prefs = useEditorPreferences({
+    preferences: props.preferences,
+    defaultPreferences: props.defaultPreferences,
+    onPreferencesChange: props.onPreferencesChange,
+    theme: props.theme,
+    // Says what changed that isn't on screen.
+    onChange: ({ previous, preferences: next, chosen }) => {
+      if (next.mode !== previous.mode) toast.show({ message: t(`editor.mode.${next.mode}`) });
+      if (chosen.includes("theme")) toast.show({ message: t(`editor.theme.${next.theme}`) });
+      if (next.mode !== "easy") setEasyProperties(false);
+    },
+  });
+  const { preferences } = prefs;
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [tab, setTab] = useState<string | null>(null);
+  // Easy mode's start cards show once per image, until one is chosen or skipped.
+  const [startShownFor, setStartShownFor] = useState<string | null>(null);
   const { mode } = preferences;
   const toolState = { snapshot, editor: editorState };
   const lists = toolLists(registry, shortcuts, toolState, mode, icons, t);
@@ -344,24 +335,6 @@ function ImageEditorBody(props: BodyProps): ReactNode {
     setStartShownFor(snapshot.source?.id ?? null);
     if (!(tool.isEnabled?.(toolState) ?? true)) return;
     void tool.run(context);
-  };
-
-  /** Applies a change of preferences, and says what changed that isn't on screen. */
-  // `changed` are the inherited fields the person chose, which are the
-  // editor's own from then on: by default, those that differ from the preferences.
-  const changePreferences = (
-    next: EditorPreferences,
-    changed: readonly Inherited[] = INHERITED.filter((field) => next[field] !== preferences[field]),
-  ) => {
-    if (next.mode !== preferences.mode) toast.show({ message: t(`editor.mode.${next.mode}`) });
-    if (changed.includes("theme")) {
-      toast.show({ message: t(`editor.theme.${next.theme}`) });
-    }
-    if (changed.some((field) => !picked.has(field))) {
-      setPicked(new Set([...picked, ...changed]));
-    }
-    if (next.mode !== "easy") setEasyProperties(false);
-    setPreferences(next);
   };
 
   const chooseCard = (card: StartCard) => {
@@ -465,9 +438,7 @@ function ImageEditorBody(props: BodyProps): ReactNode {
       onKeyDown={onKeyDown}
       aria-label={messages.t("editor.label")}
       // ui's colour mode, density and motion for the editor alone (sdk-core ADR 0067).
-      data-hm-theme={props.theme ?? (isChosen("theme") ? preferences.theme : undefined)}
-      data-hm-density={isChosen("density") ? preferences.density : undefined}
-      data-hm-motion={isChosen("motion") ? preferences.motion : undefined}
+      {...prefs.rootAttributes}
     >
       <EngineBoundary>
         <input
@@ -498,13 +469,13 @@ function ImageEditorBody(props: BodyProps): ReactNode {
           className="hm-image-editor-frame"
           unstyled={unstyled}
           toolsState={preferences.tools}
-          onToolsStateChange={(tools) => changePreferences({ ...preferences, tools })}
+          onToolsStateChange={(tools) => prefs.change({ ...preferences, tools })}
           // A start card can show the properties for now, in Easy mode, without
           // changing the person's preference for them.
           propertiesState={mode === "easy" && easyProperties ? "shown" : preferences.properties}
           onPropertiesStateChange={(properties) => {
             setEasyProperties(false);
-            changePreferences({ ...preferences, properties });
+            prefs.change({ ...preferences, properties });
           }}
           toolsLayout={preferences.toolsLayout}
           topBar={
@@ -524,7 +495,7 @@ function ImageEditorBody(props: BodyProps): ReactNode {
                 className="hm-image-editor-mode"
                 size="small"
                 value={mode}
-                onValueChange={(next) => changePreferences({ ...preferences, mode: next })}
+                onValueChange={(next) => prefs.change({ ...preferences, mode: next })}
               />
               <Toolbar label={t("toolbar.groups.history")} className="hm-image-editor-bar">
                 {barButton(open)}
@@ -544,8 +515,8 @@ function ImageEditorBody(props: BodyProps): ReactNode {
                 {props.theme ? null : (
                   <ThemeToggle
                     // Until a theme is chosen, the toggle shows the page's.
-                    value={isChosen("theme") ? preferences.theme : "inherit"}
-                    onValueChange={(theme) => changePreferences({ ...preferences, theme })}
+                    value={prefs.themeToggleValue}
+                    onValueChange={(theme) => prefs.change({ ...preferences, theme })}
                   />
                 )}
                 <Tooltip type="label" content={t("editor.settings")}>
@@ -554,12 +525,9 @@ function ImageEditorBody(props: BodyProps): ReactNode {
                     label={t("editor.settings")}
                     icon={<SettingsIcon />}
                     aria-haspopup="dialog"
-                    onClick={() => {
-                      // The settings show what's in effect, the page's values
-                      // included, as they are when they open.
-                      setInheritedAtOpen(inheritedValues(root.current));
-                      setSettingsOpen(true);
-                    }}
+                    // The settings show what's in effect, the page's values
+                    // included, as they are when they open.
+                    onClick={() => prefs.openSettings(root.current)}
                   />
                 </Tooltip>
               </Toolbar>
@@ -642,13 +610,7 @@ function ImageEditorBody(props: BodyProps): ReactNode {
           onRun={run}
         />
         <SettingsPanel
-          open={settingsOpen}
-          onOpenChange={setSettingsOpen}
-          value={shownSettings}
-          onValueChange={(next) => {
-            const choice = fromSettings(next, shownSettings, preferences, isChosen);
-            changePreferences(choice.preferences, choice.chosen);
-          }}
+          {...prefs.settings}
           settings={
             props.theme
               ? ["mode", "toolsLayout", "tools", "properties", "density", "motion", "tips"]

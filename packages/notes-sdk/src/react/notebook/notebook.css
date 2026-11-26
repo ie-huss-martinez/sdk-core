@@ -1,518 +1,223 @@
 /*
- * An open notebook: a strip with the notebook's tab, the bar of tools in
- * the accent colour, and under them the page sidebar and the pages. Three
- * things float over the pages: undo and redo, the options of the tool in
- * hand, and where you are in the notebook. States come from attributes:
- * data-hm-sidebar and data-hm-recording on the root, data-hm-save on the
- * save status, data-hm-group on the toolbar's groups.
+ * Visual styles apply unless the editor around the notebook is unstyled:
+ * `:not([data-hm-unstyled] *)`.
+ *
+ * An open notebook, on ui's frame (sdk-core ADR 0067, docs/adr/0008): the
+ * blue top bar with the notebook's title, the tools in a dock over the foot
+ * of the pages or in a sidebar, the tool's options in the properties panel,
+ * and the recording's transport at the foot. In the stage: the page sidebar
+ * beside the pages, and over the pages where you are and the zoom. States
+ * come from attributes: data-hm-sidebar, data-hm-recording and data-hm-dock
+ * on the root, data-hm-save on the save status.
  */
 @layer hm.sdk {
+  /* The frame needs a height: the notebook fills what the editor gives it. */
   .hm-notes-notebook {
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
     position: relative;
+    display: flex;
     flex: 1;
+    flex-direction: column;
     min-height: 0;
+    block-size: 100%;
+  }
+
+  .hm-notes-frame {
+    flex: 1 1 auto;
+    min-block-size: 0;
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-notebook {
-    animation: hm-notes-open var(--hm-notes-time-slow) var(--hm-notes-ease-out) both;
+    animation: hm-notes-open var(--hm-motion-duration-panel) var(--hm-motion-easing-enter) both;
   }
 
-  .hm-notes-notebook-header {
-    z-index: var(--hm-notes-layer-bar);
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
+  /* --- The top bar: in a fixed blue, in both themes (Huss, 2026-11-26) --- */
+
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-frame {
+    --hm-editor-frame-bar-bg: var(--hm-notes-chrome);
+    --hm-editor-frame-bar-fg: var(--hm-notes-on-chrome);
   }
 
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-notebook-header {
-    box-shadow: var(--hm-notes-shadow-md);
-  }
-
-  /* --- The strip: the notebook's tab, and whether it's saved --- */
-
-  .hm-notes-notebook-bar {
-    display: flex;
-    align-items: end;
-    gap: var(--hm-space-3);
-    box-sizing: border-box;
-    min-height: var(--hm-notes-tabs-height);
-    padding-inline: var(--hm-space-3);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-notebook-bar {
-    color: var(--hm-notes-on-chrome);
-    background: var(--hm-notes-chrome-deep);
-
-    /* The strip's own buttons are drawn for a dark ground. */
-    --hm-button-height: var(--hm-control-height-small);
-    --hm-button-radius: var(--hm-notes-radius-pill);
-  }
-
-  .hm-notes-notebook-bar > * {
-    flex: none;
-    align-self: center;
-  }
-
-  .hm-notes-notebook-bar > .hm-notes-notebook-title {
-    flex: 0 1 auto;
-    align-self: end;
-    box-sizing: border-box;
-    min-width: 0;
-    max-width: var(--hm-notes-tab-max);
-    margin: 0;
-    margin-inline-end: auto;
-    padding: var(--hm-space-2) var(--hm-space-5);
-    overflow: hidden;
-    font-size: var(--hm-font-size-body);
-    font-weight: var(--hm-notes-weight-label);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  /* The tab: the same colour as the bar of tools it sits on. */
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-notebook-title {
-    background: var(--hm-notes-chrome);
-    border-radius: var(--hm-notes-radius-md) var(--hm-notes-radius-md) 0 0;
-    animation: hm-notes-tab-in var(--hm-notes-time-slow) var(--hm-notes-ease-out) both;
-  }
-
-  .hm-notes-notebook-save {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--hm-space-2);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-notebook-save {
-    color: var(--hm-notes-on-chrome-muted);
-    font-size: var(--hm-notes-caption-size);
-    transition: color var(--hm-notes-time-base) var(--hm-notes-ease-out);
-  }
-
-  /* A dot before the status: steady when saved, breathing while saving. */
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-notebook-save::before {
-    content: "";
-    width: var(--hm-space-2);
-    height: var(--hm-space-2);
-    background: currentColor;
-    border-radius: var(--hm-notes-radius-pill);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-notebook-save[data-hm-save="saving"]::before {
-    animation: hm-notes-breathe var(--hm-notes-time-loop) var(--hm-notes-ease-in-out) infinite;
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-notebook-unsaved,
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-notebook-save[data-hm-save="failed"] {
-    color: var(--hm-notes-on-chrome);
-    font-size: var(--hm-notes-caption-size);
-    font-weight: var(--hm-notes-weight-label);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-notebook-recording {
-    animation: hm-notes-pulse var(--hm-notes-time-loop) var(--hm-notes-ease-out) infinite;
-  }
-
-  /* --- The bar of tools --- */
-
-  /* A toolbar wider than the screen scrolls sideways, and keeps every tool. */
-  .hm-notes-toolbar {
-    flex-wrap: nowrap;
-    gap: var(--hm-space-2);
-    min-height: var(--hm-notes-toolbar-height);
-    padding: 0 var(--hm-space-3);
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-toolbar {
-    background: var(--hm-notes-chrome);
-    border: 0;
-    border-radius: 0;
-
-    /* ui's buttons, drawn for the bar: light glyphs, and the tool in hand on a light tile. */
+  /* ui's buttons, drawn for the bar: light glyphs, and what's pressed or primary on a light tile. */
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-editor-frame-top {
     --hm-button-fg: var(--hm-notes-on-chrome);
-    --hm-button-height: var(--hm-notes-tool-size);
-    --hm-button-radius: var(--hm-notes-radius-sm);
-    --hm-button-icon-size: var(--hm-notes-tool-icon);
     --hm-button-quiet-bg-hover: var(--hm-notes-on-chrome-hover);
     --hm-button-quiet-bg-active: var(--hm-notes-on-chrome-pressed);
     --hm-button-pressed-bg: var(--hm-notes-chrome-active);
     --hm-button-pressed-fg: var(--hm-notes-chrome-active-ink);
     --hm-button-pressed-border-color: transparent;
+    --hm-button-primary-bg: var(--hm-notes-chrome-active);
+    --hm-button-primary-fg: var(--hm-notes-chrome-active-ink);
+    --hm-button-primary-bg-hover: var(--hm-notes-chrome-active-hover);
+    --hm-button-primary-bg-active: var(--hm-notes-chrome-active-hover);
+    --hm-button-disabled-fg: var(--hm-notes-on-chrome-disabled);
     --hm-focus-ring-color: var(--hm-notes-on-chrome);
+
+    border-block-end-color: transparent;
   }
 
-  .hm-notes-toolbar .hm-toolbar-group {
-    flex: none;
-    gap: var(--hm-space-1);
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-editor-frame-top .hm-button--quiet:disabled,
+  .hm-notes-notebook:not([data-hm-unstyled] *)
+    .hm-editor-frame-top
+    .hm-button--quiet[aria-disabled="true"] {
+    background: transparent;
   }
 
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-toolbar .hm-button {
-    transition:
-      background-color var(--hm-notes-time-fast) var(--hm-notes-ease-out),
-      color var(--hm-notes-time-fast) var(--hm-notes-ease-out),
-      scale var(--hm-notes-time-fast) var(--hm-notes-ease-spring),
-      box-shadow var(--hm-notes-time-fast) var(--hm-notes-ease-out);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled])
-    .hm-notes-toolbar
-    .hm-button:not(:disabled, [aria-disabled="true"]):active {
-    scale: 0.9;
-  }
-
-  /* The tool in hand keeps its light tile under the pointer too. */
-  .hm-notes-editor:not([data-hm-unstyled])
-    .hm-notes-toolbar
-    .hm-button[aria-pressed="true"]:not(:disabled, [aria-disabled="true"]):is(:hover, :active) {
-    color: var(--hm-notes-chrome-active-ink);
-    background: var(--hm-notes-chrome-active);
-  }
-
-  /* The tool in hand lands on its tile with a small bounce. */
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-toolbar .hm-button[aria-pressed="true"] {
-    box-shadow: var(--hm-notes-shadow-sm);
-    animation: hm-notes-pop var(--hm-notes-time-base) var(--hm-notes-ease-spring);
-  }
-
-  /* The tools sit in the middle; what comes before stays left, what comes after goes right. */
-  .hm-notes-toolbar [data-hm-group="ink"] {
-    margin-inline-start: auto;
-  }
-
-  .hm-notes-toolbar [data-hm-group="audio"] {
-    margin-inline-end: auto;
-  }
-
-  /* A rule between the groups in the middle. */
-  .hm-notes-toolbar [data-hm-group="options"],
-  .hm-notes-toolbar [data-hm-group="audio"] {
-    padding-inline-start: var(--hm-space-2);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-toolbar [data-hm-group="options"],
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-toolbar [data-hm-group="audio"] {
-    border-inline-start: var(--hm-notes-hairline) solid var(--hm-notes-on-chrome-line);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled])
-    .hm-notes-notebook[data-hm-recording]
-    [data-hm-tool="notes.record"] {
-    color: var(--hm-notes-on-chrome);
-    background: var(--hm-notes-record);
-    animation: hm-notes-pulse var(--hm-notes-time-loop) var(--hm-notes-ease-out) infinite;
-  }
-
-  /* --- Floating over the pages: undo and redo, and the zoom --- */
-
-  .hm-notes-toolbar [data-hm-group="history"],
-  .hm-notes-toolbar [data-hm-group="view"] {
-    position: absolute;
-    z-index: var(--hm-notes-layer-float);
-    box-sizing: border-box;
-    min-height: var(--hm-notes-pill-height);
-    padding-inline: var(--hm-space-2);
-  }
-
-  .hm-notes-toolbar [data-hm-group="history"] {
-    inset-block-start: calc(
-      var(--hm-notes-tabs-height) +
-      var(--hm-notes-toolbar-height) +
-      var(--hm-notes-float-gap)
-    );
-    inset-inline-start: var(--hm-notes-float-gap);
-    transition: inset-inline-start var(--hm-notes-time-slow) var(--hm-notes-ease-out);
-  }
-
-  .hm-notes-notebook[data-hm-sidebar="open"] .hm-notes-toolbar [data-hm-group="history"] {
-    inset-inline-start: calc(var(--hm-notes-sidebar-width) + var(--hm-notes-float-gap));
-  }
-
-  .hm-notes-toolbar [data-hm-group="view"] {
-    inset-block-end: var(--hm-notes-float-gap);
-    inset-inline-end: var(--hm-notes-float-gap);
-  }
-
-  /* On the pills ui's buttons go back to the theme's own colours, and are round. */
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-toolbar [data-hm-group="history"],
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-toolbar [data-hm-group="view"] {
-    --hm-button-fg: var(--hm-color-text);
-    --hm-button-radius: var(--hm-notes-radius-pill);
-    --hm-button-quiet-bg-hover: var(--hm-notes-hover);
-    --hm-button-quiet-bg-active: var(--hm-notes-pressed);
-    --hm-focus-ring-color: var(--hm-color-accent);
-
-    animation: hm-notes-float-in var(--hm-notes-time-slow) var(--hm-notes-ease-spring) both;
-  }
-
-  /* --- The options of the tool in hand --- */
-
-  /* Centred over the pages, whatever the sidebar takes. */
-  .hm-notes-options {
-    position: absolute;
-    inset-block-start: var(--hm-notes-float-gap);
-    inset-inline: 0;
-    z-index: var(--hm-notes-layer-float);
+  .hm-notes-notebook-heading {
     display: flex;
-    align-items: center;
-    gap: var(--hm-space-2);
-    box-sizing: border-box;
-    width: fit-content;
-    max-width: calc(100% - var(--hm-notes-float-gap) * 2);
-    min-height: var(--hm-notes-pill-height);
-    margin-inline: auto;
-    padding-inline: var(--hm-space-3);
-    touch-action: manipulation;
+    flex: 1 1 auto;
+    align-items: baseline;
+    gap: var(--hm-gap-normal);
+    min-inline-size: 0;
   }
 
-  .hm-notes-notebook[data-hm-sidebar="open"] .hm-notes-options {
-    inset-inline-start: var(--hm-notes-sidebar-width);
-    max-width: calc(100% - var(--hm-notes-sidebar-width) - var(--hm-notes-float-gap) * 2);
-  }
-
-  /* Where undo and redo would be under it, it moves to the other side. */
-  @container hm-notes-editor (width < 64rem) {
-    .hm-notes-options {
-      margin-inline-end: var(--hm-notes-float-gap);
-    }
-
-    /* With the sidebar open there's no room beside them: it goes under. */
-    .hm-notes-notebook[data-hm-sidebar="open"] .hm-notes-options {
-      inset-block-start: calc(var(--hm-notes-pill-height) + var(--hm-notes-float-gap) * 2);
-    }
-  }
-
-  @container hm-notes-editor (width < 46rem) {
-    .hm-notes-options {
-      inset-block-start: calc(var(--hm-notes-pill-height) + var(--hm-notes-float-gap) * 2);
-      margin-inline: auto;
-    }
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-options {
-    animation: hm-notes-drop-in var(--hm-notes-time-slow) var(--hm-notes-ease-spring) both;
-  }
-
-  .hm-notes-sizes,
-  .hm-notes-swatches {
-    display: flex;
-    align-items: center;
-    gap: var(--hm-space-1);
-  }
-
-  .hm-notes-size,
-  .hm-notes-swatch,
-  .hm-notes-options-more {
-    display: grid;
-    flex: none;
-    place-items: center;
-    width: var(--hm-notes-tool-size);
-    height: var(--hm-notes-tool-size);
+  .hm-notes-notebook-title {
+    flex: 0 1 auto;
+    min-inline-size: 0;
     margin: 0;
-    padding: 0;
-    color: inherit;
-    background: none;
-    border: 0;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .hm-notes-size:focus-visible,
-  .hm-notes-swatch:focus-visible,
-  .hm-notes-options-more:focus-visible {
-    outline: var(--hm-focus-ring);
-    outline-offset: calc(var(--hm-notes-hairline) * -2);
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-notebook-title {
+    font-size: var(--hm-font-size-body);
+    font-weight: var(--hm-font-weight-strong);
   }
 
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-size,
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-swatch,
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-options-more {
-    border-radius: var(--hm-notes-radius-pill);
-    transition:
-      background-color var(--hm-notes-time-fast) var(--hm-notes-ease-out),
-      scale var(--hm-notes-time-fast) var(--hm-notes-ease-spring);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-size:hover,
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-options-more:hover {
-    background: var(--hm-notes-hover);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-size:active,
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-swatch:active,
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-options-more:active {
-    scale: 0.88;
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-size[aria-checked="true"] {
-    background: var(--hm-notes-pressed);
-  }
-
-  /* A width is shown as a stroke of that weight. */
-  .hm-notes-size-mark {
-    display: block;
-    width: var(--hm-notes-size-mark);
-    height: var(--hm-notes-size-medium);
-  }
-
-  .hm-notes-size[data-hm-size="small"] .hm-notes-size-mark {
-    height: var(--hm-notes-size-small);
-  }
-
-  .hm-notes-size[data-hm-size="large"] .hm-notes-size-mark {
-    height: var(--hm-notes-size-large);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-size-mark {
-    background: currentColor;
-    border-radius: var(--hm-notes-radius-pill);
-  }
-
-  /* The eraser's and the text's sizes are rings and letters of that size. */
-  .hm-notes-options[data-hm-tool="eraser"] .hm-notes-size-mark {
-    width: var(--hm-space-3);
-    height: var(--hm-space-3);
-  }
-
-  .hm-notes-options[data-hm-tool="eraser"] [data-hm-size="medium"] .hm-notes-size-mark {
-    width: var(--hm-space-5);
-    height: var(--hm-space-5);
-  }
-
-  .hm-notes-options[data-hm-tool="eraser"] [data-hm-size="large"] .hm-notes-size-mark {
-    width: var(--hm-space-7);
-    height: var(--hm-space-7);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled])
-    .hm-notes-options[data-hm-tool="eraser"]
-    .hm-notes-size-mark {
-    background: none;
-    border: calc(var(--hm-notes-hairline) * 2) solid var(--hm-notes-eraser-ring);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled])
-    .hm-notes-options[data-hm-tool="eraser"]
-    [aria-checked="true"]
-    .hm-notes-size-mark {
-    border-color: var(--hm-color-accent);
-  }
-
-  .hm-notes-options-rule {
-    align-self: stretch;
-    width: var(--hm-notes-hairline);
-    margin-block: var(--hm-space-3);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-options-rule {
-    background: var(--hm-notes-line-strong);
-  }
-
-  .hm-notes-swatch-dot {
-    display: block;
-    width: var(--hm-notes-swatch-size);
-    height: var(--hm-notes-swatch-size);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-swatch-dot {
-    border-radius: var(--hm-notes-radius-pill);
-    box-shadow: inset 0 0 0 var(--hm-notes-hairline) var(--hm-notes-swatch-edge);
-    transition:
-      scale var(--hm-notes-time-base) var(--hm-notes-ease-spring),
-      box-shadow var(--hm-notes-time-fast) var(--hm-notes-ease-out);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-swatch:hover .hm-notes-swatch-dot {
-    scale: 1.12;
-  }
-
-  /* The colour in hand: a ring around its dot, in the theme's surface then the accent. */
-  .hm-notes-editor:not([data-hm-unstyled])
-    .hm-notes-swatch[aria-checked="true"]
-    .hm-notes-swatch-dot,
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-swatch[data-hm-custom] .hm-notes-swatch-dot {
-    box-shadow:
-      0 0 0 calc(var(--hm-notes-hairline) * 2) var(--hm-color-surface-raised),
-      0 0 0 calc(var(--hm-notes-hairline) * 4) var(--hm-color-accent);
-    scale: 0.86;
-  }
-
-  .hm-notes-swatch[data-hm-custom] {
-    cursor: default;
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-options-more > .hm-icon {
-    transition: rotate var(--hm-notes-time-base) var(--hm-notes-ease-spring);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-options-more[aria-expanded="true"] > .hm-icon {
-    rotate: 180deg;
-  }
-
-  /* Any colour and width, in a panel under the pill. */
-  .hm-notes-popover {
-    position: absolute;
-    inset-block-start: calc(100% + var(--hm-space-2));
-    inset-inline-end: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--hm-space-4);
-    box-sizing: border-box;
-    width: var(--hm-notes-popover-width);
-    max-width: 100%;
-    padding: var(--hm-space-4);
-  }
-
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-popover {
-    background: var(--hm-color-surface-raised);
-    border: var(--hm-notes-hairline) solid var(--hm-notes-line);
-    border-radius: var(--hm-notes-radius-lg);
-    box-shadow: var(--hm-notes-shadow-lg);
-    transform-origin: 100% 0;
-    animation: hm-notes-popover-in var(--hm-notes-time-base) var(--hm-notes-ease-spring) both;
-  }
-
-  .hm-notes-option {
-    display: flex;
+  .hm-notes-notebook-save {
+    display: inline-flex;
+    flex: none;
     align-items: center;
-    gap: var(--hm-space-3);
+    gap: var(--hm-gap-tight);
   }
 
-  .hm-notes-option > .hm-slider {
-    flex: 1;
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-notebook-save {
+    color: var(--hm-notes-on-chrome-muted);
+    font-size: var(--hm-font-size-small);
+  }
+
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-notebook-save[data-hm-save="failed"] {
+    color: var(--hm-notes-on-chrome);
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  /* A dot before the status: steady when saved, breathing while saving. */
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-notebook-save::before {
+    content: "";
+    width: var(--hm-space-2);
+    height: var(--hm-space-2);
+    background: currentColor;
+    border-radius: var(--hm-radius-round);
+  }
+
+  .hm-notes-notebook-bar.hm-toolbar {
+    flex-wrap: nowrap;
+  }
+
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-notebook-bar.hm-toolbar {
+    background: transparent;
+    border-color: transparent;
+  }
+
+  /* --- The tools, in the frame's panel --- */
+
+  .hm-notes-notebook[data-hm-recording]:not([data-hm-unstyled] *) [data-hm-tool-id="notes.record"] {
+    color: var(--hm-color-on-danger);
+    background: var(--hm-notes-record);
+  }
+
+  /* The dock stays above what's over the pages, the start cards included: they lock nothing. */
+  .hm-notes-frame[data-hm-layout="dock"] > .hm-editor-frame-body > .hm-editor-frame-tools {
+    z-index: var(--hm-z-sticky);
+  }
+
+  /*
+   * The dock lies over the paper, where ink is drawn on canvases: it's an
+   * opaque raised surface there, not frosted glass. Ink seen blurred through
+   * it would smudge the page, and Chromium draws a backdrop blur over a
+   * canvas's layer a level apart at the dock's edge from one load to the next
+   * (sdk-core ADR 0054: the difference is removed, never tolerated).
+   */
+  .hm-notes-notebook:not([data-hm-unstyled] *)
+    .hm-notes-frame[data-hm-layout="dock"]
+    > .hm-editor-frame-body
+    > .hm-editor-frame-tools {
+    backdrop-filter: none;
+    background: var(--hm-color-surface-raised);
+  }
+
+  /* On a phone the mode is in the settings, and the top bar keeps its room. */
+  @container hm-editor-frame (width < 45rem) {
+    .hm-notes-notebook-mode {
+      display: none;
+    }
+  }
+
+  /* --- The stage: the page sidebar beside the pages --- */
+
+  .hm-notes-notebook-body {
+    position: relative;
+    display: grid;
+    flex: 1 1 auto;
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  /*
+   * A missing token makes a whole declaration invalid, so layout reads its
+   * tokens with a percentage fallback: without the stylesheet's tokens the
+   * notebook loses its looks, never its layout.
+   */
+  .hm-notes-notebook[data-hm-sidebar="open"] .hm-notes-notebook-body {
+    grid-template-columns: var(--hm-sidebar-width, 24%) minmax(0, 1fr);
+  }
+
+  .hm-notes-notebook-pages {
+    position: relative;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
     min-width: 0;
+    min-height: 0;
   }
 
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-option-label,
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-option-value {
-    color: var(--hm-notes-ink-muted);
-    font-size: var(--hm-notes-caption-size);
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* --- Where you are, at the foot of the pages --- */
+  /* --- Over the pages: where you are, and the zoom --- */
 
   .hm-notes-notebook-position {
     position: absolute;
-    inset-block-end: var(--hm-notes-float-gap);
-    inset-inline-start: var(--hm-notes-float-gap);
-    z-index: var(--hm-notes-layer-float);
+    inset-block-start: var(--hm-gap-loose);
+    inset-inline-start: var(--hm-gap-loose);
+    z-index: var(--hm-z-raised);
     padding: var(--hm-space-2) var(--hm-space-4);
     pointer-events: none;
-    transition: inset-inline-start var(--hm-notes-time-slow) var(--hm-notes-ease-out);
   }
 
-  .hm-notes-notebook[data-hm-sidebar="open"] .hm-notes-notebook-position {
-    inset-inline-start: calc(var(--hm-notes-sidebar-width) + var(--hm-notes-float-gap));
+  .hm-notes-notebook-zoom.hm-toolbar {
+    position: absolute;
+    inset-block-start: var(--hm-gap-loose);
+    inset-inline-end: var(--hm-gap-loose);
+    z-index: var(--hm-z-raised);
   }
 
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-notebook-position {
-    color: var(--hm-notes-ink-muted);
-    font-size: var(--hm-notes-label-size);
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-notebook-position {
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
     font-variant-numeric: tabular-nums;
-    animation: hm-notes-float-in var(--hm-notes-time-slow) var(--hm-notes-ease-spring) both;
+  }
+
+  /* The pills over the pages: frosted, round and raised. */
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-notebook-position,
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-notebook-zoom.hm-toolbar {
+    color: var(--hm-color-text);
+    background: var(--hm-color-surface-glass);
+    border: var(--hm-border-width) solid var(--hm-color-border);
+    border-radius: var(--hm-radius-round);
+    box-shadow: var(--hm-shadow-floating);
+    backdrop-filter: blur(var(--hm-blur-glass));
+  }
+
+  /* Progress, errors and warnings: under the pills, clear of the dock at the foot. */
+  .hm-notes-notebook-pages > .hm-notes-toasts {
+    inset-block: calc(var(--hm-gap-loose) * 2 + var(--hm-control-height) + var(--hm-space-2)) auto;
   }
 
   .hm-notes-notebook-progress {
@@ -528,31 +233,34 @@
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-toast.hm-notes-notebook-progress {
     color: var(--hm-color-text);
-    background: var(--hm-notes-glass-strong);
-    border: var(--hm-notes-hairline) solid var(--hm-notes-line);
-    backdrop-filter: blur(var(--hm-notes-glass-blur));
-  }
-
-  /* --- The body: the sidebar and the pages --- */
-
-  .hm-notes-notebook-body {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    position: relative;
-    min-height: 0;
+    background: var(--hm-color-surface-glass);
+    border: var(--hm-border-width) solid var(--hm-color-border);
+    backdrop-filter: blur(var(--hm-blur-glass));
   }
 
   /*
-   * A missing token makes a whole declaration invalid, so layout reads its
-   * tokens with a percentage fallback: without the stylesheet's tokens the
-   * editor loses its looks, never its layout.
+   * ui's toasts sit over the foot of the window, where the dock is: they
+   * rise above it while the tools are docked.
    */
-  .hm-notes-notebook[data-hm-sidebar="open"] .hm-notes-notebook-body {
-    grid-template-columns: var(--hm-notes-sidebar-width, 24%) minmax(0, 1fr);
+  .hm-notes-toast-region:is(
+    .hm-notes-editor:has(.hm-notes-notebook[data-hm-dock]) *,
+    .hm-notes-notebook[data-hm-dock] ~ *
+  ) {
+    --hm-notes-dock-room: max(var(--hm-control-height), var(--hm-target-size));
+
+    inset-block-end: calc(
+      var(--hm-gap-loose) *
+      2 +
+      var(--hm-notes-dock-room) +
+      var(--hm-inset-tight) *
+      2
+    );
   }
 
+  /* --- The page sidebar --- */
+
+  /* Beside the pages, under the tools' dock, which floats over the whole stage. */
   .hm-notes-sidebar {
-    z-index: var(--hm-notes-layer-rail);
     display: flex;
     flex-direction: column;
     gap: var(--hm-space-3);
@@ -563,14 +271,12 @@
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-sidebar {
     background: var(--hm-color-surface);
-    border-inline-end: var(--hm-notes-hairline) solid var(--hm-notes-line);
-    animation: hm-notes-slide-in var(--hm-notes-time-slow) var(--hm-notes-ease-out) both;
-
-    --hm-radius-control: var(--hm-notes-radius-sm);
+    border-inline-end: var(--hm-border-width) solid var(--hm-color-border);
+    animation: hm-notes-slide-in var(--hm-motion-duration-panel) var(--hm-motion-easing-enter) both;
   }
 
-  /* On a narrow screen the sidebar lies over the pages, which keep their width. */
-  @container hm-notes-editor (width < 40rem) {
+  /* On a narrow notebook the sidebar lies over the pages, which keep their width. */
+  @container hm-editor-frame (width < 45rem) {
     .hm-notes-notebook[data-hm-sidebar="open"] .hm-notes-notebook-body {
       grid-template-columns: minmax(0, 1fr);
     }
@@ -579,26 +285,13 @@
       position: absolute;
       inset-block: 0;
       inset-inline-start: 0;
-      width: var(--hm-notes-sidebar-width, 24%);
+      z-index: var(--hm-z-raised);
+      width: var(--hm-sidebar-width, 24%);
       max-width: 85%;
     }
 
     .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-sidebar {
-      box-shadow: var(--hm-notes-shadow-lg);
-    }
-
-    .hm-notes-notebook[data-hm-sidebar="open"] .hm-notes-toolbar [data-hm-group="history"],
-    .hm-notes-notebook[data-hm-sidebar="open"] .hm-notes-notebook-position {
-      inset-inline-start: var(--hm-notes-float-gap);
-    }
-
-    /* The sidebar lies over the pages here, so the options keep the whole width, under undo and redo. */
-    .hm-notes-notebook .hm-notes-options {
-      inset-block-start: calc(var(--hm-notes-pill-height) + var(--hm-notes-float-gap) * 2);
-      inset-inline-start: 0;
-      max-width: calc(100% - var(--hm-notes-float-gap) * 2);
-      margin-inline: auto;
-      overflow-x: auto;
+      box-shadow: var(--hm-shadow-overlay);
     }
   }
 
@@ -614,8 +307,8 @@
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-sidebar-empty {
-    color: var(--hm-notes-ink-muted);
-    font-size: var(--hm-notes-label-size);
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
   }
 
   .hm-notes-sidebar-form {
@@ -639,15 +332,15 @@
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-thumbnail-canvas {
     background: var(--hm-notes-paper);
-    border-radius: var(--hm-notes-radius-xs);
-    box-shadow: var(--hm-notes-shadow-sm);
+    border-radius: var(--hm-radius-control);
+    box-shadow: var(--hm-shadow-raised);
     transition:
-      box-shadow var(--hm-notes-time-fast) var(--hm-notes-ease-out),
-      scale var(--hm-notes-time-base) var(--hm-notes-ease-spring);
+      box-shadow var(--hm-motion-duration-feedback) var(--hm-motion-easing-enter),
+      scale var(--hm-motion-duration-enter) var(--hm-motion-easing-spring);
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-thumbnail:hover .hm-notes-thumbnail-canvas {
-    box-shadow: var(--hm-notes-shadow-md);
+    box-shadow: var(--hm-shadow-floating);
     scale: 1.03;
   }
 
@@ -660,12 +353,12 @@
     .hm-notes-thumbnail-canvas {
     box-shadow:
       0 0 0 var(--hm-notes-thumb-ring) var(--hm-color-accent),
-      var(--hm-notes-shadow-md);
+      var(--hm-shadow-floating);
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-thumbnail-number {
-    color: var(--hm-notes-ink-muted);
-    font-size: var(--hm-notes-caption-size);
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
     font-variant-numeric: tabular-nums;
   }
 
@@ -694,21 +387,297 @@
   }
 
   .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-outline-page {
-    color: var(--hm-notes-ink-muted);
-    font-size: var(--hm-notes-caption-size);
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
   }
 
-  /* The floating pills: frosted, round and raised. */
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-toolbar [data-hm-group="history"],
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-toolbar [data-hm-group="view"],
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-options,
-  .hm-notes-editor:not([data-hm-unstyled]) .hm-notes-notebook-position {
+  /* --- The tool's options, in the properties panel --- */
+
+  .hm-notes-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hm-gap-loose);
+  }
+
+  .hm-notes-option {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hm-gap-normal);
+  }
+
+  .hm-notes-option > .hm-slider {
+    min-width: 0;
+  }
+
+  .hm-notes-options-none {
+    margin: 0;
+  }
+
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-option-label {
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-options-none {
+    color: var(--hm-color-text-muted);
+  }
+
+  .hm-notes-sizes {
+    display: flex;
+    align-items: center;
+    gap: var(--hm-gap-tight);
+  }
+
+  .hm-notes-size {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: var(--hm-notes-tool-size);
+    height: var(--hm-notes-tool-size);
+    margin: 0;
+    padding: 0;
+    color: inherit;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .hm-notes-size:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: calc(var(--hm-border-width) * -2);
+  }
+
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-size {
+    border-radius: var(--hm-radius-round);
+  }
+
+  @media (hover: hover) {
+    .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-size:hover {
+      background: var(--hm-color-control-hover);
+      transition: background-color var(--hm-motion-duration-feedback)
+        var(--hm-motion-easing-standard);
+    }
+  }
+
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-size[aria-checked="true"] {
+    background: var(--hm-color-accent-subtle);
+    box-shadow: inset 0 0 0 var(--hm-border-width) var(--hm-color-accent);
+  }
+
+  /* A width is shown as a stroke of that weight. */
+  .hm-notes-size-mark {
+    display: block;
+    width: var(--hm-notes-size-mark);
+    height: var(--hm-notes-size-medium);
+  }
+
+  .hm-notes-size[data-hm-size="small"] .hm-notes-size-mark {
+    height: var(--hm-notes-size-small);
+  }
+
+  .hm-notes-size[data-hm-size="large"] .hm-notes-size-mark {
+    height: var(--hm-notes-size-large);
+  }
+
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-size-mark {
+    background: currentColor;
+    border-radius: var(--hm-radius-round);
+  }
+
+  /* The eraser's sizes are rings of that size. */
+  .hm-notes-options[data-hm-tool="eraser"] .hm-notes-size-mark {
+    width: var(--hm-space-3);
+    height: var(--hm-space-3);
+  }
+
+  .hm-notes-options[data-hm-tool="eraser"] [data-hm-size="medium"] .hm-notes-size-mark {
+    width: var(--hm-space-5);
+    height: var(--hm-space-5);
+  }
+
+  .hm-notes-options[data-hm-tool="eraser"] [data-hm-size="large"] .hm-notes-size-mark {
+    width: var(--hm-space-7);
+    height: var(--hm-space-7);
+  }
+
+  .hm-notes-notebook:not([data-hm-unstyled] *)
+    .hm-notes-options[data-hm-tool="eraser"]
+    .hm-notes-size-mark {
+    background: none;
+    border: calc(var(--hm-border-width) * 2) solid var(--hm-color-border-strong);
+  }
+
+  .hm-notes-notebook:not([data-hm-unstyled] *)
+    .hm-notes-options[data-hm-tool="eraser"]
+    [aria-checked="true"]
+    .hm-notes-size-mark {
+    border-color: var(--hm-color-accent);
+  }
+
+  /* --- The recording's transport, at the foot --- */
+
+  .hm-notes-recording-bar.hm-toolbar {
+    flex-wrap: wrap;
+    gap: var(--hm-gap-normal);
+    padding: var(--hm-inset-tight) var(--hm-inset-normal);
+  }
+
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-recording-bar.hm-toolbar {
+    background: transparent;
+    border-color: transparent;
+    border-radius: 0;
+  }
+
+  .hm-notes-recording-live {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--hm-gap-normal);
+  }
+
+  .hm-notes-recording-dot {
+    display: inline-flex;
+    block-size: var(--hm-icon-size);
+    inline-size: var(--hm-icon-size);
+  }
+
+  .hm-notes-recording-dot > svg {
+    block-size: inherit;
+    inline-size: inherit;
+  }
+
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-recording-live {
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-recording-dot {
+    color: var(--hm-notes-record);
+  }
+
+  .hm-notes-recording-bar .hm-notes-recording-name {
+    flex: 0 1 auto;
+  }
+
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-recording-name {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /*
+   * Nothing loops but a recording's pulse and the dot of a save under way,
+   * and neither without motion (sdk-core ADR 0067).
+   */
+  @media (prefers-reduced-motion: no-preference) {
+    .hm-notes-notebook:not(
+        [data-hm-unstyled] *,
+        [data-hm-motion="reduced"],
+        [data-hm-motion="reduced"] *
+      )
+      .hm-notes-notebook-recording {
+      animation: hm-notes-pulse calc(var(--hm-motion-duration-loop) * 1.6)
+        var(--hm-motion-easing-enter) infinite;
+    }
+
+    .hm-notes-notebook:not(
+        [data-hm-unstyled] *,
+        [data-hm-motion="reduced"],
+        [data-hm-motion="reduced"] *
+      )
+      .hm-notes-notebook-save[data-hm-save="saving"]::before {
+      animation: hm-notes-breathe calc(var(--hm-motion-duration-loop) * 1.6)
+        var(--hm-motion-easing-standard) infinite;
+    }
+  }
+
+  /* --- Easy mode's start cards, over an empty notebook --- */
+
+  .hm-notes-start {
+    position: absolute;
+    inset: 0;
+    z-index: var(--hm-z-raised);
+    display: grid;
+    box-sizing: border-box;
+    align-content: center;
+    justify-items: center;
+    gap: var(--hm-gap-loose);
+    padding: var(--hm-inset-loose);
+    overflow: auto;
+  }
+
+  .hm-notes-start-title {
+    margin: 0;
+    text-align: center;
+  }
+
+  .hm-notes-start-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(calc(var(--hm-space-12) * 2), 1fr));
+    gap: var(--hm-gap-normal);
+    inline-size: min(100%, calc(var(--hm-space-12) * 7));
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hm-notes-start-card {
+    display: grid;
+    box-sizing: border-box;
+    align-content: start;
+    justify-items: start;
+    gap: var(--hm-gap-tight);
+    inline-size: 100%;
+    block-size: 100%;
+    min-block-size: var(--hm-target-size);
+    padding: var(--hm-inset-normal);
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .hm-notes-start-card:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: var(--hm-focus-ring-offset);
+  }
+
+  .hm-notes-start-card-icon {
+    display: inline-flex;
+    block-size: var(--hm-icon-size);
+    inline-size: var(--hm-icon-size);
+  }
+
+  .hm-notes-start-card-icon > svg {
+    block-size: inherit;
+    inline-size: inherit;
+  }
+
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-start {
+    background: color-mix(in oklch, var(--hm-color-bg) 88%, transparent);
+  }
+
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-start-card {
     color: var(--hm-color-text);
-    background: var(--hm-notes-glass-strong);
-    border: var(--hm-notes-hairline) solid var(--hm-notes-line);
-    border-radius: var(--hm-notes-radius-pill);
-    box-shadow: var(--hm-notes-shadow-md);
-    backdrop-filter: blur(var(--hm-notes-glass-blur));
+    font: inherit;
+    background: var(--hm-color-surface-raised);
+    border: var(--hm-border-width) solid var(--hm-color-border);
+    border-radius: var(--hm-radius-surface);
+    box-shadow: var(--hm-shadow-raised);
+  }
+
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-start-card-icon {
+    color: var(--hm-color-accent-text);
+  }
+
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-start-card-title {
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-start-card-description {
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
+  }
+
+  @media (hover: hover) {
+    .hm-notes-notebook:not([data-hm-unstyled] *) .hm-notes-start-card:hover {
+      border-color: var(--hm-color-accent);
+      transition: border-color var(--hm-motion-duration-feedback) var(--hm-motion-easing-standard);
+    }
   }
 
   /* --- Motion --- */
@@ -717,41 +686,6 @@
     from {
       opacity: var(--hm-notes-opacity-ghost);
       scale: 0.985;
-    }
-  }
-
-  @keyframes hm-notes-tab-in {
-    from {
-      opacity: var(--hm-notes-opacity-ghost);
-      translate: 0 100%;
-    }
-  }
-
-  @keyframes hm-notes-pop {
-    from {
-      scale: 0.8;
-    }
-  }
-
-  @keyframes hm-notes-float-in {
-    from {
-      opacity: var(--hm-notes-opacity-ghost);
-      scale: 0.9;
-    }
-  }
-
-  @keyframes hm-notes-drop-in {
-    from {
-      opacity: var(--hm-notes-opacity-ghost);
-      translate: 0 calc(var(--hm-notes-rise) * -1);
-      scale: 0.94;
-    }
-  }
-
-  @keyframes hm-notes-popover-in {
-    from {
-      opacity: var(--hm-notes-opacity-ghost);
-      scale: 0.9;
     }
   }
 

@@ -159,9 +159,11 @@ export default [
   entryBudget({
     name: "React entry (./react), with the shared code it loads",
     entry: "dist/react.js",
-    // 45.5 kB; 45.01 kB with SearchField (docs/adr/0017), 1.82 kB to an
+    // 46 kB; 45.75 kB with SearchField (docs/adr/0017), 1.82 kB to an
     // application that imports it, with the icon button that clears it.
-    // Before, 44.5 kB; 44.49 kB with Tabs (docs/adr/0016), 1.43 kB to an application
+    // Before, 45.5 kB; 45.23 kB with useEditorPreferences, the preference glue the
+    // four media editors each carried before (0.73 kB). Before, 44.5 kB;
+    // 44.49 kB with Tabs (docs/adr/0016), 1.43 kB to an application
     // that imports it, with the heading it shows before it's ready.
     // Before, 44 kB; 43.81 kB with Tag, TagList and ButtonLink (docs/adr/0015) and
     // 14 icons for pages (docs/adr/0005, amended), which the every-icon
@@ -181,7 +183,7 @@ export default [
     // content's headings. Every component counts here, though no
     // application ships them all, so a component's pull request raises it as
     // expected growth; review reads the import scenarios below to judge it.
-    limit: "45.5 kB",
+    limit: "46 kB",
   }),
   entryBudget({
     name: "Stylesheet (./styles.css)",
@@ -224,8 +226,10 @@ export default [
   scenario("every icon", ICONS, "4 kB"),
   // 7.5 kB; 7.40 kB.
   scenario("an editor", EDITOR, "7.5 kB"),
-  // 11 kB; 10.56 kB with ThemeToggle's `inherit`, for an editor that takes
-  // its page's theme until one is chosen. Before, 10.5 kB; 10.35 kB, with the frame's own panel toggles and their tooltips, and the palette's and toasts' own live regions for
+  // 11.5 kB; 11.33 kB with useEditorPreferences, which every SDK editor now
+  // takes from ui instead of its own copy. Before, 11 kB; 10.56 kB with
+  // ThemeToggle's `inherit`, for an editor that takes its page's theme until
+  // one is chosen. Before, 10.5 kB; 10.35 kB, with the frame's own panel toggles and their tooltips, and the palette's and toasts' own live regions for
   // when a modal dialog makes the page's announcer inert. Everything an SDK
   // editor renders through (sdk-core ADR
   // 0067): the frame, its tools, the mode switch, the theme toggle, the tab
@@ -244,8 +248,9 @@ export default [
       "ToastProvider",
       "useToast",
       "ProgressOverlay",
+      "useEditorPreferences",
     ],
-    "11 kB",
+    "11.5 kB",
   ),
   // 6 kB; 5.86 kB, with its colour names (docs/adr/0013).
   scenario("ColorPicker", ["ColorPicker", "addRecentColor"], "6 kB"),

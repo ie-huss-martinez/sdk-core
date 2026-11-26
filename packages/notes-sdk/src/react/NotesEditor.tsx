@@ -3,7 +3,10 @@ import {
   type HeadingLevel,
   HeadingLevelProvider,
   Spinner,
+  type ToastApi,
+  ToastProvider,
   UiMessagesProvider,
+  useToast,
 } from "@hussmartinez/ui/react";
 import {
   forwardRef,
@@ -23,6 +26,12 @@ import { useNotes } from "./context.js";
 import { NotesLibraryView } from "./library/NotesLibraryView.js";
 import { NotesProvider, type NotesProviderProps } from "./NotesProvider.js";
 import { NotesNotebook, type NotesNotebookHandle } from "./notebook/NotesNotebook.js";
+import {
+  NotesFrameContext,
+  type NotesFrameShared,
+  type NotesPreferenceProps,
+  useNotesPreferences,
+} from "./notebook/notebook-frame.js";
 
 /**
  * What the editor shows: the library, or an open notebook.
@@ -48,7 +57,9 @@ export type NotesEditorPart = "root" | "library" | "notebook";
  *
  * @public
  */
-export interface NotesEditorProps extends Omit<NotesProviderProps, "children"> {
+export interface NotesEditorProps
+  extends Omit<NotesProviderProps, "children">,
+    NotesPreferenceProps {
   /**
    * Called when the editor goes from the library to a notebook or back, so
    * a host can change what's around it, such as its own header.
@@ -65,9 +76,12 @@ export interface NotesEditorProps extends Omit<NotesProviderProps, "children"> {
    */
   readonly tools?: readonly string[];
   /**
-   * The notebook toolbar's groups, as tool ids. Defaults to the present
-   * tools in their usual groups; `[]` hides the toolbar, keeping the
-   * shortcuts. An unknown id throws.
+   * The notebook's tool groups, as tool ids. They place the tools: the bar's
+   * (back to the library, undo, redo, the sidebar, search, the zoom and
+   * Export as PDF) in the top bar and over the pages, and the rest in the
+   * tools panel (docs/adr/0008). Defaults to the present tools in their usual
+   * groups; `[]` shows no tool, and keeps the shortcuts and the command
+   * palette. An unknown id throws.
    */
   readonly toolbar?: readonly (readonly string[])[];
   /**
@@ -105,12 +119,31 @@ export interface NotesEditorHandle {
 
 const join = (...names: (string | undefined)[]) => names.filter(Boolean).join(" ");
 
+/** Hands ui's toasts to the shell, which renders their provider inside its root. */
+function ToastBridge({ onToast }: { readonly onToast: (toast: ToastApi) => void }): null {
+  const toast = useToast();
+  useEffect(() => onToast(toast), [onToast, toast]);
+  return null;
+}
+
 type Shell = Omit<NotesEditorProps, keyof NotesProviderProps>;
 
 const NotesEditorShell = /* @__PURE__ */ forwardRef<NotesEditorHandle, Shell>(
   function NotesEditorShell(props, handle): ReactNode {
     const { onViewChange, onSettingsChange, classNames = {}, unstyled = false } = props;
     const { library, messages } = useNotes();
+    // ui's toasts live inside the root, below this component.
+    const toastTo = useRef<ToastApi | undefined>(undefined);
+    const takeToasts = useCallback((toast: ToastApi) => {
+      toastTo.current = toast;
+    }, []);
+    // One set of preferences for both views, so a theme or a mode chosen in
+    // one notebook holds in the library and the next notebook (sdk-core ADR 0067).
+    const t = messages.t as (key: string) => string;
+    const preferences = useNotesPreferences(props, (key) =>
+      toastTo.current?.show({ message: t(key) }),
+    );
+    const shared: NotesFrameShared = { preferences, theme: props.theme, unstyled };
     const [open, setOpen] = useState<
       { session: NotesSession; page: string | undefined } | undefined
     >(undefined);
@@ -243,44 +276,52 @@ const NotesEditorShell = /* @__PURE__ */ forwardRef<NotesEditorHandle, Shell>(
         )}
         data-hm-view={open ? "notebook" : "library"}
         {...(unstyled ? { "data-hm-unstyled": "" } : {})}
+        // ui's colour mode, density and motion for the editor alone (sdk-core ADR 0067).
+        {...preferences.rootAttributes}
       >
-        {open ? (
-          <div className={join("hm-notes-editor-view", classNames.notebook)}>
-            <NotesNotebook
-              ref={(handle) => {
-                notebookView.current = handle ? { session: open.session, handle } : undefined;
-              }}
-              key={open.session.getSnapshot().notebook.id}
-              session={open.session}
-              settings={settings}
-              onSettingsChange={changeSettings}
-              onClose={() => show(undefined)}
-              initialPage={open.page}
-              tools={props.tools}
-              toolbar={props.toolbar}
-            />
-          </div>
-        ) : (
-          <div className={join("hm-notes-editor-view", classNames.library)}>
-            {error ? (
-              <p className="hm-notes-alert" role="alert">
-                {messages.error(error)}
-              </p>
-            ) : null}
-            {opening ? (
-              <div className="hm-notes-library-state" role="status">
-                <Spinner label={messages.t("editor.opening")} />
-                <p>{messages.t("editor.opening")}</p>
+        <ToastProvider className="hm-notes-toast-region">
+          <ToastBridge onToast={takeToasts} />
+          <NotesFrameContext.Provider value={shared}>
+            {open ? (
+              <div className={join("hm-notes-editor-view", classNames.notebook)}>
+                <NotesNotebook
+                  ref={(handle) => {
+                    notebookView.current = handle ? { session: open.session, handle } : undefined;
+                  }}
+                  key={open.session.getSnapshot().notebook.id}
+                  session={open.session}
+                  settings={settings}
+                  onSettingsChange={changeSettings}
+                  onClose={() => show(undefined)}
+                  initialPage={open.page}
+                  tools={props.tools}
+                  toolbar={props.toolbar}
+                  onOpenNotebook={(notebook) => void openNotebook(notebook).catch(() => undefined)}
+                />
               </div>
             ) : (
-              <NotesLibraryView
-                onOpen={(notebook, page) =>
-                  void openNotebook(notebook, page).catch(() => undefined)
-                }
-              />
+              <div className={join("hm-notes-editor-view", classNames.library)}>
+                {error ? (
+                  <p className="hm-notes-alert" role="alert">
+                    {messages.error(error)}
+                  </p>
+                ) : null}
+                {opening ? (
+                  <div className="hm-notes-library-state" role="status">
+                    <Spinner label={messages.t("editor.opening")} />
+                    <p>{messages.t("editor.opening")}</p>
+                  </div>
+                ) : (
+                  <NotesLibraryView
+                    onOpen={(notebook, page) =>
+                      void openNotebook(notebook, page).catch(() => undefined)
+                    }
+                  />
+                )}
+              </div>
             )}
-          </div>
-        )}
+          </NotesFrameContext.Provider>
+        </ToastProvider>
       </div>
     );
   },
@@ -288,7 +329,11 @@ const NotesEditorShell = /* @__PURE__ */ forwardRef<NotesEditorHandle, Shell>(
 
 /**
  * The whole notes editor: a library of notebooks kept on the device and,
- * once one is open, the pages to write on, with their toolbar and sidebar.
+ * once one is open, the pages to write on, on ui's editor frame (sdk-core
+ * ADR 0067, docs/adr/0008): the tools in a dock over the foot of the page,
+ * or in a sidebar, the tool's options in the properties panel, and the
+ * page sidebar beside the pages. It takes the person's preferences as
+ * `preferences` and `onPreferencesChange`, and never stores them.
  *
  * It renders nothing that needs the browser until it has mounted, so it can
  * be rendered on a server (sdk-core ADR 0007). Import

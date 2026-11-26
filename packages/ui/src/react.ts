@@ -220,6 +220,7 @@ export {
   editorPreferenceOptions,
   readEditorPreferences,
 } from "./preferences/editor-preferences.js";
+export type { InheritedEditorPreference } from "./preferences/inherited.js";
 export type {
   ThemeProviderBaseProps,
   ThemeProviderModeProps,
@@ -227,6 +228,12 @@ export type {
   ThemeProviderSingleProps,
 } from "./react/ThemeProvider.js";
 export { ThemeProvider } from "./react/ThemeProvider.js";
+export type {
+  EditorPreferencesChange,
+  EditorPreferencesControls,
+  UseEditorPreferencesOptions,
+} from "./react/use-editor-preferences.js";
+export { useEditorPreferences } from "./react/use-editor-preferences.js";
 export { useLatest } from "./react/use-latest.js";
 export { usePlatform } from "./react/use-platform.js";
 export type { ColorMode, Density, Theme, ThemePair } from "./theme/types.js";

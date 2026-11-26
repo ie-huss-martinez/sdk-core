@@ -57,4 +57,5 @@ A chip is a button that's on or off. `ToggleButton` is that: it carries `aria-pr
 - **`SearchField` ships `IconButton`, `Button` and two icons** for its clear button, so it costs more than `TextField`.
 - **Restyling text fields restyles search fields,** because they share tokens. A page that wants only its search box different sets the tokens on the box, or on an element around it.
 - **Filter chips stay three lines of the host's markup,** and nothing checks that the group is named. The story and the README are the reference.
+- **A form's reset is followed, not understood.** The field looks again for text after its form's `reset`, so the clear button comes back with the text. It follows the form it was in when it mounted, and React isn't told that a reset changed the input: on React 18, clearing straight after a reset, with nothing typed between, empties the input without `onChange` hearing of it. A search box in a form with a reset button is rare enough to say so and stop here.
 - **Follow-up, if asked for:** a `ToggleButtonGroup`, once a second site repeats the pattern.
