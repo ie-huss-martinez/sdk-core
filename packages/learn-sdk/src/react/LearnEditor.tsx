@@ -37,6 +37,7 @@ import {
   UiMessagesProvider,
   UndoIcon,
   useAnnounce,
+  useEditorPreferences,
   useLatest,
   usePlatform,
   useToast,
@@ -95,7 +96,6 @@ import { multipleChoice } from "../features/multiple-choice/multiple-choice.js";
 import { classes } from "../features/player/roving.js";
 import { wordOrderEditor } from "../features/word-order/WordOrderEditor.js";
 import { wordOrder } from "../features/word-order/word-order.js";
-import { useEditorPreferences } from "./editor/preferences.js";
 
 const builtInTypes = /* @__PURE__ */ createExerciseTypes([multipleChoice, gapFill, wordOrder]);
 const builtInBlocks: Readonly<Record<string, EditorBlock>> = {
@@ -289,8 +289,10 @@ function Editor({
     defaultPreferences: props.defaultPreferences,
     onPreferencesChange: props.onPreferencesChange,
     theme: props.theme,
-    onChange: (next, changed) => {
-      if (changed.includes("mode")) toast.show({ message: t.t(`editor.mode.${next.mode}`) });
+    // The editor's own toasts for what changed, in its messages (sdk-core ADR 0067).
+    onChange: ({ previous, preferences: next, chosen }) => {
+      if (next.mode !== previous.mode) toast.show({ message: t.t(`editor.mode.${next.mode}`) });
+      if (chosen.includes("theme")) toast.show({ message: t.t(`editor.theme.${next.theme}`) });
     },
   });
   const { preferences } = prefs;
@@ -574,7 +576,7 @@ function Editor({
                     label={t.t("editor.settings")}
                     icon={<SettingsIcon />}
                     aria-haspopup="dialog"
-                    onClick={prefs.openSettings}
+                    onClick={() => prefs.openSettings(root.current)}
                   />
                 </Toolbar>
               </>
@@ -740,12 +742,7 @@ function Editor({
               />
             ) : null}
           </Sheet>
-          <SettingsPanel
-            open={prefs.settings.open}
-            onOpenChange={prefs.settings.onOpenChange}
-            value={preferences}
-            onValueChange={prefs.change}
-          />
+          <SettingsPanel {...prefs.settings} />
           <CommandPalette
             open={paletteOpen}
             onOpenChange={setPaletteOpen}

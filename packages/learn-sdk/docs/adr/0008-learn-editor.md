@@ -62,7 +62,7 @@ The editor renders through `ui`'s `EditorFrame`, as the other editors do, and ta
 - **Start cards** in Easy mode: one per type, as "Write a multiple-choice question". Each adds an exercise of its type and selects its first field.
 - **Toasts** for adding, removing and moving exercises, with Undo, and for undo and redo, as ADR 0067 asks ("Exercise removed", Undo). Their text reaches screen readers through `ui`'s announcer. Typing in a field shows no toast: the field shows the edit, and a toast after every pause in typing would only interrupt.
 
-Each family editor has the same 35-line `useEditorPreferences` hook today. learn-sdk takes a copy for now. The shared editor code, this hook among it, is moving into `ui` with notes-sdk's frame work; whichever of the two changes lands second switches LearnEditor to `ui`'s version, so the copy doesn't stay.
+The frame's preferences go through `ui`'s shared `useEditorPreferences` (sdk-core #242), as every family editor's do: it owns the inherited theme, density and motion, the settings' wiring and the root's attributes, and LearnEditor adds only its own toasts for a mode or theme change.
 
 ### Editor blocks
 

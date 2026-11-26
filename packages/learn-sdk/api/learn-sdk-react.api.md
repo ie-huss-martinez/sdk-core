@@ -78,6 +78,9 @@ export const learnEditorMessages: {
     readonly "editor.mode.easy": "Easy mode";
     readonly "editor.mode.advanced": "Advanced mode";
     readonly "editor.mode.expert": "Expert mode";
+    readonly "editor.theme.light": "Light theme";
+    readonly "editor.theme.dark": "Dark theme";
+    readonly "editor.theme.system": "The system's theme";
     readonly "editor.outlineItem": "{title}, {type}";
     readonly "editor.empty": "No exercises yet. Add one from the tools.";
     readonly "editor.untitled": "Untitled exercise";
