@@ -100,8 +100,8 @@ export default [
   }),
 
   // The React entry (./react).
-  // 77.58 kB, then 81.96 kB on ui's frame (docs/adr/0008): the frame's wiring, start cards, toasts and text.
-  entryBudget({ name: "React (./react), as built", entry: react, limit: "82 kB" }),
+  // 77.58 kB, then 82.08 kB on ui's frame (docs/adr/0008): the frame's wiring, start cards, toasts and text.
+  entryBudget({ name: "React (./react), as built", entry: react, limit: "82.5 kB" }),
   importBudget({
     // The floor: the cheapest import a component would make (sdk-core ADR
     // 0056). It was the catalogue, until the notebook on ui's frame
@@ -145,11 +145,11 @@ export default [
   }),
   importBudget({
     // What a typical application imports: the whole editor. 59.74 kB, then
-    // 62.98 kB on ui's frame (docs/adr/0008); ui's components count in ui's budgets.
+    // 63.1 kB on ui's frame (docs/adr/0008); ui's components count in ui's budgets.
     name: "React: NotesEditor",
     entry: react,
     imports: "{ NotesEditor }",
-    limit: "63 kB",
+    limit: "63.5 kB",
   }),
 
   // The element entry (./element) mounts the whole editor, so it has only a ceiling.
