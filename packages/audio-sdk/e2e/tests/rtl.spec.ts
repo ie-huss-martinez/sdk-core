@@ -11,7 +11,11 @@ import { FIRST_OPEN, tone } from "./helpers.js";
  * transform, not by eye.
  */
 
-/** The icons ui flags to mirror, as the editor shows them with a recording open. */
+/**
+ * The icons ui flags to mirror, as the editor shows them with a recording
+ * open in Expert mode, whose transport has the start and the end too
+ * (docs/adr/0007).
+ */
 const FLAGGED = [
   "undo",
   "redo",
@@ -24,6 +28,11 @@ const FLAGGED = [
   "range-start",
   "range-end",
   "skip-back",
+  "skip-forward",
+  // The frame's button that turns the tools panel to icons (docs/adr/0007).
+  // It points along the reading order, at the panel's inline-start edge, so
+  // ui mirrors it too (ui ADR 0005).
+  "panel-collapse",
 ];
 const MIRRORED = "matrix(-1, 0, 0, 1, 0, 0)";
 
@@ -31,18 +40,23 @@ const MIRRORED = "matrix(-1, 0, 0, 1, 0, 0)";
 async function icons(page: Page) {
   await page.evaluate((data) => window.audioEditor.open(new Uint8Array(data).buffer), [...tone(1)]);
   await expect(page.getByRole("option")).toHaveCount(1, { timeout: FIRST_OPEN });
+  // Only the icons on screen: a hidden one has no box, so its transform reads
+  // "none" either way, such as the phone's tab bar the frame keeps in a
+  // desktop window (docs/adr/0007).
   return page.locator("svg.hm-icon").evaluateAll((all) =>
-    all.map((icon) => ({
-      name: icon.getAttribute("data-hm-icon"),
-      flagged: icon.hasAttribute("data-hm-mirror"),
-      transform: getComputedStyle(icon).transform,
-    })),
+    all
+      .filter((icon) => icon.checkVisibility())
+      .map((icon) => ({
+        name: icon.getAttribute("data-hm-icon"),
+        flagged: icon.hasAttribute("data-hm-mirror"),
+        transform: getComputedStyle(icon).transform,
+      })),
   );
 }
 
 for (const [path, what] of [
-  ["/editor.html?dir=rtl", "only dir"],
-  ["/editor.html?lang=he", "a Hebrew lang and dir"],
+  ["/editor.html?dir=rtl&mode=expert", "only dir"],
+  ["/editor.html?lang=he&mode=expert", "a Hebrew lang and dir"],
 ] as const) {
   test(`the icons that point along time mirror on a page with ${what}`, async ({ page }) => {
     await page.goto(path);
