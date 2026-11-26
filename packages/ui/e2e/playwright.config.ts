@@ -1,8 +1,16 @@
+import { testBrowsers } from "@hussmartinez/sdk-config/testing/browsers";
 import { fontLaunchEnv } from "@hussmartinez/sdk-config/testing/fonts";
 import { browserTestImageProblem } from "@hussmartinez/sdk-config/testing/require-image";
 import { defineConfig, devices } from "@playwright/test";
 
 const ci = Boolean(process.env["CI"]);
+
+/** Each engine's device. Every engine in CI, Chromium on a draft pull request (sdk-core ADR 0068). */
+const DEVICES = {
+  chromium: "Desktop Chrome",
+  firefox: "Desktop Firefox",
+  webkit: "Desktop Safari",
+} as const;
 
 /**
  * Playwright starts the web servers before the global setup, so a host run
@@ -33,10 +41,9 @@ export default defineConfig({
     // browser's rather than adding to it.
     launchOptions: { env: fontLaunchEnv() },
   },
-  projects: (ci
-    ? (["Desktop Chrome", "Desktop Firefox", "Desktop Safari"] as const)
-    : (["Desktop Chrome"] as const)
-  ).map((device) => ({ name: device, use: { ...devices[device] } })),
+  projects: testBrowsers()
+    .map((browser) => DEVICES[browser])
+    .map((device) => ({ name: device, use: { ...devices[device] } })),
   webServer: canRunBrowsers
     ? [
         {

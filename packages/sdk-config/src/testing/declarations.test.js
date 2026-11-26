@@ -18,6 +18,7 @@ it("ships declarations for the testing and size entries that match their JSDoc",
     for (const name of [
       "testing/audio-output.d.ts",
       "testing/browser-instances.d.ts",
+      "testing/browsers.d.ts",
       "testing/conformance.d.ts",
       "testing/firefox-labelled-by.d.ts",
       "testing/firefox-labelled-by-setup.d.ts",

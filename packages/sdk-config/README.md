@@ -29,6 +29,7 @@ Install, as devDependencies, the tools for the presets you use. They are optiona
 | `hm-check-playwright-image` | Nothing |
 | `testing/visual`, `hm-test-visual` | `@playwright/test`, and Docker outside the browser test image |
 | `testing/browser-instances`, `hm-netlog-errors` | `@vitest/browser-playwright` |
+| `testing/browsers` | Nothing |
 | `testing/require-image` | Nothing |
 | `testing/timeouts` | Nothing |
 | `testing/fonts` | Nothing |
@@ -373,6 +374,31 @@ describeConformance(new URL("../../conformance/commands.json", import.meta.url),
 
 It's test code only, and needs `vitest` and `ajv`, which are optional peer dependencies.
 
+### Testing: `testBrowsers`
+
+The one copy of which engines a suite runs in ([ADR 0015](../../docs/adr/0015-verification-and-releases.md), [ADR 0068](../../docs/adr/0068-a-faster-pull-request-loop.md)), for Vitest's browser projects and Playwright's end-to-end configurations alike:
+
+```ts
+import { testBrowsers } from "@hussmartinez/sdk-config/testing/browsers";
+
+// vitest.config.ts
+export default defineConfig(({ mode }) => {
+  const browsers = testBrowsers({ all: mode === "all-browsers" });
+  // …
+});
+
+// e2e/playwright.config.ts
+const browsers = testBrowsers();
+// projects: [...].filter(([name]) => browsers.includes(name))
+```
+
+- **`all: true`:** Chromium, Firefox and WebKit, whatever else is set, for `--mode all-browsers` or a capability table's update.
+- **`HM_BROWSERS` set:** only the engines it names, comma-separated. CI sets `HM_BROWSERS=chromium` on a draft pull request, and its required `verify` check fails on such a run. An engine the family doesn't test on throws, so a typo can't leave a suite with nothing to run; an empty value counts as unset.
+- **`CI` set:** all three engines.
+- **Otherwise:** Chromium.
+
+It has no dependencies, so a Playwright-only package can import it.
+
 ### Testing: `browserInstances`
 
 For Vitest's browser mode. Some failures leave no reason: an iframe that "did not become ready within 60000ms", or a module worker that "failed to load" ([video-sdk#55](https://github.com/ie-huss-martinez/video-sdk/issues/55)). Chromium's error event for a module that failed to load carries no message, so the diagnostics record the requests themselves.
@@ -657,7 +683,7 @@ Install `@guidepup/virtual-screen-reader` as a dev dependency, pinned to the cat
 
 ### Testing: visual regression
 
-For every SDK's editor and element ([ADR 0048](../../docs/adr/0048-visual-regression-for-sdk-editors.md)): screenshots of each designed state on the built example page, in light and dark and both densities, compared with committed baselines on Chromium, inside the browser test image that `ci/Dockerfile` pins.
+For every SDK's editor and element ([ADR 0048](../../docs/adr/0048-visual-regression-for-sdk-editors.md)): screenshots of each designed state on the built example page, the main ones in light and dark and both densities and the rest in light-comfortable, compared with committed baselines on Chromium, inside the browser test image that `ci/Dockerfile` pins.
 
 `e2e/playwright.visual.config.ts` uses the preset, with the example's server as the end-to-end configuration has it:
 
@@ -675,19 +701,24 @@ export default defineVisualConfig({
 });
 ```
 
-The preset fixes the page: a 1280 × 800 viewport at a device scale factor of 1, `en-US`, `UTC` and reduced motion, with text in [the family's fonts](#testing-fonts). Screenshots are taken without animations or carets. Specs live in `e2e/visual/`, and each state is captured in every variant:
+The preset fixes the page: a 1280 × 800 viewport at a device scale factor of 1, `en-US`, `UTC` and reduced motion, with text in [the family's fonts](#testing-fonts). Screenshots are taken without animations or carets. Specs live in `e2e/visual/`. An editor's main states are captured in every variant of `visualVariants`, and the rest in `primaryVisualVariant`, light-comfortable, only ([ADR 0068](../../docs/adr/0068-a-faster-pull-request-loop.md)). `variantsFor(state, { full })` picks them:
 
 ```ts
 import { expect, test } from "@playwright/test";
-import { applyVisualVariant, visualVariants } from "@hussmartinez/sdk-config/testing/visual";
+import { applyVisualVariant, variantsFor } from "@hussmartinez/sdk-config/testing/visual";
 
-for (const variant of visualVariants) {
-  test(`empty in ${variant.name}`, async ({ page }) => {
-    await page.clock.setFixedTime(new Date("2026-01-01T12:00:00Z"));
-    await page.goto("/editor.html");
-    await applyVisualVariant(page, variant);
-    await expect(page).toHaveScreenshot(`empty-${variant.name}.png`);
-  });
+const FULL = ["empty", "open", "settings", "phone"];
+
+for (const state of ["empty", "open", "crop"]) {
+  for (const variant of variantsFor(state, { full: FULL })) {
+    test(`${state} in ${variant.name}`, async ({ page }) => {
+      await page.clock.setFixedTime(new Date("2026-01-01T12:00:00Z"));
+      await page.goto("/editor.html");
+      await applyVisualVariant(page, variant);
+      // … reach the state …
+      await expect(page).toHaveScreenshot(`${state}-${variant.name}.png`);
+    });
+  }
 }
 ```
 
@@ -799,6 +830,7 @@ Usage: hm-in-image [--] <command> [<argument>...]
   |---|---|
   | `CI`, `DEBUG` | What CI and debugging read, such as `DEBUG=pw:browser` |
   | `HM_BROWSER_DIAGNOSTICS` | The folder for [`browserInstances`](#testing-browserinstances)' net logs. It must be inside the checkout, and is passed as that folder's path in the container; a folder outside the checkout is a usage error |
+  | `HM_BROWSERS` | The engines [`testBrowsers`](#testing-testbrowsers) narrows a run to, such as `chromium` |
   | `PLAYWRIGHT_BASE_URL`, `SMOKE_BASE_URL` | The origin an end-to-end or smoke suite tests instead of its own server |
   | `SMOKE_ENGINES`, `SMOKE_ANALYTICS` | Which engines a smoke suite runs, and whether it checks analytics |
 

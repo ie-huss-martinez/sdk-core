@@ -50,8 +50,9 @@ export const visualComparison = Object.freeze({ threshold: 0.0038, maxDiffPixelR
  */
 
 /**
- * The themes and densities every state is captured in (ADR 0048): light and
- * dark, each in compact and comfortable density.
+ * Every theme and density (ADR 0048): light and dark, each in compact and
+ * comfortable density. An editor's main states are captured in all of them;
+ * the rest in {@link primaryVisualVariant} only (ADR 0068).
  *
  * @type {readonly VisualVariant[]}
  */
@@ -62,6 +63,44 @@ export const visualVariants = Object.freeze(
     ),
   ),
 );
+
+/**
+ * The one variant a state that isn't a main state is captured in (ADR
+ * 0068): light, comfortable, the defaults a host gets.
+ *
+ * @type {VisualVariant}
+ */
+export const primaryVisualVariant = /** @type {VisualVariant} */ (
+  visualVariants.find((variant) => variant.name === "light-comfortable")
+);
+
+const PRIMARY_ONLY = Object.freeze([primaryVisualVariant]);
+
+/**
+ * Returns the variants to capture a state in (ADR 0068): every one of
+ * {@link visualVariants} for a state listed in `full`, and
+ * {@link primaryVisualVariant} alone for any other. Themes and densities
+ * change tokens and spacing, which the main states show; the rest add their
+ * own layout, which one variant shows.
+ *
+ * @example
+ * ```ts
+ * const FULL = ["empty", "open", "settings", "phone"];
+ * for (const variant of variantsFor(state, { full: FULL })) {
+ *   test(`${state}, ${variant.name}`, async ({ page }) => {
+ *     // …
+ *   });
+ * }
+ * ```
+ *
+ * @param {string} state The state's name, as in its screenshots' names.
+ * @param {{ full: readonly string[] }} options The main states, captured in
+ *   every variant.
+ * @returns {readonly VisualVariant[]}
+ */
+export function variantsFor(state, { full }) {
+  return full.includes(state) ? visualVariants : PRIMARY_ONLY;
+}
 
 /**
  * Applies a variant's theme and density to the page's root element, after it

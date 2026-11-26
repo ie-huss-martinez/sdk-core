@@ -1,11 +1,10 @@
+import { testBrowsers } from "@hussmartinez/sdk-config/testing/browsers";
 import { fontLaunchEnv } from "@hussmartinez/sdk-config/testing/fonts";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 import { uiSourceAliases } from "./ui-source.js";
 import { strictComparator } from "./visual/comparator.js";
-
-const ALL_BROWSERS = ["chromium", "firefox", "webkit"] as const;
 
 // Screenshots depend on fonts and rendering libraries, so visual tests only run
 // in the pinned Playwright image, where baselines match pixel for pixel.
@@ -28,8 +27,9 @@ export default defineConfig(({ mode }) => {
   // Stories run on Chromium locally, and on all three engines in CI or with
   // --mode all-browsers (ADR 0015), always in the browser test image
   // (docs/adr/0007).
-  const browsers =
-    process.env["CI"] || mode === "all-browsers" ? ALL_BROWSERS : (["chromium"] as const);
+  // The rule is sdk-config's testBrowsers: on a draft pull request, CI
+  // narrows it to Chromium (sdk-core ADR 0068).
+  const browsers = testBrowsers({ all: mode === "all-browsers" });
   return {
     resolve: { alias: uiSourceAliases },
     test: {

@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-21
+- **Amended:** 2026-11-26, by [ADR 0068](0068-a-faster-pull-request-loop.md): a draft pull request runs its browser tests on Chromium only, and the required `verify` check fails on that run, so only the full run of a ready pull request passes it. CodeRabbit reviews a pull request once it's ready, then incrementally after each push
 - **Supersedes:** the rule in [ADR 0015](0015-verification-and-releases.md), repeated in [ADR 0016](0016-git-hooks-and-merge-guards.md), that contributors run the full `pnpm verify` locally before marking a pull request ready, and the practice that the reviewer runs it again before merging
 
 ## Context

@@ -49,6 +49,10 @@
       "types": "./src/testing/browser-instances.d.ts",
       "default": "./src/testing/browser-instances.js"
     },
+    "./testing/browsers": {
+      "types": "./src/testing/browsers.d.ts",
+      "default": "./src/testing/browsers.js"
+    },
     "./testing/conformance": {
       "types": "./src/testing/conformance.d.ts",
       "default": "./src/testing/conformance.js"
