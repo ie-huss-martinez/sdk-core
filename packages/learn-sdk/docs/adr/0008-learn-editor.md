@@ -1,6 +1,6 @@
 # 0008. LearnEditor: the teacher's editor, in the family's frame, on the editor session
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-26
 
 ## Context
@@ -62,7 +62,7 @@ The editor renders through `ui`'s `EditorFrame`, as the other editors do, and ta
 - **Start cards** in Easy mode: one per type, as "Write a multiple-choice question". Each adds an exercise of its type and selects its first field.
 - **Toasts** for every edit, with Undo, as ADR 0067 asks ("Exercise removed", Undo). Their text reaches screen readers through `ui`'s announcer.
 
-Each family editor has the same 35-line `useEditorPreferences` hook today. learn-sdk takes it as the others have; moving it into `ui` is a separate change for all five.
+Each family editor has the same 35-line `useEditorPreferences` hook today. learn-sdk takes a copy for now. The shared editor code, this hook among it, is moving into `ui` with notes-sdk's frame work; whichever of the two changes lands second switches LearnEditor to `ui`'s version, so the copy doesn't stay.
 
 ### Editor blocks
 
@@ -90,7 +90,7 @@ interface EditorBlockProps<Payload> {
 ### Typing: one undo step per burst, and never mid-composition
 
 - A text field keeps what's typed and commits it as one command when it loses focus, on Enter in a one-line field, or after 700 ms without typing. A burst of typing is one undo step, as ADR 0007 asks.
-- **Nothing commits while an input method is composing** (between `compositionstart` and `compositionend`). Thai, Chinese and Japanese input methods build a character in several steps, and committing halfway would put half-built text into the history.
+- **Nothing commits while an input method is composing** (between `compositionstart` and `compositionend`). Thai, Chinese and Japanese input methods build a character in several steps, and committing halfway would put half-built text into the history. If the 700 ms pause ends during a composition, the field commits on `compositionend` instead.
 - Undo, redo, adding, removing, moving, `flush()`, `getContent()` and unmounting commit pending typing first, so nothing typed is lost or applied out of order.
 - **Fields in the taught language** (prompts, choices, sentences, answers, tiles) get `lang` and `dir` from the profile, with `spellcheck`, `autocorrect` and `autocapitalize` off: a browser checking Thai against an English dictionary only gets in the way. **Fields in the teacher's language** (titles, instructions, explanations, translations) take the page's language and the browser's defaults.
 
@@ -109,6 +109,10 @@ interface EditorBlockProps<Payload> {
 - Lists use `ui`'s `ReorderableList`, with its keyboard moves and announcements.
 - Headings follow `headingLevel` (sdk-core ADR 0058): the stage's exercise title is a heading at that level, and a block's sections nest below it.
 
+### React lint
+
+learn-sdk adopts `hm-lint-react` with every rule on, in this change ([ADR 0063](../../../../docs/adr/0063-a-lint-for-what-react-components-do-while-rendering.md)), and fixes the player's existing findings, so the package isn't left half-adopted.
+
 ### Text
 
 - Interface text is in `src/messages/editor-en.ts`. `learnEditorMessages`, from `./react`, is the editor's one catalogue (ADR 0059): `learnMessages`, `uiMessages` and the editor's own text. Its type, `LearnEditorMessageCatalogue`, is exported from `.`.
@@ -125,7 +129,7 @@ interface EditorBlockProps<Payload> {
 
 ### How it's tested
 
-- Browser tests, in all three engines in CI: authoring each type with the keyboard only; every problem tied to its field; typing as one undo step; no commit during composition, driven with composition events; `single` refusing a second exercise; focus after adding, removing, undo and redo.
+- Browser tests, in all three engines in CI: authoring each type with the keyboard only; every problem tied to its field; typing as one undo step; a Thai input-method composition, driven with composition events, that commits nothing until it ends, including when the pause ends mid-composition; pending typing committed on unmount; `single` refusing a second exercise; focus after adding, removing, undo and redo.
 - axe with the WCAG 2.2 AA rules, in the empty, open, invalid and `single` states.
 - Virtual screen-reader tests (ADR 0065) for adding, removing with its toast, moving in the outline, undo and redo, and the problem count.
 - Screenshots per [ADR 0068](../../../../docs/adr/0068-a-faster-pull-request-loop.md): the frame's main states in every variant, each type's block in one.

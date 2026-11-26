@@ -24,6 +24,7 @@ import {
   useId,
   useImperativeHandle,
   useRef,
+  useState,
 } from "react";
 import { isLearnError } from "../core/errors/learn-error.js";
 import type {
@@ -352,8 +353,11 @@ const Shell = /* @__PURE__ */ forwardRef<
  */
 export const LearnPlayer = /* @__PURE__ */ forwardRef<LearnPlayerHandle, LearnPlayerProps>(
   function LearnPlayer({ className, headingLevel, ...provider }, ref): ReactNode {
+    // Reset starts a new session by remounting the provider.
+    const [generation, setGeneration] = useState(0);
+    const reset = useCallback(() => setGeneration((current) => current + 1), []);
     return (
-      <LearnPlayerProvider {...provider}>
+      <LearnPlayerProvider key={generation} reset={reset} {...provider}>
         <HeadingLevelProvider level={toHeadingLevel(headingLevel)}>
           <Shell ref={ref} className={className} />
         </HeadingLevelProvider>
