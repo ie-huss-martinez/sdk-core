@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-06
+- **Amended:** 2026-11-26, by [ADR 0069](0069-react-native-entry-points.md): a package may add a `./native` entry for React Native
 
 ## Context
 

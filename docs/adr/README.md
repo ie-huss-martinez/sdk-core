@@ -9,7 +9,7 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted |
 | [0002](0002-one-repository-per-sdk.md) | One repository per SDK, with shared `sdk-core` and `ui` | Superseded by [0064](0064-one-repository-for-the-family.md); repositories moved to an organisation by [0024](0024-github-organisation-for-the-sdk-family.md); `sdk-ci` added by [0026](0026-share-ci-steps-from-sdk-ci.md); `ai-core` and non-media kinds added by [0035](0035-ai-core-and-host-configured-network.md) |
 | [0003](0003-hm-namespace.md) | The `hm` namespace for everything that reaches the page | Accepted |
-| [0004](0004-entry-points-and-module-format.md) | Package entry points and module format | Accepted; `ui` as an SDK dependency settled by [0036](0036-ui-as-a-dependency-of-the-sdks.md) |
+| [0004](0004-entry-points-and-module-format.md) | Package entry points and module format | Accepted; `ui` as an SDK dependency settled by [0036](0036-ui-as-a-dependency-of-the-sdks.md); `./native` added by [0069](0069-react-native-entry-points.md) |
 | [0005](0005-plain-css-with-cascade-layers.md) | Plain CSS with cascade layers | Accepted; one required copy of `ui`'s stylesheet per host by [0036](0036-ui-as-a-dependency-of-the-sdks.md) |
 | [0006](0006-design-tokens-and-theming.md) | Design tokens and full theming | Accepted |
 | [0007](0007-server-rendering-and-nextjs.md) | Server rendering and Next.js compatibility | Accepted |
@@ -18,7 +18,7 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0010](0010-edits-as-commands.md) | Edits as commands with undo history | Accepted; its history is shared through [0029](0029-session-store-and-history.md) |
 | [0011](0011-worker-messaging-and-assets.md) | Typed worker messaging, with inline or self-hosted assets | Accepted; refined for engines' own workers by [0028](0028-third-party-engines.md) |
 | [0012](0012-hostile-input-and-no-network.md) | Treat every input file as hostile, and make no network requests | Accepted; its pdf.js `isEvalSupported` rule superseded by [0028](0028-third-party-engines.md); "parse only in workers" refined for page-only decoders by [0031](0031-platform-decoders-on-the-page.md); network rule superseded for `ai-core` by [0035](0035-ai-core-and-host-configured-network.md) |
-| [0013](0013-browser-and-react-support.md) | Browser and React support | Accepted |
+| [0013](0013-browser-and-react-support.md) | Browser and React support | Accepted; React Native and Hermes added by [0069](0069-react-native-entry-points.md) |
 | [0014](0014-accessibility-and-translatable-text.md) | Accessibility and translatable text | Accepted |
 | [0015](0015-verification-and-releases.md) | Verification, releases and trusted publishing | Accepted; release tooling superseded by [0021](0021-version-and-release-with-changesets.md); the full local verify before a pull request superseded by [0053](0053-ci-is-the-merge-gate.md); what its size budgets measure set out in [0055](0055-what-the-size-budgets-measure.md); import budgets added by [0056](0056-size-budgets-for-what-applications-import.md) |
 | [0016](0016-git-hooks-and-merge-guards.md) | Git hooks and merge guards | Accepted; its note on the full local verify superseded by [0053](0053-ci-is-the-merge-gate.md) |
@@ -74,3 +74,4 @@ Use [`template.md`](template.md) for new records. Name files `NNNN-short-title.m
 | [0066](0066-real-screen-readers-on-a-schedule.md) | Real screen readers on a schedule | Accepted; refines [0065](0065-screen-reader-tests-with-a-virtual-screen-reader.md) |
 | [0067](0067-editor-frame-modes-and-host-owned-preferences.md) | One editor frame, three modes and preferences the host keeps | Accepted; refines [0006](0006-design-tokens-and-theming.md) and [0030](0030-tools-and-keyboard-shortcuts.md); amended on one control per panel; its two open questions decided |
 | [0068](0068-a-faster-pull-request-loop.md) | A faster pull-request loop | Accepted; amends [0053](0053-ci-is-the-merge-gate.md) and [0048](0048-visual-regression-for-sdk-editors.md) |
+| [0069](0069-react-native-entry-points.md) | React Native entry points | Accepted; amends [0004](0004-entry-points-and-module-format.md) and [0013](0013-browser-and-react-support.md) |
