@@ -836,7 +836,8 @@ Usage: hm-in-image [--] <command> [<argument>...]
 
   A URL on your machine's `localhost` isn't reachable from the container, which has its own. Point these at a deployed origin, or let the suite start its server inside the container.
 - **Inside the image,** where `HM_VISUAL_CONTAINER=1`, it runs the command directly. CI's verify jobs set that variable, because they run in the image already.
-- **One image and one set of volumes per repository,** `hm-browser-<workspace name>`, shared with `hm-test-visual`.
+- **One image and one pnpm store per repository,** `hm-browser-<workspace name>` and `hm-browser-<workspace name>-store`, shared with `hm-test-visual`.
+- **One set of `node_modules` volumes per checkout,** `hm-browser-<workspace name>-<id>-…`, where the id is the first ten hexadecimal digits of the SHA-256 of the checkout's real path. Clones and worktrees of a repository can therefore run at the same time: each installs into its own volumes, and their installs take turns on the shared store, behind a lock in its volume. When you delete a checkout, its volumes stay until you remove them: `docker volume ls --filter name=hm-browser-` lists them.
 
 | Exit code | Meaning |
 |---|---|

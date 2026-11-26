@@ -7,9 +7,11 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanUp, IMAGE, lockfile, PINNED, repository } from "../../test/image-repository.js";
 import {
+  checkoutId,
   dockerfile,
   dockerRunArgs,
   findRoot,
+  INSTALL_LOCK,
   imageTag,
   NATIVE_PNPM_CHECK,
   PASSED_ENV,
@@ -284,18 +286,83 @@ describe("dockerRunArgs", () => {
     env: { CI: "1", DEBUG: "pw:browser", HOME: "/home/me" },
   });
 
+  /** The names of the volumes a run mounts, without the checkout itself. */
+  const volumeNames = (/** @type {string[]} */ runArgs) =>
+    runArgs
+      .filter((_, index) => runArgs[index - 1] === "--volume")
+      .map((volume) => volume.slice(0, volume.indexOf(":")))
+      .filter((name) => !name.startsWith("/"));
+
   it("mounts the checkout, and a node_modules volume for the root and every package", () => {
+    const id = checkoutId("/home/me/image-sdk");
     expect(args).toEqual(
       expect.arrayContaining([
         "/home/me/image-sdk:/work",
-        "hm-browser-x-root-modules:/work/node_modules",
+        `hm-browser-x-${id}-root-modules:/work/node_modules`,
       ]),
     );
     expect(args).toContain(
-      "hm-browser-x-packages-image-sdk-modules:/work/packages/image-sdk/node_modules",
+      `hm-browser-x-${id}-packages-image-sdk-modules:/work/packages/image-sdk/node_modules`,
     );
-    expect(args).toContain("hm-browser-x-e2e-modules:/work/e2e/node_modules");
-    expect(args).toContain("hm-browser-x-store:/pnpm-store");
+    expect(args).toContain(`hm-browser-x-${id}-e2e-modules:/work/e2e/node_modules`);
+  });
+
+  it("gives each checkout of a repository its own node_modules volumes (sdk-core#238)", () => {
+    const run = (/** @type {string} */ root) =>
+      dockerRunArgs({
+        root,
+        tag: "hm-browser-x",
+        dirs: ["packages/image-sdk"],
+        owner: "1000:1000",
+        workdir: "",
+        command: ["vitest"],
+        env: {},
+      });
+    const modules = (/** @type {string} */ root) =>
+      volumeNames(run(root)).filter((name) => name.endsWith("-modules"));
+    const main = modules("/home/me/sdk-core");
+    const worktree = modules("/home/me/worktrees/sdk-core");
+
+    expect(main).toHaveLength(2);
+    expect(main.filter((name) => worktree.includes(name))).toEqual([]);
+    // The same checkout always gets the same volumes, so they stay warm.
+    expect(modules("/home/me/sdk-core")).toEqual(main);
+    // Names Docker accepts, and short enough to read in `docker volume ls`.
+    expect(checkoutId("/home/me/sdk-core")).toMatch(/^[0-9a-f]{10}$/);
+    for (const name of main) {
+      expect(name).toMatch(/^[a-zA-Z0-9][a-zA-Z0-9_.-]+$/);
+    }
+  });
+
+  it("names a checkout by where it really is, so a link to it shares its volumes", async () => {
+    const root = await repository({ "package.json": "{}" });
+    const link = `${root}-link`;
+    await symlink(root, link);
+    try {
+      expect(checkoutId(link)).toBe(checkoutId(root));
+    } finally {
+      await rm(link);
+    }
+  });
+
+  it("shares the pnpm store between checkouts, and installs one at a time", () => {
+    for (const root of ["/home/me/sdk-core", "/home/me/worktrees/sdk-core"]) {
+      const runArgs = dockerRunArgs({
+        root,
+        tag: "hm-browser-x",
+        dirs: [],
+        owner: "1000:1000",
+        workdir: "",
+        command: ["vitest"],
+        env: {},
+      });
+      expect(runArgs).toContain("hm-browser-x-store:/pnpm-store");
+      // The lock is in the shared volume, or it would serialise nothing.
+      expect(INSTALL_LOCK.startsWith("/pnpm-store/")).toBe(true);
+      expect(runArgs.at(-1)).toMatch(
+        /^flock \/pnpm-store\/\.hm-install\.lock pnpm install --frozen-lockfile /,
+      );
+    }
   });
 
   it("passes on CI and DEBUG by name, and nothing else from the host", () => {
