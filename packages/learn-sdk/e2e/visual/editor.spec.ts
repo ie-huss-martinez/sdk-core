@@ -66,6 +66,10 @@ const STATES: Readonly<
     reach: async (page) => {
       await page.setViewportSize({ width: 390, height: 844 });
       await expect(page.locator(".hm-editor-frame-tab-bar")).toBeVisible();
+      // The frame animates into its phone layout: the screenshot waits for it to settle.
+      await page.waitForFunction(() =>
+        document.getAnimations().every((animation) => animation.playState !== "running"),
+      );
     },
   },
   "gap-fill": {
