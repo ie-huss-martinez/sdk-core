@@ -1,7 +1,7 @@
-import { type EncodedPacket, EncodedPacketSink, type InputAudioTrack } from "mediabunny";
 import { abortError } from "../../core/errors/error-helpers.js";
 import { isVideoError, VideoError } from "../../core/errors/video-error.js";
 import { FLUSH_STALL_TIMEOUT } from "../bounded-flush.js";
+import type { AudioPacket, AudioPackets } from "../packets.js";
 import { MAX_DECODE_QUEUE, MAX_STALLED_DECODE_QUEUE, STALL_TIMEOUT } from "./video-decoder.js";
 
 /**
@@ -35,9 +35,9 @@ export interface AudioRange {
 }
 
 /**
- * Decodes an audio track with WebCodecs, in the worker, and lends each chunk
- * to `onData` in order (docs/adr/0001, docs/adr/0002), with the same
- * discipline as the video decoder.
+ * Decodes an audio track's packets with WebCodecs, in the worker, and lends
+ * each chunk to `onData` in order (docs/adr/0001, docs/adr/0002), with the
+ * same discipline as the video decoder.
  *
  * - **Bounded:** at most `MAX_DECODE_QUEUE` packets wait in the decoder, with
  *   back-pressure on its `dequeue` event, and no packet is fed while a
@@ -72,7 +72,7 @@ export interface AudioRange {
  * @internal
  */
 export async function decodeAudioData(
-  track: InputAudioTrack,
+  packets: AudioPackets,
   config: AudioDecoderConfig,
   range: AudioRange,
   onData: (data: AudioData, timestamp: number) => void | Promise<void>,
@@ -218,10 +218,10 @@ export async function decodeAudioData(
         },
       );
     }
-    const sink = new EncodedPacketSink(track);
     // Audio packets are all key packets; start at the one covering `from`.
-    let packet: EncodedPacket | null =
-      (await sink.getPacket(Math.max(0, range.from) / 1_000_000)) ?? (await sink.getFirstPacket());
+    let packet: AudioPacket | null =
+      (await packets.getPacket(Math.max(0, range.from) / 1_000_000)) ??
+      (await packets.getFirstPacket());
     while (packet !== null && packet.microsecondTimestamp < range.to) {
       check();
       // Room for one more packet. Output that came meanwhile, as while the
@@ -239,7 +239,7 @@ export async function decodeAudioData(
         decoder.decodeQueueSize,
       );
       await drain();
-      packet = await sink.getNextPacket(packet);
+      packet = await packets.getNextPacket(packet);
     }
     // The flush, bounded: a decoder that stopped would leave it pending.
     let flushed = false;

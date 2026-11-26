@@ -2,9 +2,9 @@
 // a file's audio track and reports what it delivered, and the ledger of open
 // AudioData, so tests can prove every chunk is closed on every path.
 import { exposeWorker } from "@hussmartinez/sdk-core";
-import { EncodedPacketSink } from "mediabunny";
+import { frontCheck } from "../../src/adapters/front-check/front-check.js";
 import { audioDataLedger, decodeAudioData } from "../../src/adapters/mediabunny/audio-decoder.js";
-import { familyOf, openInput, pickTracks } from "../../src/adapters/mediabunny/tracks.js";
+import { openTracks } from "../../src/adapters/open-tracks.js";
 import { probeFile } from "../../src/adapters/probe.js";
 import { videoLimits } from "../../src/core/errors/video-limits.js";
 import { laggingAudioDecoderClass, lateOutputAudioDecoderClass } from "./lagging-decoder.js";
@@ -58,8 +58,12 @@ export interface AudioDecodeContract {
 
 exposeWorker<AudioDecodeContract>({
   async decode(request) {
-    const probe = await probeFile(request.file, videoLimits.resolve());
-    const input = openInput(request.file, familyOf(probe.container));
+    // The probe checks the file against the limits, as before any decode.
+    await probeFile(request.file, videoLimits.resolve());
+    const tracks = await openTracks(
+      request.file,
+      await frontCheck(request.file, videoLimits.resolve()),
+    );
     const controller = new AbortController();
     const RealDecoder = globalThis.AudioDecoder;
     if (request.lateOutput) globalThis.AudioDecoder = lateOutputAudioDecoderClass();
@@ -74,8 +78,8 @@ exposeWorker<AudioDecodeContract>({
           );
     }
     try {
-      const { audio } = await pickTracks(input, probe.container);
-      const config = audio && (await audio.getDecoderConfig());
+      const { audio } = tracks;
+      const config = audio && (await audio.config());
       if (!audio || !config) throw new Error("no audio");
       let chunks = 0;
       let frames = 0;
@@ -83,7 +87,7 @@ exposeWorker<AudioDecodeContract>({
       const placed: [number, number][] = [];
       const { description: _description, ...bare } = config;
       await decodeAudioData(
-        audio,
+        audio.packets(),
         request.codec
           ? { ...bare, codec: request.codec }
           : request.wrongChannels
@@ -104,12 +108,12 @@ exposeWorker<AudioDecodeContract>({
         },
         controller.signal,
       );
-      const sink = new EncodedPacketSink(audio);
-      const firstPacket = (await sink.getFirstPacket())?.microsecondTimestamp ?? Number.NaN;
+      const firstPacket =
+        (await audio.packets().getFirstPacket())?.microsecondTimestamp ?? Number.NaN;
       return { chunks, frames, first, placed, firstPacket };
     } finally {
       globalThis.AudioDecoder = RealDecoder;
-      input.dispose();
+      tracks.dispose();
     }
   },
   ledger: () => ({ ...audioDataLedger }),

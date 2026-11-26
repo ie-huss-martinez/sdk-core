@@ -2,12 +2,13 @@
 // a file's video track and reports what it delivered, and the ledger of open
 // frames, so tests can prove every frame is closed on every path.
 import { exposeWorker } from "@hussmartinez/sdk-core";
+import { frontCheck } from "../../src/adapters/front-check/front-check.js";
 import { frameBounds } from "../../src/adapters/mediabunny/frame-bounds.js";
-import { familyOf, openInput, pickTracks } from "../../src/adapters/mediabunny/tracks.js";
 import {
   decodeVideoFrames,
   videoFrameLedger,
 } from "../../src/adapters/mediabunny/video-decoder.js";
+import { openTracks } from "../../src/adapters/open-tracks.js";
 import { probeFile } from "../../src/adapters/probe.js";
 import { videoLimits } from "../../src/core/errors/video-limits.js";
 import type { VideoProbe } from "../../src/core/model/source.js";
@@ -67,7 +68,10 @@ function withCodec(config: VideoDecoderConfig, codec: string): VideoDecoderConfi
 exposeWorker<DecodeContract>({
   async decode(request) {
     const probe: VideoProbe = await probeFile(request.file, videoLimits.resolve());
-    const input = openInput(request.file, familyOf(probe.container));
+    const tracks = await openTracks(
+      request.file,
+      await frontCheck(request.file, videoLimits.resolve()),
+    );
     const controller = new AbortController();
     const RealDecoder = globalThis.VideoDecoder;
     if (request.lag !== undefined) {
@@ -79,13 +83,13 @@ exposeWorker<DecodeContract>({
     }
     if (request.lateOutput) globalThis.VideoDecoder = lateOutputDecoderClass();
     try {
-      const { video } = await pickTracks(input, probe.container);
-      const config = (await video.getDecoderConfig()) as VideoDecoderConfig;
+      const { video } = tracks;
+      const config = (await video.config()) as VideoDecoderConfig;
       const bounds = frameBounds(probe);
       const timestamps: number[] = [];
       const sizes: [number, number][] = [];
       await decodeVideoFrames(
-        video,
+        video.packets(),
         request.codec ? withCodec(config, request.codec) : config,
         request.shrinkBounds ? { ...bounds, codedWidth: 16, codedHeight: 16 } : bounds,
         {
@@ -108,7 +112,7 @@ exposeWorker<DecodeContract>({
       return { timestamps, sizes };
     } finally {
       globalThis.VideoDecoder = RealDecoder;
-      input.dispose();
+      tracks.dispose();
     }
   },
   ledger: () => ({ ...videoFrameLedger }),

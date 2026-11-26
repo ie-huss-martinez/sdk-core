@@ -60,9 +60,9 @@ export function createReaderCache(): ReaderCache {
       if (open && open.opening === source.opening) return open.reader;
       readerLedger.opened += 1;
       const reader = (async () => {
-        // The same front check as a probe, before mediabunny reads the file.
-        await frontCheck(source.file, videoLimits.resolve(source.limits));
-        return openFrameReader(source.file, source.probe);
+        // The same front check as a probe, before anything else reads the file.
+        const front = await frontCheck(source.file, videoLimits.resolve(source.limits));
+        return openFrameReader(source.file, source.probe, front);
       })();
       readers.set(id, { opening: source.opening, reader });
       reader.catch(() => {
