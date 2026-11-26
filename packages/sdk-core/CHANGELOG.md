@@ -1,5 +1,18 @@
 # @hussmartinez/sdk-core
 
+## 0.4.9
+
+### Patch Changes
+
+- [#244](https://github.com/ie-huss-martinez/sdk-core/pull/244) [`1dd7dc7`](https://github.com/ie-huss-martinez/sdk-core/commit/1dd7dc70b724452d766d4013c9d8f6f318020aaa) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `createMessages` and `cleanFileName` work on engines with little or no `Intl` and no `String.prototype.normalize`, such as Hermes in React Native.
+  
+  - **`createMessages`:** plain text and placeholders given text need no `Intl`. A plural, a number, or a placeholder with a format, such as `{size, fileSize}`, checks for the `Intl` constructor it needs first. Where it's missing, `t()` throws an `SdkError` with the code `UNSUPPORTED_ENVIRONMENT` and `details.feature` naming it, such as `Intl.PluralRules`, where it used to throw a `TypeError`. Where the engine can't canonicalise a locale, a well-formed tag is used as given.
+  - **`cleanFileName`:** without `normalize`, the name keeps the form it came in. Everything else is cleaned as before.
+  
+  Nothing changes in browsers or Node, which have all of these.
+
+- [#223](https://github.com/ie-huss-martinez/sdk-core/pull/223) [`6883c62`](https://github.com/ie-huss-martinez/sdk-core/commit/6883c623af809908c033952615f5af06979a782c) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Tools gain a level and a description (ADR 0067). `defineTool` takes `level` (`"easy"`, `"advanced"` or `"expert"`, `"advanced"` when left out) and `description` (a message key). `isToolInMode(tool, mode)` says whether an editor in a mode lists a tool in its tools panel; every tool stays in the registry, its shortcuts and the command palette in every mode. New types `ToolLevel` and `EditorMode`, and two family shortcuts: `toggle-tools` (`Mod+\`) and `command-palette` (`Mod+K`).
+
 ## 0.4.8
 
 ### Patch Changes
