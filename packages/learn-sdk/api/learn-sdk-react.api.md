@@ -431,8 +431,6 @@ export interface LearnEditorProps {
     readonly headingLevel?: HeadingLevel | undefined;
     readonly initialContent?: unknown;
     // Warning: (ae-forgotten-export) The symbol "LearnLimitOverrides" needs to be exported by the entry point react.d.ts
-    //
-    // (undocumented)
     readonly limits?: LearnLimitOverrides | undefined;
     // (undocumented)
     readonly locale?: string | undefined;

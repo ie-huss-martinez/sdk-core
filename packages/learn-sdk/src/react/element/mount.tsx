@@ -18,8 +18,8 @@ import { LearnEditor, type LearnEditorHandle } from "../LearnEditor.js";
  * `headingLevel` and `single` are also attributes (`heading-level`, and
  * `single` as a boolean attribute); the others are set from script.
  *
- * Setting `initialContent`, `single` or `types` to another value loads the
- * editor afresh, with that content and no history, as a new React `key`
+ * Setting `initialContent`, `single`, `types`, `limits` or `newId` to
+ * another value loads the editor afresh, with that content and no history, as a new React `key`
  * does. `preferences` and `defaultPreferences` are the frame's (sdk-core
  * ADR 0067): set `preferences` again from the `hm-learn-editor-preferences`
  * event to keep them, or leave it unset and the element keeps its own.
@@ -147,8 +147,9 @@ export function mountLearnEditor(
   };
   const { dispatch } = context;
 
-  // The editor reads its content, `single` and `types` once: another value
-  // of any of them opens a new editor, under a new key.
+  // The editor reads its content, `single`, `types`, `limits` and `newId`
+  // once, when its session opens: another value of any of them opens a new
+  // editor, under a new key.
   let opened: Partial<LearnEditorElementProps> = initial;
   let key = 0;
 
@@ -156,7 +157,9 @@ export function mountLearnEditor(
     if (
       values.initialContent !== opened.initialContent ||
       values.single !== opened.single ||
-      values.types !== opened.types
+      values.types !== opened.types ||
+      values.limits !== opened.limits ||
+      values.newId !== opened.newId
     ) {
       opened = values;
       key += 1;

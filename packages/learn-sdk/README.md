@@ -77,20 +77,29 @@ For a page without React of its own, `@hussmartinez/learn-sdk/element` has the s
 ```ts
 import "@hussmartinez/ui/styles.css";
 import "@hussmartinez/learn-sdk/styles.css";
-import { defineLearnEditorElement } from "@hussmartinez/learn-sdk/element";
+import {
+  defineLearnEditorElement,
+  type LearnEditorChangeDetail,
+  type LearnEditorElementMethods,
+  type LearnEditorElementProps,
+} from "@hussmartinez/learn-sdk/element";
+
+type LearnEditorElement = HTMLElement & LearnEditorElementProps & LearnEditorElementMethods;
 
 defineLearnEditorElement();
-const editor = document.querySelector("hm-learn-editor");
-editor.profile = { code: "th", direction: "ltr" };
-editor.initialContent = content;
-editor.addEventListener("hm-learn-editor-change", (event) => {
-  saveButton.disabled = !event.detail.valid;
-});
-saveButton.addEventListener("click", async () => save(await editor.getContent()));
+const editor = document.querySelector<LearnEditorElement>("hm-learn-editor");
+if (editor) {
+  editor.profile = { code: "th", direction: "ltr" };
+  editor.initialContent = content;
+  editor.addEventListener("hm-learn-editor-change", (event) => {
+    saveButton.disabled = !(event as CustomEvent<LearnEditorChangeDetail>).detail.valid;
+  });
+  saveButton.addEventListener("click", async () => save(await editor.getContent()));
+}
 ```
 
 - **Attributes:** `theme`, `locale`, `heading-level`, and `single` as a boolean attribute. Everything else, such as `initialContent`, `profile`, `limits`, `blocks` and `preferences`, is a property.
-- **Other content:** setting `initialContent`, `single` or `types` to another value opens the editor afresh, with no history, as a new `key` does in React.
+- **Other content:** setting `initialContent`, `single`, `types`, `limits` or `newId` to another value opens the editor afresh, with no history, as a new `key` does in React.
 - **Methods:** `getContent()` returns a promise, unlike the React handle's: it waits for the editor to render, then resolves with the content or rejects with the same errors. `flush()`, `undo()` and `redo()` are as in React.
 - **Events:** `hm-learn-editor-change` with `{ draft, issues, valid }`, `-event`, `-error` with `{ code, details }` for a refused command, and `-preferences`.
 

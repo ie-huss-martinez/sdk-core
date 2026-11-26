@@ -11,7 +11,7 @@
 
 Two things differ from the file editors' elements, which open a file by a property and have no content of their own:
 
-1. **The editor reads its content once.** `initialContent`, `single` and `types` are read when the session opens; in React, a new `key` opens other content.
+1. **The editor reads its content once.** `initialContent`, `single`, `types`, `limits` and `newId` are read when the session opens; in React, a new `key` opens other content.
 2. **Saving is the host's.** The React handle's `getContent()` is synchronous, but the element renders without `flushSync`, because it may connect during a host's React commit, so the editor may not have rendered when a host calls it.
 
 ## Decision
@@ -30,10 +30,11 @@ Two things differ from the file editors' elements, which open a file by a proper
 - **`theme`** is the colour mode the host forces. It sets ui's `data-hm-theme` on the element, and the editor then offers no theme toggle, as in notes-sdk's element.
 - **`preferences`** follow sdk-core ADR 0067: a host that keeps them sets `preferences` again from the `preferences` event; otherwise the element keeps its own.
 - **`error`** carries the code and details, never the error object: details hold no content text ([ADR 0002](0002-content-as-hostile-input.md)).
+- **`change` carries the draft, and that's within sdk-core ADR 0040's privacy rule.** The rule keeps a person's file names and contents out of event details, so they can't reach a host's analytics through an event. The draft is the content the host itself set as `initialContent` and saves through `getContent()`, and the element renders it into its light DOM, where any script on the page already reads it; the event exposes nothing new. The anonymous usage events, `event`, carry names only, never content or ids ([ADR 0003](0003-learners-data-events-and-audio.md)), and are what a host may forward to analytics.
 
 ### Another content opens a new editor
 
-Setting `initialContent`, `single` or `types` to another value opens the editor afresh, with that content and no history: the mount function gives `LearnEditor` a new `key`. It's the element's version of React's `key`, and the only way to load other content, since the editor reads it once. Other properties update the editor in place.
+Setting `initialContent`, `single`, `types`, `limits` or `newId` to another value opens the editor afresh, with that content and no history: the mount function gives `LearnEditor` a new `key`. It's the element's version of React's `key`, and the only way to load other content, since the editor reads it once. `limits` and `newId` reload it too, because the session keeps the ones it opened with: a new limit must apply to what `getContent()` returns. Other properties update the editor in place.
 
 ### `getContent()` is asynchronous
 
@@ -41,7 +42,7 @@ Setting `initialContent`, `single` or `types` to another value opens the editor 
 
 ### The player's element is still to come
 
-`<hm-learn-player>` needs either an option on `createEditorElement` for a tag that isn't an editor, or a base of its own in sdk-core. That's a decision for sdk-core, and the player's element waits for it; it will be exported from `./element` beside this one. This refines ADR 0001's `./element` row.
+`<hm-learn-player>` needs either an option on `createEditorElement` for a tag that isn't an editor, or a base of its own in sdk-core. That's a decision for sdk-core ([#250](https://github.com/ie-huss-martinez/sdk-core/issues/250)), and the player's element waits for it; it will be exported from `./element` beside this one. This refines ADR 0001's `./element` row.
 
 ## Alternatives considered
 

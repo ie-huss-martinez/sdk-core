@@ -128,6 +128,15 @@ describe("<hm-learn-editor> (ADR 0009, sdk-core ADR 0040)", () => {
     await until(() => heading(editor)?.textContent === "เครื่องดื่ม", "the new content");
   });
 
+  it("opens afresh under new limits, which the session reads once", async () => {
+    const editor = create();
+    editor.initialContent = content;
+    document.body.append(editor);
+    expect((await editor.getContent()).exercises).toHaveLength(2);
+    editor.limits = { maxExercises: 1 };
+    await expect(editor.getContent()).rejects.toMatchObject({ code: "TOO_MANY_EXERCISES" });
+  });
+
   it("takes theme, heading-level and single from attributes", async () => {
     const editor = create({ theme: "dark", "heading-level": "3", single: "" });
     editor.initialContent = { ...content, exercises: [content.exercises[0]] };
