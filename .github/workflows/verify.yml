@@ -6,7 +6,8 @@ name: Verify
 # before it (ADR 0064). A weekly run, and one started by hand, verify every
 # package, as a safety net and before a release that needs it.
 #
-# A draft pull request runs its packages' browser tests in Chromium only.
+# A draft pull request runs its packages' browser tests in Chromium only,
+# read from the pull request when the run starts (the affected job).
 # Marking it ready, and every push to a pull request that isn't a draft, runs
 # all three engines, as pushes to main and the weekly run do. The required
 # `verify` check fails on a draft's run, so only a full run can pass it (ADR
@@ -26,12 +27,6 @@ on:
 
 permissions:
   contents: read
-
-# The engines sdk-config's testBrowsers narrows every browser suite to:
-# Chromium on a draft pull request, and empty, meaning every engine in CI,
-# for anything else (ADR 0068). It's read from the event, never from input.
-env:
-  HM_BROWSERS: ${{ github.event.pull_request.draft && 'chromium' || '' }}
 
 # Cancel a superseded run on the same pull request. Every other run has a
 # group of its own commit and event, so none waits behind or replaces
@@ -78,9 +73,16 @@ jobs:
     name: affected
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       packages: ${{ steps.list.outputs.packages }}
       any: ${{ steps.list.outputs.any }}
+      # The engines sdk-config's testBrowsers narrows every browser suite to,
+      # as HM_BROWSERS: Chromium on a draft pull request, and empty, meaning
+      # every engine in CI, for anything else (ADR 0068).
+      browsers: ${{ steps.browsers.outputs.browsers }}
     steps:
       # A pull request is checked out as its merge into main, so two commits
       # are enough: the merge and main's side of it. A push fetches the
@@ -117,6 +119,30 @@ jobs:
               ;;
             *)
               node .github/scripts/affected-packages.mjs --all
+              ;;
+          esac
+
+      # Whether the pull request is a draft now, read from GitHub, not from
+      # the event: a push and "ready for review" a moment apart start two
+      # runs, and the one the other cancels may be the full one. The run that
+      # survives started after both, so the live state is the right one. A
+      # re-run reads it again too. Nothing else sets it: no input, branch
+      # name or label.
+      - id: browsers
+        name: Read whether the pull request is a draft
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          draft=$(gh api "repos/$REPOSITORY/pulls/$NUMBER" --jq .draft)
+          case "$draft" in
+            true) echo "browsers=chromium" >> "$GITHUB_OUTPUT" ;;
+            false) ;;
+            *)
+              echo "::error::Couldn't read whether pull request $NUMBER is a draft."
+              exit 1
               ;;
           esac
 
@@ -169,6 +195,7 @@ jobs:
       # The job runs in the browser test image, so hm-in-image runs the
       # browser tests directly (ADR 0049).
       HM_VISUAL_CONTAINER: "1"
+      HM_BROWSERS: ${{ needs.affected.outputs.browsers }}
       HUSKY: "0"
       PACKAGE: ${{ matrix.package }}
     steps:
@@ -230,6 +257,7 @@ jobs:
           ANY: ${{ needs.affected.outputs.any }}
           REPOSITORY: ${{ needs.repository.result }}
           PACKAGES: ${{ needs.package.result }}
+          HM_BROWSERS: ${{ needs.affected.outputs.browsers }}
         run: |
           echo "image: $IMAGE, affected: $AFFECTED (any: $ANY), repository: $REPOSITORY, packages: $PACKAGES"
           [ "$IMAGE" = "success" ] && [ "$AFFECTED" = "success" ] && [ "$REPOSITORY" = "success" ] || exit 1
