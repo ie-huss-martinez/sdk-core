@@ -168,6 +168,16 @@ describe("EditorFrame", () => {
       getComputedStyle(narrow.querySelector(".hm-editor-frame-tab-bar") as Element).display,
     ).toBe("block");
   });
+
+  it("starts the stage at the frame's inline start below 45 rem, where the tab bar holds the tools", () => {
+    // Full tools reserve a rail's width beside the stage below 60 rem; on a
+    // phone they're in the tab bar, so nothing is reserved.
+    const narrow = render(<Frame tabBar />, "24rem");
+    const stage = narrow.querySelector(".hm-editor-frame-stage") as HTMLElement;
+    expect(frameOf(narrow).dataset["hmTools"]).toBe("full");
+    expect(stage.getBoundingClientRect().left).toBe(frameOf(narrow).getBoundingClientRect().left);
+    expect(stage.getBoundingClientRect().width).toBe(frameOf(narrow).getBoundingClientRect().width);
+  });
 });
 
 /** A frame whose properties are a block `rows` pixels tall, with a 160 × 120 footer under them. */

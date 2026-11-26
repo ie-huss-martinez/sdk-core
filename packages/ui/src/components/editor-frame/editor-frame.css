@@ -262,10 +262,6 @@
       display: none;
     }
 
-    .hm-editor-frame[data-hm-tab-bar] .hm-editor-frame-stage {
-      margin-inline-start: 0;
-    }
-
     .hm-editor-frame-tab-bar {
       display: block;
     }
@@ -297,6 +293,14 @@
     .hm-editor-frame[data-hm-layout] .hm-editor-frame-stage {
       flex: 1 1 0;
       min-block-size: 60%;
+    }
+
+    /*
+     * The tab bar holds the tools, so the stage keeps no room for their rail.
+     * As specific as the rule above that keeps it, and after it, so it wins.
+     */
+    .hm-editor-frame[data-hm-layout="sidebar"][data-hm-tab-bar] .hm-editor-frame-stage {
+      margin-inline-start: 0;
     }
 
     .hm-editor-frame-top {
