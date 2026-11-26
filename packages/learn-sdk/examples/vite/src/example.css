@@ -6,3 +6,15 @@ body {
   color: var(--hm-color-text);
   background: var(--hm-color-bg);
 }
+
+/* The editor needs a height: its frame fills it. */
+.example-editor {
+  block-size: var(--hm-surface-width-large);
+  margin-block-end: var(--hm-inset-normal);
+}
+
+output {
+  display: block;
+  white-space: pre-wrap;
+  font-family: var(--hm-font-family-mono);
+}

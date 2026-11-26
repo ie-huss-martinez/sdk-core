@@ -111,13 +111,18 @@ export type {
   PlayerSummary,
 } from "./core/session/player.js";
 export { createLearnPlayer } from "./core/session/player.js";
+// The type only: the catalogue itself is interface text, from ./react (sdk-core ADR 0059).
+export type { LearnEditorMessageCatalogue } from "./features/editor/editor-messages.js";
 export type {
   LearnEditorTool,
   LearnEditorToolContext,
   LearnEditorToolState,
 } from "./features/editor/editor-tools.js";
 export {
+  addExerciseTool,
   learnEditorTools,
+  moveExerciseDownTool,
+  moveExerciseUpTool,
   redoTool,
   removeExerciseTool,
   undoTool,

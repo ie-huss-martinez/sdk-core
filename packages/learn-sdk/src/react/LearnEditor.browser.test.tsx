@@ -1,0 +1,578 @@
+import "@hussmartinez/ui/styles.css";
+import "../styles.css";
+import { startScreenReader } from "@hussmartinez/sdk-config/testing/screen-reader";
+import axe from "axe-core";
+import { act, createRef } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { userEvent } from "vitest/browser";
+import { isLearnError } from "../core/errors/learn-error.js";
+import { createExerciseTypes } from "../core/model/exercise-type.js";
+import { COMMIT_PAUSE_MS } from "../features/editor/committed-text.js";
+import { gapFill } from "../features/gap-fill/gap-fill.js";
+import { multipleChoice } from "../features/multiple-choice/multiple-choice.js";
+import { wordOrder } from "../features/word-order/word-order.js";
+import { shortAnswer } from "../test/test-types.js";
+import { LearnEditor, type LearnEditorHandle, type LearnEditorProps } from "./LearnEditor.js";
+
+// The editor (ADR 0008): each built-in type authored with the keyboard alone,
+// typing as one undo step, no pause commit mid-composition, problems at their
+// fields, the one-exercise case, focus after structural edits, and axe's
+// WCAG 2.2 AA rules in its main states.
+
+const content = {
+  format: "hm-learn-content",
+  version: 1,
+  exercises: [
+    {
+      id: "mc",
+      type: "multiple-choice",
+      title: "อาหาร",
+      payload: { questions: [{ prompt: "กิน", choices: ["eat", "drink"], correct: 0 }] },
+    },
+    {
+      id: "wo",
+      type: "word-order",
+      payload: { items: [{ tiles: ["ฉัน", "กิน", "ข้าว"], translation: "I eat rice." }] },
+    },
+  ],
+};
+const one = { ...content, exercises: [content.exercises[0]] };
+const thai = { code: "th", direction: "ltr" } as const;
+
+let root: Root | undefined;
+let container: HTMLElement | undefined;
+
+beforeEach(() => {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+});
+afterEach(() => {
+  act(() => root?.unmount());
+  root = undefined;
+  container?.remove();
+  container = undefined;
+  vi.useRealTimers();
+});
+
+function render(props: Partial<LearnEditorProps> = {}, ref?: React.Ref<LearnEditorHandle>) {
+  container = document.createElement("div");
+  // Wide enough for the frame's sidebar and outline: below 45rem, tools move to the tab bar.
+  container.style.inlineSize = "1200px";
+  container.style.blockSize = "800px";
+  document.body.append(container);
+  root = createRoot(container);
+  const element = container;
+  act(() =>
+    root?.render(
+      <LearnEditor
+        ref={ref}
+        initialContent={content}
+        profile={thai}
+        defaultPreferences={{ mode: "advanced" }}
+        {...props}
+      />,
+    ),
+  );
+  return element;
+}
+
+const field = (scope: HTMLElement, label: string) => {
+  const labelElement = [...scope.querySelectorAll("label")].find(
+    (each) => each.textContent === label,
+  );
+  const id = labelElement?.getAttribute("for");
+  const input = id
+    ? (scope.querySelector(`#${CSS.escape(id)}`) as HTMLInputElement | HTMLTextAreaElement | null)
+    : null;
+  if (!input) throw new Error(`No field labelled ${label}`);
+  return input;
+};
+const button = (scope: HTMLElement, name: string) => {
+  const found = [...scope.querySelectorAll("button")].find(
+    (each) =>
+      each.getAttribute("aria-label") === name ||
+      each.textContent?.trim() === name ||
+      // A start card's name is its title, followed by its description.
+      (each.classList.contains("hm-learn-editor-card") && each.textContent?.startsWith(name)),
+  );
+  if (!found) throw new Error(`No button ${name}`);
+  return found;
+};
+
+async function expectNoAxeViolations(scope: HTMLElement) {
+  const { violations } = await axe.run(scope, {
+    runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] },
+  });
+  expect(
+    violations.flatMap((violation) =>
+      violation.nodes.map((node) => `${violation.id}: ${node.html.slice(0, 160)}`),
+    ),
+  ).toEqual([]);
+}
+
+describe("LearnEditor", () => {
+  it("opens content with an outline and the first exercise selected, and passes axe", async () => {
+    const element = render();
+    expect(element.querySelector("[role=grid]")?.getAttribute("aria-label")).toBe("Exercises");
+    expect(field(element, "Title").value).toBe("อาหาร");
+    // The taught language's fields say so, and turn off the browser's spelling help.
+    const prompt = field(element, "Question");
+    expect([
+      prompt.lang,
+      prompt.dir,
+      prompt.spellcheck,
+      prompt.getAttribute("autocorrect"),
+    ]).toEqual(["th", "ltr", false, "off"]);
+    expect(field(element, "Title").lang).toBe("");
+    await expectNoAxeViolations(element);
+  });
+
+  it("writes a multiple-choice exercise with the keyboard alone, and hands the host valid content", async () => {
+    const onChange = vi.fn();
+    const ref = createRef<LearnEditorHandle>();
+    const element = render({ initialContent: undefined, onChange }, ref);
+    button(element, "Add multiple choice").focus();
+    await userEvent.keyboard("{Enter}");
+    // Focus goes to the new exercise's first field.
+    expect(document.activeElement).toBe(field(element, "Title"));
+    await userEvent.keyboard("Food");
+    await userEvent.tab(); // instructions
+    await userEvent.tab(); // the question
+    await userEvent.keyboard("ร้อน");
+    field(element, "Choice 1").focus();
+    await userEvent.keyboard("hot");
+    field(element, "Choice 2").focus();
+    await userEvent.keyboard("cold");
+    await userEvent.tab();
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ valid: true }),
+    );
+    const saved = ref.current?.getContent();
+    expect(saved?.exercises[0]).toMatchObject({
+      type: "multiple-choice",
+      title: "Food",
+      payload: { questions: [{ prompt: "ร้อน", choices: ["hot", "cold"], correct: 0 }] },
+    });
+  });
+
+  it("shows each problem at its field, tied with aria-describedby, and counts them in the outline", async () => {
+    const onChange = vi.fn();
+    const element = render({ initialContent: undefined, onChange });
+    await userEvent.click(button(element, "Add multiple choice"));
+    const prompt = field(element, "Question");
+    expect(prompt.getAttribute("aria-invalid")).toBe("true");
+    const described = (prompt.getAttribute("aria-describedby") ?? "")
+      .split(" ")
+      .map((id) => document.getElementById(id)?.textContent);
+    expect(described).toContain("This can't be empty.");
+    expect(element.querySelector("[role=row]")?.textContent).toContain("3 problems");
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ valid: false }),
+    );
+    await expectNoAxeViolations(element);
+  });
+
+  it("commits a burst of typing as one undo step", async () => {
+    const element = render();
+    const title = field(element, "Title");
+    title.focus();
+    await userEvent.keyboard("{Control>}a{/Control}Lunch");
+    await userEvent.tab();
+    expect(field(element, "Title").value).toBe("Lunch");
+    await userEvent.click(button(element, "Undo"));
+    expect(field(element, "Title").value).toBe("อาหาร");
+  });
+
+  it("commits nothing while an input method composes Thai, then commits when it ends", async () => {
+    const onChange = vi.fn();
+    const element = render({ onChange });
+    const prompt = field(element, "Question") as HTMLTextAreaElement;
+    prompt.focus();
+    vi.useFakeTimers();
+    act(() => {
+      prompt.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+    });
+    // The input method builds ข้าว in steps; each step is an input event.
+    for (const step of ["ข", "ข้", "ข้า", "ข้าว"]) {
+      act(() => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+        setter?.call(prompt, step);
+        prompt.dispatchEvent(new InputEvent("input", { bubbles: true, isComposing: true }));
+      });
+    }
+    // The pause ends during the composition: nothing is committed yet.
+    act(() => vi.advanceTimersByTime(COMMIT_PAUSE_MS + 100));
+    expect(onChange).not.toHaveBeenCalled();
+    act(() => {
+      prompt.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "ข้าว" }));
+    });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const draft = onChange.mock.calls[0]?.[0] as typeof content | undefined;
+    expect(draft?.exercises[0]?.payload).toMatchObject({ questions: [{ prompt: "ข้าว" }] });
+  });
+
+  it("commits pending typing when the editor goes away", async () => {
+    const onChange = vi.fn();
+    const element = render({ onChange });
+    field(element, "Title").focus();
+    await userEvent.keyboard("{Control>}a{/Control}Unsaved");
+    expect(onChange).not.toHaveBeenCalled();
+    act(() => root?.unmount());
+    root = undefined;
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const draft = onChange.mock.calls[0]?.[0] as typeof content | undefined;
+    expect(draft?.exercises[0]?.title).toBe("Unsaved");
+  });
+
+  it("removes an exercise with Undo in a toast, and focuses the outline", async () => {
+    const element = render();
+    await userEvent.click(button(element, "Remove exercise"));
+    expect(element.querySelectorAll("[role=row]")).toHaveLength(1);
+    expect(element.closest("body")?.textContent).toContain("Exercise removed");
+    expect(element.querySelector("[role=grid]")?.contains(document.activeElement)).toBe(true);
+    await userEvent.keyboard("{Control>}z{/Control}");
+    expect(element.querySelectorAll("[role=row]")).toHaveLength(2);
+  });
+
+  it("keeps a word-order exercise's other right orders in step with its words", async () => {
+    const ref = createRef<LearnEditorHandle>();
+    const element = render({}, ref);
+    await userEvent.click(element.querySelectorAll("[role=row]")[1] as HTMLElement);
+    await userEvent.click(button(element, "Accept another order"));
+    field(element, "Word 2").focus();
+    await userEvent.keyboard("{Control>}a{/Control}ดื่ม");
+    await userEvent.tab();
+    const draft = ref.current?.getContent();
+    expect(draft?.exercises[1]?.payload).toMatchObject({
+      items: [{ tiles: ["ฉัน", "ดื่ม", "ข้าว"], alternatives: [["ฉัน", "ดื่ม", "ข้าว"]] }],
+    });
+  });
+
+  it("writes a gap-fill exercise with the keyboard alone, choices included", async () => {
+    const ref = createRef<LearnEditorHandle>();
+    const element = render({ initialContent: undefined }, ref);
+    button(element, "Add fill the gap").focus();
+    await userEvent.keyboard("{Enter}");
+    field(element, "Sentence").focus();
+    await userEvent.keyboard("ฉัน___ข้าว");
+    field(element, "Answer 1").focus();
+    await userEvent.keyboard("กิน");
+    button(element, "Add a choice").focus();
+    await userEvent.keyboard("{Enter}");
+    // Focus goes to the new choice's field.
+    expect(document.activeElement).toBe(field(element, "Choice 1"));
+    await userEvent.keyboard("กิน");
+    button(element, "Add a choice").focus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard("ดื่ม");
+    await userEvent.tab();
+    expect(ref.current?.getContent().exercises[0]?.payload).toEqual({
+      items: [{ sentence: "ฉัน___ข้าว", answers: ["กิน"], options: ["กิน", "ดื่ม"] }],
+    });
+  });
+
+  it("writes a word-order exercise with the keyboard alone, moving a word with buttons", async () => {
+    const ref = createRef<LearnEditorHandle>();
+    const element = render({ initialContent: undefined }, ref);
+    button(element, "Add word order").focus();
+    await userEvent.keyboard("{Enter}");
+    field(element, "Word 1").focus();
+    await userEvent.keyboard("ข้าว");
+    field(element, "Word 2").focus();
+    await userEvent.keyboard("กิน");
+    button(element, "Add a word").focus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard("ฉัน");
+    button(element, "Move word 3 earlier").focus();
+    await userEvent.keyboard("{Enter}");
+    // Focus follows the word to its new place.
+    expect(document.activeElement).toBe(button(element, "Move word 2 earlier"));
+    await userEvent.keyboard("{Enter}");
+    field(element, "Translation").focus();
+    await userEvent.keyboard("I eat rice.");
+    await userEvent.tab();
+    expect(ref.current?.getContent().exercises[0]?.payload).toEqual({
+      items: [{ tiles: ["ฉัน", "ข้าว", "กิน"], translation: "I eat rice." }],
+    });
+  });
+
+  it("keeps focus on Undo after undoing, and passes axe on the start cards", async () => {
+    const element = render({ initialContent: undefined, defaultPreferences: { mode: "easy" } });
+    expect(element.querySelectorAll(".hm-learn-editor-card")).toHaveLength(3);
+    await expectNoAxeViolations(element);
+    await userEvent.click(button(element, "Write a multiple-choice question"));
+    field(element, "Title").focus();
+    await userEvent.keyboard("Drinks");
+    // Ctrl+Z inside a field is the browser's own text undo; the editor's is its button and shortcut.
+    await userEvent.click(button(element, "Undo"));
+    expect(field(element, "Title").value).toBe("");
+    expect(document.activeElement).toBe(button(element, "Undo"));
+  });
+
+  it("moves the tools into the tab bar on a narrow screen", async () => {
+    const element = render();
+    act(() => {
+      (element as HTMLElement).style.inlineSize = "360px";
+    });
+    const shown = (selector: string) => {
+      const found = element.querySelector(selector);
+      return found !== null && getComputedStyle(found).display !== "none";
+    };
+    await expect.poll(() => shown(".hm-editor-frame-tab-bar")).toBe(true);
+    expect(shown(".hm-editor-frame-tools")).toBe(false);
+    await expectNoAxeViolations(element);
+  });
+
+  it("focuses a list's Add button when its last entry is removed", async () => {
+    const element = render({ initialContent: undefined });
+    await userEvent.click(button(element, "Add fill the gap"));
+    await userEvent.click(button(element, "Remove answer 1"));
+    expect(document.activeElement).toBe(button(element, "Add an answer"));
+  });
+
+  it("doesn't apply text the session refuses, and shows why at the field", async () => {
+    // 15 code points: the content's own texts fit, the new title doesn't.
+    const onChange = vi.fn();
+    const ref = createRef<LearnEditorHandle>();
+    const element = render({ onChange, limits: { maxTextLength: 15 } }, ref);
+    field(element, "Title").focus();
+    await userEvent.keyboard("{Control>}a{/Control}A title far over ten");
+    await userEvent.tab();
+    const title = field(element, "Title");
+    // The draft's title again, with the refusal as the field's problem.
+    expect(title.value).toBe("อาหาร");
+    expect(title.getAttribute("aria-invalid")).toBe("true");
+    expect(onChange).not.toHaveBeenCalled();
+    expect(ref.current?.getContent().exercises[0]?.title).toBe("อาหาร");
+  });
+
+  it("commits once when the host reads the content from onChange", async () => {
+    const ref = createRef<LearnEditorHandle>();
+    const onChange = vi.fn(() => ref.current?.getContent());
+    const element = render({ onChange }, ref);
+    field(element, "Title").focus();
+    await userEvent.keyboard("{Control>}a{/Control}Lunch");
+    await userEvent.tab();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    await userEvent.click(button(element, "Undo"));
+    expect(field(element, "Title").value).toBe("อาหาร");
+  });
+
+  it("commits pending typing before a list moves, even with focus still in the field", async () => {
+    const onChange = vi.fn();
+    const ref = createRef<LearnEditorHandle>();
+    const element = render({ onChange }, ref);
+    await userEvent.click(element.querySelectorAll("[role=row]")[1] as HTMLElement);
+    onChange.mockClear();
+    // The pause's timer is the test's, so only the move can commit the typing.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    field(element, "Word 1").focus();
+    await userEvent.keyboard("{Control>}a{/Control}เธอ");
+    expect(onChange).not.toHaveBeenCalled();
+    act(() => button(element, "Move word 1 later").click());
+    vi.useRealTimers();
+    expect(ref.current?.getContent().exercises[1]?.payload).toMatchObject({
+      items: [{ tiles: ["กิน", "เธอ", "ข้าว"] }],
+    });
+  });
+
+  it("ends a refusal with the next edit, undo or redo, and never shows it on another entry", async () => {
+    const element = render({
+      limits: { maxTextLength: 15 },
+      initialContent: {
+        ...content,
+        exercises: [
+          { id: "wo", type: "word-order", payload: { items: [{ tiles: ["กิน", "กิน", "ข้าว"] }] } },
+        ],
+      },
+    });
+    const refuse = async (label: string) => {
+      field(element, label).focus();
+      await userEvent.keyboard("{Control>}a{/Control}far too long for a word");
+      await userEvent.tab();
+    };
+    const invalid = (label: string) => field(element, label).getAttribute("aria-invalid");
+    // Two words with the same text: the refusal stays on the one refused.
+    await refuse("Word 1");
+    expect([invalid("Word 1"), invalid("Word 2")]).toEqual(["true", null]);
+    // A move ends it, and moving back doesn't bring it back.
+    act(() => button(element, "Move word 1 later").click());
+    act(() => button(element, "Move word 2 earlier").click());
+    expect([invalid("Word 1"), invalid("Word 2")]).toEqual([null, null]);
+    // An edit, then a refusal: undo and redo don't bring the refusal back.
+    field(element, "Word 3").focus();
+    await userEvent.keyboard("{Control>}a{/Control}น้ำ");
+    await userEvent.tab();
+    await refuse("Word 3");
+    expect(invalid("Word 3")).toBe("true");
+    await userEvent.click(button(element, "Undo"));
+    await userEvent.click(button(element, "Redo"));
+    expect([field(element, "Word 3").value, invalid("Word 3")]).toEqual(["น้ำ", null]);
+  });
+
+  it("keeps focus in the editor when the last exercise is removed", async () => {
+    const element = render({ initialContent: one });
+    await userEvent.click(button(element, "Remove exercise"));
+    expect(element.querySelectorAll("[role=row]")).toHaveLength(0);
+    expect(element.contains(document.activeElement)).toBe(true);
+  });
+
+  it("moves focus to the outline when an undo takes the focused field away", async () => {
+    const ref = createRef<LearnEditorHandle>();
+    const element = render({}, ref);
+    await userEvent.click(button(element, "Add multiple choice"));
+    expect(document.activeElement).toBe(field(element, "Title"));
+    act(() => ref.current?.undo());
+    expect(element.querySelectorAll("[role=row]")).toHaveLength(2);
+    expect(element.querySelector("[role=grid]")?.contains(document.activeElement)).toBe(true);
+  });
+
+  it("commits a composition's final text after a flush interrupted it", async () => {
+    const onChange = vi.fn();
+    const ref = createRef<LearnEditorHandle>();
+    const element = render({ onChange }, ref);
+    const prompt = field(element, "Question") as HTMLTextAreaElement;
+    prompt.focus();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const setValue = (value: string) =>
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(
+        prompt,
+        value,
+      );
+    act(() => {
+      prompt.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+      setValue("ข");
+      prompt.dispatchEvent(new InputEvent("input", { bubbles: true, isComposing: true }));
+    });
+    // A host flushes mid-composition: what's there is committed.
+    act(() => ref.current?.flush());
+    expect(onChange).toHaveBeenCalledTimes(1);
+    // The final text arrives with compositionend alone, and gets the usual pause.
+    act(() => {
+      setValue("ข้าว");
+      prompt.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "ข้าว" }));
+    });
+    act(() => vi.advanceTimersByTime(COMMIT_PAUSE_MS + 100));
+    expect(onChange).toHaveBeenCalledTimes(2);
+    const draft = onChange.mock.calls[1]?.[0] as typeof content | undefined;
+    expect(draft?.exercises[0]?.payload).toMatchObject({ questions: [{ prompt: "ข้าว" }] });
+  });
+
+  it("lists a payload's problems when its type has no editor block", async () => {
+    const element = render({ initialContent: undefined });
+    await userEvent.click(button(element, "Add multiple choice"));
+    // The block goes away without a remount: its fields go, their problems stay listed.
+    act(() =>
+      root?.render(
+        <LearnEditor
+          initialContent={undefined}
+          profile={thai}
+          defaultPreferences={{ mode: "advanced" }}
+          blocks={{ "multiple-choice": undefined as never }}
+        />,
+      ),
+    );
+    expect(element.querySelector(".hm-learn-editor-unsupported")).not.toBeNull();
+    expect(element.querySelector(".hm-learn-editor-issues")?.textContent).toContain(
+      "This can't be empty.",
+    );
+  });
+
+  it("lets a removal's toast undo only that removal", async () => {
+    const element = render();
+    await userEvent.click(button(element, "Remove exercise"));
+    const toastUndo = [...document.querySelectorAll(".hm-toast button")].find(
+      (each) => each.textContent === "Undo",
+    ) as HTMLButtonElement;
+    // A later edit: the toast's Undo would undo it, not the removal.
+    field(element, "Title").focus();
+    await userEvent.keyboard("{Control>}a{/Control}Later");
+    await userEvent.tab();
+    act(() => toastUndo.click());
+    expect(element.querySelectorAll("[role=row]")).toHaveLength(1);
+    expect(field(element, "Title").value).toBe("Later");
+  });
+
+  it("offers adding only types with a block of their own, whatever their name", async () => {
+    const constructorType = { ...shortAnswer, type: "constructor" };
+    const types = createExerciseTypes([multipleChoice, gapFill, wordOrder, constructorType]);
+    const element = render({ types, initialContent: undefined });
+    const labels = [...element.querySelectorAll("button")].map((each) => each.textContent ?? "");
+    expect(labels.some((label) => label.includes("constructor"))).toBe(false);
+    expect(labels.some((label) => label.includes("Add multiple choice"))).toBe(true);
+  });
+
+  it("reads single once, as it reads its content", () => {
+    const element = render();
+    act(() =>
+      root?.render(
+        <LearnEditor
+          initialContent={content}
+          profile={thai}
+          single
+          defaultPreferences={{ mode: "advanced" }}
+        />,
+      ),
+    );
+    expect(element.querySelector("[role=grid]")).not.toBeNull();
+  });
+
+  it("shows a limit the draft passed, which no field can show", async () => {
+    const element = render({ limits: { maxChoices: 2 } });
+    await userEvent.click(button(element, "Add a choice"));
+    expect(element.querySelector(".hm-learn-editor-limit")?.textContent ?? "").not.toBe("");
+  });
+
+  describe("single", () => {
+    it("edits one exercise, with no outline and no structural tools", async () => {
+      const element = render({ single: true, initialContent: one });
+      expect(element.querySelector("[role=grid]")).toBeNull();
+      expect(
+        [...element.querySelectorAll("button")].some((each) =>
+          each.textContent?.includes("Remove exercise"),
+        ),
+      ).toBe(false);
+      expect(field(element, "Title").value).toBe("อาหาร");
+      await expectNoAxeViolations(element);
+    });
+
+    it("starts from the cards when empty, and the card chosen adds the one exercise", async () => {
+      const ref = createRef<LearnEditorHandle>();
+      const element = render({ single: true, initialContent: undefined }, ref);
+      await userEvent.click(button(element, "Put words in order"));
+      expect(element.querySelector(".hm-learn-editor-card")).toBeNull();
+      expect(() => ref.current?.getContent()).toThrow();
+    });
+
+    it("refuses content with more than one exercise", () => {
+      const ref = createRef<LearnEditorHandle>();
+      const element = render({ single: true }, ref);
+      expect(element.querySelector("[role=alert]")?.textContent ?? "").not.toBe("");
+      let refusal: unknown;
+      try {
+        ref.current?.getContent();
+      } catch (error) {
+        refusal = error;
+      }
+      expect(isLearnError(refusal, "INVALID_DOCUMENT")).toBe(true);
+    });
+  });
+
+  it("announces a removal and its undo, and the problems left after an edit", async () => {
+    const reader = await startScreenReader();
+    onTestFinished(() => reader.stop());
+    const element = render();
+    const removal = await reader.spoken(() => userEvent.click(button(element, "Remove exercise")));
+    expect(removal).toContain("polite: Exercise removed");
+    const undone = await reader.spoken(() => userEvent.keyboard("{Control>}z{/Control}"));
+    expect(undone).toContain("polite: Undone");
+    field(element, "Question").focus();
+    const emptied = await reader.spoken(async () => {
+      await userEvent.keyboard("{Control>}a{/Control}{Backspace}");
+      await userEvent.tab();
+    });
+    expect(emptied).toContain("polite: 1 problem to fix.");
+  });
+});

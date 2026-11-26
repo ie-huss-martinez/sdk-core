@@ -907,6 +907,9 @@ importers:
       '@commitlint/cli':
         specifier: 'catalog:'
         version: 21.2.4(conventional-commits-parser@7.1.4)(typescript@6.0.3)
+      '@guidepup/virtual-screen-reader':
+        specifier: 'catalog:'
+        version: 0.33.0
       '@hussmartinez/sdk-config':
         specifier: workspace:^
         version: link:../sdk-config
@@ -928,6 +931,9 @@ importers:
       '@types/react-dom':
         specifier: 'catalog:'
         version: 19.3.0(@types/react@19.3.0)
+      '@typescript-eslint/parser':
+        specifier: 'catalog:'
+        version: 8.73.0(eslint@10.15.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)
       '@vitest/browser-playwright':
         specifier: 'catalog:'
         version: 5.1.0(playwright@1.65.1)(vite@8.3.8(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.4)(yaml@2.9.1))(vitest@5.1.0)
@@ -940,6 +946,12 @@ importers:
       esbuild:
         specifier: 'catalog:'
         version: 0.28.2
+      eslint:
+        specifier: 'catalog:'
+        version: 10.15.0(jiti@2.7.0)(supports-color@10.2.2)
+      eslint-plugin-react-hooks:
+        specifier: 'catalog:'
+        version: 7.1.1(eslint@10.15.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2)
       fast-check:
         specifier: 'catalog:'
         version: 4.10.2

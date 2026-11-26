@@ -2,13 +2,77 @@
 
 A learning SDK: exercise types with their grading logic, a player and a teacher editor for each, spaced repetition, and course-based access, for language learning and beyond. Learners' answers and progress stay with the host application; the SDK makes no network requests of its own. It offers a headless core that also runs on servers, React components (`LearnPlayer`, `LearnEditor`) and a `<hm-learn-player>` custom element.
 
-This repository will publish **`@hussmartinez/learn-sdk`**. It follows the family standards in [`sdk-core`'s `STANDARDS.md`](https://github.com/ie-huss-martinez/sdk-core/blob/main/STANDARDS.md), and in particular the decisions on [hostile input and no network](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0012-hostile-input-and-no-network.md), [ports and adapters](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0008-ports-adapters-and-session.md) and [accessibility and translatable text](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0014-accessibility-and-translatable-text.md).
+It's published as **`@hussmartinez/learn-sdk`**, from `packages/learn-sdk` in the family's repository. It follows the family standards in [`sdk-core`'s `STANDARDS.md`](https://github.com/ie-huss-martinez/sdk-core/blob/main/STANDARDS.md), and in particular the decisions on [hostile input and no network](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0012-hostile-input-and-no-network.md), [ports and adapters](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0008-ports-adapters-and-session.md) and [accessibility and translatable text](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0014-accessibility-and-translatable-text.md).
 
-> Status: being bootstrapped. No packages are published yet.
+> Status: `0.x`, so the API may still change between minor versions. The package root, `@hussmartinez/learn-sdk`, has the headless core (such as `createLearnEditor` and `gradeAnswer`); the React entry, `@hussmartinez/learn-sdk/react`, has the player (`LearnPlayer`) and the editor (`LearnEditor`). The editor's custom element is next.
+
+## Teacher's editor
+
+`LearnEditor`, from `@hussmartinez/learn-sdk/react`, lets teachers write exercises ([ADR 0008](docs/adr/0008-learn-editor.md)). It renders through `@hussmartinez/ui`'s editor frame, so import ui's stylesheet first, then this package's, and give the editor a height in your CSS.
+
+```tsx
+import "@hussmartinez/ui/styles.css";
+import "@hussmartinez/learn-sdk/styles.css";
+import { isLearnError } from "@hussmartinez/learn-sdk";
+import { LearnEditor, type LearnEditorHandle } from "@hussmartinez/learn-sdk/react";
+import { useEffect, useRef, useState } from "react";
+
+const thai = { code: "th", direction: "ltr" } as const;
+
+export function Editor({ content, save }: { content: unknown; save: (c: unknown) => Promise<void> }) {
+  const editor = useRef<LearnEditorHandle>(null);
+  // Save starts off, and turns on once the content opened: onChange reports edits, not the opening.
+  const [valid, setValid] = useState(false);
+  useEffect(() => {
+    try {
+      editor.current?.getContent();
+      setValid(true);
+    } catch {
+      // The editor couldn't open the content, and shows why.
+    }
+  }, []);
+  const [saveFailed, setSaveFailed] = useState(false);
+  return (
+    <>
+      <LearnEditor ref={editor} initialContent={content} profile={thai} onChange={(_, problems) => setValid(problems.valid)} />
+      <button
+        type="button"
+        disabled={!valid}
+        onClick={async () => {
+          let saved: unknown;
+          try {
+            saved = editor.current?.getContent();
+          } catch (error) {
+            // Content the editor couldn't open, or a draft with problems: the editor shows why.
+            if (!isLearnError(error)) throw error;
+            return;
+          }
+          try {
+            await save(saved);
+            setSaveFailed(false);
+          } catch {
+            setSaveFailed(true); // your own storage failed: say so, and keep the editor open
+          }
+        }}
+      >
+        Save
+      </button>
+      {saveFailed && <p role="alert">Saving failed. Try again.</p>}
+    </>
+  );
+}
+```
+
+- **Saving stays yours.** `onChange(draft, { issues, valid })` reports every edit, undo and redo, not the opening: the example turns Save on once a first `getContent()` succeeds, which it does for any content the editor opened. The draft may be invalid while a teacher writes; save through the handle's `getContent()`, which commits any typing and returns validated `hm-learn-content`, or throws a `LearnError`: `INVALID_DOCUMENT` with every issue, a limit's code such as `TOO_MANY_CHOICES`, or the error that kept the editor from opening its content. Report your own storage's failures yourself, as the example does.
+- **One exercise at a time:** with `single`, the editor edits a document of exactly one exercise, with no outline and no adding or removing. Empty content opens on a card per exercise type. A host that stores exercises one per row wraps a row in a one-exercise document and stores `getContent().exercises[0]`.
+- **The language being taught:** `profile` gives its fields `lang` and `dir`, with spellcheck and autocorrect off. Typing is committed as one undo step per burst, after a pause that waits for an input method to finish composing. Commits that can't wait, such as `getContent()` and `flush()`, commit the text as it stands, so a host that saves mid-composition can get unfinished text.
+- **Your own exercise types:** pass an editor block per type in `blocks`, made with `defineEditorBlock({ edit, create })`. `edit` builds the whole payload; `create` is a new exercise's payload.
+- **Preferences** (mode, theme, panels) are the frame's, controlled with `preferences` and `onPreferencesChange` or left to the editor, as in every family editor (sdk-core ADR 0067).
+- **Text** comes from `learnEditorMessages`; override any of it with `messages`, typed as `MessageOverrides<LearnEditorMessageCatalogue>`.
 
 ## Development
 
-The repository root is the published package, laid out as in the family's [standard layout](https://github.com/ie-huss-martinez/sdk-core/blob/main/STANDARDS.md#repository-layout): the source is in [`src`](src). The pnpm workspace also holds the test applications ([ADR 0039](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0039-test-applications-in-each-repository.md)): [`examples/vite`](examples/vite) and [`examples/next`](examples/next), which run the built player under a strict Content Security Policy, the second rendered on the server, and the [`e2e`](e2e) Playwright suite that tests them. They're also where the [screen-reader pass](docs/testing/screen-reader-pass.md) is done before a release.
+This folder is the published package, laid out as in the family's [standard layout](https://github.com/ie-huss-martinez/sdk-core/blob/main/STANDARDS.md#repository-layout): the source is in [`src`](src). It also holds the test applications ([ADR 0039](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0039-test-applications-in-each-repository.md)): [`examples/vite`](examples/vite) and [`examples/next`](examples/next), which run the built player under a strict Content Security Policy, the second rendered on the server, and the [`e2e`](e2e) Playwright suite that tests them. They're also where the [screen-reader pass](docs/testing/screen-reader-pass.md) is done before a release.
 
 You need Node 24 (see [`.node-version`](.node-version)) and pnpm. The exact pnpm version is pinned in `package.json`, and pnpm switches to it automatically.
 
@@ -44,11 +108,7 @@ When a change alters the public API on purpose, update the reports with `pnpm ap
 
 ## Contributing
 
-Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a pull request. Coding agents also start with [`AGENTS.md`](AGENTS.md). Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md). Report vulnerabilities privately, as described in the [security policy](SECURITY.md).
-
-## License
-
-[Apache-2.0](LICENSE)
+Read [`CONTRIBUTING.md`](../../CONTRIBUTING.md) before opening a pull request. Coding agents also start with [`AGENTS.md`](../../AGENTS.md). Everyone taking part follows the [code of conduct](../../CODE_OF_CONDUCT.md). Report vulnerabilities privately, as described in the [security policy](../../SECURITY.md).
 
 ## License
 

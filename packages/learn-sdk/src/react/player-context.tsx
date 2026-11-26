@@ -5,15 +5,14 @@ import {
   type ShortcutRegistry,
   type ToolRegistry,
 } from "@hussmartinez/sdk-core";
-import { type HeadingLevel, usePlatform } from "@hussmartinez/ui/react";
+import { type HeadingLevel, useLatest, usePlatform } from "@hussmartinez/ui/react";
 import {
   createContext,
   type ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
-  useRef,
-  useState,
   useSyncExternalStore,
 } from "react";
 import type { LearnError } from "../core/errors/learn-error.js";
@@ -95,6 +94,11 @@ interface PlayerContext {
   readonly shortcuts: ShortcutRegistry;
   /** Starts the exercises again, from a new session. */
   readonly reset: () => void;
+  /**
+   * Set when a reset took focus from inside the player, so the new first
+   * exercise takes it: kept by `LearnPlayer`, which the reset doesn't remount.
+   */
+  readonly refocusRef: { current: boolean };
   /** Tells the host about an error an action caused, such as `INVALID_ANSWER`. */
   readonly reportError: (error: LearnError) => void;
 }
@@ -107,15 +111,29 @@ const Context = /* @__PURE__ */ createContext<PlayerContext | null>(null);
  * @internal
  */
 export function LearnPlayerProvider(
-  props: Omit<LearnPlayerProps, "className" | "headingLevel"> & { readonly children?: ReactNode },
+  props: Omit<LearnPlayerProps, "className" | "headingLevel"> & {
+    /** Starts a new session: `LearnPlayer` remounts the provider with a new key. */
+    readonly reset: () => void;
+    readonly refocusRef: { current: boolean };
+    readonly children?: ReactNode;
+  },
 ): ReactNode {
-  const { content, types, progressStore, scope, scheduler, limits, locale } = props;
-  const callbacks = useRef(props);
-  callbacks.current = props;
-  const [generation, setGeneration] = useState(0);
+  const { content, types, progressStore, scope, scheduler, limits, locale, reset, refocusRef } =
+    props;
+  // The host's latest callbacks, taken as each render commits, never during it
+  // (sdk-core ADR 0063). The session calls them through these stable functions.
+  const latest = useLatest(props);
+  const onProgress = useCallback(
+    (change: ProgressChange) => latest.current.onProgress?.(change),
+    [latest],
+  );
+  const onEvent = useCallback(
+    (event: LearnPlayerEvent) => latest.current.onEvent?.(event),
+    [latest],
+  );
+  const onError = useCallback((error: LearnError) => latest.current.onError?.(error), [latest]);
   const profile = props.profile ?? defaultLanguageProfile;
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: generation starts a new session on reset
   const session = useMemo((): { player: LearnPlayer | null; error: unknown } => {
     try {
       const player = createLearnPlayer({
@@ -126,15 +144,26 @@ export function LearnPlayerProvider(
         ...(scope === undefined ? {} : { scope }),
         ...(scheduler ? { scheduler } : {}),
         ...(limits ? { limits } : {}),
-        onProgress: (change) => callbacks.current.onProgress?.(change),
-        onEvent: (event) => callbacks.current.onEvent?.(event),
-        onError: (error) => callbacks.current.onError?.(error),
+        onProgress,
+        onEvent,
+        onError,
       });
       return { player, error: null };
     } catch (error) {
       return { player: null, error };
     }
-  }, [content, types, profile, progressStore, scope, scheduler, limits, generation]);
+  }, [
+    content,
+    types,
+    profile,
+    progressStore,
+    scope,
+    scheduler,
+    limits,
+    onProgress,
+    onEvent,
+    onError,
+  ]);
   useEffect(() => () => session.player?.dispose(), [session]);
 
   const platform = usePlatform();
@@ -161,10 +190,11 @@ export function LearnPlayerProvider(
       blocks,
       tools,
       shortcuts,
-      reset: () => setGeneration((current) => current + 1),
-      reportError: (error: LearnError) => callbacks.current.onError?.(error),
+      reset,
+      refocusRef,
+      reportError: onError,
     }),
-    [session, messages, profile, blocks, tools, shortcuts],
+    [session, messages, profile, blocks, tools, shortcuts, reset, refocusRef, onError],
   );
   return <Context.Provider value={value}>{props.children}</Context.Provider>;
 }
