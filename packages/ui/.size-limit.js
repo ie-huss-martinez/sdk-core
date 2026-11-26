@@ -257,22 +257,23 @@ export default [
   entryBudget({
     name: "React Native entry (./native)",
     entry: "dist/native.js",
-    // 9 kB; 8.97 kB. Each part compressed with the rest, in kB:
-    //   the icons' shapes        2.9  70 icons, about 0.04 kB each
+    // 10 kB; 9.71 kB. Each part compressed with the rest, in kB:
+    //   the icons' shapes        3.6  84 icons, about 0.04 kB each; it grows
+    //                                 with every icon the set gains
     //   the two themes           1.1  every token, resolved, twice
     //   the components           2.6  provider, Text, Button, ChoiceList, Icon, Dir
     //   the rest                 2.3  createNativeTheme, preferences, direction
     // Metro ships the whole file unless the application turns tree shaking
     // on, so this one is what most native applications pay.
-    limit: "9 kB",
+    limit: "10 kB",
   }),
   // A floor: 0.4 kB; 0.34 kB, the lists of right-to-left languages and
   // scripts. The cheapest import a native application makes.
   nativeScenario("the floor, isRTL", ["isRTL"], "0.4 kB"),
   // 1.5 kB; 1.09 kB.
   nativeScenario("the native themes", ["lightNativeTheme", "darkNativeTheme"], "1.5 kB"),
-  // 3 kB; 2.90 kB for 70 icons.
-  nativeScenario("every icon's data", NATIVE_ICONS, "3 kB"),
+  // 4 kB; 3.58 kB for 84 icons.
+  nativeScenario("every icon's data", NATIVE_ICONS, "4 kB"),
   // 5 kB; 4.70 kB: what an application with a themed, right-to-left
   // multiple-choice screen imports.
   nativeScenario(

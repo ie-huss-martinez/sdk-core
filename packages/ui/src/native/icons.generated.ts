@@ -34,6 +34,59 @@ export const arrowIcon: IconData = {
 };
 
 /**
+ * The `arrow-right` icon's shapes: Lucide's `arrow-right`, mirrored in right-to-left text.
+ *
+ * @public
+ */
+export const arrowRightIcon: IconData = {
+  name: "arrow-right",
+  mirror: true,
+  nodes: [
+    ["path", { d: "M5 12h14" }],
+    ["path", { d: "m12 5 7 7-7 7" }],
+  ],
+};
+
+/**
+ * The `book` icon's shapes: Lucide's `book-open`.
+ *
+ * @public
+ */
+export const bookIcon: IconData = {
+  name: "book",
+  mirror: false,
+  nodes: [
+    ["path", { d: "M12 5v16" }],
+    [
+      "path",
+      {
+        d: "M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z",
+      },
+    ],
+  ],
+};
+
+/**
+ * The `brain` icon's shapes: Lucide's `brain`.
+ *
+ * @public
+ */
+export const brainIcon: IconData = {
+  name: "brain",
+  mirror: false,
+  nodes: [
+    ["path", { d: "M12 18V5" }],
+    ["path", { d: "M15 13a4.17 4.17 0 01-3-4 4.17 4.17 0 01-3 4" }],
+    ["path", { d: "M17.707 6.294A3 3 0 1012 5a3 3 0 10-5.707 1.294" }],
+    ["path", { d: "M17.996 5.125a4 4 0 012.526 5.77" }],
+    ["path", { d: "M18 18a4 4 0 002-7.465" }],
+    ["path", { d: "M19.967 17.482a4 4 0 11-7.967.517 4 4 0 11-7.967-.517" }],
+    ["path", { d: "M6 18a4 4 0 01-2-7.465" }],
+    ["path", { d: "M6.004 5.125a4 4 0 00-2.526 5.77" }],
+  ],
+};
+
+/**
  * The `check` icon's shapes: Lucide's `check`.
  *
  * @public
@@ -88,6 +141,21 @@ export const closeIcon: IconData = {
   nodes: [
     ["path", { d: "M18 6 6 18" }],
     ["path", { d: "m6 6 12 12" }],
+  ],
+};
+
+/**
+ * The `code` icon's shapes: Lucide's `code-xml`.
+ *
+ * @public
+ */
+export const codeIcon: IconData = {
+  name: "code",
+  mirror: false,
+  nodes: [
+    ["path", { d: "m18 16 4-4-4-4" }],
+    ["path", { d: "m6 8-4 4 4 4" }],
+    ["path", { d: "m14.5 4-5 16" }],
   ],
 };
 
@@ -176,6 +244,20 @@ export const ellipseIcon: IconData = {
 };
 
 /**
+ * The `external-link` icon's shapes: Lucide's `arrow-up-right`, mirrored in right-to-left text.
+ *
+ * @public
+ */
+export const externalLinkIcon: IconData = {
+  name: "external-link",
+  mirror: true,
+  nodes: [
+    ["path", { d: "M7 7h10v10" }],
+    ["path", { d: "M7 17 17 7" }],
+  ],
+};
+
+/**
  * The `eyedropper` icon's shapes: Lucide's `pipette`.
  *
  * @public
@@ -222,6 +304,21 @@ export const fadeOutIcon: IconData = {
     ["path", { d: "M5 21V3" }],
     ["path", { d: "M12 21V9" }],
     ["path", { d: "M19 21v-6" }],
+  ],
+};
+
+/**
+ * The `feed` icon's shapes: Lucide's `rss`.
+ *
+ * @public
+ */
+export const feedIcon: IconData = {
+  name: "feed",
+  mirror: false,
+  nodes: [
+    ["path", { d: "M4 11a9 9 0 0 1 9 9" }],
+    ["path", { d: "M4 4a16 16 0 0 1 16 16" }],
+    ["circle", { cx: "5", cy: "19", r: "1" }],
   ],
 };
 
@@ -330,6 +427,21 @@ export const highlighterIcon: IconData = {
 };
 
 /**
+ * The `history` icon's shapes: Lucide's `rotate-ccw-clock`.
+ *
+ * @public
+ */
+export const historyIcon: IconData = {
+  name: "history",
+  mirror: false,
+  nodes: [
+    ["path", { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" }],
+    ["path", { d: "M3 3v5h5" }],
+    ["path", { d: "M12 7v5l4 2" }],
+  ],
+};
+
+/**
  * The `image` icon's shapes: Lucide's `image`.
  *
  * @public
@@ -380,6 +492,25 @@ export const layersIcon: IconData = {
 };
 
 /**
+ * The `location` icon's shapes: Lucide's `map-pin`.
+ *
+ * @public
+ */
+export const locationIcon: IconData = {
+  name: "location",
+  mirror: false,
+  nodes: [
+    [
+      "path",
+      {
+        d: "M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0",
+      },
+    ],
+    ["circle", { cx: "12", cy: "10", r: "3" }],
+  ],
+};
+
+/**
  * The `loop` icon's shapes: Lucide's `repeat`.
  *
  * @public
@@ -392,6 +523,20 @@ export const loopIcon: IconData = {
     ["path", { d: "M3 11v-1a4 4 0 0 1 4-4h14" }],
     ["path", { d: "m7 22-4-4 4-4" }],
     ["path", { d: "M21 13v1a4 4 0 0 1-4 4H3" }],
+  ],
+};
+
+/**
+ * The `mail` icon's shapes: Lucide's `mail`.
+ *
+ * @public
+ */
+export const mailIcon: IconData = {
+  name: "mail",
+  mirror: false,
+  nodes: [
+    ["path", { d: "m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7" }],
+    ["rect", { x: "2", y: "4", width: "20", height: "16", rx: "2" }],
   ],
 };
 
@@ -667,6 +812,26 @@ export const propertiesIcon: IconData = {
 };
 
 /**
+ * The `question` icon's shapes: Lucide's `message-circle-question-mark`.
+ *
+ * @public
+ */
+export const questionIcon: IconData = {
+  name: "question",
+  mirror: false,
+  nodes: [
+    [
+      "path",
+      {
+        d: "M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719",
+      },
+    ],
+    ["path", { d: "M9 9.5a3 2.5 0 016 0c0 2-2 2-3 3.5" }],
+    ["path", { d: "M12 17h.01" }],
+  ],
+};
+
+/**
  * The `range-end` icon's shapes: ui's own `range-end` glyph, mirrored in right-to-left text.
  *
  * @public
@@ -799,6 +964,21 @@ export const rotateRightIcon: IconData = {
 };
 
 /**
+ * The `route` icon's shapes: Lucide's `route`.
+ *
+ * @public
+ */
+export const routeIcon: IconData = {
+  name: "route",
+  mirror: false,
+  nodes: [
+    ["path", { d: "M9 5h8.5a1 1 0 010 7h-11a1 1 0 000 7H15" }],
+    ["circle", { cx: "18", cy: "19", r: "3" }],
+    ["circle", { cx: "6", cy: "5", r: "3" }],
+  ],
+};
+
+/**
  * The `search` icon's shapes: Lucide's `search`.
  *
  * @public
@@ -908,6 +1088,27 @@ export const snapIcon: IconData = {
 };
 
 /**
+ * The `sparkles` icon's shapes: Lucide's `sparkles`.
+ *
+ * @public
+ */
+export const sparklesIcon: IconData = {
+  name: "sparkles",
+  mirror: false,
+  nodes: [
+    [
+      "path",
+      {
+        d: "M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z",
+      },
+    ],
+    ["path", { d: "M20 2v4" }],
+    ["path", { d: "M22 4h-4" }],
+    ["circle", { cx: "4", cy: "20", r: "2" }],
+  ],
+};
+
+/**
  * The `split` icon's shapes: Lucide's `scissors`.
  *
  * @public
@@ -986,6 +1187,40 @@ export const themeLightIcon: IconData = {
     ["path", { d: "M20 12h2" }],
     ["path", { d: "m6.34 17.66-1.41 1.41" }],
     ["path", { d: "m19.07 4.93-1.41 1.41" }],
+  ],
+};
+
+/**
+ * The `time` icon's shapes: Lucide's `clock`.
+ *
+ * @public
+ */
+export const timeIcon: IconData = {
+  name: "time",
+  mirror: false,
+  nodes: [
+    ["circle", { cx: "12", cy: "12", r: "10" }],
+    ["path", { d: "M12 6v6l4 2" }],
+  ],
+};
+
+/**
+ * The `tip` icon's shapes: Lucide's `lightbulb`.
+ *
+ * @public
+ */
+export const tipIcon: IconData = {
+  name: "tip",
+  mirror: false,
+  nodes: [
+    [
+      "path",
+      {
+        d: "M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5",
+      },
+    ],
+    ["path", { d: "M9 18h6" }],
+    ["path", { d: "M10 22h4" }],
   ],
 };
 

@@ -28,6 +28,15 @@ export function announce(message: string): void;
 export const arrowIcon: IconData;
 
 // @public
+export const arrowRightIcon: IconData;
+
+// @public
+export const bookIcon: IconData;
+
+// @public
+export const brainIcon: IconData;
+
+// @public
 export const Button: ForwardRefExoticComponent<ButtonProps & RefAttributes<ComponentRef<typeof View>>>;
 
 // @public
@@ -97,6 +106,9 @@ export function clampTextScale(value: unknown): number;
 export const closeIcon: IconData;
 
 // @public
+export const codeIcon: IconData;
+
+// @public
 export const commandIcon: IconData;
 
 // @public
@@ -136,6 +148,9 @@ export const duplicateIcon: IconData;
 export const ellipseIcon: IconData;
 
 // @public
+export const externalLinkIcon: IconData;
+
+// @public
 export const eyedropperIcon: IconData;
 
 // @public
@@ -143,6 +158,9 @@ export const fadeInIcon: IconData;
 
 // @public
 export const fadeOutIcon: IconData;
+
+// @public
+export const feedIcon: IconData;
 
 // @public
 export const fitIcon: IconData;
@@ -160,6 +178,9 @@ export const hiddenIcon: IconData;
 export const highlighterIcon: IconData;
 
 // @public
+export const historyIcon: IconData;
+
+// @public
 export function Icon(input: IconProps): ReactElement;
 
 // @public
@@ -171,7 +192,7 @@ export interface IconData {
 }
 
 // @public
-export type IconName = "add" | "arrow" | "check" | "chevron-down" | "chevron-left" | "chevron-right" | "close" | "command" | "crop" | "delete" | "download" | "duplicate" | "ellipse" | "eyedropper" | "fade-in" | "fade-out" | "fit" | "flip-horizontal" | "flip-vertical" | "hidden" | "highlighter" | "image" | "info" | "layers" | "loop" | "menu" | "more" | "move-down" | "move-up" | "muted" | "open" | "page-add" | "page-grid" | "page-single" | "pan" | "panel-collapse" | "panel-expand" | "pause" | "pen" | "play" | "properties" | "range-end" | "range-start" | "rectangle" | "redact" | "redo" | "remove" | "ripple" | "rotate-left" | "rotate-right" | "search" | "select" | "settings" | "skip-back" | "skip-forward" | "snap" | "split" | "stop" | "text" | "theme-dark" | "theme-light" | "trim-end" | "trim-start" | "undo" | "upload" | "visible" | "volume" | "warning" | "zoom-in" | "zoom-out";
+export type IconName = "add" | "arrow" | "arrow-right" | "book" | "brain" | "check" | "chevron-down" | "chevron-left" | "chevron-right" | "close" | "code" | "command" | "crop" | "delete" | "download" | "duplicate" | "ellipse" | "external-link" | "eyedropper" | "fade-in" | "fade-out" | "feed" | "fit" | "flip-horizontal" | "flip-vertical" | "hidden" | "highlighter" | "history" | "image" | "info" | "layers" | "location" | "loop" | "mail" | "menu" | "more" | "move-down" | "move-up" | "muted" | "open" | "page-add" | "page-grid" | "page-single" | "pan" | "panel-collapse" | "panel-expand" | "pause" | "pen" | "play" | "properties" | "question" | "range-end" | "range-start" | "rectangle" | "redact" | "redo" | "remove" | "ripple" | "rotate-left" | "rotate-right" | "route" | "search" | "select" | "settings" | "skip-back" | "skip-forward" | "snap" | "sparkles" | "split" | "stop" | "text" | "theme-dark" | "theme-light" | "time" | "tip" | "trim-end" | "trim-start" | "undo" | "upload" | "visible" | "volume" | "warning" | "zoom-in" | "zoom-out";
 
 // @public
 export interface IconProps {
@@ -205,7 +226,13 @@ export const layersIcon: IconData;
 export const lightNativeTheme: NativeTheme;
 
 // @public
+export const locationIcon: IconData;
+
+// @public
 export const loopIcon: IconData;
+
+// @public
+export const mailIcon: IconData;
 
 // @public
 export const MAX_TEXT_SCALE = 2;
@@ -503,6 +530,9 @@ export const playIcon: IconData;
 export const propertiesIcon: IconData;
 
 // @public
+export const questionIcon: IconData;
+
+// @public
 export const rangeEndIcon: IconData;
 
 // @public
@@ -533,6 +563,9 @@ export const rotateLeftIcon: IconData;
 export const rotateRightIcon: IconData;
 
 // @public
+export const routeIcon: IconData;
+
+// @public
 export const searchIcon: IconData;
 
 // @public
@@ -549,6 +582,9 @@ export const skipForwardIcon: IconData;
 
 // @public
 export const snapIcon: IconData;
+
+// @public
+export const sparklesIcon: IconData;
 
 // @public
 export const splitIcon: IconData;
@@ -582,6 +618,12 @@ export const themeDarkIcon: IconData;
 
 // @public
 export const themeLightIcon: IconData;
+
+// @public
+export const timeIcon: IconData;
+
+// @public
+export const tipIcon: IconData;
 
 // @public
 export const trimEndIcon: IconData;
