@@ -4,6 +4,7 @@
 
 ```ts
 
+import { AnchorHTMLAttributes } from 'react';
 import { ButtonHTMLAttributes } from 'react';
 import { DialogHTMLAttributes } from 'react';
 import type { EditorMode } from '@hussmartinez/sdk-core';
@@ -46,7 +47,29 @@ export interface AnnouncerProviderProps {
 export function ArrowIcon(props: IconProps): ReactElement;
 
 // @public
+export function ArrowRightIcon(props: IconProps): ReactElement;
+
+// @public
+export function BookIcon(props: IconProps): ReactElement;
+
+// @public
+export function BrainIcon(props: IconProps): ReactElement;
+
+// @public
 export const Button: ForwardRefExoticComponent<ButtonProps & RefAttributes<HTMLButtonElement>>;
+
+// @public
+export const ButtonLink: ForwardRefExoticComponent<ButtonLinkProps & RefAttributes<HTMLAnchorElement>>;
+
+// @public
+export interface ButtonLinkProps extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "className" | "href">, StyleProps<ButtonPart> {
+    readonly endIcon?: ReactNode;
+    readonly href: string;
+    readonly newTabHint?: string | undefined;
+    readonly size?: ButtonSize | undefined;
+    readonly startIcon?: ReactNode;
+    readonly variant?: ButtonVariant | undefined;
+}
 
 // @public
 export type ButtonPart = "root" | "icon" | "label";
@@ -101,6 +124,9 @@ export type ClassNames<Part extends string> = {
 
 // @public
 export function CloseIcon(props: IconProps): ReactElement;
+
+// @public
+export function CodeIcon(props: IconProps): ReactElement;
 
 // @public
 export const ColorField: ForwardRefExoticComponent<ColorFieldProps & RefAttributes<HTMLDivElement>>;
@@ -295,6 +321,9 @@ export interface EditorPreferences {
 export function EllipseIcon(props: IconProps): ReactElement;
 
 // @public
+export function ExternalLinkIcon(props: IconProps): ReactElement;
+
+// @public
 export function EyedropperIcon(props: IconProps): ReactElement;
 
 // @public
@@ -302,6 +331,9 @@ export function FadeInIcon(props: IconProps): ReactElement;
 
 // @public
 export function FadeOutIcon(props: IconProps): ReactElement;
+
+// @public
+export function FeedIcon(props: IconProps): ReactElement;
 
 // @public
 export const Field: ForwardRefExoticComponent<FieldProps & RefAttributes<HTMLDivElement>>;
@@ -400,6 +432,9 @@ export function HiddenIcon(props: IconProps): ReactElement;
 export function HighlighterIcon(props: IconProps): ReactElement;
 
 // @public
+export function HistoryIcon(props: IconProps): ReactElement;
+
+// @public
 export const IconButton: ForwardRefExoticComponent<IconButtonProps & RefAttributes<HTMLButtonElement>>;
 
 // @public
@@ -413,7 +448,7 @@ export interface IconButtonProps extends Omit<ButtonProps, "startIcon" | "endIco
 export type IconComponent = (props: IconProps) => ReactElement;
 
 // @public
-export type IconName = "add" | "arrow" | "check" | "chevron-down" | "chevron-left" | "chevron-right" | "close" | "command" | "crop" | "delete" | "download" | "duplicate" | "ellipse" | "eyedropper" | "fade-in" | "fade-out" | "fit" | "flip-horizontal" | "flip-vertical" | "hidden" | "highlighter" | "image" | "info" | "layers" | "loop" | "menu" | "more" | "move-down" | "move-up" | "muted" | "open" | "page-add" | "page-grid" | "page-single" | "pan" | "panel-collapse" | "panel-expand" | "pause" | "pen" | "play" | "properties" | "range-end" | "range-start" | "rectangle" | "redact" | "redo" | "remove" | "ripple" | "rotate-left" | "rotate-right" | "search" | "select" | "settings" | "skip-back" | "skip-forward" | "snap" | "split" | "stop" | "text" | "theme-dark" | "theme-light" | "trim-end" | "trim-start" | "undo" | "upload" | "visible" | "volume" | "warning" | "zoom-in" | "zoom-out";
+export type IconName = "add" | "arrow" | "arrow-right" | "book" | "brain" | "check" | "chevron-down" | "chevron-left" | "chevron-right" | "close" | "code" | "command" | "crop" | "delete" | "download" | "duplicate" | "ellipse" | "external-link" | "eyedropper" | "fade-in" | "fade-out" | "feed" | "fit" | "flip-horizontal" | "flip-vertical" | "hidden" | "highlighter" | "history" | "image" | "info" | "layers" | "location" | "loop" | "mail" | "menu" | "more" | "move-down" | "move-up" | "muted" | "open" | "page-add" | "page-grid" | "page-single" | "pan" | "panel-collapse" | "panel-expand" | "pause" | "pen" | "play" | "properties" | "question" | "range-end" | "range-start" | "rectangle" | "redact" | "redo" | "remove" | "ripple" | "rotate-left" | "rotate-right" | "route" | "search" | "select" | "settings" | "skip-back" | "skip-forward" | "snap" | "sparkles" | "split" | "stop" | "text" | "theme-dark" | "theme-light" | "time" | "tip" | "trim-end" | "trim-start" | "undo" | "upload" | "visible" | "volume" | "warning" | "zoom-in" | "zoom-out";
 
 // @public
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, "children" | "dangerouslySetInnerHTML" | "ref"> {
@@ -430,7 +465,13 @@ export function InfoIcon(props: IconProps): ReactElement;
 export function LayersIcon(props: IconProps): ReactElement;
 
 // @public
+export function LocationIcon(props: IconProps): ReactElement;
+
+// @public
 export function LoopIcon(props: IconProps): ReactElement;
+
+// @public
+export function MailIcon(props: IconProps): ReactElement;
 
 // @public
 export function MenuIcon(props: IconProps): ReactElement;
@@ -548,6 +589,9 @@ export interface ProgressOverlayProps extends Omit<HTMLAttributes<HTMLDivElement
 export function PropertiesIcon(props: IconProps): ReactElement;
 
 // @public
+export function QuestionIcon(props: IconProps): ReactElement;
+
+// @public
 export function RangeEndIcon(props: IconProps): ReactElement;
 
 // @public
@@ -604,6 +648,9 @@ export function RotateLeftIcon(props: IconProps): ReactElement;
 
 // @public
 export function RotateRightIcon(props: IconProps): ReactElement;
+
+// @public
+export function RouteIcon(props: IconProps): ReactElement;
 
 // @public
 export function SearchIcon(props: IconProps): ReactElement;
@@ -690,6 +737,9 @@ export interface SliderProps extends Omit<InputHTMLAttributes<HTMLInputElement>,
 export function SnapIcon(props: IconProps): ReactElement;
 
 // @public
+export function SparklesIcon(props: IconProps): ReactElement;
+
+// @public
 export const Spinner: ForwardRefExoticComponent<SpinnerProps & RefAttributes<HTMLSpanElement>>;
 
 // @public
@@ -738,6 +788,28 @@ export interface TabBarProps extends Omit<ToolbarProps, "classNames" | "orientat
     readonly onValueChange: (id: string) => void;
     readonly value: string | null;
 }
+
+// @public
+export const Tag: ForwardRefExoticComponent<TagProps & RefAttributes<HTMLElement>>;
+
+// @public
+export const TagList: ForwardRefExoticComponent<TagListProps & RefAttributes<HTMLUListElement>>;
+
+// @public
+export type TagListProps = Omit<HTMLAttributes<HTMLUListElement>, "role">;
+
+// @public
+export type TagPart = "root" | "icon" | "label";
+
+// @public
+export interface TagProps extends Omit<HTMLAttributes<HTMLElement>, "className">, StyleProps<TagPart> {
+    readonly as?: "span" | "li" | undefined;
+    readonly icon?: ReactNode;
+    readonly tone?: TagTone | undefined;
+}
+
+// @public
+export type TagTone = "neutral" | "accent" | "success" | "warning" | "danger";
 
 // @public
 export const TextArea: ForwardRefExoticComponent<TextAreaProps & RefAttributes<HTMLTextAreaElement>>;
@@ -824,6 +896,9 @@ export interface ThemeToggleProps extends Omit<IconButtonProps, "label" | "icon"
     readonly onValueChange: (value: "light" | "dark") => void;
     readonly value: "system" | "light" | "dark" | "inherit";
 }
+
+// @public
+export function TimeIcon(props: IconProps): ReactElement;
 
 // @public
 export const Timeline: ForwardRefExoticComponent<TimelineProps & RefAttributes<HTMLElement>>;
@@ -963,6 +1038,9 @@ export interface TimelineScale {
     }) => number;
     readonly visibleRange: () => TimelineRange;
 }
+
+// @public
+export function TipIcon(props: IconProps): ReactElement;
 
 // @public
 export interface ToastApi {
@@ -1230,6 +1308,8 @@ export const uiMessages: {
     readonly "colorPicker.hue.blue": "blue";
     readonly "colorPicker.hue.purple": "purple";
     readonly "colorPicker.hue.pink": "pink";
+} & {
+    readonly "buttonLink.newTab": "(opens in a new tab)";
 };
 
 // @public

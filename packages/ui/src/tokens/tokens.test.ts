@@ -1,4 +1,6 @@
+import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import { checkContrast } from "../theme/contrast-check.js";
 import { darkTheme, lightTheme } from "../theme/create-theme.js";
@@ -69,8 +71,16 @@ describe("the token definitions", () => {
 describe("the generated files", () => {
   it.each(Object.entries(generateTokenFiles()))(
     "%s is up to date; run `pnpm --filter @hussmartinez/ui tokens` if not",
-    async (path, expected) => {
+    async (path, source) => {
       const committed = await readFile(new URL(`../../${path}`, import.meta.url), "utf8");
+      // TypeScript is committed as Biome formats it, as the script writes it.
+      const expected = path.endsWith(".ts")
+        ? execFileSync(
+            createRequire(import.meta.url).resolve("@biomejs/biome/bin/biome"),
+            ["format", `--stdin-file-path=${path}`],
+            { input: source, encoding: "utf8", cwd: new URL("../../../../", import.meta.url) },
+          )
+        : source;
       expect(committed).toBe(expected);
     },
   );

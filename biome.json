@@ -16,6 +16,19 @@
   },
   "overrides": [
     {
+      "includes": [
+        "packages/ui/**",
+        "!packages/ui/src/native.ts",
+        "!packages/ui/src/native/**",
+        "!packages/ui/examples/native/**"
+      ],
+      "linter": {
+        "domains": {
+          "reactNative": "none"
+        }
+      }
+    },
+    {
       "includes": ["packages/pdf-sdk/**", "packages/audio-sdk/**"],
       "linter": {
         "rules": {

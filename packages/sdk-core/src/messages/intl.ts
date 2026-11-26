@@ -3,6 +3,57 @@
  * on every render, so each locale and option set is built once and reused by
  * every message set.
  */
+import { SdkError } from "../errors/sdk-error.js";
+
+/** The `Intl` constructors this module needs, each checked before its first use. */
+type IntlFeature = "NumberFormat" | "DateTimeFormat" | "PluralRules" | "ListFormat";
+
+/**
+ * An `Intl` constructor, or an `UNSUPPORTED_ENVIRONMENT` error naming it.
+ * Browsers have them all; an engine such as Hermes, in React Native, has
+ * `Intl` only in part, depending on its build and platform (ADR 0069).
+ * Without the check, a missing one fails as a `TypeError` with nothing to
+ * tell it apart by.
+ */
+function intl<Feature extends IntlFeature>(feature: Feature): (typeof Intl)[Feature] {
+  const found = typeof Intl === "object" && Intl !== null ? Intl[feature] : undefined;
+  if (typeof found !== "function") {
+    throw new SdkError(
+      "UNSUPPORTED_ENVIRONMENT",
+      `Intl.${feature} isn't available here, and formatting this message needs it.`,
+      { details: { feature: `Intl.${feature}` } },
+    );
+  }
+  return found;
+}
+
+/**
+ * The canonical form of a locale, or `undefined` for a tag that isn't one.
+ *
+ * Where the engine can't canonicalise, the tag is used as given once it's
+ * known to be one: the number formatter is asked, when there is one, since
+ * it refuses a malformed tag as it would when formatting; with no `Intl` at
+ * all, nothing will read the tag, and its shape is enough.
+ */
+export function canonicalLocale(locale: string): string | undefined {
+  const engine = typeof Intl === "object" && Intl !== null ? Intl : undefined;
+  try {
+    if (typeof engine?.getCanonicalLocales === "function") {
+      return engine.getCanonicalLocales(locale)[0];
+    }
+    if (typeof engine?.NumberFormat?.supportedLocalesOf === "function") {
+      // It throws a RangeError for a tag that isn't well formed.
+      engine.NumberFormat.supportedLocalesOf(locale);
+      return locale;
+    }
+  } catch {
+    return undefined;
+  }
+  // A language, then subtags of one to eight letters or digits, which
+  // covers the singleton of an extension, as in `de-DE-u-nu-latn`.
+  return /^[a-z]{2,3}(?:-[a-z0-9]{1,8})*$/i.test(locale) ? locale : undefined;
+}
+
 /** The part of `Intl.DurationFormat` this module uses, where the browser has it. */
 interface DurationFormatLike {
   format(duration: { hours?: number; minutes?: number; seconds?: number }): string;
@@ -40,18 +91,18 @@ export function numberFormat(
   locale: string,
   options: Intl.NumberFormatOptions = {},
 ): Intl.NumberFormat {
-  return cached("number", locale, options, () => new Intl.NumberFormat(locale, options));
+  return cached("number", locale, options, () => new (intl("NumberFormat"))(locale, options));
 }
 
 export function dateTimeFormat(
   locale: string,
   options: Intl.DateTimeFormatOptions,
 ): Intl.DateTimeFormat {
-  return cached("date", locale, options, () => new Intl.DateTimeFormat(locale, options));
+  return cached("date", locale, options, () => new (intl("DateTimeFormat"))(locale, options));
 }
 
 export function pluralRules(locale: string): Intl.PluralRules {
-  return cached("plural", locale, {}, () => new Intl.PluralRules(locale));
+  return cached("plural", locale, {}, () => new (intl("PluralRules"))(locale));
 }
 
 const FILE_SIZE_UNITS = [
@@ -116,8 +167,10 @@ export function formatDuration(locale: string, milliseconds: number): string {
     seconds: total % 60,
   };
   const zero = total === 0;
-  const DurationFormat = (Intl as unknown as { DurationFormat?: DurationFormatConstructor })
-    .DurationFormat;
+  const DurationFormat =
+    typeof Intl === "object" && Intl !== null
+      ? (Intl as unknown as { DurationFormat?: DurationFormatConstructor }).DurationFormat
+      : undefined;
   if (typeof DurationFormat === "function") {
     // A zero duration would otherwise format as an empty string.
     const options = zero
@@ -139,7 +192,7 @@ export function formatDuration(locale: string, milliseconds: number): string {
     "list",
     locale,
     { type: "unit", style: "short" },
-    () => new Intl.ListFormat(locale, { type: "unit", style: "short" }),
+    () => new (intl("ListFormat"))(locale, { type: "unit", style: "short" }),
   );
   return list.format(
     shown.map(([unit, value]) =>

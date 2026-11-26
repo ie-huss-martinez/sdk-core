@@ -14,6 +14,8 @@ npm install @hussmartinez/ui
 
 For the React components, your application also needs `react` and `react-dom` 18.3 or later. They're optional peer dependencies, so the tokens and theme helpers work without them.
 
+A React Native application needs `react-native` 0.81 or later, and `react-native-svg` 15 or later for the icons, and imports [`@hussmartinez/ui/native`](#react-native) instead of the React entry and the stylesheet.
+
 ## Quick start
 
 Import the stylesheet once, at the root of your application, and use the components:
@@ -42,6 +44,7 @@ The package is ESM only ([ADR 0004](https://github.com/ie-huss-martinez/sdk-core
 | `@hussmartinez/ui` | Tokens, `createTheme`, `themeToCss`, the built-in themes and their types. No React and no DOM access on import, so it's safe in Server Components and build scripts |
 | `@hussmartinez/ui/react` | `ThemeProvider`, `UiMessagesProvider` and the components. Starts with `"use client"`. React and React DOM `>=18.3` are optional peer dependencies |
 | `@hussmartinez/ui/styles.css` | All styles: the built-in tokens and base styles, in the cascade layers `hm.tokens` and `hm.base`. Import it once in your application |
+| `@hussmartinez/ui/native` | **Experimental.** For React Native: the themes as native values, the icons as data with `Icon`, `Text`, `Button`, `ChoiceList`, and helpers for direction, preferences and announcements. No DOM and no stylesheet. `react-native` `>=0.81` and `react-native-svg` `>=15` are optional peer dependencies. See [React Native](#react-native) |
 
 JavaScript never imports CSS, so your application decides where the stylesheet loads. Your own unlayered CSS overrides every `hm` layer without `!important` ([ADR 0005](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0005-plain-css-with-cascade-layers.md)).
 
@@ -124,6 +127,61 @@ const scoped = themeToCss(brandLight, ".marketing"); // only inside .marketing
 
 Custom themes always beat the built-in ones, whatever order stylesheets load in. Themes can nest; the closest one wins. Invalid selectors throw `UiError` with the code `INVALID_THEME_SELECTOR`.
 
+## React Native
+
+> **Experimental.** `@hussmartinez/ui/native` builds and passes `ui`'s own checks, but it hasn't been checked on a device yet: nobody has looked at its components on a phone, or listened to them with VoiceOver and TalkBack. Until the first application has, its API may change in any release, patches included, and this note stays.
+
+`@hussmartinez/ui/native` is `ui` for React Native ([ADR 0069 in sdk-core](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0069-react-native-entry-points.md)). It shares the web's tokens and icons, not its components: there's no DOM and no CSS on a device.
+
+```tsx
+import {
+  announce,
+  Button,
+  ChoiceList,
+  Dir,
+  NativeUiProvider,
+  Text,
+} from "@hussmartinez/ui/native";
+
+export function Question({ locale, preferences, question, choices, answer, t, next }) {
+  return (
+    <NativeUiProvider colorMode={preferences.theme} textScale={preferences.textScale}>
+      <Dir locale={locale} style={{ flex: 1 }}>
+        <Text variant="title">{question}</Text>
+        <ChoiceList
+          accessibilityLabel={question}
+          choices={choices}
+          correctKey={answer.key}
+          feedbackLabels={{ correct: t("correct"), hint: t("yourAnswer") }}
+          onValueChange={(key) =>
+            announce(key === answer.key ? t("right") : t("itWas", { answer: answer.label }))
+          }
+        />
+        <Button variant="primary" size="large" onPress={next}>
+          {t("next")}
+        </Button>
+      </Dir>
+    </NativeUiProvider>
+  );
+}
+```
+
+- **Themes:** `lightNativeTheme` and `darkNativeTheme` hold every semantic token under the web's name, such as `theme.tokens["color-accent"]`, resolved when `ui` is built: colours as `#rrggbb` or `#rrggbbaa`, lengths in density-independent pixels at 16 to a `rem`, durations in milliseconds, curves as four numbers for `Easing.bezier`. Targets are 44 dp, as on any touch screen. Tokens that describe CSS itself, such as font stacks and shadow lists, are left out.
+  - `createNativeTheme({ extends, tokens })` changes the tokens you give, with native values, and throws `UiError` with the code `INVALID_THEME_TOKEN` for an unknown name or a value of the wrong kind. It doesn't check contrast: check a custom palette against the pairs in `contrastPairs` yourself.
+  - **Four tokens are native only:** `color-hint`, `color-hint-subtle` and `color-hint-text`, a gentle tone for "not this one, look again", and `control-height-large`, 64 dp.
+- **`NativeUiProvider`** gives components a theme, or a light and dark pair chosen by `colorMode` (`system` follows the device), a `textScale` from 1 to 2, and a `motion` preference. `useNativeTheme()` and `useTextScale()` read them for your own views. Without a provider, components use the light theme.
+- **`Text`:** `variant` is `body`, `small` or `title`; `tone` is `default`, `muted`, `accent`, `success`, `hint`, `warning` or `danger`. Its size follows the text scale, on top of the device's own font size setting.
+- **`Button`,** on `Pressable`: `variant` is `primary`, `secondary`, `quiet`, `selected`, `success` or `hint`; `size` is `medium`, a 44 dp target, or `large`, 64 dp, and both grow with the text scale. `icon` takes one of `ui`'s icons or any element. It shows focus, and tells screen readers it's a button and whether it's disabled.
+- **`ChoiceList`:** a radio group with large targets. With `correctKey`, it's an errorless question: once a choice is picked, the right one is shown in the success colours with a check, a pick that wasn't right in the hint colours, never as an error, and the rest are dimmed. It has no text of its own: `feedbackLabels` is what a screen reader adds to those two choices' names. `choiceState(key, picked, correctKey)` is the same decision as a function, for a layout of your own.
+- **Icons:** every icon of `ui`'s set is a plain object, such as `undoIcon`, and `<Icon icon={undoIcon} />` draws it with `react-native-svg` in the theme's text colour. Icons that point along the reading direction are mirrored inside right-to-left content. With `label`, the icon is an image with that name; without, it's hidden from screen readers.
+- **Direction:** `isRTL("ar-EG")` reads a locale without `Intl`. `<Dir locale="ar">` lays out its subtree in that language's direction with the `direction` style, which takes effect at once, unlike `I18nManager.forceRTL`. `<NoFlip>` keeps a physical layout, such as a map or a grid, as it is. `useDirection()` returns the closest one's.
+- **Preferences** are the application's to keep: `readNativePreferences(value)` reads `{ theme, textScale, motion }` from anything, such as JSON from storage, and never throws; `nativePreferenceOptions` lists what a settings screen offers. `useReducedMotion()` follows the `motion` preference and the device's setting, and answers `true` until the device's is known.
+- **`announce(message)`** has the screen reader say a result, through `AccessibilityInfo`.
+
+`ui`'s own checks build against Expo SDK 58, with React Native 0.88 and `react-native-svg` 15.16. Earlier versions inside the peer ranges, from React Native 0.81, are accepted but not built here.
+
+Text is yours: the native components take every visible string and accessible name as a prop. Nothing renders on a device in `ui`'s own tests, so check a screen with VoiceOver and TalkBack when you first use a component.
+
 ## Server rendering and frameworks
 
 Every component renders on the server and hydrates without warnings; end-to-end tests check it in a Next.js App Router application and a server-rendered Vite application ([ADR 0007](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0007-server-rendering-and-nextjs.md)). Nothing touches the browser when either entry is imported.
@@ -161,6 +219,7 @@ Every component follows one contract ([ADR 0003](https://github.com/ie-huss-mart
 |---|---|
 | `Button` | Actions. `variant` is `primary`, `secondary` (default), `quiet` or `danger`; `size` is `medium` or `small`; `pressed` shows a toggle state you control, as `ToggleButton` does; `startIcon` and `endIcon` take icons |
 | `IconButton` | Icon-only actions. `label` is required: it's the accessible name |
+| `ButtonLink` | Navigation that looks like a button: a native `<a href>` with `Button`'s `variant`, `size`, `startIcon` and `endIcon`. It's a link to assistive technology, Enter follows it and Space doesn't, and it has no `disabled` or `pressed`. With `target="_blank"`, `rel` defaults to `noopener noreferrer` and the link says "(opens in a new tab)", in text hidden on screen, after its own text or its `aria-label`: `newTabHint` replaces it, and `""` leaves it out. Show it too, with `endIcon={<ExternalLinkIcon />}`. A `javascript:` URL is refused: the link renders without an `href`. Static, so it needs no hydration ([ADR 0015](https://github.com/ie-huss-martinez/sdk-core/blob/main/packages/ui/docs/adr/0015-tag-and-button-link.md)) |
 | `ToggleButton` | Turning something on or off, such as loop or the active tool, exposed as `aria-pressed`. `variant` is `secondary` (default) or `quiet`. Controlled with `pressed` and `onPressedChange`, or uncontrolled from `defaultPressed`. Text children, or `icon` with a required `label`. The label stays the same in both states, so a button whose label changes, such as play and pause, is an `IconButton` that swaps its `label` |
 | `VisuallyHidden` | Text for assistive technology only |
 | `Toolbar`, `ToolbarGroup`, `ToolbarSeparator` | A row or column of controls with one Tab stop: arrow keys move between items, Home and End jump to the ends. `label` is required on the toolbar and its groups |
@@ -170,6 +229,7 @@ Every component follows one contract ([ADR 0003](https://github.com/ie-huss-mart
 | `Card` | Something the user opens, such as a notebook, a lesson or a recent file: an `<article>` labelled by its `title`. Put your link or button in `title`: it covers the whole card, with one Tab stop and the focus ring around the card. `eyebrow` shows a short label above the title, `media` an image at the top (both read after the title), and `footer` details or actions, whose buttons and links keep their own clicks. Its heading level follows `HeadingLevelProvider` or `headingLevel`. Static, so an `<a href>` card needs no hydration ([ADR 0014](https://github.com/ie-huss-martinez/sdk-core/blob/main/packages/ui/docs/adr/0014-card-and-morph-transition.md)) |
 | `startMorphTransition` | Growing an element into the one that replaces it, such as a `Card` into its `Dialog`, with the browser's view transitions: `startMorphTransition({ from, to, update })`, and the reverse to close. With reduced motion, or without the API, it just runs `update` |
 | `Heading`, `HeadingLevelProvider` and `useHeadingLevel` | The visible title of a section, as a native `<h2>` to `<h6>`, styled as a title through `--hm-heading-font-size`. Its level is `level`, or the closest `HeadingLevelProvider`'s, or 2. Give it an `id` and label its section with `aria-labelledby`. See [Heading levels](#heading-levels) |
+| `Tag` and `TagList` | A short, static label, such as a category, a technology or a state: text, not a control, so it takes no focus. `tone` is `neutral` (default), `accent`, `success`, `warning` or `danger`, and never says a state alone: the text does. `icon` takes a decorative icon. Text too long for its line wraps inside the tag. `TagList` is a `<ul>` that wraps, and a `Tag` directly inside it is its `<li>`, so a screen reader counts the tags; name it with `aria-label` when nothing beside it does. `as="li"` makes a tag a list item where it can't know its list: in your own `<ul>`, or in an `.astro` file. Recolour a neutral tag with `--hm-tag-bg`, `--hm-tag-fg` and `--hm-tag-border-color`; each other tone has its own pair, such as `--hm-tag-success-bg` and `--hm-tag-success-fg`. Static, so they need no hydration. A tag that does something is a `Button` or a `ToggleButton` |
 | `Spinner` | Loading for an unknown time. An indeterminate progress bar to assistive technology, named by `label`; its size follows `--hm-spinner-size` |
 | `ProgressBar` | Progress for a known amount, on the native `<progress>`: `value`, `max`, `label`, `valueText`. Indeterminate without `value`. It needs no inline styles, so it works under a strict Content Security Policy |
 | `Field` | A visible `label`, an optional `description` and an optional `error`, wired to one control: the label names it, the description and error describe it, and an error marks it `aria-invalid`. `Slider`, `NumberField`, `TextField`, `TextArea` and `ColorField` connect themselves; for a native `<input>` or `<select>`, pass a function and spread the props it receives |
@@ -196,9 +256,13 @@ import { Button, DownloadIcon, IconButton, RotateLeftIcon } from "@hussmartinez/
 
 Pass ui's icons, below, or any element that draws with `currentColor`. Each component costs a few hundred bytes minified and compressed, and a bundler drops the ones you don't import.
 
+**On a static page,** such as an Astro component without a `client:` directive, `Tag`, `TagList` and `ButtonLink` are complete as rendered: they have no state and no handlers, so nothing needs hydrating. Your own unlayered CSS beats every `hm` layer, whatever its specificity, so a bare `a { color: … }` or `a { text-decoration: … }` rule restyles a `ButtonLink`. Scope such a rule to your own links, `a:not(.hm-button)`, or put it in a layer below `hm`.
+
+**In an `.astro` file,** Astro renders each React component on its own and hands a parent its children as markup, so components there share no React context. A `Tag` can't tell that it's inside a `TagList`: write `<Tag as="li">` for each, or compose the list in a `.tsx` component, where it works without `as`. For the same reason no `UiMessagesProvider` reaches a component there, so pass text props, such as `newTabHint`, in the page's language.
+
 ### Icons
 
-ui has its own icon set, generated from [Lucide](https://lucide.dev) ([ADR 0005](https://github.com/ie-huss-martinez/ui/blob/main/docs/adr/0005-icon-set.md)). Each icon is a component named after its use in the SDK family, such as `UndoIcon`, `RotateLeftIcon`, `PlayIcon` or `PageGridIcon`; the catalogue shows them all.
+ui has its own icon set, generated from [Lucide](https://lucide.dev) ([ADR 0005](https://github.com/ie-huss-martinez/ui/blob/main/docs/adr/0005-icon-set.md)). Each icon is a component named after its use in the SDK family, such as `UndoIcon`, `RotateLeftIcon`, `PlayIcon` or `PageGridIcon`; the catalogue shows them all. Beside the editors' icons there are icons for pages, such as `ArrowRightIcon`, `ExternalLinkIcon`, `MailIcon`, `TimeIcon` and `TipIcon`. There are no brand marks or logos: draw your own with `currentColor`, and pass it wherever an icon goes.
 
 ```tsx
 import { IconButton, RotateLeftIcon } from "@hussmartinez/ui/react";
@@ -208,7 +272,7 @@ import { IconButton, RotateLeftIcon } from "@hussmartinez/ui/react";
 
 - **Size and colour:** icons draw with `currentColor` and size to `--hm-icon-size`; in a button's icon slot, the slot sets the size.
 - **Accessibility:** icons are decorative and hidden from assistive technology, as they should be inside a labelled button. For an icon that means something on its own, pass `label`, from your message catalogue, and it becomes a named image.
-- **Right to left:** icons that point along the reading direction, such as undo and redo, mirror in right-to-left text.
+- **Right to left:** icons that point along the reading direction, such as undo, redo and a link's arrow, mirror in right-to-left text.
 - **Only what you import ships:** each icon is its own export, about 140 bytes compressed.
 - **Icons by name:** tools refer to icons by their `IconName`, such as `"rotate-left"` (sdk-core ADR 0030). ui has no name-to-component registry, which would ship every icon, so map the names your tools use:
 

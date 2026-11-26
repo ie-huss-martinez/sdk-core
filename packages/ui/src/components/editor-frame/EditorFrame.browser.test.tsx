@@ -88,8 +88,15 @@ describe("EditorFrame", () => {
     const wide = nav(container).getBoundingClientRect().width;
     await userEvent.click(button(container, "Icons only"));
     expect(frameOf(container).dataset["hmTools"]).toBe("icons");
-    // The panel narrows over the panel duration.
-    await Promise.all(document.getAnimations().map((animation) => animation.finished));
+    // The panel narrows over the panel duration. Only its own transition is
+    // awaited: the pressed button's hover feedback is on the page too, WebKit
+    // sometimes cancels it midway, and a cancelled animation rejects
+    // `finished`.
+    await Promise.all(
+      nav(container)
+        .getAnimations()
+        .map((animation) => animation.finished),
+    );
     expect(nav(container).getBoundingClientRect().width).toBeLessThan(wide);
 
     // One control hides and shows the tools, named by what it does, with its state.

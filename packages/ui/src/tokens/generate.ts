@@ -1,3 +1,4 @@
+import { generateNativeThemeSource } from "../native/generate-theme.js";
 import { darkTheme, lightTheme } from "../theme/create-theme.js";
 import { renderBlocks, themeBlocks } from "../theme/css-writer.js";
 import type { Theme } from "../theme/types.js";
@@ -107,10 +108,12 @@ function tokensMarkdown(): string {
 /**
  * Every generated file, by path relative to the package. The generator
  * script writes them, and a test checks the committed copies are current.
+ * TypeScript output is formatted with Biome first, by both.
  */
 export function generateTokenFiles(): Record<string, string> {
   return {
     "src/tokens/tokens.css": tokensCss(),
     "docs/tokens.md": tokensMarkdown(),
+    "src/native/theme.generated.ts": generateNativeThemeSource(),
   };
 }

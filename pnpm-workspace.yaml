@@ -24,6 +24,8 @@ catalog:
   "@commitlint/types": ^21.2.3
   dependency-cruiser: ^18.7.2
   esbuild: ^0.28.2
+  # The React Native test application (ADR 0069), on Expo SDK 58's versions.
+  expo: ~58.0.26
   fast-check: ^4.10.2
   gifenc: 1.0.3
   "@guidepup/virtual-screen-reader": 0.33.0
@@ -47,6 +49,8 @@ catalog:
   react-18: npm:react@18.3.1
   react-dom: ^19.3.0
   react-dom-18: npm:react-dom@18.3.1
+  react-native: 0.88.1
+  react-native-svg: 15.16.0
   secretlint: ^13.1.0
   "@secretlint/node": ^13.1.0
   "@secretlint/secretlint-rule-preset-recommend": ^13.1.0

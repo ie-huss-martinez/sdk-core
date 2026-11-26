@@ -24,6 +24,8 @@ export type {
   ButtonVariant,
 } from "./components/button/Button.js";
 export { Button } from "./components/button/Button.js";
+export type { ButtonLinkProps } from "./components/button/ButtonLink.js";
+export { ButtonLink } from "./components/button/ButtonLink.js";
 export type { IconButtonProps } from "./components/button/IconButton.js";
 export { IconButton } from "./components/button/IconButton.js";
 export type { CardPart, CardProps } from "./components/card/Card.js";
@@ -124,6 +126,8 @@ export type { SpinnerProps } from "./components/spinner/Spinner.js";
 export { Spinner } from "./components/spinner/Spinner.js";
 export type { TabBarItem, TabBarPart, TabBarProps } from "./components/tab-bar/TabBar.js";
 export { TabBar } from "./components/tab-bar/TabBar.js";
+export type { TagListProps, TagPart, TagProps, TagTone } from "./components/tag/Tag.js";
+export { Tag, TagList } from "./components/tag/Tag.js";
 export type { TextAreaProps } from "./components/text-area/TextArea.js";
 export { TextArea } from "./components/text-area/TextArea.js";
 export type { TextFieldProps, TextFieldType } from "./components/text-field/TextField.js";

@@ -5,6 +5,13 @@
     // itself must not see Node's types.
     "types": ["node", "vite/client"]
   },
-  "include": ["src", "scripts", "*.test.ts", "vite.config.ts", "vitest.config.ts"],
+  "include": [
+    "src",
+    "scripts",
+    "*.test.ts",
+    "vite.config.ts",
+    "vite.native.config.ts",
+    "vitest.config.ts"
+  ],
   "exclude": []
 }
