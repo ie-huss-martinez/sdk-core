@@ -97,6 +97,7 @@
     "@changesets/changelog-github": "catalog:",
     "@changesets/cli": "catalog:",
     "@commitlint/cli": "catalog:",
+    "@guidepup/virtual-screen-reader": "catalog:",
     "@hussmartinez/sdk-config": "workspace:^",
     "@microsoft/api-extractor": "catalog:",
     "@size-limit/esbuild": "catalog:",

@@ -243,4 +243,187 @@
   .hm-learn-toolbar {
     flex-wrap: wrap;
   }
+
+  /* The editor (ADR 0008): in ui's frame, which lays out its regions. */
+  .hm-learn-editor {
+    display: flex;
+    flex-direction: column;
+    min-block-size: 0;
+    color: var(--hm-color-text);
+    font-family: var(--hm-font-family);
+    font-size: var(--hm-font-size-body);
+    line-height: var(--hm-line-height-body);
+  }
+
+  .hm-learn-editor-name {
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-learn-editor-stage,
+  .hm-learn-editor-exercise,
+  .hm-learn-editor-block,
+  .hm-learn-editor-start {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hm-gap-loose);
+  }
+
+  .hm-learn-editor-stage {
+    max-inline-size: var(--hm-surface-width-large);
+    padding: var(--hm-gap-loose);
+  }
+
+  .hm-learn-editor-group,
+  .hm-learn-editor-list,
+  .hm-learn-editor-choices {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hm-gap-normal);
+    margin: 0;
+    padding: var(--hm-gap-normal);
+    border: var(--hm-border-width) solid var(--hm-color-border);
+    border-radius: var(--hm-radius-surface);
+    min-inline-size: 0;
+  }
+
+  .hm-learn-editor-list,
+  .hm-learn-editor-choices {
+    border-style: dashed;
+  }
+
+  .hm-learn-editor-group > legend,
+  .hm-learn-editor-list > legend,
+  .hm-learn-editor-choices > legend {
+    padding-inline: var(--hm-gap-tight);
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-learn-editor-field,
+  .hm-learn-editor-choice {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--hm-gap-tight);
+  }
+
+  .hm-learn-editor-field > :first-child {
+    flex: 1;
+    min-inline-size: 0;
+  }
+
+  .hm-learn-editor-choice > .hm-learn-editor-field {
+    flex: 1;
+  }
+
+  /* The right answer's radio: ui has no radio yet, so the native one, sized to a target. */
+  .hm-learn-editor-radio {
+    flex: none;
+    inline-size: var(--hm-target-size);
+    block-size: var(--hm-target-size);
+    margin: 0;
+    accent-color: var(--hm-color-accent);
+  }
+
+  .hm-learn-editor-radio:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: var(--hm-focus-ring-offset);
+  }
+
+  .hm-learn-editor-actions {
+    display: flex;
+    gap: var(--hm-gap-tight);
+  }
+
+  .hm-learn-editor-alternative {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--hm-gap-tight);
+  }
+
+  .hm-learn-editor-alternative > :first-child {
+    flex: 1;
+  }
+
+  .hm-learn-editor-description,
+  .hm-learn-editor-position,
+  .hm-learn-editor-empty,
+  .hm-learn-editor-note,
+  .hm-learn-editor-unsupported,
+  .hm-learn-editor-outline-meta {
+    margin: 0;
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
+  }
+
+  .hm-learn-editor-error,
+  .hm-learn-editor-issues {
+    margin: 0;
+    color: var(--hm-color-danger-text);
+  }
+
+  .hm-learn-editor-issues {
+    padding: var(--hm-gap-normal);
+    border: var(--hm-border-width) solid var(--hm-color-danger);
+    border-radius: var(--hm-radius-surface);
+  }
+
+  .hm-learn-editor-issues-title {
+    margin: 0;
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-learn-editor-issues ul {
+    margin: 0;
+    padding-inline-start: var(--hm-gap-loose);
+  }
+
+  .hm-learn-editor-outline {
+    padding: var(--hm-gap-normal);
+  }
+
+  .hm-learn-editor-outline-title {
+    display: block;
+  }
+
+  .hm-learn-editor-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--hm-sidebar-width)), 1fr));
+    gap: var(--hm-gap-normal);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hm-learn-editor-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hm-gap-tight);
+    inline-size: 100%;
+    min-block-size: var(--hm-target-size);
+    padding: var(--hm-gap-loose);
+    border: var(--hm-border-width) solid var(--hm-color-border);
+    border-radius: var(--hm-radius-surface);
+    background: var(--hm-color-surface-raised);
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .hm-learn-editor-card:hover {
+    border-color: var(--hm-color-accent);
+  }
+
+  .hm-learn-editor-card:focus-visible {
+    outline: var(--hm-focus-ring);
+    outline-offset: var(--hm-focus-ring-offset);
+  }
+
+  .hm-learn-editor-card-title {
+    font-weight: var(--hm-font-weight-strong);
+  }
+
+  .hm-learn-editor-card-description {
+    color: var(--hm-color-text-muted);
+    font-size: var(--hm-font-size-small);
+  }
 }

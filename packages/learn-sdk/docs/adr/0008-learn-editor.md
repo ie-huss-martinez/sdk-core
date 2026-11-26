@@ -60,18 +60,23 @@ The editor renders through `ui`'s `EditorFrame`, as the other editors do, and ta
 - **Stage:** the selected exercise: its title, its instructions, then its type's editor block.
 - **Properties:** the outline of the document, a `ReorderableList` of exercises with each one's title, type and number of problems. Choosing one selects it in the stage. Reordering there is `learn.moveExercise`. With `single` there's no outline, and no properties region.
 - **Start cards** in Easy mode: one per type, as "Write a multiple-choice question". Each adds an exercise of its type and selects its first field.
-- **Toasts** for every edit, with Undo, as ADR 0067 asks ("Exercise removed", Undo). Their text reaches screen readers through `ui`'s announcer.
+- **Toasts** for adding, removing and moving exercises, with Undo, and for undo and redo, as ADR 0067 asks ("Exercise removed", Undo). Their text reaches screen readers through `ui`'s announcer. Typing in a field shows no toast: the field shows the edit, and a toast after every pause in typing would only interrupt.
 
 Each family editor has the same 35-line `useEditorPreferences` hook today. learn-sdk takes a copy for now. The shared editor code, this hook among it, is moving into `ui` with notes-sdk's frame work; whichever of the two changes lands second switches LearnEditor to `ui`'s version, so the copy doesn't stay.
 
 ### Editor blocks
 
-An exercise type's editor is an `EditorBlock`, as its player is a `PlayerBlock`:
+An exercise type's editor is an `EditorBlock`, as its player is a `PlayerBlock`. It has the component that edits the payload, and the payload a new exercise of the type starts with:
 
 ```ts
+interface EditorBlock<Payload> {
+  readonly edit: ComponentType<EditorBlockProps<Payload>>;
+  readonly create: () => Payload; // may be invalid: its texts start empty
+}
+
 interface EditorBlockProps<Payload> {
   readonly exercise: Exercise<Payload>;
-  readonly onPayload: (payload: Payload) => void;
+  readonly onPayload: (payload: Payload | ((current: Payload) => Payload)) => void;
   readonly issues: readonly LearnIssue[]; // paths relative to the payload
   readonly profile: LanguageProfile;
   readonly messages: LearnEditorMessages;
@@ -79,13 +84,14 @@ interface EditorBlockProps<Payload> {
 }
 ```
 
-- A block builds the whole new payload and calls `onPayload`, which becomes one `learn.setPayload`: types never add commands (ADR 0007).
+- A block builds the whole new payload and calls `onPayload`, which becomes one `learn.setPayload`: types never add commands (ADR 0007). Given a function, `onPayload` applies it to the draft's payload as it is then, so edits made one after another don't overwrite each other.
+- A block shows the problems of its own fields, and lists any of its issues it has no field for, so none is hidden.
 - A type with no block shows its payload as "can't be edited here", and the rest of the exercise stays editable.
 - The built-in blocks:
   - **Multiple choice:** questions, each with a prompt, two to six choices, which one is right (radio buttons in a group, one Tab stop), and an optional explanation. Add and remove questions and choices; the right answer follows its choice when choices are removed.
   - **Gap fill:** items, each a sentence written with `___`, its accepted answers, optional choices, and an optional translation.
-  - **Word order:** items, each its tiles in the right order (a `ReorderableList`), other orders that are also right (each a `ReorderableList` of the same tiles, started from the right order), and an optional translation.
-- Items, questions, choices, answers and tiles are added and removed with buttons, never only by drag ([ADR 0005](0005-accessible-exercise-types.md)).
+  - **Word order:** items, each its tiles in the right order (text fields, with buttons to move a tile earlier or later), other orders that are also right (each a `ReorderableList` of the same tiles, started from the right order), and an optional translation. A tile's new text changes it in the other orders too. `ReorderableList` is a layout grid that keeps the arrow keys for itself, so it holds rows of fixed text, not text fields.
+- Items, questions, choices, answers and tiles are added, removed and moved with buttons, never only by drag ([ADR 0005](0005-accessible-exercise-types.md)).
 
 ### Typing: one undo step per burst, and never mid-composition
 
@@ -104,7 +110,7 @@ interface EditorBlockProps<Payload> {
 
 ### Keyboard and screen reader
 
-- Every action is a tool with a shortcut from the family registry ([sdk-core ADR 0030](../../../../docs/adr/0030-tools-and-keyboard-shortcuts.md)), listened for on the editor's root, never while typing a field's own keys. The session's `learn.undo`, `learn.redo` and `learn.remove-exercise` gain `learn.add-exercise`, `learn.move-exercise-up` and `learn.move-exercise-down`.
+- Every action is a tool with a shortcut from the family registry ([sdk-core ADR 0030](../../../../docs/adr/0030-tools-and-keyboard-shortcuts.md)), listened for on the editor's root, never while typing a field's own keys. The session's `learn.undo`, `learn.redo` and `learn.remove-exercise` gain `learn.move-exercise-up`, `learn.move-exercise-down`, and an add tool for each type with an editor block, `learn.add-<type>` (made by `addExerciseTool(type, create)`).
 - **Focus is never lost:** after adding, focus goes to the new exercise's first field; after removing, to the outline's next exercise, or the previous one at the end; undo and redo keep focus where it is, unless its element went away, and then it goes to the outline.
 - Lists use `ui`'s `ReorderableList`, with its keyboard moves and announcements.
 - Headings follow `headingLevel` (sdk-core ADR 0058): the stage's exercise title is a heading at that level, and a block's sections nest below it.

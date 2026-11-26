@@ -10,6 +10,7 @@ import { Limits } from '@hussmartinez/sdk-core';
 import { SdkCoreErrorCode } from '@hussmartinez/sdk-core';
 import { SdkError } from '@hussmartinez/sdk-core';
 import { Tool } from '@hussmartinez/sdk-core';
+import { uiMessages } from '@hussmartinez/ui';
 
 // @public
 export function accessibleCourses<C extends Pick<Course, "code" | "position">>(learner: Learner, courses: readonly C[]): C[];
@@ -23,6 +24,9 @@ export interface AddExerciseCommand {
     // (undocumented)
     readonly type: "learn.addExercise";
 }
+
+// @public
+export function addExerciseTool(type: string, create: () => unknown): LearnEditorTool;
 
 // @public
 export interface AppliedLearnCommand {
@@ -284,6 +288,11 @@ export type LearnEditorEvent = {
 } | {
     readonly type: "edit_redone";
 };
+
+// Warning: (ae-forgotten-export) The symbol "editorText" needs to be exported by the entry point index.d.ts
+//
+// @public
+export type LearnEditorMessageCatalogue = typeof learnMessages & typeof uiMessages & typeof editorText;
 
 // @public
 export interface LearnEditorOptions {
@@ -706,6 +715,12 @@ export interface MoveExerciseCommand {
     // (undocumented)
     readonly type: "learn.moveExercise";
 }
+
+// @public
+export const moveExerciseDownTool: LearnEditorTool;
+
+// @public
+export const moveExerciseUpTool: LearnEditorTool;
 
 // @public
 export const multipleChoice: ExerciseType<MultipleChoicePayload, MultipleChoiceAnswer>;

@@ -48,7 +48,11 @@ describe("the built package", () => {
     expect(externalPackages).toEqual(
       expect.arrayContaining(["@hussmartinez/sdk-core", "react", "react-dom"]),
     );
-    expect(chunk("index.js").code).toContain('from "@hussmartinez/sdk-core"');
+    // The root entry's code may sit in a chunk it shares with ./react; the
+    // root and the chunks it loads import sdk-core rather than bundle it.
+    const root = chunk("index.js");
+    const loaded = [root, ...root.imports.filter((name) => name.startsWith("shared/")).map(chunk)];
+    expect(loaded.some((file) => file.code.includes('from "@hussmartinez/sdk-core"'))).toBe(true);
     for (const file of files) {
       if (file.type === "chunk") {
         // Bundled React or sdk-core would bring their own copies of these, and

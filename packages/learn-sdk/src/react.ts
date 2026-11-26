@@ -1,8 +1,8 @@
 "use client";
 /**
- * React components of the learn SDK: `LearnPlayer` for learners, with a
- * block per exercise type, and the pieces for a host's own exercise types.
- * `LearnEditor` for teachers follows.
+ * React components of the learn SDK: `LearnPlayer` for learners and
+ * `LearnEditor` for teachers, each with a block per exercise type, and the
+ * pieces for a host's own exercise types.
  *
  * @remarks
  * A client entry: it starts with `"use client"`, which the build keeps
@@ -16,7 +16,12 @@
  * @packageDocumentation
  */
 export type { HeadingLevel } from "@hussmartinez/ui/react";
+export type { EditorBlock, EditorBlockProps } from "./features/editor/editor-block.js";
+export { defineEditorBlock } from "./features/editor/editor-block.js";
+export { learnEditorMessages } from "./features/editor/editor-messages.js";
+export { gapFillEditor } from "./features/gap-fill/GapFillEditor.js";
 export { GapFillPlayer } from "./features/gap-fill/GapFillPlayer.js";
+export { multipleChoiceEditor } from "./features/multiple-choice/MultipleChoiceEditor.js";
 export { MultipleChoicePlayer } from "./features/multiple-choice/MultipleChoicePlayer.js";
 export type { PlayerBlock, PlayerBlockProps } from "./features/player/player-block.js";
 export { definePlayerBlock } from "./features/player/player-block.js";
@@ -25,7 +30,10 @@ export type {
   LearnPlayerMessages,
 } from "./features/player/player-messages.js";
 export { playerCatalogue } from "./features/player/player-messages.js";
+export { wordOrderEditor } from "./features/word-order/WordOrderEditor.js";
 export { WordOrderPlayer } from "./features/word-order/WordOrderPlayer.js";
+export type { LearnEditorHandle, LearnEditorProps } from "./react/LearnEditor.js";
+export { LearnEditor } from "./react/LearnEditor.js";
 export type { LearnPlayerHandle } from "./react/LearnPlayer.js";
 export { LearnPlayer } from "./react/LearnPlayer.js";
 export type { LearnPlayerProps } from "./react/player-context.js";
