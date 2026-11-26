@@ -158,6 +158,29 @@ class GitError extends UsageError {
 }
 
 /**
+ * The variables with which git tells a hook where its repository is. In a
+ * linked worktree it sets `GIT_DIR` and no work tree, and git then takes the
+ * folder it's run in as the work tree's root. From a package's folder, that
+ * made `git ls-files src` look for `src/` at the root and find nothing, so
+ * the pre-push hook failed in every worktree.
+ */
+const HOOK_REPOSITORY_ENV = ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_PREFIX"];
+
+/**
+ * The environment for git: the caller's, without a hook's repository
+ * variables, so git finds the repository from `cwd`, as it does on a
+ * command line.
+ *
+ * @param {Record<string, string | undefined>} env
+ * @returns {Record<string, string | undefined>}
+ */
+export function gitEnv(env) {
+  return Object.fromEntries(
+    Object.entries(env).filter(([name]) => !HOOK_REPOSITORY_ENV.includes(name)),
+  );
+}
+
+/**
  * Runs git and returns its output, or throws a {@link GitError} with git's own
  * first error line, such as `git ls-files failed: … is outside repository`.
  *
@@ -167,7 +190,12 @@ class GitError extends UsageError {
  */
 function git(args, cwd) {
   try {
-    return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    return execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: gitEnv(process.env),
+    });
   } catch (error) {
     const command = `git ${args[0]}`;
     if (/** @type {NodeJS.ErrnoException} */ (error).code === "ENOENT") {

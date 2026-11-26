@@ -74,6 +74,27 @@ describe("hm-lint-deps", () => {
     expect(result.report).toContain("no dependency violations found");
   });
 
+  it("finds a package's files from a git hook in a linked worktree", async () => {
+    const inPackage = Object.fromEntries(
+      Object.entries({
+        ...SOURCES,
+        ".dependency-cruiser.js": `export { default } from ${JSON.stringify(PRESET_URL)};\n`,
+      }).map(([path, content]) => [`packages/a/${path}`, content]),
+    );
+    const root = await repository(inPackage);
+    // What git gives a hook there: the repository, and no work tree, so git
+    // would take the package's folder for the work tree's root.
+    const result = spawnSync(process.execPath, [CLI, "src"], {
+      cwd: join(root, "packages/a"),
+      encoding: "utf8",
+      env: { ...process.env, GIT_DIR: join(root, ".git"), GIT_PREFIX: "" },
+    });
+
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(EXIT_OK);
+    expect(result.stdout).toContain("no dependency violations found");
+  });
+
   it("fails and names the .ts files when TypeScript can't be loaded", async () => {
     const cwd = await repository(SOURCES);
     const { status, stderr } = runCli(cwd, ["src"], ["--import", HIDE_TYPESCRIPT]);
