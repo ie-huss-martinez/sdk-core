@@ -7,7 +7,12 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 import { isLearnError } from "../core/errors/learn-error.js";
+import { createExerciseTypes } from "../core/model/exercise-type.js";
 import { COMMIT_PAUSE_MS } from "../features/editor/committed-text.js";
+import { gapFill } from "../features/gap-fill/gap-fill.js";
+import { multipleChoice } from "../features/multiple-choice/multiple-choice.js";
+import { wordOrder } from "../features/word-order/word-order.js";
+import { shortAnswer } from "../test/test-types.js";
 import { LearnEditor, type LearnEditorHandle, type LearnEditorProps } from "./LearnEditor.js";
 
 // The editor (ADR 0008): each built-in type authored with the keyboard alone,
@@ -355,25 +360,95 @@ describe("LearnEditor", () => {
     expect(field(element, "Title").value).toBe("อาหาร");
   });
 
-  it("commits pending typing before a list moves, and never moves a refusal to another entry", async () => {
+  it("commits pending typing before a list moves, even with focus still in the field", async () => {
+    const onChange = vi.fn();
     const ref = createRef<LearnEditorHandle>();
-    const element = render({ limits: { maxTextLength: 15 } }, ref);
+    const element = render({ onChange }, ref);
     await userEvent.click(element.querySelectorAll("[role=row]")[1] as HTMLElement);
-    // Typing waits in Word 1; the move runs without focus leaving the field.
+    onChange.mockClear();
+    // The pause's timer is the test's, so only the move can commit the typing.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     field(element, "Word 1").focus();
     await userEvent.keyboard("{Control>}a{/Control}เธอ");
+    expect(onChange).not.toHaveBeenCalled();
     act(() => button(element, "Move word 1 later").click());
+    vi.useRealTimers();
     expect(ref.current?.getContent().exercises[1]?.payload).toMatchObject({
       items: [{ tiles: ["กิน", "เธอ", "ข้าว"] }],
     });
-    // A refused word shows its problem only where it was refused, not after a move.
-    field(element, "Word 1").focus();
-    await userEvent.keyboard("{Control>}a{/Control}far too long for a word");
-    await userEvent.tab();
-    expect(field(element, "Word 1").getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("ends a refusal with the next edit, undo or redo, and never shows it on another entry", async () => {
+    const element = render({
+      limits: { maxTextLength: 15 },
+      initialContent: {
+        ...content,
+        exercises: [
+          { id: "wo", type: "word-order", payload: { items: [{ tiles: ["กิน", "กิน", "ข้าว"] }] } },
+        ],
+      },
+    });
+    const refuse = async (label: string) => {
+      field(element, label).focus();
+      await userEvent.keyboard("{Control>}a{/Control}far too long for a word");
+      await userEvent.tab();
+    };
+    const invalid = (label: string) => field(element, label).getAttribute("aria-invalid");
+    // Two words with the same text: the refusal stays on the one refused.
+    await refuse("Word 1");
+    expect([invalid("Word 1"), invalid("Word 2")]).toEqual(["true", null]);
+    // A move ends it, and moving back doesn't bring it back.
     act(() => button(element, "Move word 1 later").click());
-    expect(field(element, "Word 1").getAttribute("aria-invalid")).toBeNull();
-    expect(field(element, "Word 2").getAttribute("aria-invalid")).toBeNull();
+    act(() => button(element, "Move word 2 earlier").click());
+    expect([invalid("Word 1"), invalid("Word 2")]).toEqual([null, null]);
+    // An edit, then a refusal: undo and redo don't bring the refusal back.
+    field(element, "Word 3").focus();
+    await userEvent.keyboard("{Control>}a{/Control}น้ำ");
+    await userEvent.tab();
+    await refuse("Word 3");
+    expect(invalid("Word 3")).toBe("true");
+    await userEvent.click(button(element, "Undo"));
+    await userEvent.click(button(element, "Redo"));
+    expect([field(element, "Word 3").value, invalid("Word 3")]).toEqual(["น้ำ", null]);
+  });
+
+  it("lets a removal's toast undo only that removal", async () => {
+    const element = render();
+    await userEvent.click(button(element, "Remove exercise"));
+    const toastUndo = [...document.querySelectorAll(".hm-toast button")].find(
+      (each) => each.textContent === "Undo",
+    ) as HTMLButtonElement;
+    // A later edit: the toast's Undo would undo it, not the removal.
+    field(element, "Title").focus();
+    await userEvent.keyboard("{Control>}a{/Control}Later");
+    await userEvent.tab();
+    act(() => toastUndo.click());
+    expect(element.querySelectorAll("[role=row]")).toHaveLength(1);
+    expect(field(element, "Title").value).toBe("Later");
+  });
+
+  it("offers adding only types with a block of their own, whatever their name", async () => {
+    const constructorType = { ...shortAnswer, type: "constructor" };
+    const types = createExerciseTypes([multipleChoice, gapFill, wordOrder, constructorType]);
+    const element = render({ types, initialContent: undefined });
+    const labels = [...element.querySelectorAll("button")].map((each) => each.textContent ?? "");
+    expect(labels.some((label) => label.includes("constructor"))).toBe(false);
+    expect(labels.some((label) => label.includes("Add multiple choice"))).toBe(true);
+  });
+
+  it("reads single once, as it reads its content", () => {
+    const element = render();
+    act(() =>
+      root?.render(
+        <LearnEditor
+          initialContent={content}
+          profile={thai}
+          single
+          defaultPreferences={{ mode: "advanced" }}
+        />,
+      ),
+    );
+    expect(element.querySelector("[role=grid]")).not.toBeNull();
   });
 
   it("shows a limit the draft passed, which no field can show", async () => {

@@ -70,6 +70,7 @@ import {
 } from "../core/session/editor.js";
 import {
   createPendingText,
+  DraftContext,
   type PendingText,
   PendingTextContext,
 } from "../features/editor/committed-text.js";
@@ -122,7 +123,8 @@ export interface LearnEditorProps {
   readonly initialContent?: unknown;
   /**
    * Edit a document of exactly one exercise: no outline, and no adding,
-   * removing or moving. Content with more than one exercise is refused.
+   * removing or moving. Content with more than one exercise is refused. Read
+   * once, like `initialContent`: give the editor a new `key` to change it.
    */
   readonly single?: boolean | undefined;
   /** The exercise types content may use. Defaults to the built-in ones. */
@@ -165,14 +167,31 @@ export interface LearnEditorProps {
 export interface LearnEditorHandle {
   /**
    * The draft as validated `hm-learn-content`, after committing any typing.
-   * Save through it: it throws `INVALID_DOCUMENT`, with every issue, rather
-   * than return invalid content.
+   * Save through it: rather than return content that isn't valid, it throws a
+   * `LearnError`: `INVALID_DOCUMENT` with every issue, a limit's code such as
+   * `TOO_MANY_CHOICES` for a draft over a limit, or the error that kept the
+   * editor from opening its content.
    */
   getContent(): Content;
   /** Commits typing that's waiting for a pause. */
   flush(): void;
   undo(): void;
   redo(): void;
+}
+
+/**
+ * Calls a host's callback. An error it throws is thrown again in a
+ * microtask, so it's still reported, but never taken for the session's own,
+ * such as a refused command (ADR 0008).
+ */
+function hostCallback(call: () => void): void {
+  try {
+    call();
+  } catch (error) {
+    queueMicrotask(() => {
+      throw error;
+    });
+  }
 }
 
 /** Opens the session, refusing more than one exercise in `single`. */
@@ -242,8 +261,13 @@ function Editor({
   const platform = usePlatform();
   const t = messages;
   const profile = props.profile ?? defaultLanguageProfile;
+  // LearnEditor passes the first render's `single`, which the session was opened for.
   const single = props.single === true;
   const blocks = useMemo(() => ({ ...builtInBlocks, ...props.blocks }), [props.blocks]);
+  // Own properties only: a type named like an Object property, such as
+  // `constructor`, has a block only if one was given.
+  const blockFor = (type: string): EditorBlock | undefined =>
+    Object.hasOwn(blocks, type) ? blocks[type] : undefined;
   const exercises = snapshot.draft.exercises;
   const [selected, setSelected] = useState<string | null>(() => exercises[0]?.id ?? null);
   const current = single
@@ -275,7 +299,7 @@ function Editor({
   // The tools: structural ones only with an outline, and an add tool per type with a block.
   const registry = useMemo(() => {
     const adds = [...types.keys()]
-      .filter((type) => blocks[type] !== undefined)
+      .filter((type) => Object.hasOwn(blocks, type))
       .map((type) => addExerciseTool(type, (blocks[type] as EditorBlock).create));
     // With `single`, adding is only for the empty document's start cards, and
     // nothing removes or moves the one exercise (ADR 0008).
@@ -341,13 +365,36 @@ function Editor({
     }
   };
 
+  // The history's steps, as tokens that mirror the session's undo and redo
+  // stacks, so a toast's Undo undoes the step it announced and nothing else.
+  const steps = useRef<{ undo: number[]; redo: number[]; next: number }>({
+    undo: [],
+    redo: [],
+    next: 0,
+  });
+  /** Undoes `step` if it's still the latest edit, with no typing waiting after it. */
+  const undoStep = (step: number) => {
+    const { undo } = steps.current;
+    if (undo[undo.length - 1] !== step || pendingText.hasPending()) return;
+    editor.undo();
+  };
+
   // Toasts for structural edits, undo and redo (ADR 0008), straight from the
   // session's events: a toast is shown, not rendered from the snapshot.
-  const undo = useCallback(() => {
-    pendingText.flush();
-    editor.undo();
-  }, [editor, pendingText]);
   const onEditorEvent = useLatest((event: LearnEditorEvent) => {
+    const history = steps.current;
+    let step: number | undefined;
+    if (event.type === "content_edited") {
+      step = history.next++;
+      history.undo.push(step);
+      history.redo = [];
+    } else if (event.type === "edit_undone") {
+      const undone = history.undo.pop();
+      if (undone !== undefined) history.redo.push(undone);
+    } else {
+      const redone = history.redo.pop();
+      if (redone !== undefined) history.undo.push(redone);
+    }
     const now = editor.getSnapshot().draft.exercises;
     const position =
       Math.max(
@@ -369,8 +416,8 @@ function Editor({
     if (!message) return;
     toast.show({
       message,
-      ...(event.type === "content_edited"
-        ? { action: { label: t.t("editor.undoAction"), onAction: undo } }
+      ...(step !== undefined
+        ? { action: { label: t.t("editor.undoAction"), onAction: () => undoStep(step) } }
         : {}),
     });
   });
@@ -407,11 +454,12 @@ function Editor({
         .querySelector<HTMLElement>(".hm-learn-editor-stage input, .hm-learn-editor-stage textarea")
         ?.focus();
     } else {
-      scope
-        .querySelector<HTMLElement>(
-          ".hm-learn-editor-outline [role=row] [tabindex='0'], .hm-learn-editor-outline [role=gridcell]",
-        )
-        ?.focus();
+      // The selected row's tab stop, and only without one the first row.
+      (
+        scope.querySelector<HTMLElement>(
+          ".hm-learn-editor-outline [role=gridcell][tabindex='0']",
+        ) ?? scope.querySelector<HTMLElement>(".hm-learn-editor-outline [role=gridcell]")
+      )?.focus();
     }
   });
 
@@ -470,241 +518,245 @@ function Editor({
     );
   };
 
-  const addTypes = [...types.keys()].filter((type) => blocks[type] !== undefined);
+  const addTypes = [...types.keys()].filter((type) => blockFor(type) !== undefined);
   const startShown = exercises.length === 0 && (single || (mode === "easy" && !startSkipped));
   const exerciseIndex = current ? exercises.indexOf(current) : -1;
   const exerciseIssues = issuesOfExercise(snapshot.issues, exerciseIndex);
 
   return (
     <PendingTextContext.Provider value={pendingText}>
-      {/* The root takes the editor's shortcuts while focus is inside it (sdk-core ADR 0030). */}
-      <section
-        ref={root}
-        className={classes("hm-learn-editor", props.className)}
-        aria-label={t.t("editor.label")}
-        onKeyDown={onKeyDown}
-        {...prefs.rootAttributes}
-      >
-        <EditorFrame
-          toolsState={single ? "hidden" : preferences.tools}
-          onToolsStateChange={(tools) => prefs.change({ ...preferences, tools })}
-          propertiesState={single ? "hidden" : preferences.properties}
-          onPropertiesStateChange={(properties) => prefs.change({ ...preferences, properties })}
-          toolsLayout={preferences.toolsLayout}
-          propertiesLabel={t.t("editor.outline")}
-          topBar={
-            <>
-              <span className="hm-learn-editor-name">{t.t("editor.label")}</span>
-              {single ? null : (
-                <ModeSwitch
-                  size="small"
-                  value={mode}
-                  onValueChange={(next) => prefs.change({ ...preferences, mode: next })}
-                />
-              )}
-              <Toolbar label={t.t("tools.groups.history")} className="hm-learn-editor-bar">
-                {barButton("learn.undo")}
-                {barButton("learn.redo")}
-                {mode === "expert" ? (
+      <DraftContext.Provider value={snapshot.draft}>
+        {/* The root takes the editor's shortcuts while focus is inside it (sdk-core ADR 0030). */}
+        <section
+          ref={root}
+          className={classes("hm-learn-editor", props.className)}
+          aria-label={t.t("editor.label")}
+          onKeyDown={onKeyDown}
+          {...prefs.rootAttributes}
+        >
+          <EditorFrame
+            toolsState={single ? "hidden" : preferences.tools}
+            onToolsStateChange={(tools) => prefs.change({ ...preferences, tools })}
+            propertiesState={single ? "hidden" : preferences.properties}
+            onPropertiesStateChange={(properties) => prefs.change({ ...preferences, properties })}
+            toolsLayout={preferences.toolsLayout}
+            propertiesLabel={t.t("editor.outline")}
+            topBar={
+              <>
+                <span className="hm-learn-editor-name">{t.t("editor.label")}</span>
+                {single ? null : (
+                  <ModeSwitch
+                    size="small"
+                    value={mode}
+                    onValueChange={(next) => prefs.change({ ...preferences, mode: next })}
+                  />
+                )}
+                <Toolbar label={t.t("tools.groups.history")} className="hm-learn-editor-bar">
+                  {barButton("learn.undo")}
+                  {barButton("learn.redo")}
+                  {mode === "expert" ? (
+                    <IconButton
+                      variant="quiet"
+                      label={t.t("editor.commands")}
+                      icon={<CommandIcon />}
+                      aria-keyshortcuts={shortcuts.ariaKeyShortcuts(PALETTE) || undefined}
+                      onClick={() => setPaletteOpen(true)}
+                    />
+                  ) : null}
+                  {props.theme ? null : (
+                    <ThemeToggle
+                      value={prefs.themeToggleValue}
+                      onValueChange={(theme) => prefs.change({ ...preferences, theme })}
+                    />
+                  )}
                   <IconButton
                     variant="quiet"
-                    label={t.t("editor.commands")}
-                    icon={<CommandIcon />}
-                    aria-keyshortcuts={shortcuts.ariaKeyShortcuts(PALETTE) || undefined}
-                    onClick={() => setPaletteOpen(true)}
+                    label={t.t("editor.settings")}
+                    icon={<SettingsIcon />}
+                    aria-haspopup="dialog"
+                    onClick={prefs.openSettings}
                   />
-                ) : null}
-                {props.theme ? null : (
-                  <ThemeToggle
-                    value={prefs.themeToggleValue}
-                    onValueChange={(theme) => prefs.change({ ...preferences, theme })}
-                  />
-                )}
-                <IconButton
-                  variant="quiet"
-                  label={t.t("editor.settings")}
-                  icon={<SettingsIcon />}
-                  aria-haspopup="dialog"
-                  onClick={prefs.openSettings}
+                </Toolbar>
+              </>
+            }
+            tools={
+              single ? undefined : (
+                <ToolList
+                  label={t.t("editor.tools")}
+                  groups={groups}
+                  descriptions={mode === "easy" && preferences.tips}
+                  shortcuts={mode === "expert"}
+                  onRun={run}
                 />
-              </Toolbar>
-            </>
-          }
-          tools={
-            single ? undefined : (
-              <ToolList
-                label={t.t("editor.tools")}
-                groups={groups}
-                descriptions={mode === "easy" && preferences.tips}
-                shortcuts={mode === "expert"}
-                onRun={run}
-              />
-            )
-          }
-          properties={
-            single ? undefined : (
-              <div className="hm-learn-editor-outline">
-                {exercises.length === 0 ? (
-                  <p className="hm-learn-editor-empty">{t.t("editor.empty")}</p>
-                ) : (
-                  <ReorderableList
-                    label={t.t("editor.outline")}
-                    selectedId={current?.id ?? null}
-                    onSelectedChange={setSelected}
-                    announceMoves={false}
-                    onMove={(id, to) => {
-                      pendingText.flush();
-                      movedRef.current = id;
-                      editor.execute({ type: "learn.moveExercise", exerciseId: id, to });
-                    }}
-                    onRemove={(id) => run("learn.remove-exercise", id)}
-                  >
-                    {exercises.map((exercise, index) => {
-                      const count = issuesOfExercise(snapshot.issues, index).length;
-                      const label = t.t("editor.outlineItem", {
-                        title: exercise.title ?? t.t("editor.untitled"),
-                        type: typeLabel(t, exercise.type),
-                      });
-                      const problems =
-                        count === 0 ? t.t("editor.noProblems") : t.t("editor.problems", { count });
-                      return (
-                        <ReorderableListItem
-                          key={exercise.id}
-                          id={exercise.id}
-                          label={`${label}, ${problems}`}
-                        >
-                          <span className="hm-learn-editor-outline-entry">
-                            <span className="hm-learn-editor-outline-title">
-                              {exercise.title ?? t.t("editor.untitled")}
-                            </span>
-                            {/* The name holds the visible text, in the same words (WCAG 2.5.3);
+              )
+            }
+            properties={
+              single ? undefined : (
+                <div className="hm-learn-editor-outline">
+                  {exercises.length === 0 ? (
+                    <p className="hm-learn-editor-empty">{t.t("editor.empty")}</p>
+                  ) : (
+                    <ReorderableList
+                      label={t.t("editor.outline")}
+                      selectedId={current?.id ?? null}
+                      onSelectedChange={setSelected}
+                      announceMoves={false}
+                      onMove={(id, to) => {
+                        pendingText.flush();
+                        movedRef.current = id;
+                        editor.execute({ type: "learn.moveExercise", exerciseId: id, to });
+                      }}
+                      onRemove={(id) => run("learn.remove-exercise", id)}
+                    >
+                      {exercises.map((exercise, index) => {
+                        const count = issuesOfExercise(snapshot.issues, index).length;
+                        const label = t.t("editor.outlineItem", {
+                          title: exercise.title ?? t.t("editor.untitled"),
+                          type: typeLabel(t, exercise.type),
+                        });
+                        const problems =
+                          count === 0
+                            ? t.t("editor.noProblems")
+                            : t.t("editor.problems", { count });
+                        return (
+                          <ReorderableListItem
+                            key={exercise.id}
+                            id={exercise.id}
+                            label={`${label}, ${problems}`}
+                          >
+                            <span className="hm-learn-editor-outline-entry">
+                              <span className="hm-learn-editor-outline-title">
+                                {exercise.title ?? t.t("editor.untitled")}
+                              </span>
+                              {/* The name holds the visible text, in the same words (WCAG 2.5.3);
                               the space keeps the two apart in the text. */}{" "}
-                            <span className="hm-learn-editor-outline-meta">
-                              {`${typeLabel(t, exercise.type)}, ${problems}`}
+                              <span className="hm-learn-editor-outline-meta">
+                                {`${typeLabel(t, exercise.type)}, ${problems}`}
+                              </span>
                             </span>
+                          </ReorderableListItem>
+                        );
+                      })}
+                    </ReorderableList>
+                  )}
+                </div>
+              )
+            }
+            tabBar={
+              single ? undefined : (
+                <TabBar
+                  label={t.t("editor.tools")}
+                  items={groups.map((group) => ({
+                    id: group.id,
+                    label: group.label,
+                    icon: group.items[0]?.icon ?? null,
+                  }))}
+                  value={tab}
+                  onValueChange={(id) => setTab(id === tab ? null : id)}
+                />
+              )
+            }
+          >
+            <div className="hm-learn-editor-stage">
+              {startShown ? (
+                <div className="hm-learn-editor-start">
+                  <Heading>{t.t("editor.start")}</Heading>
+                  <ul className="hm-learn-editor-cards">
+                    {addTypes.map((type) => (
+                      <li key={type}>
+                        <button
+                          type="button"
+                          className="hm-learn-editor-card"
+                          onClick={() => run(`learn.add-${type}`)}
+                        >
+                          <span className="hm-learn-editor-card-title">
+                            {type === "multiple-choice" ||
+                            type === "gap-fill" ||
+                            type === "word-order"
+                              ? t.t(`start.${type}`)
+                              : t.t("tools.add.other", { type })}
                           </span>
-                        </ReorderableListItem>
-                      );
-                    })}
-                  </ReorderableList>
-                )}
-              </div>
-            )
-          }
-          tabBar={
-            single ? undefined : (
-              <TabBar
-                label={t.t("editor.tools")}
-                items={groups.map((group) => ({
-                  id: group.id,
-                  label: group.label,
-                  icon: group.items[0]?.icon ?? null,
-                }))}
-                value={tab}
-                onValueChange={(id) => setTab(id === tab ? null : id)}
-              />
-            )
-          }
-        >
-          <div className="hm-learn-editor-stage">
-            {startShown ? (
-              <div className="hm-learn-editor-start">
-                <Heading>{t.t("editor.start")}</Heading>
-                <ul className="hm-learn-editor-cards">
-                  {addTypes.map((type) => (
-                    <li key={type}>
-                      <button
-                        type="button"
-                        className="hm-learn-editor-card"
-                        onClick={() => run(`learn.add-${type}`)}
-                      >
-                        <span className="hm-learn-editor-card-title">
                           {type === "multiple-choice" ||
                           type === "gap-fill" ||
-                          type === "word-order"
-                            ? t.t(`start.${type}`)
-                            : t.t("tools.add.other", { type })}
-                        </span>
-                        {type === "multiple-choice" ||
-                        type === "gap-fill" ||
-                        type === "word-order" ? (
-                          <span className="hm-learn-editor-card-description">
-                            {t.t(`start.${type}.description`)}
-                          </span>
-                        ) : null}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                {single ? null : (
-                  <Button variant="quiet" onClick={() => setStartSkipped(true)}>
-                    {t.t("editor.start.skip")}
-                  </Button>
-                )}
-              </div>
-            ) : current ? (
-              <ExerciseForm
-                key={current.id}
-                exercise={current}
-                position={exerciseIndex}
-                count={exercises.length}
-                single={single}
-                issues={exerciseIssues}
-                block={blocks[current.type]}
-                editor={editor}
-                profile={profile}
-                messages={t}
-                announce={announce}
+                          type === "word-order" ? (
+                            <span className="hm-learn-editor-card-description">
+                              {t.t(`start.${type}.description`)}
+                            </span>
+                          ) : null}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {single ? null : (
+                    <Button variant="quiet" onClick={() => setStartSkipped(true)}>
+                      {t.t("editor.start.skip")}
+                    </Button>
+                  )}
+                </div>
+              ) : current ? (
+                <ExerciseForm
+                  key={current.id}
+                  exercise={current}
+                  position={exerciseIndex}
+                  count={exercises.length}
+                  single={single}
+                  issues={exerciseIssues}
+                  block={blockFor(current.type)}
+                  editor={editor}
+                  profile={profile}
+                  messages={t}
+                  announce={announce}
+                />
+              ) : (
+                <p className="hm-learn-editor-empty">{t.t("editor.empty")}</p>
+              )}
+              {/* A limit the draft passed, such as too many choices, has no field (ADR 0008). */}
+              {snapshot.error ? (
+                <p role="status" className="hm-learn-editor-limit">
+                  {t.error(snapshot.error)}
+                </p>
+              ) : null}
+              {snapshot.trimmed ? (
+                <p className="hm-learn-editor-note">{t.t("editor.trimmed")}</p>
+              ) : null}
+            </div>
+          </EditorFrame>
+          <Sheet
+            placement="bottom"
+            open={tabGroup !== undefined}
+            onOpenChange={(next) => {
+              if (!next) setTab(null);
+            }}
+            title={tabGroup?.label ?? ""}
+          >
+            {tabGroup ? (
+              <ToolList
+                label={tabGroup.label}
+                groups={[tabGroup]}
+                onRun={(id) => {
+                  setTab(null);
+                  run(id);
+                }}
               />
-            ) : (
-              <p className="hm-learn-editor-empty">{t.t("editor.empty")}</p>
-            )}
-            {/* A limit the draft passed, such as too many choices, has no field (ADR 0008). */}
-            {snapshot.error ? (
-              <p role="status" className="hm-learn-editor-limit">
-                {t.error(snapshot.error)}
-              </p>
             ) : null}
-            {snapshot.trimmed ? (
-              <p className="hm-learn-editor-note">{t.t("editor.trimmed")}</p>
-            ) : null}
-          </div>
-        </EditorFrame>
-        <Sheet
-          placement="bottom"
-          open={tabGroup !== undefined}
-          onOpenChange={(next) => {
-            if (!next) setTab(null);
-          }}
-          title={tabGroup?.label ?? ""}
-        >
-          {tabGroup ? (
-            <ToolList
-              label={tabGroup.label}
-              groups={[tabGroup]}
-              onRun={(id) => {
-                setTab(null);
-                run(id);
-              }}
-            />
-          ) : null}
-        </Sheet>
-        <SettingsPanel
-          open={prefs.settings.open}
-          onOpenChange={prefs.settings.onOpenChange}
-          value={preferences}
-          onValueChange={prefs.change}
-        />
-        <CommandPalette
-          open={paletteOpen}
-          onOpenChange={setPaletteOpen}
-          items={palette}
-          onRun={(id) => {
-            setPaletteOpen(false);
-            run(id);
-          }}
-        />
-      </section>
+          </Sheet>
+          <SettingsPanel
+            open={prefs.settings.open}
+            onOpenChange={prefs.settings.onOpenChange}
+            value={preferences}
+            onValueChange={prefs.change}
+          />
+          <CommandPalette
+            open={paletteOpen}
+            onOpenChange={setPaletteOpen}
+            items={palette}
+            onRun={(id) => {
+              setPaletteOpen(false);
+              run(id);
+            }}
+          />
+        </section>
+      </DraftContext.Provider>
     </PendingTextContext.Provider>
   );
 }
@@ -821,11 +873,24 @@ function ExerciseForm({
  * ```tsx
  * import "@hussmartinez/ui/styles.css";
  * import "@hussmartinez/learn-sdk/styles.css";
- * import { LearnEditor } from "@hussmartinez/learn-sdk/react";
+ * import { isLearnError } from "@hussmartinez/learn-sdk";
+ * import { LearnEditor, type LearnEditorHandle } from "@hussmartinez/learn-sdk/react";
  *
  * const editor = useRef<LearnEditorHandle>(null);
+ * // It opens valid content only, so Save starts on; onChange reports each edit after.
+ * const [canSave, setCanSave] = useState(true);
  * <LearnEditor ref={editor} initialContent={content} profile={thai} onChange={(_, { valid }) => setCanSave(valid)} />
- * // Saving: await save(editor.current.getContent());
+ *
+ * async function onSave() {
+ *   let content;
+ *   try {
+ *     content = editor.current?.getContent();
+ *   } catch (error) {
+ *     if (isLearnError(error)) return; // the editor shows the problem
+ *     throw error;
+ *   }
+ *   await save(content); // your storage: report its failure yourself
+ * }
  * ```
  *
  * @public
@@ -853,11 +918,11 @@ export const LearnEditor = /* @__PURE__ */ forwardRef<LearnEditorHandle, LearnEd
           types,
           (draft, { issues }) => {
             const valid = issues.length === 0 && editor.getSnapshot().error === null;
-            latest.current.onChange?.(draft, { issues, valid });
+            hostCallback(() => latest.current.onChange?.(draft, { issues, valid }));
           },
           (event) => {
             for (const listener of events) listener(event);
-            latest.current.onEvent?.(event);
+            hostCallback(() => latest.current.onEvent?.(event));
           },
         );
         return { editor, error: null };
@@ -866,6 +931,8 @@ export const LearnEditor = /* @__PURE__ */ forwardRef<LearnEditorHandle, LearnEd
       }
     });
     const { editor, error } = opened;
+    // `single` is read once, like `initialContent`: the session was opened for it.
+    const [single] = useState(props.single === true);
     useImperativeHandle(
       ref,
       () => ({
@@ -893,7 +960,7 @@ export const LearnEditor = /* @__PURE__ */ forwardRef<LearnEditorHandle, LearnEd
             <HeadingLevelProvider level={toHeadingLevel(props.headingLevel)}>
               {editor ? (
                 <Editor
-                  props={props}
+                  props={{ ...props, single }}
                   editor={editor}
                   types={types}
                   messages={messages}

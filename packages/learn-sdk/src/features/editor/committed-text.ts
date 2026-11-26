@@ -20,27 +20,47 @@ export const COMMIT_PAUSE_MS = 700;
  * edits, `flush()` and `getContent()` commit them first (ADR 0008).
  */
 export interface PendingText {
-  /** Adds a field's commit, and returns how to remove it. */
-  register(flush: () => void): () => void;
+  /** Adds a field: its commit, and whether it has typing waiting. Returns how to remove it. */
+  register(field: PendingField): () => void;
   /** Commits every field's pending typing, in no particular order. */
   flush(): void;
+  /** Whether any field has typing waiting to be committed. */
+  hasPending(): boolean;
+}
+
+/** One field, as {@link PendingText} sees it. */
+export interface PendingField {
+  readonly flush: () => void;
+  readonly hasPending: () => boolean;
 }
 
 /** A registry of pending text, one per editor. */
 export function createPendingText(): PendingText {
-  const fields = new Set<() => void>();
+  const fields = new Set<PendingField>();
   return {
-    register(flush) {
-      fields.add(flush);
+    register(field) {
+      fields.add(field);
       return () => {
-        fields.delete(flush);
+        fields.delete(field);
       };
     },
     flush() {
-      for (const flush of [...fields]) flush();
+      for (const field of [...fields]) field.flush();
+    },
+    hasPending() {
+      return [...fields].some((field) => field.hasPending());
     },
   };
 }
+
+/**
+ * The draft the editor shows now. A refusal holds the draft it was refused
+ * against, and shows only while that draft is still the editor's: any later
+ * edit, undo or redo, anywhere, ends it (ADR 0008).
+ *
+ * @internal
+ */
+export const DraftContext = /* @__PURE__ */ createContext<unknown>(null);
 
 /** @internal */
 export const PendingTextContext = /* @__PURE__ */ createContext<PendingText | null>(null);
@@ -49,8 +69,8 @@ export const PendingTextContext = /* @__PURE__ */ createContext<PendingText | nu
 export interface CommittedTextProps {
   /**
    * The error that refused the last commit, such as a text over
-   * `maxTextLength`, until the next edit; null otherwise. Not an input
-   * attribute: the field shows it as its problem.
+   * `maxTextLength`, until the next edit anywhere in the editor; null
+   * otherwise. Not an input attribute: the field shows it as its problem.
    */
   readonly refused: unknown;
   readonly value: string;
@@ -74,8 +94,9 @@ export interface CommittedTextProps {
  *
  * A commit the session refuses, such as a text over `maxTextLength`, isn't
  * applied: the field shows the draft's value again, and reports the error as
- * `refused` until the next edit. Nothing stays pending, so what the editor's
- * content holds is always what its fields show.
+ * `refused` until the next edit, undo or redo anywhere in the editor. Nothing
+ * stays pending, so what the editor's content holds is always what its fields
+ * show.
  *
  * `committed` is the value in the draft; `commit` turns a new value into a
  * command. Until the field has typing of its own, it shows `committed`, so
@@ -88,20 +109,22 @@ export function useCommittedText(
 ): CommittedTextProps {
   // Typing not yet committed, or null when the field shows the draft's value.
   const [typed, setTyped] = useState<string | null>(null);
-  // A refusal, with the draft value it was refused over: it shows only while
-  // the field still holds that value, so it never moves to another entry with
-  // a list's rows, and any later change of the value ends it.
-  const [refusal, setRefusal] = useState<{ readonly error: unknown; readonly over: string } | null>(
-    null,
-  );
+  // A refusal, with the draft it was refused against: it shows only while that
+  // draft is the editor's, so it never moves to another entry with a list's
+  // rows, and comes back with no undo or redo.
+  const [refusal, setRefusal] = useState<{
+    readonly error: unknown;
+    readonly draft: unknown;
+  } | null>(null);
+  const draft = useContext(DraftContext);
+  const latestDraft = useLatest(draft);
   // The same, for handlers and timers that run outside a render.
   const pending = useRef<string | null>(null);
   const composing = useRef(false);
   const pausedWhileComposing = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The latest commit and draft value, taken as each render commits (sdk-core ADR 0063).
+  // The latest commit, taken as each render commits (sdk-core ADR 0063).
   const latestCommit = useLatest(commit);
-  const latestCommitted = useLatest(committed);
   const pendingText = useContext(PendingTextContext);
 
   const clearTimer = useCallback(() => {
@@ -132,16 +155,19 @@ export function useCommittedText(
         if (!isLearnError(error)) throw error;
         // Not applied: the field shows the draft again, with the reason, and
         // nothing is thrown from a timer or a handler.
-        setRefusal({ error, over: latestCommitted.current });
+        setRefusal({ error, draft: latestDraft.current });
       }
     },
-    [clearTimer, latestCommit, latestCommitted],
+    [clearTimer, latestCommit, latestDraft],
   );
 
   // The editor commits this field before undo, structural edits and saving;
   // and typing left when the field goes away is committed, not lost.
   useEffect(() => {
-    const unregister = pendingText?.register(() => flush(true));
+    const unregister = pendingText?.register({
+      flush: () => flush(true),
+      hasPending: () => pending.current !== null,
+    });
     return () => {
       unregister?.();
       flush(true);
@@ -149,7 +175,7 @@ export function useCommittedText(
   }, [pendingText, flush]);
 
   return {
-    refused: refusal !== null && refusal.over === committed ? refusal.error : null,
+    refused: refusal !== null && refusal.draft === draft ? refusal.error : null,
     value: typed ?? committed,
     onChange: (event) => {
       const value = event.currentTarget.value;

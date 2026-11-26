@@ -4,7 +4,7 @@ A learning SDK: exercise types with their grading logic, a player and a teacher 
 
 It's published as **`@hussmartinez/learn-sdk`**, from `packages/learn-sdk` in the family's repository. It follows the family standards in [`sdk-core`'s `STANDARDS.md`](https://github.com/ie-huss-martinez/sdk-core/blob/main/STANDARDS.md), and in particular the decisions on [hostile input and no network](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0012-hostile-input-and-no-network.md), [ports and adapters](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0008-ports-adapters-and-session.md) and [accessibility and translatable text](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0014-accessibility-and-translatable-text.md).
 
-> Status: `0.x`, so the API may still change between minor versions. The player and the headless core are published; the editor is in progress.
+> Status: `0.x`, so the API may still change between minor versions. The headless core, the player (`LearnPlayer`) and the editor (`LearnEditor`) are in the React entry; the editor's custom element is next.
 
 ## Teacher's editor
 
@@ -55,7 +55,7 @@ export function Editor({ content, save }: { content: unknown; save: (c: unknown)
 }
 ```
 
-- **Saving stays yours.** `onChange(draft, { issues, valid })` reports every edit, undo and redo. The draft may be invalid while a teacher writes; save through the handle's `getContent()`, which commits any typing and returns validated `hm-learn-content`, or throws `INVALID_DOCUMENT` with every issue.
+- **Saving stays yours.** `onChange(draft, { issues, valid })` reports every edit, undo and redo, not the content it opened with: the editor opens valid content only, so a host can start with Save on. The draft may be invalid while a teacher writes; save through the handle's `getContent()`, which commits any typing and returns validated `hm-learn-content`, or throws a `LearnError`: `INVALID_DOCUMENT` with every issue, a limit's code such as `TOO_MANY_CHOICES`, or the error that kept the editor from opening its content. Report your own storage's failures yourself, as the example does.
 - **One exercise at a time:** with `single`, the editor edits a document of exactly one exercise, with no outline and no adding or removing. Empty content opens on a card per exercise type. A host that stores exercises one per row wraps a row in a one-exercise document and stores `getContent().exercises[0]`.
 - **The language being taught:** `profile` gives its fields `lang` and `dir`, with spellcheck and autocorrect off. Typing is committed as one undo step per burst, and never while an input method is composing.
 - **Your own exercise types:** pass an editor block per type in `blocks`, made with `defineEditorBlock({ edit, create })`. `edit` builds the whole payload; `create` is a new exercise's payload.

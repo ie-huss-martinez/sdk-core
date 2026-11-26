@@ -196,7 +196,8 @@ export default [
     name: "React: multipleChoiceEditor",
     entry: react,
     imports: "{ multipleChoiceEditor }",
-    limit: "4 kB",
+    // 4.01 kB after the review's fixes to the fields' commits and refusals.
+    limit: "4.5 kB",
   }),
   importBudget({
     name: "React: gapFillEditor",
