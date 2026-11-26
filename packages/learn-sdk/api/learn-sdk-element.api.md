@@ -4,4 +4,413 @@
 
 ```ts
 
+import type { Announce } from '@hussmartinez/ui/react';
+import type { ComponentType } from 'react';
+import { EditorElementDefine } from '@hussmartinez/sdk-core/element';
+import type { EditorPreferences } from '@hussmartinez/ui';
+import { FilePolicyOverrides } from '@hussmartinez/sdk-core';
+import type { HeadingLevel } from '@hussmartinez/ui';
+import { MessageOverrides } from '@hussmartinez/sdk-core';
+import { Messages } from '@hussmartinez/sdk-core';
+import { uiMessages } from '@hussmartinez/ui';
+
+// @public
+export const defineLearnEditorElement: EditorElementDefine<Partial<LearnEditorElementProps>, LearnEditorElementMethods>;
+
+// @public
+export interface LearnEditorChangeDetail {
+    // Warning: (ae-forgotten-export) The symbol "ContentDraft" needs to be exported by the entry point element.d.ts
+    readonly draft: ContentDraft;
+    // Warning: (ae-forgotten-export) The symbol "LearnIssue" needs to be exported by the entry point element.d.ts
+    readonly issues: readonly LearnIssue[];
+    readonly valid: boolean;
+}
+
+// @public
+export type LearnEditorElementEvent = "change" | "event" | "error" | "preferences";
+
+// @public
+export interface LearnEditorElementMethods {
+    flush(): void;
+    // Warning: (ae-forgotten-export) The symbol "Content" needs to be exported by the entry point element.d.ts
+    getContent(): Promise<Content>;
+    redo(): void;
+    undo(): void;
+}
+
+// @public
+export interface LearnEditorElementProps {
+    // Warning: (ae-forgotten-export) The symbol "EditorBlock" needs to be exported by the entry point element.d.ts
+    blocks?: Readonly<Record<string, EditorBlock>>;
+    defaultPreferences?: Partial<EditorPreferences>;
+    headingLevel?: HeadingLevel;
+    initialContent?: unknown;
+    // Warning: (ae-forgotten-export) The symbol "LearnLimitOverrides" needs to be exported by the entry point element.d.ts
+    limits?: LearnLimitOverrides;
+    locale?: string;
+    // Warning: (ae-forgotten-export) The symbol "LearnEditorMessageOverrides" needs to be exported by the entry point element.d.ts
+    messages?: LearnEditorMessageOverrides;
+    newId?: () => string;
+    preferences?: EditorPreferences;
+    // Warning: (ae-forgotten-export) The symbol "LanguageProfile" needs to be exported by the entry point element.d.ts
+    profile?: LanguageProfile;
+    single?: boolean;
+    theme?: string;
+    // Warning: (ae-forgotten-export) The symbol "ExerciseTypes" needs to be exported by the entry point element.d.ts
+    types?: ExerciseTypes;
+}
+
+// @public
+export const learnEditorMessages: {
+    readonly "editor.label": "Exercise editor";
+    readonly "editor.outline": "Exercises";
+    readonly "editor.tools": "Tools";
+    readonly "editor.settings": "Settings";
+    readonly "editor.commands": "Commands";
+    readonly "editor.mode.easy": "Easy mode";
+    readonly "editor.mode.advanced": "Advanced mode";
+    readonly "editor.mode.expert": "Expert mode";
+    readonly "editor.theme.light": "Light theme";
+    readonly "editor.theme.dark": "Dark theme";
+    readonly "editor.theme.system": "The system's theme";
+    readonly "editor.outlineItem": "{title}, {type}";
+    readonly "editor.empty": "No exercises yet. Add one from the tools.";
+    readonly "editor.untitled": "Untitled exercise";
+    readonly "editor.position": "Exercise {position, number} of {count, number}";
+    readonly "editor.title": "Title";
+    readonly "editor.titleHelp": "Learners see it above the exercise.";
+    readonly "editor.instructions": "Instructions";
+    readonly "editor.instructionsHelp": "Optional. What the learner should do.";
+    readonly "editor.unsupported": "This exercise type can't be edited here. Its other fields still can.";
+    readonly "editor.noProblems": "No problems";
+    readonly "editor.problems": {
+        readonly $plural: "count";
+    } & {
+        readonly one: "{count, number} problem";
+        readonly other: "{count, number} problems";
+    };
+    readonly "editor.problemsHeading": "To fix in this exercise";
+    readonly "editor.announceNoProblems": "No problems left.";
+    readonly "editor.announceProblems": {
+        readonly $plural: "count";
+    } & {
+        readonly one: "{count, number} problem to fix.";
+        readonly other: "{count, number} problems to fix.";
+    };
+    readonly "editor.added": "Exercise added";
+    readonly "editor.removed": "Exercise removed";
+    readonly "editor.moved": "Exercise moved to {position, number} of {count, number}";
+    readonly "editor.undone": "Undone";
+    readonly "editor.redone": "Redone";
+    readonly "editor.undoAction": "Undo";
+    readonly "editor.trimmed": "The earliest edits can't be undone any more.";
+    readonly "editor.start": "What would you like to write?";
+    readonly "editor.start.skip": "Just show me the editor";
+    readonly "types.multiple-choice": "Multiple choice";
+    readonly "types.gap-fill": "Fill the gap";
+    readonly "types.word-order": "Word order";
+    readonly "types.other": "{type}";
+    readonly "start.multiple-choice": "Write a multiple-choice question";
+    readonly "start.multiple-choice.description": "A question with two to six answers, one of them right.";
+    readonly "start.gap-fill": "Write a sentence with a gap";
+    readonly "start.gap-fill.description": "Learners fill the gap by typing, or by choosing.";
+    readonly "start.word-order": "Put words in order";
+    readonly "start.word-order.description": "Learners build a sentence from its words.";
+    readonly "tools.add.multiple-choice": "Add multiple choice";
+    readonly "tools.add.gap-fill": "Add fill the gap";
+    readonly "tools.add.word-order": "Add word order";
+    readonly "tools.add.other": "Add {type}";
+    readonly "tools.move-exercise-up": "Move exercise up";
+    readonly "tools.move-exercise-down": "Move exercise down";
+    readonly "tools.groups.add": "Add";
+    readonly "tools.groups.exercises": "Exercises";
+    readonly "tools.groups.history": "History";
+    readonly "multipleChoice.question": "Question {number, number}";
+    readonly "multipleChoice.prompt": "Question";
+    readonly "multipleChoice.choices": "Choices";
+    readonly "multipleChoice.choice": "Choice {number, number}";
+    readonly "multipleChoice.correct": "Right answer";
+    readonly "multipleChoice.correctFor": "Choice {number, number} is the right answer";
+    readonly "multipleChoice.explanation": "Explanation";
+    readonly "multipleChoice.explanationHelp": "Optional. Learners see it after checking.";
+    readonly "multipleChoice.addQuestion": "Add a question";
+    readonly "multipleChoice.removeQuestion": "Remove question {number, number}";
+    readonly "multipleChoice.addChoice": "Add a choice";
+    readonly "multipleChoice.removeChoice": "Remove choice {number, number}";
+    readonly "gapFill.item": "Sentence {number, number}";
+    readonly "gapFill.sentence": "Sentence";
+    readonly "gapFill.sentenceHelp": "Write three underscores, ___, where the gap goes.";
+    readonly "gapFill.answers": "Accepted answers";
+    readonly "gapFill.answer": "Answer {number, number}";
+    readonly "gapFill.addAnswer": "Add an answer";
+    readonly "gapFill.removeAnswer": "Remove answer {number, number}";
+    readonly "gapFill.options": "Choices to pick from";
+    readonly "gapFill.optionsHelp": "Optional. Without them, learners type the answer.";
+    readonly "gapFill.option": "Choice {number, number}";
+    readonly "gapFill.addOption": "Add a choice";
+    readonly "gapFill.removeOption": "Remove choice {number, number}";
+    readonly "gapFill.translation": "Translation";
+    readonly "gapFill.translationHelp": "Optional. Learners see it with the sentence.";
+    readonly "gapFill.addItem": "Add a sentence";
+    readonly "gapFill.removeItem": "Remove sentence {number, number}";
+    readonly "wordOrder.item": "Sentence {number, number}";
+    readonly "wordOrder.tiles": "Words, in the right order";
+    readonly "wordOrder.tile": "Word {number, number}";
+    readonly "wordOrder.addTile": "Add a word";
+    readonly "wordOrder.removeTile": "Remove word {number, number}";
+    readonly "wordOrder.moveTileUp": "Move word {number, number} earlier";
+    readonly "wordOrder.moveTileDown": "Move word {number, number} later";
+    readonly "wordOrder.alternatives": "Other right orders";
+    readonly "wordOrder.alternativesHelp": "Optional. Orders that are also right, using every word once.";
+    readonly "wordOrder.alternative": "Order {number, number}";
+    readonly "wordOrder.addAlternative": "Accept another order";
+    readonly "wordOrder.removeAlternative": "Remove order {number, number}";
+    readonly "wordOrder.translation": "Translation";
+    readonly "wordOrder.translationHelp": "Learners see it, and build the sentence it translates.";
+    readonly "wordOrder.addItem": "Add a sentence";
+    readonly "wordOrder.removeItem": "Remove sentence {number, number}";
+    readonly "colorField.swatches": "swatches";
+    readonly "dialog.close": "Close";
+    readonly "fileDropZone.choose": "Choose a file";
+    readonly "fileDropZone.chooseMultiple": "Choose files";
+    readonly "fileDropZone.hint": "or drop it here";
+    readonly "fileDropZone.hintMultiple": "or drop them here";
+    readonly "progress.label": "Progress";
+    readonly "reorderableList.moved": "{label} moved to position {position} of {count}";
+    readonly "reorderableList.control.checked": "{label}, checked";
+    readonly "reorderableList.control.notChecked": "{label}, not checked";
+    readonly "reorderableList.control.pressed": "{label}, pressed";
+    readonly "reorderableList.control.notPressed": "{label}, not pressed";
+    readonly "spinner.label": "Loading";
+    readonly "timelineClips.selected": "{label}, selected";
+    readonly "timelineClips.notSelected": "{label}, not selected";
+    readonly "errors.INVALID_THEME_TOKEN": "The theme setting {token} has a value that can't be used.";
+    readonly "errors.INVALID_THEME_SELECTOR": "The theme can't be applied to the selector {selector}.";
+    readonly "editorFrame.tools": "Tools";
+    readonly "editorFrame.properties": "Properties";
+    readonly "editorFrame.showTools": "Show tools";
+    readonly "editorFrame.hideTools": "Hide tools";
+    readonly "editorFrame.toolsIcons": "Icons only";
+    readonly "editorFrame.toolsFull": "Show labels";
+    readonly "editorFrame.showProperties": "Show properties";
+    readonly "editorFrame.hideProperties": "Hide properties";
+    readonly "mode.label": "Experience";
+    readonly "mode.easy": "Easy";
+    readonly "mode.advanced": "Advanced";
+    readonly "mode.expert": "Expert";
+    readonly "tabBar.more": "More";
+    readonly "themeToggle.dark": "Dark theme";
+    readonly "settings.title": "Settings";
+    readonly "settings.theme": "Appearance";
+    readonly "settings.theme.system": "System";
+    readonly "settings.theme.light": "Light";
+    readonly "settings.theme.dark": "Dark";
+    readonly "settings.toolsLayout": "Tools layout";
+    readonly "settings.toolsLayout.sidebar": "Sidebar";
+    readonly "settings.toolsLayout.dock": "Floating dock";
+    readonly "settings.tools": "Tools panel";
+    readonly "settings.tools.full": "Full";
+    readonly "settings.tools.icons": "Icons";
+    readonly "settings.tools.hidden": "Hidden";
+    readonly "settings.properties": "Properties panel";
+    readonly "settings.properties.shown": "Shown";
+    readonly "settings.properties.hidden": "Hidden";
+    readonly "settings.density": "Density";
+    readonly "settings.density.comfortable": "Comfortable";
+    readonly "settings.density.compact": "Compact";
+    readonly "settings.motion": "Motion";
+    readonly "settings.motion.system": "System";
+    readonly "settings.motion.full": "Full";
+    readonly "settings.motion.reduced": "Reduced";
+    readonly "settings.tips": "Tips";
+    readonly "settings.tips.on": "On";
+    readonly "settings.tips.off": "Off";
+    readonly "commandPalette.title": "Commands";
+    readonly "commandPalette.label": "Search tools";
+    readonly "commandPalette.placeholder": "Search tools";
+    readonly "commandPalette.empty": "No tools match.";
+    readonly "commandPalette.results": {
+        readonly $plural: "count";
+    } & {
+        readonly one: "{count} result";
+        readonly other: "{count} results";
+    };
+    readonly "toast.region": "Notifications";
+    readonly "toast.dismiss": "Dismiss";
+    readonly "progressOverlay.cancel": "Cancel";
+    readonly "colorPicker.saturation": "Saturation";
+    readonly "colorPicker.brightness": "Brightness";
+    readonly "colorPicker.hue": "Hue";
+    readonly "colorPicker.alpha": "Opacity";
+    readonly "colorPicker.hex": "Hex";
+    readonly "colorPicker.eyeDropper": "Pick a colour from the screen";
+    readonly "colorPicker.swatches": "swatches";
+    readonly "colorPicker.recent": "recent colours";
+    readonly "colorPicker.recentColor": "{name}, {hex}";
+    readonly "colorPicker.percent": "{value} %, {name}";
+    readonly "colorPicker.degrees": "{value}\u00B0, {name}";
+    readonly "colorPicker.contrastPass": "Contrast {ratio}:1, enough for text";
+    readonly "colorPicker.contrastFail": "Contrast {ratio}:1, too low for text";
+    readonly "colorPicker.name.white": "white";
+    readonly "colorPicker.name.black": "black";
+    readonly "colorPicker.name.grey": "grey";
+    readonly "colorPicker.name.lightGrey": "light grey";
+    readonly "colorPicker.name.darkGrey": "dark grey";
+    readonly "colorPicker.name.light": "light {hue}";
+    readonly "colorPicker.name.dark": "dark {hue}";
+    readonly "colorPicker.name.greyish": "greyish {hue}";
+    readonly "colorPicker.hue.red": "red";
+    readonly "colorPicker.hue.orange": "orange";
+    readonly "colorPicker.hue.yellow": "yellow";
+    readonly "colorPicker.hue.green": "green";
+    readonly "colorPicker.hue.cyan": "cyan";
+    readonly "colorPicker.hue.blue": "blue";
+    readonly "colorPicker.hue.purple": "purple";
+    readonly "colorPicker.hue.pink": "pink";
+    readonly "buttonLink.newTab": "(opens in a new tab)";
+    readonly "searchField.clear": "Clear search";
+    readonly "errors.UNSUPPORTED_FORMAT": "This isn't learning content this app can read.";
+    readonly "content.unknownFormat": "This isn't learning content this app can read.";
+    readonly "content.unknownFormatVersion": "This content may be from a newer version. Update the app, then open it again.";
+    readonly "content.invalidDocument": "This content is damaged. Ask whoever provided it for another copy.";
+    readonly "errors.INVALID_DOCUMENT": "This content has problems. Fix them, then try again.";
+    readonly "errors.INVALID_ANSWER": "This answer couldn't be checked. Please try again.";
+    readonly "errors.INVALID_COMMAND": "This change couldn't be made. Please try again.";
+    readonly "errors.AUDIO_UNAVAILABLE": "This recording isn't available right now. Please try again later.";
+    readonly "errors.UNSUPPORTED_SCHEDULING_STATE": "Your review schedule was saved by another version of the app. It will start again from today.";
+    readonly "errors.STORAGE_UNAVAILABLE": "Your progress couldn't be saved on this device. Its storage may be full or turned off.";
+    readonly "errors.CONTENT_TOO_LARGE": "This content is {actual, fileSize}, which is over the {maximum, fileSize} limit. Split it into smaller sets.";
+    readonly "errors.TOO_MANY_EXERCISES": {
+        readonly $plural: "maximum";
+    } & {
+        readonly one: "A set can have {maximum} exercise. Split the content into smaller sets.";
+        readonly other: "A set can have up to {maximum, number} exercises. Split the content into smaller sets.";
+    };
+    readonly "errors.TOO_MANY_ITEMS": {
+        readonly $plural: "maximum";
+    } & {
+        readonly one: "An exercise can have {maximum} item. Split it into smaller exercises.";
+        readonly other: "An exercise can have up to {maximum, number} items. Split it into smaller exercises.";
+    };
+    readonly "errors.TOO_MANY_CHOICES": {
+        readonly $plural: "maximum";
+    } & {
+        readonly one: "A question can have {maximum} choice.";
+        readonly other: "A question can have up to {maximum, number} choices.";
+    };
+    readonly "errors.TOO_MANY_TILES": {
+        readonly $plural: "maximum";
+    } & {
+        readonly one: "A sentence can have {maximum} word to put in order.";
+        readonly other: "A sentence can have up to {maximum, number} words to put in order.";
+    };
+    readonly "errors.TEXT_TOO_LONG": {
+        readonly $plural: "maximum";
+    } & {
+        readonly one: "A text can be {maximum} character long. Shorten it, then try again.";
+        readonly other: "A text can be up to {maximum, number} characters long. Shorten it, then try again.";
+    };
+    readonly "errors.FILE_TOO_LARGE": "This recording is {actual, fileSize}, which is over the {maximum, fileSize} limit.";
+    readonly "warnings.maxFileSize": "This recording is {actual, fileSize}, and may be slow to load.";
+    readonly "warnings.maxContentSize": "This content is {actual, fileSize}, and may be slow to open.";
+    readonly "warnings.maxExercises": {
+        readonly $plural: "actual";
+    } & {
+        readonly one: "This set has {actual} exercise.";
+        readonly other: "This set has {actual, number} exercises, and may be slow to open.";
+    };
+    readonly "warnings.maxItems": {
+        readonly $plural: "actual";
+    } & {
+        readonly one: "This exercise has {actual} item.";
+        readonly other: "This exercise has {actual, number} items, and may be long to answer.";
+    };
+    readonly "warnings.maxChoices": {
+        readonly $plural: "actual";
+    } & {
+        readonly one: "This question has {actual} choice.";
+        readonly other: "This question has {actual, number} choices, and may be hard to read on a phone.";
+    };
+    readonly "warnings.maxTiles": {
+        readonly $plural: "actual";
+    } & {
+        readonly one: "This sentence has {actual} word to put in order.";
+        readonly other: "This sentence has {actual, number} words to put in order, and may be hard on a phone.";
+    };
+    readonly "warnings.maxTextLength": "This text is long, and may be hard to read on a phone.";
+    readonly "validation.required": "This is required.";
+    readonly "validation.unknown-field": "This field isn't part of the content format. Remove it, or check its spelling.";
+    readonly "validation.not-data": "This field must hold a plain value, not one that's computed.";
+    readonly "validation.expected-object": "This should be a group of fields.";
+    readonly "validation.expected-list": "This should be a list.";
+    readonly "validation.expected-text": "This should be text.";
+    readonly "validation.expected-whole-number": "This should be a whole number, 0 or more.";
+    readonly "validation.expected-yes-no": "This should be yes or no.";
+    readonly "validation.empty-text": "This can't be empty.";
+    readonly "validation.too-few": {
+        readonly $plural: "minimum";
+    } & {
+        readonly one: "Add at least {minimum} entry.";
+        readonly other: "Add at least {minimum, number} entries.";
+    };
+    readonly "validation.out-of-range": "This points to an entry that doesn't exist.";
+    readonly "validation.duplicate-id": "Another exercise already uses this id.";
+    readonly "validation.unknown-type": "This exercise type isn't available here.";
+    readonly "validation.duplicate-choice": "Another choice already says the same. Make each choice different.";
+    readonly "validation.gap-count": "Write the sentence with exactly one gap, as three underscores: ___";
+    readonly "validation.answer-not-in-options": "None of the choices is an accepted answer. Add the answer to the choices.";
+    readonly "validation.not-a-permutation": "Use every word exactly once, in any order.";
+    readonly "tools.check": "Check";
+    readonly "tools.next": "Next";
+    readonly "tools.previous": "Previous";
+    readonly "tools.retry": "Try again";
+    readonly "tools.skip": "Skip";
+    readonly "tools.undo": "Undo";
+    readonly "tools.redo": "Redo";
+    readonly "tools.remove-exercise": "Remove exercise";
+    readonly "errors.UNKNOWN": "Something went wrong. Please try again.";
+    readonly "errors.ABORTED": "The operation was cancelled.";
+    readonly "errors.TIMEOUT": "The operation took too long and was stopped.";
+    readonly "errors.WORKER_START_FAILED": "The file processor couldn't start. Reload the page and try again.";
+    readonly "errors.WORKER_PROTOCOL_MISMATCH": "The file processor is out of date. Reload the page to update it.";
+    readonly "errors.WORKER_CRASHED": "The file processor stopped unexpectedly. Please try again.";
+    readonly "errors.WORKER_TERMINATED": "The operation was stopped before it finished. Please try again.";
+    readonly "errors.WORKER_METHOD_NOT_FOUND": "This operation isn't available. Reload the page and try again.";
+    readonly "errors.WORKER_DATA_NOT_CLONEABLE": "Something went wrong while processing the file. Please try again.";
+    readonly "errors.UNSUPPORTED_ENVIRONMENT": "This browser doesn't support a feature this tool needs. Update your browser, or try another one.";
+    readonly "errors.TOO_MANY_FILES": {
+        readonly $plural: "maximum";
+    } & {
+        readonly one: "You can add {maximum} file at a time.";
+        readonly other: "You can add up to {maximum} files at a time.";
+    };
+    readonly "errors.DECODED_SIZE_TOO_LARGE": "This file expands to more than {maximum, fileSize} when opened, which is over the limit.";
+    readonly "errors.PROCESSING_TIME_EXCEEDED": "Processing this file took too long and was stopped.";
+    readonly "warnings.maxFiles": "Adding {actual} files at once may be slow.";
+    readonly "warnings.maxDecodedSize": "This file is very large once opened and may be slow to process.";
+    readonly "warnings.maxProcessingTime": "This is taking longer than usual.";
+    readonly "keys.control": "Ctrl";
+    readonly "keys.alt": "Alt";
+    readonly "keys.shift": "Shift";
+    readonly "keys.meta": "Meta";
+    readonly "keys.apple.control": "\u2303";
+    readonly "keys.apple.alt": "\u2325";
+    readonly "keys.apple.shift": "\u21E7";
+    readonly "keys.apple.meta": "\u2318";
+    readonly "keys.space": "Space";
+    readonly "keys.enter": "Enter";
+    readonly "keys.escape": "Esc";
+    readonly "keys.tab": "Tab";
+    readonly "keys.delete": "Delete";
+    readonly "keys.backspace": "Backspace";
+    readonly "keys.arrowUp": "\u2191";
+    readonly "keys.arrowDown": "\u2193";
+    readonly "keys.arrowLeft": "\u2190";
+    readonly "keys.arrowRight": "\u2192";
+    readonly "keys.home": "Home";
+    readonly "keys.end": "End";
+    readonly "keys.pageUp": "Page Up";
+    readonly "keys.pageDown": "Page Down";
+};
+
 ```

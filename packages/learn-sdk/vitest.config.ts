@@ -30,6 +30,7 @@ export default defineConfig(({ mode }) => {
           optimizeDeps: {
             include: [
               "@hussmartinez/sdk-core",
+              "@hussmartinez/sdk-core/element",
               "@hussmartinez/ui",
               "@hussmartinez/ui/react",
               "axe-core",

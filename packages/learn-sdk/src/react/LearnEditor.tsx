@@ -136,8 +136,9 @@ export interface LearnEditorProps {
   readonly blocks?: Readonly<Record<string, EditorBlock>> | undefined;
   /** The language being taught: `lang` and `dir` for its fields. */
   readonly profile?: LanguageProfile | undefined;
+  /** Lower limits than the defaults. Read once, like `initialContent`. */
   readonly limits?: LearnLimitOverrides | undefined;
-  /** New exercises' ids. Defaults to random UUIDs. */
+  /** New exercises' ids. Defaults to random UUIDs. Read once, like `initialContent`. */
   readonly newId?: (() => string) | undefined;
   /** The draft after every edit, undo and redo, and whether it's valid content now. */
   readonly onChange?:

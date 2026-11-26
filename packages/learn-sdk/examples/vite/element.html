@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- Nothing from anywhere but this origin: the editor makes no requests of its own. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self'; object-src 'none'; base-uri 'self'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The learn-sdk editor element</title>
+  </head>
+  <body>
+    <main>
+      <h1>The learn-sdk editor element</h1>
+      <p>Thai basics, to edit, in a page without React of its own. Saving shows the content here; nothing leaves this device.</p>
+      <hm-learn-editor class="example-editor"></hm-learn-editor>
+      <button type="button" id="save">Save</button>
+      <output aria-label="Saved content"></output>
+    </main>
+    <script type="module" src="/src/element.ts"></script>
+  </body>
+</html>

@@ -25,9 +25,8 @@
  * drops those models from the bundle already, so no scenario leaves them out,
  * and none has a budget, because no host loads one through learn-sdk.
  *
- * The element entry will mount the whole player (it's empty until the
- * element lands), and the testing entry is for tests, so they keep their
- * ceilings only. This SDK has no worker and no
+ * The element entry mounts the whole editor (ADR 0009), and the testing
+ * entry is for tests, so they keep their ceilings only. This SDK has no worker and no
  * lazy chunks.
  */
 import { entryBudget, importBudget } from "@hussmartinez/sdk-config/size";
@@ -41,7 +40,8 @@ export default [
   // in one file, unminified (15.6 against 14.1 kB).
   entryBudget({ name: "Server-safe core (.)", entry: core, limit: "17 kB" }),
   entryBudget({ name: "React entry (./react)", entry: react, limit: "40 kB" }),
-  entryBudget({ name: "Element entry (./element)", entry: "dist/element.js", limit: "40 kB" }),
+  // 21.76 kB with the editor element (ADR 0009).
+  entryBudget({ name: "Element entry (./element)", entry: "dist/element.js", limit: "23 kB" }),
   entryBudget({
     name: "Contract suites and fakes (./testing)",
     entry: "dist/testing.js",
