@@ -244,6 +244,14 @@
     flex-wrap: wrap;
   }
 
+  /*
+   * The element (ADR 0009) is a block, as the editor inside it is; custom
+   * elements are inline by default. A host's CSS sizes it.
+   */
+  hm-learn-editor {
+    display: block;
+  }
+
   /* The editor (ADR 0008): in ui's frame, which lays out its regions. */
   /* It fills the box the host gives it, and the frame scrolls inside, as image-sdk's does. */
   .hm-learn-editor {

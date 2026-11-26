@@ -56,3 +56,21 @@ for (const target of targets) {
     });
   });
 }
+
+test.describe("the editor element on the Vite example", () => {
+  // The element on a page without React of its own (ADR 0009): what the
+  // editor does is the React component's tests'; this checks the element
+  // renders it under the strict policy, with no axe finding, and saves
+  // through `getContent()`.
+  test("renders the editor, and saves an edit through getContent()", async ({ page }) => {
+    const problems = watch(page, "http://localhost:4340");
+    await page.goto("http://localhost:4340/element.html");
+    await expect(page.getByRole("heading", { name: "Food words" })).toBeVisible();
+    await noViolations(page, "hm-learn-editor");
+
+    await field(page, "Title").fill("Thai food");
+    await page.getByRole("button", { name: "Save" }).click();
+    await expect(page.locator("output")).toContainText('"title": "Thai food"');
+    expect(problems).toEqual({ console: [], errors: [], foreignRequests: [] });
+  });
+});

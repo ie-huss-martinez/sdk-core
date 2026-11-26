@@ -1,10 +1,10 @@
 # learn-sdk
 
-A learning SDK: exercise types with their grading logic, a player and a teacher editor for each, spaced repetition, and course-based access, for language learning and beyond. Learners' answers and progress stay with the host application; the SDK makes no network requests of its own. It offers a headless core that also runs on servers, React components (`LearnPlayer`, `LearnEditor`) and a `<hm-learn-player>` custom element.
+A learning SDK: exercise types with their grading logic, a player and a teacher editor for each, spaced repetition, and course-based access, for language learning and beyond. Learners' answers and progress stay with the host application; the SDK makes no network requests of its own. It offers a headless core that also runs on servers, React components (`LearnPlayer`, `LearnEditor`) and the editor's `<hm-learn-editor>` custom element.
 
 It's published as **`@hussmartinez/learn-sdk`**, from `packages/learn-sdk` in the family's repository. It follows the family standards in [`sdk-core`'s `STANDARDS.md`](https://github.com/ie-huss-martinez/sdk-core/blob/main/STANDARDS.md), and in particular the decisions on [hostile input and no network](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0012-hostile-input-and-no-network.md), [ports and adapters](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0008-ports-adapters-and-session.md) and [accessibility and translatable text](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0014-accessibility-and-translatable-text.md).
 
-> Status: `0.x`, so the API may still change between minor versions. The package root, `@hussmartinez/learn-sdk`, has the headless core (such as `createLearnEditor` and `gradeAnswer`); the React entry, `@hussmartinez/learn-sdk/react`, has the player (`LearnPlayer`) and the editor (`LearnEditor`). The editor's custom element is next.
+> Status: `0.x`, so the API may still change between minor versions. The package root, `@hussmartinez/learn-sdk`, has the headless core (such as `createLearnEditor` and `gradeAnswer`); the React entry, `@hussmartinez/learn-sdk/react`, has the player (`LearnPlayer`) and the editor (`LearnEditor`); the element entry, `@hussmartinez/learn-sdk/element`, has the editor's custom element. The player's element is still to come.
 
 ## Teacher's editor
 
@@ -69,6 +69,39 @@ export function Editor({ content, save }: { content: unknown; save: (c: unknown)
 - **Your own exercise types:** pass an editor block per type in `blocks`, made with `defineEditorBlock({ edit, create })`. `edit` builds the whole payload; `create` is a new exercise's payload.
 - **Preferences** (mode, theme, panels) are the frame's, controlled with `preferences` and `onPreferencesChange` or left to the editor, as in every family editor (sdk-core ADR 0067).
 - **Text** comes from `learnEditorMessages`; override any of it with `messages`, typed as `MessageOverrides<LearnEditorMessageCatalogue>`.
+
+### The `<hm-learn-editor>` element
+
+For a page without React of its own, `@hussmartinez/learn-sdk/element` has the same editor as a custom element ([ADR 0009](docs/adr/0009-learn-editor-element.md)). React and React DOM are still needed, as the package's optional peer dependencies. Importing the entry registers nothing: call `defineLearnEditorElement()` once.
+
+```ts
+import "@hussmartinez/ui/styles.css";
+import "@hussmartinez/learn-sdk/styles.css";
+import {
+  defineLearnEditorElement,
+  type LearnEditorChangeDetail,
+  type LearnEditorElementMethods,
+  type LearnEditorElementProps,
+} from "@hussmartinez/learn-sdk/element";
+
+type LearnEditorElement = HTMLElement & LearnEditorElementProps & LearnEditorElementMethods;
+
+defineLearnEditorElement();
+const editor = document.querySelector<LearnEditorElement>("hm-learn-editor");
+if (editor) {
+  editor.profile = { code: "th", direction: "ltr" };
+  editor.initialContent = content;
+  editor.addEventListener("hm-learn-editor-change", (event) => {
+    saveButton.disabled = !(event as CustomEvent<LearnEditorChangeDetail>).detail.valid;
+  });
+  saveButton.addEventListener("click", async () => save(await editor.getContent()));
+}
+```
+
+- **Attributes:** `theme`, `locale`, `heading-level`, and `single` as a boolean attribute. Everything else, such as `initialContent`, `profile`, `limits`, `blocks` and `preferences`, is a property.
+- **Other content:** setting `initialContent`, `single`, `types`, `limits` or `newId` to another value opens the editor afresh, with no history, as a new `key` does in React.
+- **Methods:** `getContent()` returns a promise, unlike the React handle's: it waits for the editor to render, then resolves with the content or rejects with the same errors. `flush()`, `undo()` and `redo()` are as in React.
+- **Events:** `hm-learn-editor-change` with `{ draft, issues, valid }`, `-event`, `-error` with `{ code, details }` for a refused command, and `-preferences`.
 
 ## Development
 
