@@ -13,7 +13,7 @@ catalog:
   "@arethetypeswrong/cli": ^0.18.5
   axe-core: ^4.11.0
   "@axe-core/playwright": ^4.14.0
-  "@biomejs/biome": ^2.6.6
+  "@biomejs/biome": ^2.6.8
   "@cantoo/pdf-lib": 2.11.1
   "@changesets/changelog-github": ^1.0.1
   "@changesets/cli": ^3.0.3
@@ -22,17 +22,17 @@ catalog:
   "@commitlint/lint": ^21.2.4
   "@commitlint/load": ^21.2.4
   "@commitlint/types": ^21.2.3
-  dependency-cruiser: ^18.7.2
+  dependency-cruiser: ^18.8.0
   esbuild: ^0.28.2
   # The React Native test application (ADR 0069), on Expo SDK 58's versions.
   expo: ~58.0.26
-  fast-check: ^4.10.2
+  fast-check: ^4.10.3
   gifenc: 1.0.3
   "@guidepup/virtual-screen-reader": 0.33.0
   husky: ^9.1.7
-  lint-staged: ^17.6.0
-  lucide-static: 1.72.0
-  mediabunny: 1.65.2
+  lint-staged: ^17.6.1
+  lucide-static: 1.76.0
+  mediabunny: 1.66.2
   "@microsoft/api-extractor": ^7.60.1
   next: ^16.4.6
   pdfjs-dist: 6.5.438
@@ -41,8 +41,8 @@ catalog:
   picomatch: ^4.0.7
   playwright: 1.65.1
   "@playwright/test": 1.65.1
-  postcss: ^8.5.31
-  postcss-selector-parser: ^7.1.7
+  postcss: ^8.5.33
+  postcss-selector-parser: ^7.2.1
   postcss-value-parser: ^4.2.0
   publint: ^0.3.25
   react: ^19.3.0
@@ -50,7 +50,7 @@ catalog:
   react-dom: ^19.3.0
   react-dom-18: npm:react-dom@18.3.1
   react-native: 0.88.1
-  react-native-svg: 15.16.0
+  react-native-svg: 15.16.1
   secretlint: ^13.1.0
   "@secretlint/node": ^13.1.0
   "@secretlint/secretlint-rule-preset-recommend": ^13.1.0
@@ -70,10 +70,10 @@ catalog:
   "@types/react-dom": ^19.3.0
   typescript: ^6.0.3
   vite: ^8.3.8
-  vitest: ^5.1.0
-  "@vitest/browser": 5.1.0
-  "@vitest/browser-playwright": 5.1.0
-  workerd: 1.20261112.1
+  vitest: ^5.1.1
+  "@vitest/browser": 5.1.1
+  "@vitest/browser-playwright": 5.1.1
+  workerd: 1.20261120.1
   yaml: ^2.9.1
   # ESLint runs React's hooks plugin and nothing else (ADR 0063). Pinned exactly.
   "@typescript-eslint/parser": 8.73.0
