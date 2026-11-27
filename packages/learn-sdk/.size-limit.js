@@ -43,7 +43,7 @@ export default [
   // 17 kB since the React player: the code it shares with the core moved
   // into a shared chunk, which measures about 1.5 kB more than the same code
   // in one file, unminified (15.6 against 14.1 kB).
-  // 20.5 kB; 20.37 kB with what React Native applications asked for (ADR
+  // 20.5 kB; 20.39 kB with what React Native applications asked for (ADR
   // 0010): two exercise types, three language profiles, the tolerant matcher,
   // the async-storage adapter and dueItems, 3.8 kB together. Before, 17 kB;
   // 16.57 kB. An application ships what it imports of it: the scenarios
@@ -53,7 +53,7 @@ export default [
   // 21.76 kB with the editor element (ADR 0009).
   entryBudget({ name: "Element entry (./element)", entry: "dist/element.js", limit: "23 kB" }),
   // What a React Native application loads: this entry and the core beside
-  // it, which it imports whole (ADR 0010). 21.5 kB; 21.29 kB, of which the
+  // it, which it imports whole (ADR 0010). 21.5 kB; 21.32 kB, of which the
   // entry's own hooks are 0.9 kB.
   entryBudget({ name: "React Native entry (./native)", entry: native, limit: "21.5 kB" }),
   entryBudget({
@@ -75,119 +75,124 @@ export default [
   // current ones in one step: 126 B, was within 100 B. learn-sdk's source
   // didn't change. Which of the three moved it is a follow-up to find, and
   // to fix if it's a leak.
+  // Found on 2026-11-27: the core's own top-level declarations, which the
+  // note above the core's budgets describes. 1.7 kB; 1.69 kB without them.
+  // Every core limit below was lowered on 2026-11-27, when four declarations
+  // stopped leaking into every import from the core's shared chunk: the
+  // message catalogue, the limit definitions and two frozen constants were
+  // built at the top level in ways a bundler couldn't drop (sdk-core ADR
+  // 0056). About 1.2 kB came off each scenario: parseContent went from 3.08
+  // to 1.86 kB, and `{ defaultLanguageProfile }` from 1.50 to 0.07 kB.
   importBudget({
     name: "Core floor: LearnError",
     entry: core,
     imports: "{ LearnError }",
-    limit: "0.2 kB",
+    limit: "0.1 kB",
   }),
   // 3.5, not 3: it measures 2,995 B, which would leave 5 B.
   importBudget({
     name: "Core: parseContent",
     entry: core,
     imports: "{ parseContent }",
-    limit: "3.5 kB",
+    limit: "2 kB",
   }),
   importBudget({
     name: "Core: parseProgress",
     entry: core,
     imports: "{ parseProgress }",
-    limit: "3.5 kB",
+    limit: "2.5 kB",
   }),
   importBudget({
     name: "Core: gradeAnswer",
     entry: core,
     imports: "{ gradeAnswer }",
-    limit: "3 kB",
+    limit: "1.5 kB",
   }),
   importBudget({
     name: "Core: multipleChoice",
     entry: core,
     imports: "{ multipleChoice }",
-    limit: "2.5 kB",
+    limit: "1 kB",
   }),
-  importBudget({ name: "Core: gapFill", entry: core, imports: "{ gapFill }", limit: "2.5 kB" }),
-  importBudget({ name: "Core: wordOrder", entry: core, imports: "{ wordOrder }", limit: "2.5 kB" }),
+  importBudget({ name: "Core: gapFill", entry: core, imports: "{ gapFill }", limit: "1 kB" }),
+  importBudget({ name: "Core: wordOrder", entry: core, imports: "{ wordOrder }", limit: "1 kB" }),
   importBudget({
     name: "Core: applyLearnCommand",
     entry: core,
     imports: "{ applyLearnCommand }",
-    limit: "3 kB",
+    limit: "2 kB",
   }),
   importBudget({
     name: "Core: createLocalProgressStore",
     entry: core,
     imports: "{ createLocalProgressStore }",
-    limit: "4.5 kB",
+    limit: "3 kB",
   }),
   importBudget({
     name: "Core: createLearnPlayer",
     entry: core,
     imports: "{ createLearnPlayer }",
-    limit: "5 kB",
+    limit: "4 kB",
   }),
   importBudget({
     name: "Core: createLearnEditor",
     entry: core,
     imports: "{ createLearnEditor }",
-    limit: "5 kB",
+    limit: "4 kB",
   }),
   importBudget({
     name: "Core: createFsrsScheduler, with ts-fsrs",
     entry: core,
     imports: "{ createFsrsScheduler }",
-    // 13.5 kB; 13.001 kB, one byte over 13 kB with no code added (ADR 0010):
-    // its bundle has the same 45,056 minified bytes as before. Two
-    // declarations changed places in the built core and a local lost its
-    // "$1", which brotli packs a few bytes differently.
-    limit: "13.5 kB",
+    // 13 kB; 12.95 kB.
+    limit: "13 kB",
   }),
   importBudget({
     name: "Core: grading on a server",
     entry: core,
     imports:
       "{ parseContent, createExerciseTypes, multipleChoice, gapFill, wordOrder, gradeAnswer }",
-    limit: "5 kB",
+    limit: "4 kB",
   }),
   importBudget({
     name: "Core: a player app's set",
     entry: core,
     imports:
       "{ createLearnPlayer, createExerciseTypes, multipleChoice, gapFill, wordOrder, createFsrsScheduler, createLocalProgressStore }",
-    limit: "20.5 kB",
+    limit: "19.5 kB",
   }),
   // What React Native applications use (ADR 0010).
-  // 3.5 kB; 3.06 kB, with the tolerant matcher it can grade with.
-  importBudget({ name: "Core: recall", entry: core, imports: "{ recall }", limit: "3.5 kB" }),
-  // 2.5 kB; 2.20 kB.
+  // 2 kB; 1.66 kB, with the tolerant matcher it can grade with.
+  importBudget({ name: "Core: recall", entry: core, imports: "{ recall }", limit: "2 kB" }),
+  // 1 kB; 0.77 kB.
   importBudget({
     name: "Core: sequenceRecall",
     entry: core,
     imports: "{ sequenceRecall }",
-    limit: "2.5 kB",
+    limit: "1 kB",
   }),
-  // 2.5 kB; 2.12 kB.
+  // 1 kB; 0.69 kB.
   importBudget({
     name: "Core: matchTolerantly",
     entry: core,
     imports: "{ matchTolerantly }",
-    limit: "2.5 kB",
+    limit: "1 kB",
   }),
-  // 4.5 kB; 4.22 kB, with the progress reader, as the localStorage adapter has.
+  // 3.5 kB; 3.05 kB, with the progress reader, as the localStorage adapter has.
   importBudget({
     name: "Core: createAsyncProgressStore",
     entry: core,
     imports: "{ createAsyncProgressStore }",
-    limit: "4.5 kB",
+    limit: "3.5 kB",
   }),
-  // 21.5 kB; 21.15 kB, of which ts-fsrs is 13: a session with both memory
+  // 20.5 kB; 20.07 kB, of which ts-fsrs is 13: a session with both memory
   // types, a scheduler, AsyncStorage, two profiles and what's due.
   importBudget({
     name: "Core: a native app's set",
     entry: core,
     imports:
       "{ createLearnPlayer, createExerciseTypes, recall, sequenceRecall, createFsrsScheduler, createAsyncProgressStore, spanishProfile, arabicProfile, dueItems }",
-    limit: "21.5 kB",
+    limit: "20.5 kB",
   }),
 
   // React Native (./native). Its imports of the core entry beside it are
@@ -219,7 +224,7 @@ export default [
     name: "React floor: playerCatalogue",
     entry: react,
     imports: "{ playerCatalogue }",
-    limit: "1.9 kB",
+    limit: "1.7 kB",
   }),
   importBudget({
     name: "React: definePlayerBlock, for a host's own block",
@@ -267,7 +272,7 @@ export default [
     entry: react,
     imports: "{ multipleChoiceEditor }",
     // 4.01 kB after the review's fixes to the fields' commits and refusals.
-    limit: "4.5 kB",
+    limit: "4 kB",
   }),
   importBudget({
     name: "React: gapFillEditor",

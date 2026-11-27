@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-27
+- **Amended:** 2026-11-27, when `LearnPlayer` took the hook's way of holding its session, and the core's top-level declarations stopped leaking into every import
 - **Amends:** [ADR 0004](0004-dependencies-validators-and-fsrs.md), whose grading no longer needs `String.prototype.normalize`, and [ADR 0007](0007-player-and-editor-sessions.md), since a built-in type now rates its own items
 
 ## Context
@@ -101,7 +102,7 @@ Both are data in `hm-learn-content` version 1, with their payloads in its schema
 `@hussmartinez/learn-sdk/native` holds what needs React and can't come from `./react`:
 
 - **`useLearnPlayer(options)`** creates the headless player for a component, disposes it with the component, and returns `{ player, snapshot, current, error, restart }`. The session is made again only when its content or settings change; its callbacks may change freely.
-  - **The session belongs to the hook's subscription, not to an effect.** A player made while rendering and disposed in an effect's cleanup is left disposed when React runs effects twice, as `StrictMode` does in development, and a disposed player shows grades and saves nothing. `LearnPlayer`, in `./react`, is built that way today, and has that fault under `StrictMode`; fixing it is its own change.
+  - **The session belongs to the hook's subscription, not to an effect.** A player made while rendering and disposed in an effect's cleanup is left disposed when React runs effects twice, as `StrictMode` does in development, and a disposed player shows grades and saves nothing. `LearnPlayer`, in `./react`, was built that way, and had that fault under `StrictMode`. Both now hold their session through the same `holdPlayer`.
 - **`usePlayerSnapshot(player)`** is the snapshot alone.
 - **It draws nothing and has no text.** An application draws the current exercise with `@hussmartinez/ui/native` or its own views.
 - **It imports nothing from `react-native`,** so learn-sdk doesn't list it as a peer. The entry is named for where it's used: it's the React layer that's safe there.
@@ -123,6 +124,7 @@ Both are data in `hm-learn-content` version 1, with their payloads in its schema
 
 - A React Native application can read content, grade it, schedule reviews and keep progress with learn-sdk, with no polyfill beyond what React Native sets up.
 - The core entry grows from 16.6 to 20.3 kB, and its ceiling with it. An application ships what it imports: the import budgets for the existing scenarios move by a new message's 20 bytes and the guards' few dozen.
+  - **Amended, 2026-11-27:** measuring the new exports showed that a trivial import from the core, such as `defaultLanguageProfile`, shipped 1.5 kB. The message catalogue, the limit definitions and two frozen constants were built at the module's top level with spreads and member reads, which a bundler can't prove free of side effects, so every import from their chunk kept them ([sdk-core ADR 0056](../../../../docs/adr/0056-size-budgets-for-what-applications-import.md)). Each is now built in a call marked pure. About 1.2 kB came off every core scenario, and their budgets were lowered to match.
 - `LanguageProfile` gains two optional members, `articles` and `stem`. A host's existing profile is unchanged.
 - `LearnIssueCode` gains `repeated-tile`, with its text in the catalogue. A host that lists every code, such as in a test, adds it.
 - Two more conformance subjects, `hm-learn-matching` and `hm-learn-due-items`, for a port to pass.

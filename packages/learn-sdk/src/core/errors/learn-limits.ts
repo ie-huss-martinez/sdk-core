@@ -36,21 +36,31 @@ import { LearnError } from "./learn-error.js";
  *
  * @public
  */
-export const learnLimitDefinitions = {
-  ...coreLimits,
-  maxFileSize: { ...coreLimits.maxFileSize, default: 5_000_000, warning: 1_000_000 },
-  maxContentSize: {
-    code: "CONTENT_TOO_LARGE",
-    unit: "bytes",
-    default: 2_000_000,
-    warning: 512_000,
-  },
-  maxExercises: { code: "TOO_MANY_EXERCISES", unit: "count", default: 500 },
-  maxItems: { code: "TOO_MANY_ITEMS", unit: "count", default: 100 },
-  maxChoices: { code: "TOO_MANY_CHOICES", unit: "count", default: 8 },
-  maxTiles: { code: "TOO_MANY_TILES", unit: "count", default: 30 },
-  maxTextLength: { code: "TEXT_TOO_LONG", unit: "count", default: 2_000 },
-} as const;
+export const learnLimitDefinitions = /* @__PURE__ */ limitDefinitions();
+
+/**
+ * Builds {@link learnLimitDefinitions}. A function, so the call can be
+ * marked free of side effects: the spread of sdk-core's limits, and the
+ * read of one of them, otherwise keep the whole object in every bundle that
+ * imports anything from this module's chunk (sdk-core ADR 0056).
+ */
+function limitDefinitions() {
+  return {
+    ...coreLimits,
+    maxFileSize: { ...coreLimits.maxFileSize, default: 5_000_000, warning: 1_000_000 },
+    maxContentSize: {
+      code: "CONTENT_TOO_LARGE",
+      unit: "bytes",
+      default: 2_000_000,
+      warning: 512_000,
+    },
+    maxExercises: { code: "TOO_MANY_EXERCISES", unit: "count", default: 500 },
+    maxItems: { code: "TOO_MANY_ITEMS", unit: "count", default: 100 },
+    maxChoices: { code: "TOO_MANY_CHOICES", unit: "count", default: 8 },
+    maxTiles: { code: "TOO_MANY_TILES", unit: "count", default: 30 },
+    maxTextLength: { code: "TEXT_TOO_LONG", unit: "count", default: 2_000 },
+  } as const;
+}
 
 /**
  * The type of {@link learnLimitDefinitions}.
