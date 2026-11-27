@@ -75,6 +75,8 @@ They open without a password, as before, and the editor doesn't ask anything.
 - **Why not keep the restrictions:** keeping them needs the owner password, which the person doesn't have, or copying the file's encryption dictionary as it is, weak cipher included. The flags never protected the content: any reader can ignore them, and the editor already lets the person rotate, delete and merge the pages they'd forbid. An export that kept them would look protected and not be.
 - **What changes:** before, the result depended on the edit. qpdf kept the encryption when a document was only rotated, and dropped it when pages were reordered, and filling a form in such a document failed, because pdf-lib can't read an encrypted file. Now every build behaves the same.
 - **An unchanged document** is its original bytes, restrictions included, as for any document.
+- **Never silently.** Dropping them is accepted, since the copy is the person's own, on their own device, but they're told. When the open document has restrictions and the copy will be built, the download tool says so before it saves: "The original's restrictions, such as on printing or copying, aren't kept in this copy." For a document without a password that's a dialog of its own, with Cancel and Download; for one with a password, it's a sentence beside the choice. The same holds for a document that needed a password and has restrictions too.
+- **How the editor knows:** an engine reports `restricted` on the document it opens, where it can: the pdf.js adapter reads the permissions the encryption grants, and any that's missing is a restriction. The session's snapshot carries `restricted` for the open document, and `session.exportsOriginal(options)` says whether an export would be the original bytes or a built copy.
 
 ### Where the password lives, and where it never goes
 
@@ -101,8 +103,8 @@ They open without a password, as before, and the editor doesn't ask anything.
 
 - People can open, edit, merge and save protected PDFs without their file or its password leaving the device.
 - A protected file stays protected unless the person says otherwise, and comes out in AES-256 once it's been edited.
-- **Additive API, a patch under the 0.x rule:** `password` on `PdfOpenOptions`, `PdfInsertOptions`, `PdfEngineOpenOptions` and `PdfBuildSource`; `keepPassword` on `PdfExportOptions`; `passwordProtected` on `PdfSessionSnapshot`; the `PdfPasswordRejection` type; and one error text.
-  - A hand-written `PdfSessionSnapshot`, such as a test double, must add `passwordProtected`.
+- **Additive API, a patch under the 0.x rule:** `password` on `PdfOpenOptions`, `PdfInsertOptions`, `PdfEngineOpenOptions` and `PdfBuildSource`; `keepPassword` on `PdfExportOptions`; `passwordProtected` and `restricted` on `PdfSessionSnapshot`; `exportsOriginal` on `PdfSession`; an optional `restricted` on `PdfDocumentHandle`; the `PdfPasswordRejection` type; and one error text.
+  - A hand-written `PdfSessionSnapshot` or `PdfSession`, such as a test double, must add `passwordProtected`, `restricted` and `exportsOriginal`.
   - A host's own `PdfEngine` or `PdfProcessor` keeps working: it ignores the password and refuses protected files as before. To open them it must honour `password`, which the contract tests now check.
 - **Two behaviour changes,** both for files that already opened: an export built from a document with only an owner password no longer carries its restrictions, and filling a form in one now works.
 - Opening a protected file with its password costs one more copy of its bytes, for the attempt without it.

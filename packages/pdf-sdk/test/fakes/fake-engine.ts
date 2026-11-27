@@ -33,6 +33,10 @@ class FakeDocument implements PdfDocumentHandle {
     return this.pdf.pages.length;
   }
 
+  get restricted(): boolean {
+    return this.pdf.restricted === true;
+  }
+
   getPage(pageIndex: number, options?: PdfCallOptions) {
     return this.#run(pageIndex, options, (page) => ({
       width: page.width,

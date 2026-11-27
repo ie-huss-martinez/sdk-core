@@ -178,6 +178,7 @@ export interface PdfDocumentHandle {
     getTextContent(pageIndex: number, options?: PdfCallOptions): Promise<PdfTextContent>;
     readonly pageCount: number;
     renderPage(pageIndex: number, canvas: HTMLCanvasElement, options: PdfRenderOptions): Promise<void>;
+    readonly restricted?: boolean;
 }
 
 // @public
@@ -575,6 +576,7 @@ export interface PdfSession {
     close(): Promise<void>;
     execute(commands: PdfCommand | readonly PdfCommand[]): void;
     export(options?: PdfExportOptions): Promise<Uint8Array>;
+    exportsOriginal(options?: Pick<PdfExportOptions, "compress" | "encrypt" | "keepPassword">): boolean;
     getFormFields(key: string, options?: PdfCallOptions): Promise<readonly PdfFormField[]>;
     getLinks(key: string, options?: PdfCallOptions): Promise<readonly PdfLink[]>;
     getPage(key: string, options?: PdfCallOptions): Promise<PdfPageInfo>;
@@ -644,6 +646,7 @@ export interface PdfSessionSnapshot {
     } | undefined;
     readonly passwordProtected: boolean;
     readonly plan: PdfPlan;
+    readonly restricted: boolean;
     readonly selection: readonly string[];
     readonly sessionBytes: number;
     readonly sources: readonly PdfSourceInfo[];

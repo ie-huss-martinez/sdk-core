@@ -88,6 +88,22 @@ const buttonNamed = (dialog: HTMLElement, name: string) =>
 const said = (dialog: HTMLElement, politeness: "polite" | "assertive") =>
   dialog.querySelector(`.hm-announcer [aria-live="${politeness}"]`)?.textContent ?? "";
 
+/**
+ * What the editor's own announcer says, the one outside every dialog. ui
+ * empties the region, then fills it in an animation frame, and frames run
+ * in the order they're asked for: two more guarantee it has run, however
+ * slowly a busy browser schedules them, where a wait by the clock wouldn't.
+ */
+async function announcedByEditor(container: HTMLElement): Promise<string> {
+  for (let frame = 0; frame < 2; frame += 1) {
+    await act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  }
+  return (
+    container.querySelector('.hm-pdf-editor > .hm-announcer [aria-live="polite"]')?.textContent ??
+    ""
+  );
+}
+
 /** How long the file's first open may take: see PdfEditor.browser.test.tsx. */
 const FIRST_OPEN = 30_000;
 
@@ -151,11 +167,7 @@ describe("the password dialog", () => {
     await waitFor(() => expect(passwordDialog(container).open).toBe(false));
     expect(changes).toEqual([{ reason: "open", pageCount: 3, fileName: "locked.pdf" }]);
     // Said by the editor's own announcer, once the dialog has closed.
-    await waitFor(() =>
-      expect(
-        container.querySelector('.hm-pdf-editor > .hm-announcer [aria-live="polite"]')?.textContent,
-      ).toBe("Opened a PDF with 3 pages."),
-    );
+    expect(await announcedByEditor(container)).toBe("Opened a PDF with 3 pages.");
     expect(container.querySelectorAll(".hm-pdf-page")).toHaveLength(3);
     expect(document.activeElement).toBe(container.querySelector(".hm-pdf-viewer"));
     expect(alerts(container)).toEqual([]);
@@ -372,11 +384,7 @@ describe("the password dialog", () => {
     expect(alerts(container)).toEqual([]);
     // Said by the editor's own announcer, once the dialog has closed: said
     // from inside it, the words would go with it.
-    await waitFor(() =>
-      expect(
-        container.querySelector('.hm-pdf-editor > .hm-announcer [aria-live="polite"]')?.textContent,
-      ).toBe("Inserted 3 pages after page 1."),
-    );
+    expect(await announcedByEditor(container)).toBe("Inserted 3 pages after page 1.");
   });
 
   it("never shows the password to the host's events, the page or a snapshot", async () => {
@@ -490,6 +498,66 @@ describe("downloading a document that needed a password", () => {
     await waitFor(() => expect(saveDialog(container).open).toBe(false));
     expect(onExport).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(download);
+  });
+
+  it("says that an edited copy won't keep the original's restrictions, before it saves", async () => {
+    const onExport = vi.fn();
+    const { mounted, handle } = setUp({ onExport });
+    const container = await mounted;
+    const restricted = new File(
+      [encodeFakePdf({ pages: pages(2), ownerPassword: "owner", restricted: true })],
+      "restricted.pdf",
+    );
+    await act(() => handle.current?.open(restricted));
+    await status(container, "ready", FIRST_OPEN);
+    const download = tool(container, "pdf.download");
+    const dialog = saveDialog(container);
+
+    // Unchanged, it's the original file, restrictions and all: nothing to say.
+    await act(() => userEvent.click(download));
+    await waitFor(() => expect(onExport).toHaveBeenCalledOnce());
+    expect(dialog.open).toBe(false);
+
+    await act(() => userEvent.click(tool(container, "pdf.rotate-right")));
+    await act(() => userEvent.click(download));
+    await waitFor(() => expect(dialog.open).toBe(true));
+    expect(dialog.querySelector("h2")?.textContent).toBe("This PDF has restrictions");
+    expect(
+      document.getElementById(dialog.getAttribute("aria-describedby") ?? "")?.textContent,
+    ).toBe(
+      "The original's restrictions, such as on printing or copying, aren't kept in this copy.",
+    );
+    // Nothing to choose: only Cancel and Download, which has focus.
+    expect(dialog.querySelector('[role="radiogroup"]')).toBeNull();
+    expect(document.activeElement).toBe(buttonNamed(dialog, "Download"));
+    expect(onExport).toHaveBeenCalledOnce();
+
+    await type("{Enter}");
+    await waitFor(() => expect(onExport).toHaveBeenCalledTimes(2));
+    expect(dialog.open).toBe(false);
+  });
+
+  it("says so beside the password's choice too, when the copy is built", async () => {
+    const onExport = vi.fn();
+    const { mounted, handle } = setUp({ onExport });
+    const container = await mounted;
+    const both = new File(
+      [encodeFakePdf({ pages: pages(2), password: PASSWORD, restricted: true })],
+      "both.pdf",
+    );
+    await act(() => handle.current?.open(both, { password: PASSWORD }));
+    await status(container, "ready", FIRST_OPEN);
+    await act(() => userEvent.click(tool(container, "pdf.download")));
+    const dialog = saveDialog(container);
+    await waitFor(() => expect(dialog.open).toBe(true));
+    const summary = () => dialog.querySelector(".hm-pdf-save-summary")?.textContent;
+
+    // Kept and unchanged, the copy is the original file.
+    expect(summary()).toBe("The copy will open with the same password.");
+    await act(() => userEvent.click(buttonNamed(dialog, "Remove the password")));
+    expect(summary()).toBe(
+      "Anyone will be able to open the copy. The original's restrictions, such as on printing or copying, aren't kept in this copy.",
+    );
   });
 
   it("asks nothing for a document without a password", async () => {

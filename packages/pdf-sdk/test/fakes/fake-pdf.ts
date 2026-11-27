@@ -15,6 +15,8 @@ export interface FakePdf {
    * password does. Alone, it restricts the document without locking it.
    */
   readonly ownerPassword?: string;
+  /** Whether its encryption restricts printing, copying or changing it. */
+  readonly restricted?: boolean;
 }
 
 export interface FakePage {

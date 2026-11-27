@@ -316,7 +316,16 @@ class PdfJsEngine implements PdfEngine {
         message: "The PDF couldn't be opened.",
       });
       task.onPassword = null as unknown as typeof task.onPassword;
-      const document = new PdfJsDocument(pdfjs, proxy, task, host, () =>
+      // The permissions its encryption grants, or null when it has none to
+      // grant: any that's missing is a restriction (docs/adr/0013).
+      const granted = await settle(host, proxy.getPermissions(), {
+        signal: options.signal,
+        message: "The PDF couldn't be opened.",
+      });
+      const restricted =
+        granted !== null &&
+        Object.values(pdfjs.PermissionFlag).some((flag) => !granted.has(flag as number));
+      const document = new PdfJsDocument(pdfjs, proxy, task, host, restricted, () =>
         this.#documents.delete(document),
       );
       this.#documents.add(document);
@@ -385,6 +394,7 @@ class PdfJsEngine implements PdfEngine {
 
 class PdfJsDocument implements PdfDocumentHandle {
   readonly pageCount: number;
+  readonly restricted: boolean;
   #pdfjs: PdfJs;
   #proxy: PDFDocumentProxy;
   #task: PDFDocumentLoadingTask;
@@ -397,6 +407,7 @@ class PdfJsDocument implements PdfDocumentHandle {
     proxy: PDFDocumentProxy,
     task: PDFDocumentLoadingTask,
     host: WorkerHost,
+    restricted: boolean,
     onDestroy: () => void,
   ) {
     this.#pdfjs = pdfjs;
@@ -405,6 +416,7 @@ class PdfJsDocument implements PdfDocumentHandle {
     this.#host = host;
     this.#onDestroy = onDestroy;
     this.pageCount = proxy.numPages;
+    this.restricted = restricted;
   }
 
   async getPage(pageIndex: number, options: PdfCallOptions = {}): Promise<PdfPageInfo> {

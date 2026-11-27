@@ -63,7 +63,11 @@ export function fakeEngineHarness(canRender: boolean): PdfEngineHarness {
     ],
     async restricted() {
       return {
-        bytes: encodeFakePdf({ pages: [{ width: 612, height: 792 }], ownerPassword: "owner" }),
+        bytes: encodeFakePdf({
+          pages: [{ width: 612, height: 792 }],
+          ownerPassword: "owner",
+          restricted: true,
+        }),
         pageCount: 1,
       };
     },

@@ -119,6 +119,8 @@ export const pdfEditorMessages: {
     readonly "save.remove": "Remove the password";
     readonly "save.keep.summary": "The copy will open with the same password.";
     readonly "save.remove.summary": "Anyone will be able to open the copy.";
+    readonly "save.restricted.title": "This PDF has restrictions";
+    readonly "save.restrictions": "The original's restrictions, such as on printing or copying, aren't kept in this copy.";
     readonly "toolbar.label": "PDF tools";
     readonly "toolbar.groups.file": "File";
     readonly "toolbar.groups.history": "History";

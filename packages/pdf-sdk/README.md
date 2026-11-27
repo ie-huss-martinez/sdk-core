@@ -41,7 +41,7 @@ A PDF that needs a password opens once the person has typed it. The editor asks 
 - **Downloading keeps the password.** The download tool first asks whether the copy keeps it, with "Keep the password" chosen. An edited copy is encrypted with AES-256, whatever the file had.
 - **`handle.open(file, { password })`** opens one without asking. Without the password, `handle.open` asks the person, and settles once the document has opened or they've cancelled.
 - **Where the password goes:** nowhere but memory, for as long as the document is open. It's never in `onEvent`, an error, a snapshot or any storage, and the editor never remembers it.
-- **PDFs with only an owner password,** which open for anyone but restrict printing or changes, open without a question. A copy built from one carries no restrictions.
+- **PDFs with only an owner password,** which open for anyone but restrict printing or changes, open without a question. A copy built from one carries no restrictions, and the download tool says so before it saves one. The snapshot's `restricted` and `session.exportsOriginal()` tell a host of its own when that applies.
 
 Without the editor, the session does the same with errors:
 

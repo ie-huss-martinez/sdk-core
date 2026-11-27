@@ -250,6 +250,48 @@ describe("exporting a password-protected document", () => {
   });
 });
 
+describe("a document with restrictions of its own", () => {
+  const restrictedPdf = () => pdf(2, { ownerPassword: OWNER, restricted: true });
+
+  it("says so in the snapshot, until it closes or another replaces it", async () => {
+    const { session } = setup();
+    expect(session.getSnapshot().restricted).toBe(false);
+    await session.open(restrictedPdf());
+    expect(session.getSnapshot()).toMatchObject({ restricted: true, passwordProtected: false });
+    await session.open(pdf(1));
+    expect(session.getSnapshot().restricted).toBe(false);
+    await session.open(restrictedPdf());
+    await session.close();
+    expect(session.getSnapshot().restricted).toBe(false);
+  });
+
+  it("says whether an export is the original file, or a copy built without them", async () => {
+    const { session, build, rotate } = setup();
+    expect(session.exportsOriginal()).toBe(false);
+    const bytes = restrictedPdf();
+    await session.open(bytes);
+    expect(session.exportsOriginal()).toBe(true);
+    expect(session.exportsOriginal({ compress: {} })).toBe(false);
+    expect([...(await session.export())]).toEqual([...bytes]);
+    expect(build).not.toHaveBeenCalled();
+
+    rotate();
+    expect(session.exportsOriginal()).toBe(false);
+    expect(decodeFakePdf(await session.export())).not.toHaveProperty("restricted");
+    session.undo();
+    expect(session.exportsOriginal()).toBe(true);
+  });
+
+  it("follows the password's choice for a document that needed one", async () => {
+    const { session } = setup();
+    await session.open(pdf(2, { password: PASSWORD, restricted: true }), { password: PASSWORD });
+    expect(session.getSnapshot()).toMatchObject({ restricted: true, passwordProtected: true });
+    expect(session.exportsOriginal()).toBe(true);
+    expect(session.exportsOriginal({ keepPassword: false })).toBe(false);
+    expect(session.exportsOriginal({ encrypt: { userPassword: "another" } })).toBe(false);
+  });
+});
+
 describe("where a password never goes (docs/adr/0013)", () => {
   it("is in no event, snapshot or error, through a whole session", async () => {
     const { session, events, snapshots, rotate } = setup();

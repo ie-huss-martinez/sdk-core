@@ -44,6 +44,15 @@ export interface PdfDocumentHandle {
   /** The number of pages. */
   readonly pageCount: number;
   /**
+   * Whether the document's own encryption restricts what a reader may do
+   * with it, such as printing, copying or changing it, as a document with
+   * an owner password does. Absent or `false` when it doesn't, or when the
+   * engine can't tell. The restrictions are a request to the reader's
+   * software, and a document built from this one never carries them
+   * (docs/adr/0013).
+   */
+  readonly restricted?: boolean;
+  /**
    * Reads a page's size and rotation.
    *
    * @throws `RangeError` for an index outside the document.

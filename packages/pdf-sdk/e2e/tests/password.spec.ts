@@ -148,7 +148,7 @@ test.describe("a password-protected PDF", () => {
     expect(problems.foreignRequests).toEqual([]);
   });
 
-  test("with only an owner password opens without asking, and an edited copy has no restrictions", async ({
+  test("with only an owner password opens without asking, and says that an edited copy has no restrictions", async ({
     page,
   }) => {
     const problems = watch(page, origin);
@@ -158,9 +158,15 @@ test.describe("a password-protected PDF", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0);
 
     await page.getByRole("button", { name: "Rotate right" }).click();
-    const download = page.waitForEvent("download");
-    // No password to keep, so nothing to ask.
+    // No password to keep, so nothing to ask: only that the copy differs.
     await page.getByRole("button", { name: "Download" }).click();
+    const notice = page.getByRole("dialog", { name: "This PDF has restrictions" });
+    await expect(notice).toHaveAccessibleDescription(
+      "The original's restrictions, such as on printing or copying, aren't kept in this copy.",
+    );
+    expect(await violations(page)).toEqual([]);
+    const download = page.waitForEvent("download");
+    await notice.getByRole("button", { name: "Download" }).click();
     const saved = await bytesOf(await download);
 
     expect(encryptionOf(saved)).toBe("none");

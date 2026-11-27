@@ -65,6 +65,9 @@ export const pdfEditorText = /* @__PURE__ */ defineMessages({
   "save.remove": "Remove the password",
   "save.keep.summary": "The copy will open with the same password.",
   "save.remove.summary": "Anyone will be able to open the copy.",
+  "save.restricted.title": "This PDF has restrictions",
+  "save.restrictions":
+    "The original's restrictions, such as on printing or copying, aren't kept in this copy.",
   "toolbar.label": "PDF tools",
   "toolbar.groups.file": "File",
   "toolbar.groups.history": "History",

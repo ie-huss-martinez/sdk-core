@@ -215,6 +215,9 @@ export function describePdfEngineContract(name: string, harness: PdfEngineHarnes
       const document = await engine.open(bytes);
       expect(document.pageCount).toBe(pageCount);
       await expect(document.getTextContent(0)).resolves.toBeDefined();
+      // It says that the document is restricted, and that another isn't.
+      expect(document.restricted).toBe(true);
+      expect((await engine.open(await harness.document())).restricted ?? false).toBe(false);
       await engine.destroy();
     });
 

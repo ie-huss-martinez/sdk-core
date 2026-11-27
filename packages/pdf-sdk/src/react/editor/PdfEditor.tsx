@@ -214,16 +214,18 @@ function PdfEditorBody(props: BodyProps): ReactNode {
   const latestOnChange = useLatest(onChange);
   const saveProps = useLatest(props);
   const saving = useSave({ session, messages, done, props: saveProps });
-  // A document that needed a password asks, before it saves, whether the
-  // copy keeps it (docs/adr/0013).
+  // Before it saves, a document that needed a password asks whether the copy
+  // keeps it, and one whose restrictions the copy would lose says so
+  // (docs/adr/0013).
   // By the document it's about, so the question never outlives it: another
   // document, even a protected one, starts from its own.
   const [choosingSaveFor, setChoosingSaveFor] = useState<string | null>(null);
   const { save: saveNow } = saving;
   const chooseOrSave = useLatest(() => {
     const now = session.getSnapshot();
-    if (now.passwordProtected) setChoosingSaveFor(now.sources[0]?.id ?? null);
-    else saveNow();
+    if (now.passwordProtected || (now.restricted && !session.exportsOriginal())) {
+      setChoosingSaveFor(now.sources[0]?.id ?? null);
+    } else saveNow();
   });
   const save = useCallback(() => chooseOrSave.current(), [chooseOrSave]);
   // Asks for the password of a file that needs one, and tries again with it.
@@ -877,7 +879,13 @@ function PdfEditorBody(props: BodyProps): ReactNode {
       />
       <SaveDialog
         open={
-          choosingSaveFor !== null && choosingSaveFor === sourceId && snapshot.passwordProtected
+          choosingSaveFor !== null &&
+          choosingSaveFor === sourceId &&
+          (snapshot.passwordProtected || snapshot.restricted)
+        }
+        passwordProtected={snapshot.passwordProtected}
+        losesRestrictions={(keepPassword) =>
+          snapshot.restricted && !session.exportsOriginal({ keepPassword })
         }
         onSave={(choice) => {
           setChoosingSaveFor(null);
