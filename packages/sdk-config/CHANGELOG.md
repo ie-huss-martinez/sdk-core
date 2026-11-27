@@ -1,5 +1,11 @@
 # @hussmartinez/sdk-config
 
+## 0.13.9
+
+### Patch Changes
+
+- [#252](https://github.com/ie-huss-martinez/sdk-core/pull/252) [`318ee8c`](https://github.com/ie-huss-martinez/sdk-core/commit/318ee8c0ed7e425c16de99e0e2a1a1891bcc685b) Thanks [@hussmartinez](https://github.com/hussmartinez)! - Add `runInBareRealm`, from the new entry `@hussmartinez/sdk-config/testing/bare-realm`: it bundles a built entry whole and runs a probe on its exports in a realm with the ECMAScript language and nothing else, with no `Intl`, no `String.prototype.normalize` and no browser or Node globals. It's the check that a package's `.` or `./native` entry is safe on Hermes, React Native's engine. `stubs` replaces packages such as `react-native`, and `provided` names the globals React Native itself sets up. It needs `esbuild`.
+
 ## 0.13.8
 
 ### Patch Changes
