@@ -238,7 +238,8 @@ describe("toasts (sdk-core ADR 0067)", () => {
     const position = () => document.querySelector(".hm-notes-notebook-position")?.textContent;
     await userEvent.click(row("notes.add-page") as HTMLElement);
     await waitFor(() => expect(toasts()).toContain("Applied new page."));
-    expect(position()).toBe("Page 2 of 2");
+    // The position follows the page in view, once the notebook has scrolled to it.
+    await waitFor(() => expect(position()).toBe("Page 2 of 2"));
     const undo = [...document.querySelectorAll<HTMLElement>(".hm-toast button")].find(
       (button) => button.textContent === "Undo",
     );
