@@ -136,7 +136,9 @@ export async function expectJpxColours(page: Page): Promise<void> {
  */
 export async function expectAnnounced(page: Page, text: string): Promise<void> {
   const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  await expect(page.locator(".hm-announcer [aria-live=polite]")).toHaveText(
+  // The editor's own announcer, a child of its root: the password dialog
+  // has one of its own, inside the dialog (docs/adr/0013).
+  await expect(page.locator(".hm-pdf-editor > .hm-announcer [aria-live=polite]")).toHaveText(
     // A whole sentence: the start, or the end of the previous one, comes first.
     new RegExp(`(^|[.!?\u2026] )${escaped}$`),
   );

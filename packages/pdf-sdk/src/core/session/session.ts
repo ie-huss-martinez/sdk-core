@@ -115,6 +115,19 @@ export interface PdfSessionSnapshot {
   /** The key of the page the user is looking at, if a document is open. */
   readonly currentPage: string | undefined;
   /**
+   * Whether the open document needed a password to open. `export()` then
+   * protects its result with the same password, unless it's told not to
+   * (docs/adr/0013). The password itself is never in a snapshot.
+   */
+  readonly passwordProtected: boolean;
+  /**
+   * Whether the open document's own encryption restricts printing, copying
+   * or changing it, as the engine reports it. An export that's built, rather
+   * than the document's original bytes, doesn't carry the restrictions: see
+   * `exportsOriginal` (docs/adr/0013).
+   */
+  readonly restricted: boolean;
+  /**
    * The latest request to bring a page into view, from `goToPage`. Viewers
    * scroll to `page` each time `sequence` changes.
    */
@@ -173,6 +186,17 @@ export interface PdfOpenOptions extends PdfCallOptions {
    * `File.name`, and is cleaned before it's kept (docs/adr/0009).
    */
   readonly name?: string;
+  /**
+   * The password to open the file with, used only if the file needs one:
+   * its user password, or its owner password. Without it, such a file
+   * rejects with `PASSWORD_REQUIRED`; with a wrong one, with
+   * `PASSWORD_REQUIRED` and `details.reason` `"incorrect-password"`.
+   *
+   * The session keeps it in memory, with the document, to build exports,
+   * and drops it when the document closes or another replaces it. It's
+   * never in a snapshot, an event or an error (docs/adr/0013).
+   */
+  readonly password?: string;
 }
 
 /**
@@ -195,8 +219,19 @@ export interface PdfInsertOptions extends PdfOpenOptions {
 export interface PdfExportOptions extends PdfCallOptions {
   /** Compress the result, losslessly unless `images` is set. */
   readonly compress?: PdfCompression;
-  /** Encrypt the result with AES-256. */
+  /**
+   * Encrypt the result with AES-256, with these passwords, whatever the
+   * open document's own.
+   */
   readonly encrypt?: PdfEncryption;
+  /**
+   * Whether a document that needed a password to open keeps it: the result
+   * is then encrypted with AES-256 and opens with the password `open()` was
+   * given. Defaults to `true`; `false` builds a document anyone can open.
+   * Ignored when `encrypt` is set, and for a document that needed no
+   * password (docs/adr/0013).
+   */
+  readonly keepPassword?: boolean;
   /** Called as the export moves through its steps. */
   readonly onProgress?: PdfBuildOptions["onProgress"];
 }
@@ -218,7 +253,8 @@ export interface PdfSession {
    * Opens a document, replacing the current one and its history once it has
    * opened. The file is checked against the file policy before it's read.
    * Rejects with a `PdfError`, which the snapshot also holds; the current
-   * document, if any, stays open.
+   * document, if any, stays open. A file that needs a password rejects with
+   * `PASSWORD_REQUIRED` until it's opened with the right `password`.
    */
   open(file: Blob | PdfBytes, options?: PdfOpenOptions): Promise<void>;
   /**
@@ -259,8 +295,23 @@ export interface PdfSession {
    * rotations, form values and annotations, compressed or encrypted if asked.
    * An unchanged document with no options is returned as its original bytes,
    * without the processor. The result is a new buffer the caller owns.
+   *
+   * A document that needed a password to open keeps it, unless
+   * `keepPassword` is `false`. The passwords of inserted documents only
+   * read them, and permission restrictions are never carried into a built
+   * document (docs/adr/0013).
    */
   export(options?: PdfExportOptions): Promise<Uint8Array>;
+  /**
+   * Whether `export()` with these options would return the opened file's own
+   * bytes, because nothing about the document has changed, rather than
+   * build a new one. Only a built document differs from the original: it
+   * carries none of its permission restrictions, and is encrypted only as
+   * the options say (docs/adr/0013). `false` when no document is open.
+   */
+  exportsOriginal(
+    options?: Pick<PdfExportOptions, "compress" | "encrypt" | "keepPassword">,
+  ): boolean;
   /**
    * Selects pages, by key, replacing the selection. Keys the plan doesn't
    * have are ignored.
@@ -283,6 +334,12 @@ interface View {
 interface Source extends PdfSourceInfo {
   readonly bytes: Uint8Array;
   readonly document: PdfDocumentHandle;
+  /**
+   * The password the source needed, to read it again when exporting. Only
+   * here and in the build job: never in a snapshot, an event or an error
+   * (docs/adr/0013).
+   */
+  readonly password?: string;
 }
 
 /**
@@ -325,6 +382,13 @@ export function createPdfSession(options: PdfSessionOptions): PdfSession {
   let navigation: { page: string; sequence: number } | undefined;
   let nextKey = 0;
   let nextSource = 0;
+  /**
+   * The document `open()` opened, if it needed a password: the password
+   * exports keep. Dropped on close, and when another document replaces it.
+   */
+  let opened: { readonly source: string; readonly password: string } | undefined;
+  /** Whether the document `open()` opened has restrictions of its own. */
+  let restricted = false;
   /** Cancels the load in progress when a newer open replaces it. */
   let loading: AbortController | undefined;
   const heldBytes = (): number =>
@@ -402,6 +466,8 @@ export function createPdfSession(options: PdfSessionOptions): PdfSession {
       historyTrimmed: history.trimmed,
       selection: Object.freeze([...selection]),
       currentPage,
+      passwordProtected: opened !== undefined,
+      restricted,
       navigation: navigation ? Object.freeze({ ...navigation }) : undefined,
     });
   }
@@ -433,6 +499,7 @@ export function createPdfSession(options: PdfSessionOptions): PdfSession {
     file: Blob | PdfBytes,
     signal: AbortSignal,
     given: string | undefined,
+    password: string | undefined,
   ): Promise<Source> {
     // File isn't a global in every runtime the core supports (ADR 0007 in sdk-core).
     const fileName = typeof File !== "undefined" && file instanceof File ? file.name : undefined;
@@ -450,9 +517,37 @@ export function createPdfSession(options: PdfSessionOptions): PdfSession {
     }
     const bytes = file instanceof Blob ? new Uint8Array(await file.arrayBuffer()) : copyBytes(file);
     throwIfAborted(signal);
+    // Without the password first, so the session knows whether the file
+    // needs it: a password given for a file that opens without one isn't
+    // kept, and never protects an export (docs/adr/0013). Both attempts
+    // share one processing-time limit: it bounds the open, not each try.
+    let needed = false;
     const document = await withProcessingTime(
       policy,
-      (limited) => engine.open(bytes, { signal: limited }),
+      async (limited) => {
+        try {
+          return await engine.open(bytes, { signal: limited });
+        } catch (reason) {
+          if (!password || !isPdfError(reason, "PASSWORD_REQUIRED")) throw reason;
+        }
+        needed = true;
+        try {
+          return await engine.open(bytes, { signal: limited, password });
+        } catch (reason) {
+          // The file needs a password and this one didn't open it, whatever
+          // the engine calls that.
+          if (
+            !isPdfError(reason, "PASSWORD_REQUIRED") ||
+            reason.details?.["reason"] !== undefined
+          ) {
+            throw reason;
+          }
+          throw new PdfError("PASSWORD_REQUIRED", "The password is wrong.", {
+            details: { reason: "incorrect-password" },
+            cause: reason,
+          });
+        }
+      },
       { signal },
     ).catch((reason: unknown) => {
       throw asPdfError(reason, "The PDF couldn't be opened.");
@@ -473,6 +568,7 @@ export function createPdfSession(options: PdfSessionOptions): PdfSession {
       ...(name === undefined ? {} : { name }),
       bytes,
       document,
+      ...(needed && password ? { password } : {}),
     };
   }
 
@@ -541,6 +637,65 @@ export function createPdfSession(options: PdfSessionOptions): PdfSession {
     collect();
   }
 
+  /**
+   * What an export with these options is: the job a processor would build,
+   * or the opened file itself, when nothing about it has changed.
+   */
+  function prepareExport(
+    exportOptions: Pick<PdfExportOptions, "compress" | "encrypt" | "keepPassword">,
+  ) {
+    const pages = plan.pages;
+    const used = [...new Set(pages.map((page) => page.source))];
+    // The opened document's password protects the result, unless the
+    // caller chooses passwords of its own or asks for none (docs/adr/0013).
+    const kept =
+      exportOptions.encrypt === undefined && exportOptions.keepPassword !== false
+        ? opened
+        : undefined;
+    const encrypt = exportOptions.encrypt ?? (kept ? { userPassword: kept.password } : undefined);
+    const job: PdfBuildJob = {
+      sources: used.map((id) => {
+        const values = plan.formValues[id];
+        const { bytes, password } = sources.get(id) as Source;
+        return {
+          id,
+          bytes,
+          ...(password === undefined ? {} : { password }),
+          ...(values && Object.keys(values).length > 0 ? { formValues: values } : {}),
+        };
+      }),
+      pages: pages.map((page) => ({
+        source: page.source,
+        pageIndex: page.pageIndex,
+        ...(page.rotation === 0 ? {} : { rotation: page.rotation }),
+        ...(page.annotations.length === 0 ? {} : { annotations: page.annotations }),
+      })),
+      ...(exportOptions.compress ? { compress: exportOptions.compress } : {}),
+      ...(encrypt ? { encrypt } : {}),
+    };
+
+    // An unchanged document with no options is its original bytes: as
+    // protected as it was when its password is kept, and never the bytes
+    // of a file that needed a password the result isn't to have.
+    const [only] = job.sources;
+    const source = only && sources.get(only.id);
+    const asItWas =
+      source?.password === undefined ? !encrypt : kept !== undefined && kept.source === source.id;
+    const original =
+      job.sources.length === 1 &&
+      !only?.formValues &&
+      !job.compress &&
+      asItWas &&
+      source &&
+      job.pages.length === source.pageCount &&
+      job.pages.every(
+        (page, index) => page.pageIndex === index && !page.rotation && !page.annotations,
+      )
+        ? source
+        : undefined;
+    return { job, pages, encrypt, original };
+  }
+
   return {
     getSnapshot: store.getSnapshot,
 
@@ -554,10 +709,15 @@ export function createPdfSession(options: PdfSessionOptions): PdfSession {
           // The open document is released once this one opens, so this one
           // must fit on its own.
           policy.check("maxSessionSize", file instanceof Blob ? file.size : file.byteLength);
-          return load(file, signal, callOptions.name);
+          return load(file, signal, callOptions.name, callOptions.password);
         });
         await release();
         sources.set(source.id, source);
+        opened =
+          source.password === undefined
+            ? undefined
+            : { source: source.id, password: source.password };
+        restricted = source.document.restricted === true;
         history.clear();
         plan = {
           pages: Array.from({ length: source.pageCount }, (_, pageIndex) => {
@@ -597,7 +757,7 @@ export function createPdfSession(options: PdfSessionOptions): PdfSession {
       try {
         const source = await track(insertOptions.signal, false, async (signal) => {
           policy.check("maxFiles", sources.size + 1);
-          return load(file, signal, insertOptions.name);
+          return load(file, signal, insertOptions.name, insertOptions.password);
         });
         try {
           const pageIndexes =
@@ -741,51 +901,19 @@ export function createPdfSession(options: PdfSessionOptions): PdfSession {
       if (status !== "ready" && sources.size === 0) {
         throw new PdfError("PROCESSING_FAILED", "Open a document before exporting it.");
       }
-      const pages = plan.pages;
-      const used = [...new Set(pages.map((page) => page.source))];
-      const job: PdfBuildJob = {
-        sources: used.map((id) => {
-          const values = plan.formValues[id];
-          return {
-            id,
-            bytes: (sources.get(id) as Source).bytes,
-            ...(values && Object.keys(values).length > 0 ? { formValues: values } : {}),
-          };
-        }),
-        pages: pages.map((page) => ({
-          source: page.source,
-          pageIndex: page.pageIndex,
-          ...(page.rotation === 0 ? {} : { rotation: page.rotation }),
-          ...(page.annotations.length === 0 ? {} : { annotations: page.annotations }),
-        })),
-        ...(exportOptions.compress ? { compress: exportOptions.compress } : {}),
-        ...(exportOptions.encrypt ? { encrypt: exportOptions.encrypt } : {}),
-      };
+      const { job, pages, encrypt, original } = prepareExport(exportOptions);
       const done = () =>
         emit({
           type: "document_exported",
           pageCount: pages.length,
           compressed: Boolean(exportOptions.compress),
-          encrypted: Boolean(exportOptions.encrypt),
+          encrypted: Boolean(encrypt),
         });
 
-      // An unchanged document with no options is its original bytes.
-      const [only] = job.sources;
-      const source = only && sources.get(only.id);
-      if (
-        job.sources.length === 1 &&
-        !only?.formValues &&
-        !job.compress &&
-        !job.encrypt &&
-        source &&
-        job.pages.length === source.pageCount &&
-        job.pages.every(
-          (page, index) => page.pageIndex === index && !page.rotation && !page.annotations,
-        )
-      ) {
+      if (original) {
         throwIfAborted(exportOptions.signal);
         done();
-        return copyBytes(source.bytes);
+        return copyBytes(original.bytes);
       }
 
       const { processor } = options;
@@ -815,6 +943,10 @@ export function createPdfSession(options: PdfSessionOptions): PdfSession {
         busy -= 1;
         changed();
       }
+    },
+
+    exportsOriginal(exportOptions = {}) {
+      return sources.size > 0 && prepareExport(exportOptions).original !== undefined;
     },
 
     select(keys) {
@@ -848,6 +980,8 @@ export function createPdfSession(options: PdfSessionOptions): PdfSession {
     async close() {
       loading?.abort(new PdfError("ABORTED", "The document was closed."));
       const hadDocument = status === "ready";
+      opened = undefined;
+      restricted = false;
       await release();
       plan = EMPTY_PLAN;
       history.clear();

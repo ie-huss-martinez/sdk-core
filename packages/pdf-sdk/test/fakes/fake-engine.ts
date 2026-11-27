@@ -10,7 +10,7 @@ import {
   PdfError,
   type PdfRenderOptions,
 } from "../../src/index.js";
-import { decodeFakePdf, type FakePdf } from "./fake-pdf.js";
+import { decodeFakePdf, type FakePdf, unlockFakePdf } from "./fake-pdf.js";
 
 /** Rejects as soon as the signal aborts, so callers see cancellation promptly. */
 function settle<Value>(value: () => Value, options?: PdfCallOptions): Promise<Value> {
@@ -31,6 +31,10 @@ class FakeDocument implements PdfDocumentHandle {
 
   get pageCount(): number {
     return this.pdf.pages.length;
+  }
+
+  get restricted(): boolean {
+    return this.pdf.restricted === true;
   }
 
   getPage(pageIndex: number, options?: PdfCallOptions) {
@@ -135,8 +139,14 @@ export function createFakeEngine(): PdfEngine {
         if (!pdf) {
           throw new PdfError("INVALID_PDF", "Not a fake PDF.");
         }
-        if (pdf.password !== undefined) {
+        const unlocked = unlockFakePdf(pdf, options?.password);
+        if (unlocked === "missing") {
           throw new PdfError("PASSWORD_REQUIRED", "The fake PDF is encrypted.");
+        }
+        if (unlocked === "wrong") {
+          throw new PdfError("PASSWORD_REQUIRED", "The password is wrong.", {
+            details: { reason: "incorrect-password" },
+          });
         }
         return new FakeDocument(pdf);
       }, options);

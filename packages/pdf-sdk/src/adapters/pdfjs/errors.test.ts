@@ -18,6 +18,19 @@ describe("fromPdfJsError", () => {
     expect(error).toMatchObject({ name: "PdfError", code, cause: reason });
   });
 
+  it("tells a missing password from a wrong one by pdf.js's PasswordResponses", () => {
+    // PasswordResponses.NEED_PASSWORD is 1 and INCORRECT_PASSWORD is 2.
+    const need = Object.assign(exception("PasswordException"), { code: 1 });
+    const incorrect = Object.assign(exception("PasswordException"), { code: 2 });
+    expect(fromPdfJsError(need, "It failed.")).toMatchObject({ code: "PASSWORD_REQUIRED" });
+    expect(fromPdfJsError(need, "It failed.")).not.toHaveProperty("details");
+    expect(fromPdfJsError(incorrect, "It failed.")).toMatchObject({
+      code: "PASSWORD_REQUIRED",
+      details: { reason: "incorrect-password" },
+      cause: incorrect,
+    });
+  });
+
   it("maps anything else to PROCESSING_FAILED with the given message", () => {
     expect(fromPdfJsError("a string", "Rendering failed.")).toMatchObject({
       code: "PROCESSING_FAILED",

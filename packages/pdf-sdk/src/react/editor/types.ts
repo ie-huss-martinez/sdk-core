@@ -169,9 +169,18 @@ export interface PdfEditorHandle {
   /**
    * Opens a document, replacing the current one once it has opened. Pass
    * `name` with bytes or a plain `Blob`; a `File` gives its own.
+   *
+   * If the file needs a password that `password` doesn't give, the editor
+   * asks the person for it, as often as it's wrong. The promise settles
+   * once the document has opened, or rejects with `PASSWORD_REQUIRED` once
+   * they cancel (docs/adr/0013).
    */
   open(file: Blob | PdfBytes, options?: PdfOpenOptions): Promise<void>;
-  /** Builds the document as it is now. The result is a new buffer the caller owns. */
+  /**
+   * Builds the document as it is now. The result is a new buffer the caller
+   * owns. A document that needed a password keeps it, unless `keepPassword`
+   * is `false`; the download tool's dialog isn't shown.
+   */
   export(options?: PdfExportOptions): Promise<Uint8Array>;
   /** Undoes the last edit, if there is one. */
   undo(): void;

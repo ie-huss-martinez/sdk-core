@@ -11,6 +11,12 @@ export interface PdfBuildSource {
   /** An identifier, unique within the job, that pages and form values refer to. */
   readonly id: string;
   readonly bytes: PdfBytes;
+  /**
+   * The password that opens this source, if it needs one. The processor
+   * reads the source with it, and never puts it in an error or in the
+   * output (docs/adr/0013).
+   */
+  readonly password?: string;
   /** Form values to fill into this source before its pages are assembled. */
   readonly formValues?: Readonly<Record<string, PdfFieldValue>>;
 }
@@ -103,6 +109,10 @@ export interface PdfEncryption {
  * do: fill each source's form values, assemble the pages with their
  * rotations, draw the page overlays, flatten the annotations, compress,
  * encrypt.
+ *
+ * The output is encrypted only when `encrypt` is set. A source's own
+ * encryption, its passwords and its permission restrictions, never carries
+ * over to what's built from it (docs/adr/0013).
  *
  * @public
  */

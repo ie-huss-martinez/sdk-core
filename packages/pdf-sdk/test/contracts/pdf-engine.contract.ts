@@ -6,6 +6,7 @@ import {
   type PdfFieldValue,
   type PdfPageInfo,
 } from "../../src/index.js";
+import { everythingIn } from "../secrets.js";
 
 /**
  * What an engine's contract test needs: a way to create the engine, and
@@ -37,6 +38,22 @@ export interface PdfEngineHarness {
   };
   /** A document encrypted with a user password. */
   encrypted(): Promise<Uint8Array>;
+  /**
+   * Documents that need a password to open, one for each cipher the engine
+   * reads, with the user password and the owner password that open each.
+   */
+  readonly protected: readonly {
+    readonly name: string;
+    document(): Promise<Uint8Array>;
+    readonly password: string;
+    readonly ownerPassword: string;
+    readonly pageCount: number;
+  }[];
+  /**
+   * A document with an owner password only: encrypted, with permission
+   * restrictions, and no password to open it.
+   */
+  restricted(): Promise<{ readonly bytes: Uint8Array; readonly pageCount: number }>;
   /** Whether the environment can render to a canvas. */
   readonly canRender: boolean;
 }
@@ -137,11 +154,80 @@ export function describePdfEngineContract(name: string, harness: PdfEngineHarnes
       await engine.destroy();
     });
 
-    it("rejects an encrypted PDF with PASSWORD_REQUIRED", async () => {
+    it("rejects an encrypted PDF with PASSWORD_REQUIRED, and no reason, when no password is given", async () => {
       const engine = harness.createEngine();
-      await expect(engine.open(await harness.encrypted())).rejects.toSatisfy((error) =>
-        isPdfError(error, "PASSWORD_REQUIRED"),
-      );
+      const failure = await engine.open(await harness.encrypted()).catch((error: unknown) => error);
+      expect(isPdfError(failure, "PASSWORD_REQUIRED")).toBe(true);
+      expect((failure as { details?: { reason?: unknown } }).details?.reason).toBeUndefined();
+      await engine.destroy();
+    });
+
+    describe.each(harness.protected)("a document protected with $name", (fixture) => {
+      it("opens with its password, and with its owner password", async () => {
+        const engine = harness.createEngine();
+        const bytes = await fixture.document();
+        for (const password of [fixture.password, fixture.ownerPassword]) {
+          const document = await engine.open(bytes, { password });
+          expect(document.pageCount).toBe(fixture.pageCount);
+          await expect(document.getPage(0)).resolves.toMatchObject({ rotation: 0 });
+        }
+        await engine.destroy();
+      });
+
+      it("rejects without a password, and with a wrong one, saying which", async () => {
+        const engine = harness.createEngine();
+        const bytes = await fixture.document();
+        const missing = await engine.open(bytes).catch((error: unknown) => error);
+        expect(isPdfError(missing, "PASSWORD_REQUIRED")).toBe(true);
+        expect((missing as { details?: { reason?: unknown } }).details?.reason).toBeUndefined();
+
+        const wrong = await engine
+          .open(bytes, { password: "wrong-PASSWORD-sentinel" })
+          .catch((error: unknown) => error);
+        expect(isPdfError(wrong, "PASSWORD_REQUIRED")).toBe(true);
+        expect((wrong as { details?: unknown }).details).toEqual({ reason: "incorrect-password" });
+        // The engine still works, and the right password still opens it.
+        const document = await engine.open(bytes, { password: fixture.password });
+        expect(document.pageCount).toBe(fixture.pageCount);
+        await engine.destroy();
+      });
+
+      it("never puts a password in an error (docs/adr/0013)", async () => {
+        const engine = harness.createEngine();
+        const bytes = await fixture.document();
+        const wrong = await engine
+          .open(bytes, { password: "wrong-PASSWORD-sentinel" })
+          .catch((error: unknown) => error);
+        expect(everythingIn(wrong)).not.toContain("wrong-PASSWORD-sentinel");
+        // A right password, on a call that fails for another reason.
+        const aborted = await engine
+          .open(bytes, { password: fixture.password, signal: AbortSignal.abort() })
+          .catch((error: unknown) => error);
+        expect(isPdfError(aborted, "ABORTED")).toBe(true);
+        expect(everythingIn(aborted)).not.toContain(fixture.password);
+        await engine.destroy();
+      });
+    });
+
+    it("opens a document with only an owner password without one, restrictions and all", async () => {
+      const engine = harness.createEngine();
+      const { bytes, pageCount } = await harness.restricted();
+      const document = await engine.open(bytes);
+      expect(document.pageCount).toBe(pageCount);
+      await expect(document.getTextContent(0)).resolves.toBeDefined();
+      // It says that the document is restricted, and that another isn't.
+      expect(document.restricted).toBe(true);
+      expect((await engine.open(await harness.document())).restricted ?? false).toBe(false);
+      await engine.destroy();
+    });
+
+    it("ignores a password given for a document that needs none", async () => {
+      const engine = harness.createEngine();
+      const document = await engine.open(await harness.document(), { password: "not needed" });
+      expect(document.pageCount).toBe(harness.expected.pages.length);
+      const restricted = await harness.restricted();
+      const other = await engine.open(restricted.bytes, { password: "not needed" });
+      expect(other.pageCount).toBe(restricted.pageCount);
       await engine.destroy();
     });
 

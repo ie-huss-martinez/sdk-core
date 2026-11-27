@@ -13,7 +13,7 @@ export type { PdfJsEngineOptions } from "./adapters/pdfjs/pdfjs-engine.js";
 export { createPdfJsEngine } from "./adapters/pdfjs/pdfjs-engine.js";
 export type { PdfProcessorOptions } from "./adapters/qpdf/qpdf-processor.js";
 export { createPdfProcessor } from "./adapters/qpdf/qpdf-processor.js";
-export type { PdfErrorCode } from "./core/errors/pdf-error.js";
+export type { PdfErrorCode, PdfPasswordRejection } from "./core/errors/pdf-error.js";
 export { isPdfError, PdfError } from "./core/errors/pdf-error.js";
 export type {
   PdfFilePolicy,
@@ -98,6 +98,7 @@ export type { PdfCallOptions, PdfTransferOptions } from "./core/ports/options.js
 export type {
   PdfDocumentHandle,
   PdfEngine,
+  PdfEngineOpenOptions,
   PdfRenderOptions,
 } from "./core/ports/pdf-engine.js";
 export { PDF_MAX_CANVAS_PIXELS } from "./core/ports/pdf-engine.js";

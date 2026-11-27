@@ -133,7 +133,11 @@ const frames = async (count: number) => {
  */
 const announced = async (container: HTMLElement, text: string) => {
   await frames(2);
-  const said = container.querySelector('.hm-announcer [aria-live="polite"]')?.textContent ?? "";
+  // The editor's own announcer, a child of its root: the password dialog has
+  // one of its own, inside the dialog (docs/adr/0013).
+  const said =
+    container.querySelector('.hm-pdf-editor > .hm-announcer [aria-live="polite"]')?.textContent ??
+    "";
   // A whole sentence: the start, or the end of the previous one, comes first.
   const last =
     said === text ||

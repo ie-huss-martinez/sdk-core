@@ -14,11 +14,12 @@ import type {
 } from "../../core/model/document.js";
 import { addRotation, type PdfRect, type PdfRotation } from "../../core/model/geometry.js";
 import { safeLinkUrl } from "../../core/model/links.js";
-import type { PdfCallOptions, PdfTransferOptions } from "../../core/ports/options.js";
+import type { PdfCallOptions } from "../../core/ports/options.js";
 import {
   PDF_MAX_CANVAS_PIXELS,
   type PdfDocumentHandle,
   type PdfEngine,
+  type PdfEngineOpenOptions,
   type PdfRenderOptions,
 } from "../../core/ports/pdf-engine.js";
 import { createInlineDataFactory, NO_NETWORK_URL } from "./binary-data.js";
@@ -253,7 +254,7 @@ class PdfJsEngine implements PdfEngine {
       options.assetsUrl === undefined ? undefined : createAssetsResolver(options.assetsUrl);
   }
 
-  async open(source: PdfBytes, options: PdfTransferOptions = {}): Promise<PdfDocumentHandle> {
+  async open(source: PdfBytes, options: PdfEngineOpenOptions = {}): Promise<PdfDocumentHandle> {
     if (this.#destroyed) {
       throw new PdfError("WORKER_TERMINATED", "The PDF engine was destroyed.");
     }
@@ -292,18 +293,47 @@ class PdfJsEngine implements PdfEngine {
             wasmUrl: NO_NETWORK_URL,
           }),
     });
+    const { password } = options;
+    if (password) {
+      // pdf.js asks for a password only when the document needs one, so one
+      // given for a document that needs none is never tried, where passing
+      // it up front would refuse a document with only an owner password.
+      // pdf.js keeps it with the document, in its worker, until the document
+      // is destroyed. Asked again, the password was wrong: declining makes
+      // pdf.js fail with its own PasswordException (docs/adr/0013). The
+      // callback goes once loading settles, so the task, which a document
+      // handle keeps, doesn't hold the password past it.
+      let offered = false;
+      task.onPassword = (answer: (password: string | Error) => void) => {
+        answer(offered ? new Error("The password was already tried.") : password);
+        offered = true;
+      };
+    }
     try {
       const proxy = await settle(host, task.promise, {
         signal: options.signal,
         onAbort: () => this.#cancel(task, host),
         message: "The PDF couldn't be opened.",
       });
-      const document = new PdfJsDocument(pdfjs, proxy, task, host, () =>
+      task.onPassword = null as unknown as typeof task.onPassword;
+      // The permissions its encryption grants, or null when it has none to
+      // grant: any that's missing is a restriction (docs/adr/0013).
+      const granted = await settle(host, proxy.getPermissions(), {
+        signal: options.signal,
+        // Still part of the open: cancelled the same way, with its time limit.
+        onAbort: () => this.#cancel(task, host),
+        message: "The PDF couldn't be opened.",
+      });
+      const restricted =
+        granted !== null &&
+        Object.values(pdfjs.PermissionFlag).some((flag) => !granted.has(flag as number));
+      const document = new PdfJsDocument(pdfjs, proxy, task, host, restricted, () =>
         this.#documents.delete(document),
       );
       this.#documents.add(document);
       return document;
     } catch (error) {
+      task.onPassword = null as unknown as typeof task.onPassword;
       void task.destroy().catch(() => {});
       const mismatch = workerVersionMismatch(error, base);
       if (mismatch) {
@@ -366,6 +396,7 @@ class PdfJsEngine implements PdfEngine {
 
 class PdfJsDocument implements PdfDocumentHandle {
   readonly pageCount: number;
+  readonly restricted: boolean;
   #pdfjs: PdfJs;
   #proxy: PDFDocumentProxy;
   #task: PDFDocumentLoadingTask;
@@ -378,6 +409,7 @@ class PdfJsDocument implements PdfDocumentHandle {
     proxy: PDFDocumentProxy,
     task: PDFDocumentLoadingTask,
     host: WorkerHost,
+    restricted: boolean,
     onDestroy: () => void,
   ) {
     this.#pdfjs = pdfjs;
@@ -386,6 +418,7 @@ class PdfJsDocument implements PdfDocumentHandle {
     this.#host = host;
     this.#onDestroy = onDestroy;
     this.pageCount = proxy.numPages;
+    this.restricted = restricted;
   }
 
   async getPage(pageIndex: number, options: PdfCallOptions = {}): Promise<PdfPageInfo> {

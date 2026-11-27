@@ -32,60 +32,73 @@ export function useSave(options: {
   /** Says that the save worked, such as in a toast. */
   readonly done: (message: string) => void;
   readonly props: RefObject<Pick<PdfEditorProps, "onExport" | "downloadName">>;
-}): SaveState & { readonly save: () => void; readonly cancel: () => void } {
+}): SaveState & {
+  /**
+   * Saves the document. `keepPassword: false` saves a copy that anyone can
+   * open, of a document that needed a password (docs/adr/0013).
+   */
+  readonly save: (choice?: { readonly keepPassword?: boolean }) => void;
+  readonly cancel: () => void;
+} {
   const { session, messages, done, props } = options;
   const [state, setState] = useState<SaveState>(IDLE);
   const running = useRef<AbortController | undefined>(undefined);
 
   const cancel = useCallback(() => running.current?.abort(), []);
 
-  const save = useCallback(() => {
-    if (running.current) return;
-    const controller = new AbortController();
-    running.current = controller;
-    setState({ saving: true, cancellable: false, failure: undefined });
-    const timer = setTimeout(
-      () => setState((current) => (current.saving ? { ...current, cancellable: true } : current)),
-      CANCEL_AFTER,
-    );
-    let failure: string | undefined;
-    const finish = () => {
-      clearTimeout(timer);
-      if (running.current === controller) running.current = undefined;
-      setState({ saving: false, cancellable: false, failure });
-    };
-    void (async () => {
-      const snapshot = session.getSnapshot();
-      const info: PdfDownloadNameInfo = {
-        pageCount: snapshot.plan.pages.length,
-        ...(snapshot.sources[0]?.name ? { sourceName: snapshot.sources[0].name } : {}),
+  const save = useCallback(
+    (choice: { readonly keepPassword?: boolean } = {}) => {
+      if (running.current) return;
+      const controller = new AbortController();
+      running.current = controller;
+      setState({ saving: true, cancellable: false, failure: undefined });
+      const timer = setTimeout(
+        () => setState((current) => (current.saving ? { ...current, cancellable: true } : current)),
+        CANCEL_AFTER,
+      );
+      let failure: string | undefined;
+      const finish = () => {
+        clearTimeout(timer);
+        if (running.current === controller) running.current = undefined;
+        setState({ saving: false, cancellable: false, failure });
       };
-      let bytes: Uint8Array;
-      try {
-        bytes = await session.export({ signal: controller.signal });
-      } catch (error) {
-        if (!controller.signal.aborted && !isPdfError(error, "ABORTED")) {
-          failure = messages.error(error);
+      void (async () => {
+        const snapshot = session.getSnapshot();
+        const info: PdfDownloadNameInfo = {
+          pageCount: snapshot.plan.pages.length,
+          ...(snapshot.sources[0]?.name ? { sourceName: snapshot.sources[0].name } : {}),
+        };
+        let bytes: Uint8Array;
+        try {
+          bytes = await session.export({
+            signal: controller.signal,
+            ...(choice.keepPassword === false ? { keepPassword: false } : {}),
+          });
+        } catch (error) {
+          if (!controller.signal.aborted && !isPdfError(error, "ABORTED")) {
+            failure = messages.error(error);
+          }
+          return;
         }
-        return;
-      }
-      if (controller.signal.aborted) return;
-      const { onExport, downloadName } = props.current;
-      try {
-        const name = downloadFileName(downloadName ? downloadName(info) : info.sourceName);
-        if (onExport) {
-          await onExport(bytes, { fileName: name, pageCount: info.pageCount });
-          done(messages.t("editor.ready"));
-        } else {
-          saveFile(bytes, name);
-          done(messages.t("editor.saved", { name }));
+        if (controller.signal.aborted) return;
+        const { onExport, downloadName } = props.current;
+        try {
+          const name = downloadFileName(downloadName ? downloadName(info) : info.sourceName);
+          if (onExport) {
+            await onExport(bytes, { fileName: name, pageCount: info.pageCount });
+            done(messages.t("editor.ready"));
+          } else {
+            saveFile(bytes, name);
+            done(messages.t("editor.saved", { name }));
+          }
+        } catch {
+          // The host's code failed; its error is its own to log (docs/adr/0009).
+          failure = messages.t("editor.saveFailed");
         }
-      } catch {
-        // The host's code failed; its error is its own to log (docs/adr/0009).
-        failure = messages.t("editor.saveFailed");
-      }
-    })().finally(finish);
-  }, [session, messages, done, props]);
+      })().finally(finish);
+    },
+    [session, messages, done, props],
+  );
 
   // Opening or closing a document cancels a save, and the last failure no
   // longer applies; so does leaving the page.

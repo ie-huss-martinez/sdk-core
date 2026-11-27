@@ -6,6 +6,7 @@ import {
   type PdfProcessor,
   type PdfRotation,
 } from "../../src/index.js";
+import { everythingIn } from "../secrets.js";
 
 /** What a build produced, read back by the harness. */
 export interface InspectedPdf {
@@ -16,6 +17,11 @@ export interface InspectedPdf {
   }[];
   /** Every form field's value, by its name in the output. */
   readonly fields: Readonly<Record<string, PdfFieldValue>>;
+  /**
+   * Whether the document is encrypted at all: with a password to open it,
+   * or with permission restrictions alone.
+   */
+  readonly encrypted: boolean;
 }
 
 /**
@@ -35,6 +41,21 @@ export interface PdfProcessorHarness {
    * is given.
    */
   inspect(bytes: Uint8Array, password?: string): Promise<InspectedPdf>;
+  /**
+   * Documents that need a password to open, one for each cipher the
+   * processor reads, each with one unrotated page of each given size.
+   */
+  readonly protected: readonly {
+    readonly name: string;
+    document(sizes: readonly { width: number; height: number }[]): Promise<Uint8Array>;
+    readonly password: string;
+  }[];
+  /**
+   * A document with an owner password only: encrypted, with permission
+   * restrictions, and no password to open it. One unrotated page of each
+   * given size.
+   */
+  restricted(sizes: readonly { width: number; height: number }[]): Promise<Uint8Array>;
 }
 
 const A4 = { width: 595, height: 842 };
@@ -170,6 +191,144 @@ export function describePdfProcessorContract(name: string, harness: PdfProcessor
       expect((await harness.inspect(output, "correct horse")).pages).toEqual([
         { ...A4, rotation: 0 },
       ]);
+      await processor.destroy();
+    });
+
+    describe.each(harness.protected)("a source protected with $name", (fixture) => {
+      it("is read with its password, and built without it", async () => {
+        const processor = harness.createProcessor();
+        const bytes = await fixture.document([A4, LETTER]);
+        const job = { sources: [{ id: "a", bytes, password: fixture.password }] };
+        // Every page in order, which keeps the document whole, and a reordered one.
+        for (const pages of [
+          [
+            { source: "a", pageIndex: 0 },
+            { source: "a", pageIndex: 1 },
+          ],
+          [
+            { source: "a", pageIndex: 1, rotation: 90 as const },
+            { source: "a", pageIndex: 0 },
+          ],
+        ]) {
+          const output = await harness.inspect(await processor.build({ ...job, pages }));
+          expect(output.encrypted).toBe(false);
+          expect(output.pages.map(({ width }) => width).sort()).toEqual([A4.width, LETTER.width]);
+        }
+        await processor.destroy();
+      });
+
+      it("is encrypted again only when the job asks, with the job's password", async () => {
+        const processor = harness.createProcessor();
+        const output = await processor.build({
+          sources: [{ id: "a", bytes: await fixture.document([A4]), password: fixture.password }],
+          pages: [{ source: "a", pageIndex: 0, rotation: 180 }],
+          encrypt: { userPassword: "another password" },
+        });
+        await expect(harness.inspect(output)).rejects.toBeDefined();
+        await expect(harness.inspect(output, fixture.password)).rejects.toBeDefined();
+        expect(await harness.inspect(output, "another password")).toMatchObject({
+          pages: [{ ...A4, rotation: 180 }],
+          encrypted: true,
+        });
+        await processor.destroy();
+      });
+
+      it("rejects without its password, and with a wrong one, saying which", async () => {
+        const processor = harness.createProcessor();
+        const bytes = await fixture.document([A4]);
+        const pages = [{ source: "a", pageIndex: 0 }];
+        const missing = await processor
+          .build({ sources: [{ id: "a", bytes }], pages })
+          .catch((error: unknown) => error);
+        expect(isPdfError(missing, "PASSWORD_REQUIRED")).toBe(true);
+        expect((missing as { details?: { reason?: unknown } }).details?.reason).toBeUndefined();
+
+        const wrong = await processor
+          .build({ sources: [{ id: "a", bytes, password: "wrong-PASSWORD-sentinel" }], pages })
+          .catch((error: unknown) => error);
+        expect(isPdfError(wrong, "PASSWORD_REQUIRED")).toBe(true);
+        expect((wrong as { details?: unknown }).details).toEqual({ reason: "incorrect-password" });
+        await processor.destroy();
+      });
+    });
+
+    it("never puts a password in an error (docs/adr/0013)", async () => {
+      const processor = harness.createProcessor();
+      const [fixture] = harness.protected;
+      if (!fixture) throw new Error("The harness has no protected document.");
+      const bytes = await fixture.document([A4]);
+      const failures = await Promise.all(
+        [
+          // A wrong password.
+          processor.build({
+            sources: [{ id: "a", bytes, password: "source-PASSWORD-sentinel" }],
+            pages: [{ source: "a", pageIndex: 0 }],
+          }),
+          // Passwords on a job that fails for another reason: a source that
+          // isn't a PDF, and a build cancelled before it starts.
+          processor.build({
+            sources: [
+              {
+                id: "a",
+                bytes: new TextEncoder().encode("not a PDF"),
+                password: "source-PASSWORD-sentinel",
+              },
+            ],
+            pages: [{ source: "a", pageIndex: 0 }],
+            encrypt: {
+              userPassword: "user-PASSWORD-sentinel",
+              ownerPassword: "owner-PASSWORD-sentinel",
+            },
+          }),
+          processor.build(
+            {
+              sources: [{ id: "a", bytes, password: "source-PASSWORD-sentinel" }],
+              pages: [{ source: "a", pageIndex: 0 }],
+              encrypt: { userPassword: "user-PASSWORD-sentinel" },
+            },
+            { signal: AbortSignal.abort() },
+          ),
+        ].map((build) => build.catch((error: unknown) => error)),
+      );
+      expect(failures.map((failure) => (failure as { code?: string }).code)).toEqual([
+        "PASSWORD_REQUIRED",
+        "INVALID_PDF",
+        "ABORTED",
+      ]);
+      for (const failure of failures)
+        expect(everythingIn(failure)).not.toContain("-PASSWORD-sentinel");
+      await processor.destroy();
+    });
+
+    it("builds a document with only an owner password without one, and never carries its restrictions over", async () => {
+      const processor = harness.createProcessor();
+      const bytes = await harness.restricted([A4, LETTER]);
+      for (const pages of [
+        [
+          { source: "a", pageIndex: 0 },
+          { source: "a", pageIndex: 1 },
+        ],
+        [{ source: "a", pageIndex: 1, rotation: 90 as const }],
+      ]) {
+        const output = await harness.inspect(
+          await processor.build({ sources: [{ id: "a", bytes }], pages }),
+        );
+        expect(output.encrypted).toBe(false);
+        expect(output.pages).toHaveLength(pages.length);
+      }
+      await processor.destroy();
+    });
+
+    it("ignores a password given for a source that needs none", async () => {
+      const processor = harness.createProcessor();
+      // Not encrypted at all, and encrypted with restrictions only.
+      for (const bytes of [await harness.pages([A4]), await harness.restricted([A4])]) {
+        const output = await processor.build({
+          sources: [{ id: "a", bytes, password: "not needed" }],
+          pages: [{ source: "a", pageIndex: 0 }],
+        });
+        expect(await harness.inspect(output)).toMatchObject({ pages: [A4], encrypted: false });
+      }
       await processor.destroy();
     });
 

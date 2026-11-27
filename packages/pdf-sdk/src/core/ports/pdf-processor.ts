@@ -29,8 +29,10 @@ export interface PdfProcessor {
    * set. The result is a new buffer the caller owns.
    *
    * @throws `PdfError` with `INVALID_PDF` when a source can't be read,
-   *   `PASSWORD_REQUIRED` when one is encrypted, and `TypeError` or
-   *   `RangeError` for a job that refers to an unknown source or page.
+   *   `PASSWORD_REQUIRED` when one needs a password the job doesn't give,
+   *   or, with `details.reason` `"incorrect-password"`, gives wrongly, and
+   *   `TypeError` or `RangeError` for a job that refers to an unknown source
+   *   or page.
    */
   build(job: PdfBuildJob, options?: PdfBuildOptions): Promise<Uint8Array>;
   /** Releases the processor and its worker. Pending builds reject. */

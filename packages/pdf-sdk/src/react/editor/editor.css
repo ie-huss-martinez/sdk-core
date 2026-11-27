@@ -188,6 +188,28 @@
     color: var(--hm-pdf-editor-error-text, var(--hm-color-danger-text));
   }
 
+  /* The password dialog and the download choice (docs/adr/0013): the line
+     under each control says what's happening, or what the choice gives. */
+  .hm-pdf-password-form {
+    display: grid;
+    gap: var(--hm-pdf-editor-header-gap, var(--hm-gap-tight));
+  }
+
+  .hm-pdf-password-status,
+  .hm-pdf-save-summary {
+    margin: 0;
+  }
+
+  .hm-pdf-save-summary {
+    margin-block-start: var(--hm-pdf-editor-header-gap, var(--hm-gap-tight));
+  }
+
+  .hm-pdf-editor:not([data-hm-unstyled]) .hm-pdf-password-status,
+  .hm-pdf-editor:not([data-hm-unstyled]) .hm-pdf-save-summary {
+    color: var(--hm-pdf-editor-muted, var(--hm-color-text-muted));
+    font-size: var(--hm-font-size-small);
+  }
+
   .hm-pdf-editor-warnings ul {
     margin: 0;
     padding: 0;
