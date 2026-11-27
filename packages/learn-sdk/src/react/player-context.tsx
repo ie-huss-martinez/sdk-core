@@ -11,7 +11,6 @@ import {
   type ReactNode,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useSyncExternalStore,
 } from "react";
@@ -22,6 +21,7 @@ import { defaultLanguageProfile, type LanguageProfile } from "../core/model/lang
 import type { ProgressChange } from "../core/model/progress.js";
 import type { ProgressStore } from "../core/ports/progress-store.js";
 import type { Scheduler } from "../core/ports/scheduler.js";
+import { holdPlayer } from "../core/session/hold-player.js";
 import {
   createLearnPlayer,
   type LearnPlayer,
@@ -134,37 +134,38 @@ export function LearnPlayerProvider(
   const onError = useCallback((error: LearnError) => latest.current.onError?.(error), [latest]);
   const profile = props.profile ?? defaultLanguageProfile;
 
-  const session = useMemo((): { player: LearnPlayer | null; error: unknown } => {
-    try {
-      const player = createLearnPlayer({
-        content,
-        types: types ?? builtInTypes,
-        profile,
-        ...(progressStore ? { progressStore } : {}),
-        ...(scope === undefined ? {} : { scope }),
-        ...(scheduler ? { scheduler } : {}),
-        ...(limits ? { limits } : {}),
-        onProgress,
-        onEvent,
-        onError,
-      });
-      return { player, error: null };
-    } catch (error) {
-      return { player: null, error };
-    }
-  }, [
-    content,
-    types,
-    profile,
-    progressStore,
-    scope,
-    scheduler,
-    limits,
-    onProgress,
-    onEvent,
-    onError,
-  ]);
-  useEffect(() => () => session.player?.dispose(), [session]);
+  const holder = useMemo(
+    () =>
+      holdPlayer(() =>
+        createLearnPlayer({
+          content,
+          types: types ?? builtInTypes,
+          profile,
+          ...(progressStore ? { progressStore } : {}),
+          ...(scope === undefined ? {} : { scope }),
+          ...(scheduler ? { scheduler } : {}),
+          ...(limits ? { limits } : {}),
+          onProgress,
+          onEvent,
+          onError,
+        }),
+      ),
+    [
+      content,
+      types,
+      profile,
+      progressStore,
+      scope,
+      scheduler,
+      limits,
+      onProgress,
+      onEvent,
+      onError,
+    ],
+  );
+  // The session lives while this provider listens, so `StrictMode`'s second
+  // run of effects can't leave a disposed player behind: see holdPlayer.
+  const session = useSyncExternalStore(holder.subscribe, holder.current, holder.current);
 
   const platform = usePlatform();
   const tools = useMemo(() => createToolRegistry(learnPlayerTools), []);

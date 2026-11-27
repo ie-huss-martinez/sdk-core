@@ -54,9 +54,9 @@ export type ProgressChange =
  *
  * @public
  */
-export const emptyProgress: ProgressSnapshot = Object.freeze({
-  attempts: Object.freeze([]),
-  cards: Object.freeze([]),
+export const emptyProgress: ProgressSnapshot = /* @__PURE__ */ Object.freeze({
+  attempts: /* @__PURE__ */ Object.freeze([]),
+  cards: /* @__PURE__ */ Object.freeze([]),
 });
 
 /**

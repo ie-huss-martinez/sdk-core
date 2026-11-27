@@ -69,7 +69,7 @@ export interface LanguageProfile {
  *
  * @public
  */
-export const defaultLanguageProfile: LanguageProfile = Object.freeze({
+export const defaultLanguageProfile: LanguageProfile = /* @__PURE__ */ Object.freeze({
   code: "und",
   direction: "ltr",
 });

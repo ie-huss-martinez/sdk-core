@@ -6,6 +6,8 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+// Types and a function with no state of its own: safe to hold a copy of.
+import { holdPlayer } from "../core/session/hold-player.js";
 // From the core entry itself, which the build leaves as an import: an
 // application then runs one copy of the session's code, not this entry's own.
 import {
@@ -39,55 +41,6 @@ export function usePlayerSnapshot(player: LearnPlayer | null): LearnPlayerSnapsh
     () => player?.getSnapshot() ?? null,
     () => player?.getSnapshot() ?? null,
   );
-}
-
-/** A session, or why there's none. One object for as long as neither changes. */
-interface Held {
-  readonly player: LearnPlayer | null;
-  readonly error: unknown;
-}
-
-/**
- * Keeps a player alive for as long as a component listens to it, and never
- * hands out a disposed one.
- *
- * A player made while rendering and disposed in an effect's cleanup breaks
- * when React runs effects twice, as `StrictMode` does in development: the
- * cleanup disposes the player, the second setup keeps it, and a disposed
- * player no longer saves. Here the player belongs to the subscription
- * instead. When the last listener goes it's disposed and forgotten, and the
- * next listener, or the next render, gets a new one.
- */
-function holdPlayer(make: () => LearnPlayer) {
-  let held: Held | undefined;
-  let listeners = 0;
-  const current = (): Held => {
-    if (!held) {
-      try {
-        held = { player: make(), error: null };
-      } catch (error) {
-        held = { player: null, error };
-      }
-    }
-    return held;
-  };
-  return {
-    current,
-    subscribe(listener: () => void): () => void {
-      const { player } = current();
-      listeners += 1;
-      const unsubscribe = player?.subscribe(listener);
-      return () => {
-        unsubscribe?.();
-        listeners -= 1;
-        if (listeners === 0 && held?.player === player) {
-          player?.dispose();
-          // Content that couldn't be read stays an error: it won't read better again.
-          held = player ? undefined : held;
-        }
-      };
-    },
-  };
 }
 
 /**
