@@ -3,7 +3,7 @@ import "../styles.css";
 import { platformOf } from "@hussmartinez/sdk-core";
 import { Heading, type HeadingLevel } from "@hussmartinez/ui/react";
 import axe from "axe-core";
-import { act, createRef } from "react";
+import { act, createRef, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
@@ -206,6 +206,32 @@ describe("LearnPlayer", () => {
     expect(text()).toContain("You skipped 2 exercises.");
     await userEvent.click(tool("Try again"));
     expect(container?.querySelector(".hm-learn-summary")).toBeNull();
+  });
+
+  it("saves under StrictMode, which runs effects twice in development", async () => {
+    // A player made while rendering and disposed in an effect's cleanup is
+    // left disposed there, and a disposed player shows a grade and saves nothing.
+    const saved: ProgressChange[] = [];
+    const store: ProgressStore = {
+      load: async () => ({ attempts: [], cards: [] }),
+      save: async (_scope, changes) => void saved.push(...changes),
+      clear: async () => {},
+    };
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    act(() =>
+      root?.render(
+        <StrictMode>
+          <LearnPlayer content={content} profile={thai} progressStore={store} scope="s" />
+        </StrictMode>,
+      ),
+    );
+    await userEvent.click(button("eat"));
+    await userEvent.click(tool("Check"));
+    await vi.waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0]).toMatchObject({ kind: "attempt", exerciseId: "mc" });
+    expect(container.querySelector(".hm-learn-save-failed")).toBeNull();
   });
 
   it("tells the learner when progress isn't saved, and saves it on request", async () => {
