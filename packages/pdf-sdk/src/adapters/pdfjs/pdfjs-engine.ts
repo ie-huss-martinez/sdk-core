@@ -320,6 +320,8 @@ class PdfJsEngine implements PdfEngine {
       // grant: any that's missing is a restriction (docs/adr/0013).
       const granted = await settle(host, proxy.getPermissions(), {
         signal: options.signal,
+        // Still part of the open: cancelled the same way, with its time limit.
+        onAbort: () => this.#cancel(task, host),
         message: "The PDF couldn't be opened.",
       });
       const restricted =
