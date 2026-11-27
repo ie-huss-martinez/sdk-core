@@ -46,6 +46,27 @@ export function fakeEngineHarness(canRender: boolean): PdfEngineHarness {
     async encrypted() {
       return encodeFakePdf({ pages: [{ width: 612, height: 792 }], password: "secret" });
     },
+    protected: [
+      {
+        name: "a fake password",
+        password: "secret",
+        ownerPassword: "owner",
+        pageCount: 1,
+        async document() {
+          return encodeFakePdf({
+            pages: [{ width: 612, height: 792 }],
+            password: "secret",
+            ownerPassword: "owner",
+          });
+        },
+      },
+    ],
+    async restricted() {
+      return {
+        bytes: encodeFakePdf({ pages: [{ width: 612, height: 792 }], ownerPassword: "owner" }),
+        pageCount: 1,
+      };
+    },
   };
 }
 
@@ -72,6 +93,23 @@ export const fakeProcessorHarness: PdfProcessorHarness = {
     return {
       pages: pdf.pages.map(({ width, height, rotation = 0 }) => ({ width, height, rotation })),
       fields: Object.fromEntries((pdf.fields ?? []).map((f) => [f.name, f.value])),
+      encrypted: pdf.password !== undefined || pdf.ownerPassword !== undefined,
     };
+  },
+  protected: [
+    {
+      name: "a fake password",
+      password: "secret",
+      async document(sizes) {
+        return encodeFakePdf({
+          pages: sizes.map((size) => ({ ...size })),
+          password: "secret",
+          ownerPassword: "owner",
+        });
+      },
+    },
+  ],
+  async restricted(sizes) {
+    return encodeFakePdf({ pages: sizes.map((size) => ({ ...size })), ownerPassword: "owner" });
   },
 };

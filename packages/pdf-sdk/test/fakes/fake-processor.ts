@@ -1,7 +1,13 @@
 import { throwIfAborted } from "../../src/core/errors/abort.js";
 import { assertPageIndex, copyBytes } from "../../src/core/model/bytes.js";
 import { addRotation, type PdfBuildStep, PdfError, type PdfProcessor } from "../../src/index.js";
-import { decodeFakePdf, encodeFakePdf, type FakeField, type FakePage } from "./fake-pdf.js";
+import {
+  decodeFakePdf,
+  encodeFakePdf,
+  type FakeField,
+  type FakePage,
+  unlockFakePdf,
+} from "./fake-pdf.js";
 
 /**
  * An in-memory {@link PdfProcessor} over fake PDF bytes, for unit tests of
@@ -32,8 +38,14 @@ export function createFakeProcessor(): PdfProcessor {
         }
         const pdf = decodeFakePdf(copyBytes(source.bytes));
         if (!pdf) throw new PdfError("INVALID_PDF", `The source ${source.id} isn't a PDF.`);
-        if (pdf.password !== undefined) {
+        const unlocked = unlockFakePdf(pdf, source.password);
+        if (unlocked === "missing") {
           throw new PdfError("PASSWORD_REQUIRED", `The source ${source.id} is encrypted.`);
+        }
+        if (unlocked === "wrong") {
+          throw new PdfError("PASSWORD_REQUIRED", `The password of ${source.id} is wrong.`, {
+            details: { reason: "incorrect-password" },
+          });
         }
         const fields = (pdf.fields ?? []).map((field) =>
           source.formValues && Object.hasOwn(source.formValues, field.name)
@@ -86,7 +98,13 @@ export function createFakeProcessor(): PdfProcessor {
       return encodeFakePdf({
         pages,
         fields,
-        ...(job.encrypt ? { password: job.encrypt.userPassword } : {}),
+        // Only the job's own passwords: a source's never carry over.
+        ...(job.encrypt
+          ? {
+              password: job.encrypt.userPassword,
+              ownerPassword: job.encrypt.ownerPassword ?? job.encrypt.userPassword,
+            }
+          : {}),
       });
     },
     async destroy() {

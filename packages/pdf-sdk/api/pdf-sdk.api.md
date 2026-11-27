@@ -129,6 +129,7 @@ export interface PdfBuildSource {
     readonly bytes: PdfBytes;
     readonly formValues?: Readonly<Record<string, PdfFieldValue>>;
     readonly id: string;
+    readonly password?: string;
 }
 
 // @public
@@ -199,7 +200,12 @@ export interface PdfEncryption {
 // @public
 export interface PdfEngine {
     destroy(): Promise<void>;
-    open(source: PdfBytes, options?: PdfTransferOptions): Promise<PdfDocumentHandle>;
+    open(source: PdfBytes, options?: PdfEngineOpenOptions): Promise<PdfDocumentHandle>;
+}
+
+// @public
+export interface PdfEngineOpenOptions extends PdfTransferOptions {
+    readonly password?: string;
 }
 
 // @public
@@ -214,6 +220,7 @@ export type PdfErrorCode = SdkCoreErrorCode | "INVALID_PDF" | "PASSWORD_REQUIRED
 export interface PdfExportOptions extends PdfCallOptions {
     readonly compress?: PdfCompression;
     readonly encrypt?: PdfEncryption;
+    readonly keepPassword?: boolean;
     readonly onProgress?: PdfBuildOptions["onProgress"];
 }
 
@@ -341,6 +348,7 @@ export type PdfMessageCatalogue = typeof pdfMessages;
 export const pdfMessages: {
     readonly "errors.INVALID_PDF": "This file isn't a PDF, or it's too damaged to open.";
     readonly "errors.PASSWORD_REQUIRED": "This PDF is protected with a password.";
+    readonly "errors.PASSWORD_REQUIRED.incorrect-password": "That password didn't open this PDF.";
     readonly "errors.PROCESSING_FAILED": "Something went wrong while processing this PDF. Please try again.";
     readonly "errors.TOO_MANY_PAGES": "This document has {actual, number} pages, which is over the {maximum, number}-page limit.";
     readonly "errors.SESSION_TOO_LARGE": "The open documents would use {actual, fileSize}, which is over the {maximum, fileSize} limit. Close a document, or clear the undo history, and try again.";
@@ -415,6 +423,7 @@ export interface PdfMovePagesCommand {
 // @public
 export interface PdfOpenOptions extends PdfCallOptions {
     readonly name?: string;
+    readonly password?: string;
 }
 
 // @public
@@ -429,6 +438,9 @@ export interface PdfPageOverlay {
     readonly pageIndex: number;
     readonly source: string;
 }
+
+// @public
+export type PdfPasswordRejection = "incorrect-password";
 
 // @public
 export interface PdfPlan {
@@ -630,6 +642,7 @@ export interface PdfSessionSnapshot {
         readonly page: string;
         readonly sequence: number;
     } | undefined;
+    readonly passwordProtected: boolean;
     readonly plan: PdfPlan;
     readonly selection: readonly string[];
     readonly sessionBytes: number;

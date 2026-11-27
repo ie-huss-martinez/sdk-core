@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-17
+- **Refined by:** [ADR 0013](0013-password-protected-pdfs.md): for a document that needed a password to open, the download tool first asks whether the copy keeps it. See "No export dialog, yet"
 - **Builds on:** [ADR 0003](0003-page-plan-document-model.md) (bytes are built on export); in sdk-core, [ADR 0012](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0012-hostile-input-and-no-network.md) (hostile input and no network), [ADR 0014](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0014-accessibility-and-translatable-text.md) (accessibility) and [ADR 0018](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0018-worker-rpc-protocol.md) (worker calls and cancelling)
 
 ## Context

@@ -7,7 +7,10 @@ import { isSdkError, type SdkCoreErrorCode, SdkError } from "@hussmartinez/sdk-c
  *
  * - `INVALID_PDF`: the file isn't a PDF, or is too damaged to open.
  * - `PASSWORD_REQUIRED`: the PDF is encrypted, and opening it needs a
- *   password.
+ *   password. Without `details.reason`, none was given; with the reason
+ *   `"incorrect-password"` ({@link PdfPasswordRejection}), the one given is
+ *   wrong. Either way, ask for the password and open the file again with
+ *   it (docs/adr/0013).
  * - `PROCESSING_FAILED`: a PDF engine failed in a way no other code
  *   describes. `cause` holds the engine's error.
  * - `TOO_MANY_PAGES`: a document, or the pages after an insert, exceed the
@@ -44,6 +47,15 @@ export type PdfErrorCode =
   | "UNSUPPORTED_FORMAT";
 
 /**
+ * Why a `PASSWORD_REQUIRED` error was thrown when a password was given, as
+ * its `details.reason`: the password is wrong. The error has no reason when
+ * no password was given.
+ *
+ * @public
+ */
+export type PdfPasswordRejection = "incorrect-password";
+
+/**
  * The error `@hussmartinez/pdf-sdk` throws and rejects with, with a stable
  * `code`, structured `details` and the engine's error as `cause`. Show users
  * the text for its code from {@link pdfMessages}, never its `message`, which
@@ -52,10 +64,11 @@ export type PdfErrorCode =
  * @example
  * ```ts
  * try {
- *   await session.open(file);
+ *   await session.open(file, { password });
  * } catch (error) {
  *   if (isPdfError(error, "PASSWORD_REQUIRED")) {
- *     askForPassword();
+ *     // The same code whether none was given or it's wrong.
+ *     askForPassword({ wrong: error.details?.reason === "incorrect-password" });
  *   } else {
  *     show(messages.error(error));
  *   }

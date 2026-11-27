@@ -1,6 +1,6 @@
 import { applyVisualVariant, variantsFor } from "@hussmartinez/sdk-config/testing/visual";
 import { expect, type Page, test } from "@playwright/test";
-import { pagesPdf, reportPdf } from "../../test/fixtures/pdfs.js";
+import { PASSWORDS, pagesPdf, protectedPdf, reportPdf } from "../../test/fixtures/pdfs.js";
 import { expectAnnounced } from "../tests/helpers.js";
 
 /**
@@ -22,6 +22,8 @@ import { expectAnnounced } from "../tests/helpers.js";
  * | `save-failed` | The host's `onExport` failed: the header's alert, with Download focused |
  * | `error` | A file that isn't a PDF, and the catalogue's text for it |
  * | `replace-error` | A document still open after a replacement failed, with the header's alert |
+ * | `password`, `password-wrong` | A protected PDF chosen: the dialog that asks for its password; then after a wrong one |
+ * | `save-choice` | Download, for a document that needed a password: whether the copy keeps it |
  * | `settings` | The settings, in a sheet from the inline end |
  * | `palette` | The command palette, searched for "rot" |
  * | `phone` | A 390-pixel window: the tab bar, and the "Rotate" group in a sheet from the bottom |
@@ -222,6 +224,31 @@ const STATES: Readonly<Record<string, State>> = {
     await drawn(page);
   },
   // The settings, in a sheet from the inline end (sdk-core ADR 0067).
+  // A protected PDF: the dialog that asks for its password (docs/adr/0013).
+  password: async (page) => {
+    await choose(page, "locked.pdf", Buffer.from(await protectedPdf()));
+    const dialog = page.getByRole("dialog", { name: "This PDF needs a password" });
+    await expect(dialog.getByLabel("Password")).toBeFocused();
+  },
+  "password-wrong": async (page) => {
+    await choose(page, "locked.pdf", Buffer.from(await protectedPdf()));
+    const field = page.getByRole("dialog").getByLabel("Password");
+    await field.fill("not the password");
+    await page.keyboard.press("Enter");
+    await expect(field).toHaveAttribute("aria-invalid", "true");
+    await expect(field).toBeFocused();
+  },
+  // Download, for a document that needed a password (docs/adr/0013).
+  "save-choice": async (page) => {
+    await choose(page, "locked.pdf", Buffer.from(await protectedPdf()));
+    await page.getByRole("dialog").getByLabel("Password").fill(PASSWORDS.user);
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("region", { name: "Document" })).toBeFocused();
+    await drawn(page);
+    await page.getByRole("button", { name: "Download" }).click();
+    const dialog = page.getByRole("dialog", { name: "This PDF has a password" });
+    await expect(dialog.getByRole("button", { name: "Download" })).toBeFocused();
+  },
   settings: async (page) => {
     await opened(page);
     await page.getByRole("button", { name: "Settings" }).click();

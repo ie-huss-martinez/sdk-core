@@ -42,8 +42,9 @@ import {
   useState,
 } from "react";
 import type { PdfLimitName } from "../../core/errors/pdf-limits.js";
+import type { PdfBytes } from "../../core/model/document.js";
 import type { PdfPlan } from "../../core/model/plan.js";
-import type { PdfSessionSnapshot, PdfWarning } from "../../core/session/session.js";
+import type { PdfOpenOptions, PdfSessionSnapshot, PdfWarning } from "../../core/session/session.js";
 import { targetPages } from "../../features/pages/rotate-tools.js";
 import type { PdfTool, PdfToolContext } from "../../features/tool-types.js";
 import { DEFAULT_TOOLBAR, pdfTools } from "../../features/tools.js";
@@ -54,10 +55,13 @@ import { useProvidedSession } from "../PdfSessionProvider.js";
 import { PdfThumbnails } from "../thumbnails/PdfThumbnails.js";
 import { pdfIcons } from "../toolbar/icons.js";
 import { PdfViewer } from "../viewer/PdfViewer.js";
+import { PasswordDialog } from "./PasswordDialog.js";
 import { PdfEditorStart } from "./PdfEditorStart.js";
+import { SaveDialog } from "./SaveDialog.js";
 import { START_CARDS, type StartCard, StartCards } from "./StartCards.js";
 import { toolLists } from "./tool-lists.js";
 import type { PdfEditorChange, PdfEditorHandle, PdfEditorProps } from "./types.js";
+import { usePasswordPrompt } from "./use-password-prompt.js";
 import { useSave } from "./use-save.js";
 
 /** The command palette's place in the shortcut registry: a family action, not a tool. */
@@ -202,14 +206,56 @@ function PdfEditorBody(props: BodyProps): ReactNode {
   const startButton = useRef<HTMLButtonElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const insertInput = useRef<HTMLInputElement>(null);
+  const [inserting, setInserting] = useState(false);
   // What takes focus once the next render commits, by selector: a start
   // card's tool, or the document once the cards are skipped.
   const pendingFocus = useRef<string | null>(null);
-  const [inserting, setInserting] = useState(false);
   // The host's latest props, taken as each render commits, never during it.
   const latestOnChange = useLatest(onChange);
   const saveProps = useLatest(props);
   const saving = useSave({ session, messages, done, props: saveProps });
+  // A document that needed a password asks, before it saves, whether the
+  // copy keeps it (docs/adr/0013).
+  const [choosingSave, setChoosingSave] = useState(false);
+  const { save: saveNow } = saving;
+  const chooseOrSave = useLatest(() => {
+    if (session.getSnapshot().passwordProtected) setChoosingSave(true);
+    else saveNow();
+  });
+  const save = useCallback(() => chooseOrSave.current(), [chooseOrSave]);
+  // Asks for the password of a file that needs one, and tries again with it.
+  const prompt = usePasswordPrompt();
+  const { run: runWithPassword } = prompt;
+  // What to say once the password dialog has closed. A toast shown while a
+  // modal dialog is open speaks from inside it, and this dialog closes the
+  // moment the document opens, which would take the words with it.
+  const asking = useLatest(prompt.asking);
+  const afterPrompt = useRef<(() => void)[]>([]);
+  const oncePromptCloses = useLatest((say: () => void) => {
+    if (asking.current) afterPrompt.current.push(say);
+    else say();
+  });
+  useEffect(() => {
+    if (prompt.asking) return;
+    for (const say of afterPrompt.current.splice(0)) say();
+  }, [prompt.asking]);
+  /**
+   * Opens a file, asking for its password if it needs one. Settles once it
+   * has opened, or failed for good, the person cancelling included. After a
+   * prompt, focus goes to what replaced the start: the dialog gave it back
+   * to something that's gone.
+   */
+  const openFile = useCallback(
+    (next: Blob | PdfBytes, options: PdfOpenOptions = {}) =>
+      runWithPassword(
+        (password) =>
+          session.open(next, { ...options, ...(password === undefined ? {} : { password }) }),
+        () => {
+          pendingFocus.current = ".hm-pdf-start-card";
+        },
+      ),
+    [session, runWithPassword],
+  );
 
   // Mistakes in `tools` or `toolbar`, such as an unknown id, throw here, when
   // the editor renders, rather than leaving a tool silently missing.
@@ -238,9 +284,9 @@ function PdfEditorBody(props: BodyProps): ReactNode {
       session,
       chooseFile: () => input.current?.click(),
       chooseInsertFile: () => insertInput.current?.click(),
-      save: saving.save,
+      save,
     }),
-    [session, saving.save],
+    [session, save],
   );
   const icons = useMemo(() => ({ ...pdfIcons, ...props.icons }), [props.icons]);
 
@@ -353,27 +399,33 @@ function PdfEditorBody(props: BodyProps): ReactNode {
     handle,
     () => ({
       session,
-      open: (next, options) => session.open(next, options),
+      open: openFile,
       export: (options) => session.export(options),
       undo: () => session.undo(),
       redo: () => session.redo(),
       close: () => session.close(),
     }),
-    [session],
+    [session, openFile],
   );
 
-  // The host's file opens when its identity changes; a newer one cancels it.
+  // The host's file opens when its identity changes; a newer one cancels it,
+  // and whatever was being asked about the last one.
+  const { cancel: cancelPrompt } = prompt;
   useEffect(() => {
     if (file === undefined) return;
     if (file === null) {
+      cancelPrompt();
       void session.close();
       return;
     }
     const controller = new AbortController();
     // A failure is in the snapshot, which the editor shows.
-    session.open(file, { signal: controller.signal }).catch(() => {});
-    return () => controller.abort();
-  }, [session, file]);
+    openFile(file, { signal: controller.signal }).catch(() => {});
+    return () => {
+      controller.abort();
+      cancelPrompt();
+    };
+  }, [session, file, openFile, cancelPrompt]);
 
   // Changes reach the host, and opening and closing show a toast, which
   // screen readers hear too. An edit's toast goes once the plan moves on.
@@ -390,13 +442,14 @@ function PdfEditorBody(props: BodyProps): ReactNode {
       }
       if (!change) return;
       if (change.reason === "open") {
-        toastTo.current.show({ message: messages.t("editor.opened", { count: change.pageCount }) });
+        const message = messages.t("editor.opened", { count: change.pageCount });
+        oncePromptCloses.current(() => toastTo.current.show({ message }));
       } else if (change.reason === "close") {
         toastTo.current.show({ message: messages.t("editor.closed") });
       }
       latestOnChange.current?.(change);
     });
-  }, [session, messages, latestOnChange]);
+  }, [session, messages, latestOnChange, oncePromptCloses]);
 
   // Focus follows the content that replaced what had it: Easy mode's first
   // start card, or else the document, once it opens; or the button to try
@@ -432,14 +485,14 @@ function PdfEditorBody(props: BodyProps): ReactNode {
 
   const open = (chosenFile: File) => {
     // A failure is in the snapshot, which the editor shows.
-    session.open(chosenFile).catch(() => {});
+    openFile(chosenFile).catch(() => {});
   };
 
   /**
    * Inserts every page of another file after the current page, then selects
    * the inserted pages and shows the first (docs/adr/0008). A failure is in
    * the snapshot, which the alert above the document shows, and changes
-   * nothing.
+   * nothing. A file that needs a password is asked for it first.
    */
   const insert = async (chosenFile: File) => {
     const before = session.getSnapshot();
@@ -447,7 +500,9 @@ function PdfEditorBody(props: BodyProps): ReactNode {
     const at = current >= 0 ? current + 1 : before.plan.pages.length;
     setInserting(true);
     try {
-      await session.insert(chosenFile, { at });
+      await runWithPassword((password) =>
+        session.insert(chosenFile, { at, ...(password === undefined ? {} : { password }) }),
+      );
     } catch {
       return;
     } finally {
@@ -462,7 +517,9 @@ function PdfEditorBody(props: BodyProps): ReactNode {
     if (!first) return;
     session.select(added);
     session.goToPage(first);
-    showEdit(messages.t("editor.inserted", { count: added.length, page: at }));
+    oncePromptCloses.current(() =>
+      showEdit(messages.t("editor.inserted", { count: added.length, page: at })),
+    );
   };
 
   // Only the cards whose tools the host kept and that can run now, such as
@@ -516,7 +573,12 @@ function PdfEditorBody(props: BodyProps): ReactNode {
   };
 
   const { error, warnings } = snapshot;
-  const showError = error !== undefined && error.code !== "ABORTED";
+  // A missing or wrong password is the password dialog's to say, while it
+  // asks. Once the person cancels, it's the reason nothing opened.
+  const showError =
+    error !== undefined &&
+    error.code !== "ABORTED" &&
+    !(prompt.pending && error.code === "PASSWORD_REQUIRED");
   let content: ReactNode;
   if (status === "ready") {
     content = (
@@ -799,6 +861,21 @@ function PdfEditorBody(props: BodyProps): ReactNode {
         onRun={run}
       />
       <SettingsPanel {...prefs.settings} settings={SETTINGS} />
+      <PasswordDialog
+        asking={prompt.asking}
+        checking={prompt.checking}
+        incorrect={prompt.incorrect}
+        onSubmit={prompt.submit}
+        onCancel={prompt.cancel}
+      />
+      <SaveDialog
+        open={choosingSave && snapshot.passwordProtected}
+        onSave={(choice) => {
+          setChoosingSave(false);
+          saveNow(choice);
+        }}
+        onCancel={() => setChoosingSave(false)}
+      />
       <AnnouncerProvider>
         <ToastProvider>
           <ToastBridge onToast={takeToasts} />

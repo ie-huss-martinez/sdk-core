@@ -36,7 +36,9 @@ const built = (budget) => ({ ...budget, brotli: true, disablePlugins: ["@size-li
 
 export default [
   // The server-safe core (.).
-  entryBudget({ name: "Core (.), as built", entry: "dist/index.js", limit: "15 kB" }),
+  // 14.8 kB, then 15.15 kB with passwords (docs/adr/0013): the session's and
+  // the adapters' handling, and one error text.
+  entryBudget({ name: "Core (.), as built", entry: "dist/index.js", limit: "15.5 kB" }),
   forHosts({
     // The floor: the error class, which a host uses to show the session's errors.
     name: "Core: the floor, PdfError",
@@ -45,10 +47,12 @@ export default [
     limit: "0.1 kB",
   }),
   forHosts({
+    // 6.36 kB, then 6.63 kB with passwords (docs/adr/0013): opening without
+    // and then with one, the reason for a wrong one, and what an export keeps.
     name: "Core: createPdfSession",
     entry: "dist/index.js",
     imports: "{ createPdfSession }",
-    limit: "6.5 kB",
+    limit: "7 kB",
   }),
   forHosts({
     name: "Core: createPdfJsEngine",
@@ -63,21 +67,26 @@ export default [
     limit: "3 kB",
   }),
   forHosts({
-    // What a headless editor uses together: a session over the engine and processor.
+    // What a headless editor uses together: a session over the engine and
+    // processor. 9.29 kB, then 9.55 kB with passwords (docs/adr/0013), which
+    // is the session's 0.27 kB.
     name: "Core: an editor's set",
     entry: "dist/index.js",
     imports: "{ createPdfSession, createPdfJsEngine, createPdfProcessor }",
-    limit: "9.5 kB",
+    limit: "10 kB",
   }),
 
   // The React entry (./react).
   entryBudget({ name: "React (./react), as built", entry: "dist/react.js", limit: "40 kB" }),
   forHosts({
     // The floor: the components' catalogue, which every component reads.
+    // 1.66 kB, then 1.81 kB with the text of the password and download
+    // dialogs (docs/adr/0013): thirteen sentences, and nothing but text. The
+    // floor is the catalogue, so its text is what it measures, not a leak.
     name: "React: the floor, pdfEditorMessages",
     entry: "dist/react.js",
     imports: "{ pdfEditorMessages }",
-    limit: "1.8 kB",
+    limit: "1.9 kB",
   }),
   forHosts({
     // 4.17 kB, then 4.53 kB with the catalogue's text for the editor on ui's
@@ -88,19 +97,22 @@ export default [
     limit: "5 kB",
   }),
   forHosts({
+    // 4.86 kB, then 5.01 kB with the catalogue's text for the password and
+    // download dialogs (docs/adr/0013), as the floor.
     name: "React: PdfViewer",
     entry: "dist/react.js",
     imports: "{ PdfViewer }",
-    limit: "5 kB",
+    limit: "5.5 kB",
   }),
   forHosts({
     // A session from the provider brings the engine and processor factories.
     // 10.18 kB, then 10.57 kB with the catalogue's text for the editor on
-    // ui's frame (docs/adr/0012).
+    // ui's frame (docs/adr/0012), then 11.01 kB with passwords
+    // (docs/adr/0013): the session's 0.27 kB and 0.15 kB of text.
     name: "React: PdfSessionProvider",
     entry: "dist/react.js",
     imports: "{ PdfSessionProvider }",
-    limit: "11 kB",
+    limit: "11.5 kB",
   }),
   forHosts({
     // What a typical application imports: the whole editor. 17.91 kB, then
@@ -109,11 +121,14 @@ export default [
     // reach their tool, preferences the page's theme, density and motion
     // pass through until chosen, settings that show the values in effect,
     // and toasts, and 0.3 kB of text. ui's
-    // components count in ui's budgets, not here.
+    // components count in ui's budgets, not here. Then 22.09 kB with
+    // passwords (docs/adr/0013): the password dialog and the prompt that
+    // retries an open, the download's choice, the session's 0.27 kB and
+    // 0.15 kB of text.
     name: "React: PdfEditor",
     entry: "dist/react.js",
     imports: "{ PdfEditor }",
-    limit: "21 kB",
+    limit: "22.5 kB",
   }),
 
   // The element entry (./element): it registers nothing yet.

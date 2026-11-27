@@ -34,6 +34,32 @@ const bytes = await editor.current?.export();
 
 **The file's name.** On `open`, `onChange` also gives the opened file's `fileName`, from the `File`, or from the `name` option of `handle.open(bytes, { name })`. The session's `sources` carry it as `name`. It's cleaned first: one path segment, with no control or bidirectional formatting characters and at most 128 code points ([ADR 0009](docs/adr/0009-saving-the-document.md)). It comes from the file, so show it only as text. It's never sent to `onEvent`.
 
+### Password-protected PDFs
+
+A PDF that needs a password opens once the person has typed it. The editor asks in a dialog, says when a password is wrong, and lets them try again or cancel ([ADR 0013](docs/adr/0013-password-protected-pdfs.md)).
+
+- **Downloading keeps the password.** The download tool first asks whether the copy keeps it, with "Keep the password" chosen. An edited copy is encrypted with AES-256, whatever the file had.
+- **`handle.open(file, { password })`** opens one without asking. Without the password, `handle.open` asks the person, and settles once the document has opened or they've cancelled.
+- **Where the password goes:** nowhere but memory, for as long as the document is open. It's never in `onEvent`, an error, a snapshot or any storage, and the editor never remembers it.
+- **PDFs with only an owner password,** which open for anyone but restrict printing or changes, open without a question. A copy built from one carries no restrictions.
+
+Without the editor, the session does the same with errors:
+
+```ts
+try {
+  await session.open(file, { password });
+} catch (error) {
+  if (!isPdfError(error, "PASSWORD_REQUIRED")) throw error;
+  // No reason: none was given. "incorrect-password": the one given is wrong.
+  const wrong = error.details?.reason === "incorrect-password";
+  password = await askForPassword({ wrong }); // then open again
+}
+
+session.getSnapshot().passwordProtected; // true: it needed the password
+await session.export(); // opens with the same password
+await session.export({ keepPassword: false }); // opens for anyone
+```
+
 ### Saving
 
 The download tool builds the document in the processing worker and downloads it. The file is named after the opened file, or `document.pdf` ([ADR 0009](docs/adr/0009-saving-the-document.md)). The download uses a `blob:` URL, so it makes no request and needs nothing more in your Content Security Policy.
@@ -109,6 +135,8 @@ const bytes = await processor.build({
 - **Where it lands:** on the page as displayed, after its rotation, upright and centred. A larger overlay is scaled down to fit, and a smaller one keeps its size, so make the overlay page the size the page is shown at: for a page turned a quarter turn, its width is the page's height.
 - **What shows:** only what the overlay page paints covers the page. Its links and form fields come with it.
 - **Progress:** `onProgress` reports an `"overlay"` step for a job that has one.
+
+A source that needs a password takes it as `password`. What's built is encrypted only when the job has `encrypt`: a source's own passwords and restrictions never carry over ([ADR 0013](docs/adr/0013-password-protected-pdfs.md)).
 
 ## Assets and Content Security Policy
 

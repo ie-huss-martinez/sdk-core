@@ -84,22 +84,40 @@ export interface PdfDocumentHandle {
 }
 
 /**
+ * Options for {@link PdfEngine.open}.
+ *
+ * @public
+ */
+export interface PdfEngineOpenOptions extends PdfTransferOptions {
+  /**
+   * The password to open the document with, used only if the document
+   * needs one: its user password, or its owner password. An engine never
+   * puts it in an error, and keeps it no longer than the document
+   * (docs/adr/0013).
+   */
+  readonly password?: string;
+}
+
+/**
  * The port for viewing PDFs: open a document, then read and render its pages
  * (ADR 0008). The SDK's pdf.js adapter implements it; hosts can pass their
  * own to the editor's `engine` prop, and every implementation must pass the
  * engine's contract tests.
  *
  * Failures reject with `PdfError`: `INVALID_PDF` for a file that can't be
- * parsed, `PASSWORD_REQUIRED` for an encrypted one, and sdk-core's codes for
- * cancellation and worker failures.
+ * parsed, `PASSWORD_REQUIRED` for one that needs a password that wasn't
+ * given, or, with `details.reason` `"incorrect-password"`, one whose given
+ * password is wrong, and sdk-core's codes for cancellation and worker
+ * failures.
  *
  * @public
  */
 export interface PdfEngine {
   /**
-   * Opens a document. The bytes are copied unless `transfer` is set.
+   * Opens a document, with `password` if it needs one. The bytes are copied
+   * unless `transfer` is set.
    */
-  open(source: PdfBytes, options?: PdfTransferOptions): Promise<PdfDocumentHandle>;
+  open(source: PdfBytes, options?: PdfEngineOpenOptions): Promise<PdfDocumentHandle>;
   /** Releases the engine and its worker. Open documents are destroyed. */
   destroy(): Promise<void>;
 }

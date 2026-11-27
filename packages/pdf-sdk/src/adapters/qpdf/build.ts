@@ -14,17 +14,46 @@ export interface BuildContext {
   readonly progress?: (progress: PdfBuildProgress) => void;
 }
 
-/** pdfstudio's errors carry qpdf's stderr, and a class name for a bad password. */
+/**
+ * A copy of qpdf's error without any of the build's passwords, should qpdf
+ * ever echo an argument (docs/adr/0013): passwords reach qpdf as arguments,
+ * and a `PdfError`'s cause can travel to a host's logs. qpdf 12 doesn't echo
+ * them; this makes that hold by construction.
+ */
+function withoutSecrets(reason: unknown, secrets: readonly string[]): unknown {
+  if (secrets.length === 0 || !(reason instanceof Error)) return reason;
+  const clean = (text: string) =>
+    secrets.reduce((result, secret) => result.split(secret).join("[password]"), text);
+  const copy = new Error(clean(reason.message));
+  copy.name = reason.name;
+  const { stderr } = reason as { stderr?: unknown };
+  if (typeof stderr === "string") Object.assign(copy, { stderr: clean(stderr) });
+  return copy;
+}
+
+/**
+ * pdfstudio's errors carry qpdf's stderr, and a class name for a bad
+ * password. qpdf says "invalid password" whether none was given or the one
+ * given is wrong, so the caller says which it was.
+ */
 function fromQpdfError(
   reason: unknown,
   code: "INVALID_PDF" | "PROCESSING_FAILED",
   message: string,
+  secrets: readonly string[],
+  passwordGiven = false,
 ) {
   if (isPdfError(reason)) return reason;
+  const cause = withoutSecrets(reason, secrets);
   if (reason instanceof Error && reason.name === "PdfPasswordError") {
-    return new PdfError("PASSWORD_REQUIRED", "A source is encrypted.", { cause: reason });
+    return passwordGiven
+      ? new PdfError("PASSWORD_REQUIRED", "A source's password is wrong.", {
+          details: { reason: "incorrect-password" },
+          cause,
+        })
+      : new PdfError("PASSWORD_REQUIRED", "A source is encrypted.", { cause });
   }
-  return new PdfError(code, message, { cause: reason });
+  return new PdfError(code, message, { cause });
 }
 
 /** Checks the job's references before any work, so a mistake costs nothing. */
@@ -77,6 +106,10 @@ async function fillForm(
  * rotations, draw the page overlays (docs/adr/0011), compress, and encrypt,
  * skipping every step with nothing to do. pdf-lib only ever reads qpdf's
  * output (docs/adr/0001).
+ *
+ * Normalising decrypts: each source is read with its password, if it has
+ * one, and every later step works on plain bytes, so the output is
+ * encrypted only by the last step, when the job asks (docs/adr/0013).
  */
 export async function runBuild(job: PdfBuildJob, context: BuildContext): Promise<Uint8Array> {
   const { signal } = context;
@@ -100,6 +133,12 @@ export async function runBuild(job: PdfBuildJob, context: BuildContext): Promise
 
   const pdf = await context.toolkit();
   throwIfAborted(signal);
+  // Everything secret this build hands to qpdf, kept out of its errors.
+  const secrets = [
+    ...job.sources.map((source) => source.password),
+    job.encrypt?.userPassword,
+    job.encrypt?.ownerPassword,
+  ].filter((secret): secret is string => Boolean(secret));
 
   // 1. Normalise each source that's used, by a page or by an overlay, then
   // fill its form values.
@@ -112,10 +151,25 @@ export async function runBuild(job: PdfBuildJob, context: BuildContext): Promise
     let bytes: Uint8Array;
     let pageCount: number;
     try {
-      bytes = await pdf.repair(copyBytes(source.bytes));
+      // Rewrites the source, repairing it, without its encryption. An empty
+      // password is qpdf's default: it opens what needs none. The source's
+      // own is tried only if that fails, so one given for a source that
+      // needs none is never used, as in the engine (docs/adr/0013).
+      const original = copyBytes(source.bytes);
+      bytes = await pdf.unlock(original, { password: "" }).catch((reason: unknown) => {
+        const locked = reason instanceof Error && reason.name === "PdfPasswordError";
+        if (!locked || !source.password) throw reason;
+        return pdf.unlock(original, { password: source.password });
+      });
       pageCount = await pdf.pageCount(bytes);
     } catch (reason) {
-      throw fromQpdfError(reason, "INVALID_PDF", `The source ${source.id} isn't a readable PDF.`);
+      throw fromQpdfError(
+        reason,
+        "INVALID_PDF",
+        `The source ${source.id} isn't a readable PDF.`,
+        secrets,
+        Boolean(source.password),
+      );
     }
     throwIfAborted(signal);
     if (source.formValues && Object.keys(source.formValues).length > 0) {
@@ -126,6 +180,7 @@ export async function runBuild(job: PdfBuildJob, context: BuildContext): Promise
           reason,
           "PROCESSING_FAILED",
           `The form in ${source.id} couldn't be filled.`,
+          secrets,
         );
       }
       throwIfAborted(signal);
@@ -171,7 +226,7 @@ export async function runBuild(job: PdfBuildJob, context: BuildContext): Promise
       throwIfAborted(signal);
     }
   } catch (reason) {
-    throw fromQpdfError(reason, "PROCESSING_FAILED", "The pages couldn't be assembled.");
+    throw fromQpdfError(reason, "PROCESSING_FAILED", "The pages couldn't be assembled.", secrets);
   }
   done("assemble");
 
@@ -188,7 +243,7 @@ export async function runBuild(job: PdfBuildJob, context: BuildContext): Promise
         from: "1-z",
       });
     } catch (reason) {
-      throw fromQpdfError(reason, "PROCESSING_FAILED", "The overlays couldn't be drawn.");
+      throw fromQpdfError(reason, "PROCESSING_FAILED", "The overlays couldn't be drawn.", secrets);
     }
     throwIfAborted(signal);
     done("overlay");
@@ -199,7 +254,12 @@ export async function runBuild(job: PdfBuildJob, context: BuildContext): Promise
     try {
       output = await pdf.compress(output);
     } catch (reason) {
-      throw fromQpdfError(reason, "PROCESSING_FAILED", "The document couldn't be compressed.");
+      throw fromQpdfError(
+        reason,
+        "PROCESSING_FAILED",
+        "The document couldn't be compressed.",
+        secrets,
+      );
     }
     throwIfAborted(signal);
     done("compress");
@@ -215,7 +275,12 @@ export async function runBuild(job: PdfBuildJob, context: BuildContext): Promise
         keyLength: 256,
       });
     } catch (reason) {
-      throw fromQpdfError(reason, "PROCESSING_FAILED", "The document couldn't be encrypted.");
+      throw fromQpdfError(
+        reason,
+        "PROCESSING_FAILED",
+        "The document couldn't be encrypted.",
+        secrets,
+      );
     }
     done("encrypt");
   }

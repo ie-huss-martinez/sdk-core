@@ -8,8 +8,13 @@ import type { PdfFieldValue, PdfRect, PdfRotation } from "../../src/index.js";
 export interface FakePdf {
   readonly pages: readonly FakePage[];
   readonly fields?: readonly FakeField[];
-  /** The password the document is encrypted with, if any. */
+  /** The password the document needs to open, if any. */
   readonly password?: string;
+  /**
+   * A second password that opens it too, with full access, as a PDF's owner
+   * password does. Alone, it restricts the document without locking it.
+   */
+  readonly ownerPassword?: string;
 }
 
 export interface FakePage {
@@ -37,6 +42,20 @@ const MARKER = "%FAKEPDF\n";
 
 export function encodeFakePdf(pdf: FakePdf): Uint8Array<ArrayBuffer> {
   return new TextEncoder().encode(MARKER + JSON.stringify(pdf));
+}
+
+/**
+ * How a password opens a fake PDF, as the real engines decide it: one that
+ * needs none opens whatever is given, and one that needs one opens with its
+ * user or owner password.
+ */
+export function unlockFakePdf(
+  pdf: FakePdf,
+  password: string | undefined,
+): "open" | "missing" | "wrong" {
+  if (pdf.password === undefined) return "open";
+  if (!password) return "missing";
+  return password === pdf.password || password === pdf.ownerPassword ? "open" : "wrong";
 }
 
 /** Parses fake PDF bytes, or returns undefined for anything else. */

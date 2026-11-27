@@ -14,11 +14,12 @@ import type {
 } from "../../core/model/document.js";
 import { addRotation, type PdfRect, type PdfRotation } from "../../core/model/geometry.js";
 import { safeLinkUrl } from "../../core/model/links.js";
-import type { PdfCallOptions, PdfTransferOptions } from "../../core/ports/options.js";
+import type { PdfCallOptions } from "../../core/ports/options.js";
 import {
   PDF_MAX_CANVAS_PIXELS,
   type PdfDocumentHandle,
   type PdfEngine,
+  type PdfEngineOpenOptions,
   type PdfRenderOptions,
 } from "../../core/ports/pdf-engine.js";
 import { createInlineDataFactory, NO_NETWORK_URL } from "./binary-data.js";
@@ -253,7 +254,7 @@ class PdfJsEngine implements PdfEngine {
       options.assetsUrl === undefined ? undefined : createAssetsResolver(options.assetsUrl);
   }
 
-  async open(source: PdfBytes, options: PdfTransferOptions = {}): Promise<PdfDocumentHandle> {
+  async open(source: PdfBytes, options: PdfEngineOpenOptions = {}): Promise<PdfDocumentHandle> {
     if (this.#destroyed) {
       throw new PdfError("WORKER_TERMINATED", "The PDF engine was destroyed.");
     }
@@ -292,6 +293,20 @@ class PdfJsEngine implements PdfEngine {
             wasmUrl: NO_NETWORK_URL,
           }),
     });
+    const { password } = options;
+    if (password) {
+      // pdf.js asks for a password only when the document needs one, so one
+      // given for a document that needs none is never tried, where passing
+      // it up front would refuse a document with only an owner password.
+      // pdf.js keeps it with the document, in its worker, until the document
+      // is destroyed. Asked again, the password was wrong: declining makes
+      // pdf.js fail with its own PasswordException (docs/adr/0013).
+      let offered = false;
+      task.onPassword = (answer: (password: string | Error) => void) => {
+        answer(offered ? new Error("The password was already tried.") : password);
+        offered = true;
+      };
+    }
     try {
       const proxy = await settle(host, task.promise, {
         signal: options.signal,

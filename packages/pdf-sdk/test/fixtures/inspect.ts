@@ -21,5 +21,7 @@ export async function inspectPdf(bytes: Uint8Array, password?: string): Promise<
       rotation: (((page.getRotation().angle % 360) + 360) % 360) as PdfRotation,
     })),
     fields,
+    // pdf-lib forgets the encryption of a document it opened with a password.
+    encrypted: (await PDFDocument.load(bytes, { ignoreEncryption: true })).isEncrypted,
   };
 }

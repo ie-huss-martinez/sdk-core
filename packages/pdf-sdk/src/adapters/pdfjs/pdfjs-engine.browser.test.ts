@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { describePdfEngineContract } from "../../../test/contracts/pdf-engine.contract.js";
-import { encryptedPdf, reportPdf, SAFE_LINKS } from "../../../test/fixtures/pdfs.js";
+import {
+  encryptedPdf,
+  PASSWORDS,
+  PROTECTED_FIXTURES,
+  protectedPdf,
+  reportPdf,
+  restrictedPdf,
+  SAFE_LINKS,
+} from "../../../test/fixtures/pdfs.js";
 import { isPdfError } from "../../core/errors/pdf-error.js";
 import type { PdfEngine } from "../../core/ports/pdf-engine.js";
 import { createPdfJsEngine } from "./pdfjs-engine.js";
@@ -22,6 +30,11 @@ describePdfEngineContract("pdf.js engine", {
     },
   },
   encrypted: encryptedPdf,
+  protected: PROTECTED_FIXTURES.map((fixture) => ({
+    ...fixture,
+    document: () => fixture.document(),
+  })),
+  restricted: async () => ({ bytes: await restrictedPdf(), pageCount: 2 }),
 });
 
 describe("the pdf.js engine", () => {
@@ -70,6 +83,22 @@ describe("the pdf.js engine", () => {
     await expect(opening).rejects.toSatisfy((error) => isPdfError(error, "ABORTED"));
     const document = await engine.open(bytes);
     expect(document.pageCount).toBe(2);
+  });
+
+  it("uses pdf.js's own PasswordResponses codes (docs/adr/0013)", async () => {
+    // errors.ts reads the code as a number, so pdf.js isn't loaded to compare.
+    const { PasswordResponses } = await import("pdfjs-dist");
+    expect(PasswordResponses).toMatchObject({ NEED_PASSWORD: 1, INCORRECT_PASSWORD: 2 });
+  });
+
+  it("opens a document with a password outside ASCII", async () => {
+    const engine = track(createPdfJsEngine());
+    const password = "contrase\u00f1a \u5bc6\u7801";
+    const bytes = await protectedPdf("AES-256", { userPassword: password });
+    await expect(engine.open(bytes, { password })).resolves.toMatchObject({ pageCount: 2 });
+    await expect(engine.open(bytes, { password: PASSWORDS.owner })).resolves.toMatchObject({
+      pageCount: 2,
+    });
   });
 
   it("shares one worker between documents, and keeps them independent", async () => {

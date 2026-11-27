@@ -2,7 +2,17 @@ import { PDFDict, PDFDocument, PDFName, PDFTextField } from "@cantoo/pdf-lib";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { describePdfProcessorContract } from "../../../test/contracts/pdf-processor.contract.js";
 import { inspectPdf } from "../../../test/fixtures/inspect.js";
-import { formPdf, LINKS, pagesPdf, reportPdf } from "../../../test/fixtures/pdfs.js";
+import {
+  formPdf,
+  LINKS,
+  PASSWORDS,
+  PROTECTED_FIXTURES,
+  pagesPdf,
+  protectedPdf,
+  reportPdf,
+  restrictedPdf,
+} from "../../../test/fixtures/pdfs.js";
+import { everythingIn } from "../../../test/secrets.js";
 import { PdfError } from "../../core/errors/pdf-error.js";
 import type { PdfBuildProgress } from "../../core/model/build-job.js";
 import type { PdfProcessor } from "../../core/ports/pdf-processor.js";
@@ -35,6 +45,8 @@ describePdfProcessorContract("qpdf pipeline, in process", {
   pages: pagesPdf,
   form: formPdf,
   inspect: inspectPdf,
+  protected: PROTECTED_FIXTURES,
+  restricted: (sizes) => restrictedPdf("AES-256", sizes),
 });
 
 describe("the qpdf pipeline", () => {
@@ -67,6 +79,79 @@ describe("the qpdf pipeline", () => {
         pages: [{ source: "a", pageIndex: 0 }],
       }),
     ).rejects.toMatchObject({ name: "PdfError", code: "PASSWORD_REQUIRED" });
+  });
+
+  it("reads a source with a password outside ASCII", async () => {
+    const password = "contrase\u00f1a \u5bc6\u7801";
+    const output = await inProcessProcessor().build({
+      sources: [
+        {
+          id: "a",
+          bytes: await protectedPdf("AES-256", { userPassword: password }),
+          password,
+        },
+      ],
+      pages: [{ source: "a", pageIndex: 1 }],
+      encrypt: { userPassword: password },
+    });
+    expect((await inspectPdf(output, password)).pages).toHaveLength(1);
+  });
+
+  it("fills forms in a protected source, and in one with restrictions only", async () => {
+    // pdf-lib fills forms, and it only reads what qpdf decrypted (docs/adr/0001).
+    const form = await PDFDocument.load(await formPdf());
+    form.encrypt({ userPassword: PASSWORDS.user, ownerPassword: PASSWORDS.owner });
+    const restricted = await PDFDocument.load(await formPdf());
+    restricted.encrypt({ ownerPassword: PASSWORDS.owner, permissions: { modifying: false } });
+    const output = await inProcessProcessor().build({
+      sources: [
+        {
+          id: "a",
+          bytes: await form.save(),
+          password: PASSWORDS.user,
+          formValues: { name: "Ada" },
+        },
+        { id: "b", bytes: await restricted.save(), formValues: { name: "Grace" } },
+      ],
+      pages: [
+        { source: "a", pageIndex: 0 },
+        { source: "b", pageIndex: 0 },
+      ],
+    });
+    const inspected = await inspectPdf(output);
+    expect(Object.values(inspected.fields)).toEqual(expect.arrayContaining(["Ada", "Grace"]));
+    expect(inspected.encrypted).toBe(false);
+  });
+
+  it("takes the passwords out of whatever qpdf reports (docs/adr/0013)", async () => {
+    // qpdf doesn't echo its arguments today. If it ever does, the error a
+    // host may log still holds no password.
+    const echo = Object.assign(new Error("qpdf: bad argument --password=source-SECRET"), {
+      name: "PdfError",
+      stderr: "qpdf: --password=source-SECRET\nqpdf: --user-password=user-SECRET rejected",
+    });
+    const failure = await runBuild(
+      {
+        sources: [
+          {
+            id: "a",
+            bytes: await pagesPdf([{ width: 595, height: 842 }]),
+            password: "source-SECRET",
+          },
+        ],
+        pages: [{ source: "a", pageIndex: 0 }],
+        encrypt: { userPassword: "user-SECRET" },
+      },
+      {
+        toolkit: async () =>
+          ({ unlock: () => Promise.reject(echo) }) as unknown as Awaited<
+            ReturnType<typeof loadToolkit>
+          >,
+      },
+    ).catch((error: unknown) => error);
+    expect(failure).toMatchObject({ name: "PdfError", code: "INVALID_PDF" });
+    expect(everythingIn(failure)).not.toContain("-SECRET");
+    expect(everythingIn(failure)).toContain("--password=[password]");
   });
 
   it("keeps sources the plan doesn't use out of the work, even unreadable ones", async () => {
@@ -173,7 +258,8 @@ describe("page overlays in the qpdf pipeline (docs/adr/0011)", () => {
   });
 
   it("normalises a source that only an overlay uses, and still skips unused ones", async () => {
-    const repair = vi.spyOn(await toolkit(), "repair");
+    // Normalising is qpdf's rewrite without encryption (docs/adr/0013).
+    const repair = vi.spyOn(await toolkit(), "unlock");
     const output = await runBuild(
       {
         sources: [

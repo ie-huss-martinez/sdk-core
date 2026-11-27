@@ -2,7 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { commands } from "vitest/browser";
 import { describePdfProcessorContract } from "../../../test/contracts/pdf-processor.contract.js";
 import { inspectPdf } from "../../../test/fixtures/inspect.js";
-import { formPdf, pagesPdf, SHAPE_COLOURS, shapesPdf } from "../../../test/fixtures/pdfs.js";
+import {
+  formPdf,
+  PROTECTED_FIXTURES,
+  pagesPdf,
+  restrictedPdf,
+  SHAPE_COLOURS,
+  shapesPdf,
+} from "../../../test/fixtures/pdfs.js";
 import { isPdfError } from "../../core/errors/pdf-error.js";
 import type { PdfBuildJob } from "../../core/model/build-job.js";
 import type { PdfEngine } from "../../core/ports/pdf-engine.js";
@@ -15,6 +22,8 @@ describePdfProcessorContract("qpdf processor in its worker", {
   pages: pagesPdf,
   form: formPdf,
   inspect: inspectPdf,
+  protected: PROTECTED_FIXTURES,
+  restricted: (sizes) => restrictedPdf("AES-256", sizes),
 });
 
 describe("the qpdf processor", () => {

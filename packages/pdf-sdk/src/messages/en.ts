@@ -1,5 +1,5 @@
 import { defineMessages, type MessageValue, plural, sdkCoreMessages } from "@hussmartinez/sdk-core";
-import type { PdfErrorCode } from "../core/errors/pdf-error.js";
+import type { PdfErrorCode, PdfPasswordRejection } from "../core/errors/pdf-error.js";
 import type { PdfLimitName } from "../core/errors/pdf-limits.js";
 
 /**
@@ -28,6 +28,7 @@ export const pdfMessages = /* @__PURE__ */ defineMessages({
   ...sdkCoreMessages,
   "errors.INVALID_PDF": "This file isn't a PDF, or it's too damaged to open.",
   "errors.PASSWORD_REQUIRED": "This PDF is protected with a password.",
+  "errors.PASSWORD_REQUIRED.incorrect-password": "That password didn't open this PDF.",
   "errors.PROCESSING_FAILED": "Something went wrong while processing this PDF. Please try again.",
   "errors.TOO_MANY_PAGES":
     "This document has {actual, number} pages, which is over the {maximum, number}-page limit.",
@@ -47,6 +48,7 @@ export const pdfMessages = /* @__PURE__ */ defineMessages({
     "The open documents use {actual, fileSize}. Clearing the undo history frees memory.",
   "warnings.maxImagePixels": "Some images are very large and may be slow to show.",
 }) satisfies Record<`errors.${PdfErrorCode}`, MessageValue> &
+  Record<`errors.PASSWORD_REQUIRED.${PdfPasswordRejection}`, MessageValue> &
   Record<`warnings.${PdfLimitName}`, MessageValue>;
 
 /**

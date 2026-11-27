@@ -114,6 +114,73 @@ export async function encryptedPdf(): Promise<Uint8Array> {
   return document.save();
 }
 
+/** The ciphers a PDF can be encrypted with, oldest first. Both RC4 ones are broken. */
+export const PDF_CIPHERS = ["RC4-40", "RC4-128", "AES-128", "AES-256"] as const;
+
+/** The passwords of {@link protectedPdf} and {@link restrictedPdf}. */
+export const PASSWORDS = { user: "correct horse", owner: "battery staple" } as const;
+
+/**
+ * A document that needs a password to open, in the given cipher: one page
+ * per size, US Letter and A4 by default. `PASSWORDS.user` opens it, and so
+ * does `PASSWORDS.owner`; `userPassword` replaces the first.
+ */
+export async function protectedPdf(
+  algorithm: (typeof PDF_CIPHERS)[number] = "AES-256",
+  options: {
+    readonly sizes?: readonly { width: number; height: number }[];
+    readonly userPassword?: string;
+  } = {},
+): Promise<Uint8Array> {
+  const document = await PDFDocument.create();
+  for (const { width, height } of options.sizes ?? [
+    { width: 612, height: 792 },
+    { width: 595, height: 842 },
+  ]) {
+    document.addPage([width, height]);
+  }
+  document.encrypt({
+    userPassword: options.userPassword ?? PASSWORDS.user,
+    ownerPassword: PASSWORDS.owner,
+    algorithm,
+    allowWeakCryptography: algorithm.startsWith("RC4"),
+  });
+  return document.save();
+}
+
+/**
+ * A document with only an owner password: it opens without one, encrypted,
+ * with printing, copying and changing it restricted. One page per size, US
+ * Letter and A4 by default.
+ */
+export async function restrictedPdf(
+  algorithm: (typeof PDF_CIPHERS)[number] = "AES-256",
+  sizes: readonly { width: number; height: number }[] = [
+    { width: 612, height: 792 },
+    { width: 595, height: 842 },
+  ],
+): Promise<Uint8Array> {
+  const document = await PDFDocument.create();
+  for (const { width, height } of sizes) document.addPage([width, height]);
+  document.encrypt({
+    ownerPassword: PASSWORDS.owner,
+    permissions: { printing: false, modifying: false, copying: false },
+    algorithm,
+    allowWeakCryptography: algorithm.startsWith("RC4"),
+  });
+  return document.save();
+}
+
+/** The ciphers' fixtures, as the engine's and the processor's contracts take them. */
+export const PROTECTED_FIXTURES = PDF_CIPHERS.map((cipher) => ({
+  name: cipher,
+  password: PASSWORDS.user,
+  ownerPassword: PASSWORDS.owner,
+  pageCount: 2,
+  document: (sizes?: readonly { width: number; height: number }[]) =>
+    protectedPdf(cipher, sizes ? { sizes } : {}),
+}));
+
 /**
  * Builds a PDF from raw object bodies, byte for byte, for documents pdf-lib
  * won't write, such as ones with broken or exotic streams. Object 1 must be
