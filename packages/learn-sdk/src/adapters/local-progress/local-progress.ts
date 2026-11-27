@@ -1,6 +1,8 @@
 import { asLearnError, throwIfAborted } from "../../core/errors/error-helpers.js";
 import { isLearnError, LearnError } from "../../core/errors/learn-error.js";
 import { type LearnLimitOverrides, learnLimits } from "../../core/errors/learn-limits.js";
+import { utf8Size } from "../../core/model/documents.js";
+import { cloneData } from "../../core/model/engine.js";
 import { parseProgress } from "../../core/model/parse-progress.js";
 import {
   applyProgressChanges,
@@ -46,9 +48,6 @@ export interface LocalProgressStoreOptions {
 }
 
 const isText = (value: unknown): value is string => typeof value === "string" && value.length > 0;
-
-/** UTF-8 size of a string. */
-const utf8Size = (text: string) => new TextEncoder().encode(text).length;
 
 /**
  * A {@link ProgressStore} that keeps progress on the device, in
@@ -140,14 +139,14 @@ export function createLocalProgressStore(options: LocalProgressStoreOptions): Pr
   return {
     async load(scope, callOptions = {}) {
       throwIfAborted(callOptions.signal);
-      return structuredClone(read(keyFor(scope)));
+      return cloneData(read(keyFor(scope)));
     },
     async save(scope, changes, callOptions = {}) {
       throwIfAborted(callOptions.signal);
       const key = keyFor(scope);
       const next = applyProgressChanges(read(key), changes);
       const text = JSON.stringify(toProgressDocument(next));
-      policy.check("maxContentSize", utf8Size(text));
+      policy.check("maxContentSize", utf8Size(text, policy.limits.maxContentSize.maximum));
       try {
         storage().setItem(key, text);
       } catch (error) {

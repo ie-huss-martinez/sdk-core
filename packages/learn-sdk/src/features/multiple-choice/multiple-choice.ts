@@ -1,3 +1,4 @@
+import { nfc } from "../../core/model/engine.js";
 import type { ExerciseType } from "../../core/model/exercise-type.js";
 import { defineExerciseType } from "../../core/model/exercise-type.js";
 import type { ValidationContext } from "../../core/model/validation-context.js";
@@ -38,7 +39,7 @@ export interface MultipleChoiceAnswer {
 }
 
 /** Compares choices as a learner sees them: NFC, ignoring surrounding spaces. */
-const sameChoice = (text: string) => text.normalize("NFC").trim();
+const sameChoice = (text: string) => nfc(text).trim();
 
 function validateQuestion(
   entry: unknown,

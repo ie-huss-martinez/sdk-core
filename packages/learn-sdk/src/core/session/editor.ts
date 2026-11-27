@@ -1,5 +1,5 @@
 import { createHistory, createStore } from "@hussmartinez/sdk-core";
-import { isLearnError, type LearnError } from "../errors/learn-error.js";
+import { isLearnError, LearnError } from "../errors/learn-error.js";
 import type { LearnIssue } from "../errors/learn-issues.js";
 import type { LearnLimitOverrides } from "../errors/learn-limits.js";
 import type { ContentDraft, LearnCommand } from "../model/commands.js";
@@ -90,6 +90,13 @@ export interface LearnEditor {
 
 /** A version 4 UUID from `crypto.getRandomValues`, which, unlike `randomUUID`, works outside secure contexts. */
 function randomId(): string {
+  if (typeof crypto !== "object" || typeof crypto?.getRandomValues !== "function") {
+    throw new LearnError(
+      "UNSUPPORTED_ENVIRONMENT",
+      "crypto.getRandomValues isn't available here. Pass newId to make ids another way.",
+      { details: { feature: "crypto.getRandomValues" } },
+    );
+  }
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   bytes[6] = ((bytes[6] as number) & 0x0f) | 0x40;
   bytes[8] = ((bytes[8] as number) & 0x3f) | 0x80;

@@ -27,7 +27,9 @@ export interface LoadClipOptions extends LearnCallOptions {
  * @throws `LearnError`: `AUDIO_UNAVAILABLE` when the source returns nothing
  *   or fails, with the failure as `cause` and no reference in `details`;
  *   `FILE_TOO_LARGE` over `maxFileSize`; `TEXT_TOO_LONG` for a reference
- *   over `maxTextLength`; `ABORTED` or `TIMEOUT` when `signal` aborts.
+ *   over `maxTextLength`; `ABORTED` or `TIMEOUT` when `signal` aborts;
+ *   `UNSUPPORTED_ENVIRONMENT`, with `details.feature` `"Blob"`, where the
+ *   engine has no `Blob`.
  * @public
  */
 export async function loadClip(
@@ -35,6 +37,13 @@ export async function loadClip(
   ref: string,
   options: LoadClipOptions = {},
 ): Promise<Blob> {
+  // A clip is a Blob, so there's nothing to return where the engine has
+  // none, as some React Native builds don't (sdk-core ADR 0069).
+  if (typeof Blob !== "function") {
+    throw new LearnError("UNSUPPORTED_ENVIRONMENT", "Blob isn't available here.", {
+      details: { feature: "Blob" },
+    });
+  }
   const policy = learnLimits.resolve(options.limits);
   policy.check("maxTextLength", codePoints(ref));
   const { signal } = options;

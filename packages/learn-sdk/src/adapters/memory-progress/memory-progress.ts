@@ -1,4 +1,5 @@
 import { throwIfAborted } from "../../core/errors/error-helpers.js";
+import { cloneData } from "../../core/model/engine.js";
 import type { ProgressSnapshot } from "../../core/model/progress.js";
 import { applyProgressChanges, emptyProgress } from "../../core/model/progress.js";
 import type { ProgressStore } from "../../core/ports/progress-store.js";
@@ -20,13 +21,13 @@ export function createMemoryProgressStore(): ProgressStore {
   return {
     async load(scope, options = {}) {
       throwIfAborted(options.signal);
-      return structuredClone(scopes.get(scope) ?? emptyProgress);
+      return cloneData(scopes.get(scope) ?? emptyProgress);
     },
     async save(scope, changes, options = {}) {
       throwIfAborted(options.signal);
       scopes.set(
         scope,
-        structuredClone(applyProgressChanges(scopes.get(scope) ?? emptyProgress, changes)),
+        cloneData(applyProgressChanges(scopes.get(scope) ?? emptyProgress, changes)),
       );
     },
     async clear(scope, options = {}) {

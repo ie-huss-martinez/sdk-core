@@ -1,3 +1,5 @@
+import { nfc } from "./engine.js";
+
 /**
  * Text direction of a language's script.
  *
@@ -62,6 +64,11 @@ export const defaultLanguageProfile: LanguageProfile = Object.freeze({
  * own rules. Every exercise type grades through it, so a server and a
  * browser compare the same strings.
  *
+ * On an engine without `String.prototype.normalize`, as Hermes can be, the
+ * NFC step is left out and the profile's rules do all the work. The
+ * built-in profiles fold accents and combining marks themselves, so they
+ * grade the same there (ADR 0010).
+ *
  * @example
  * ```ts
  * normalizeForGrading("café", defaultLanguageProfile) === normalizeForGrading("café", defaultLanguageProfile); // true
@@ -74,11 +81,11 @@ export const defaultLanguageProfile: LanguageProfile = Object.freeze({
  * @public
  */
 export function normalizeForGrading(text: string, profile: LanguageProfile): string {
-  const nfc = text.normalize("NFC");
+  const composed = nfc(text);
   if (!profile.normalizeAnswer) {
-    return nfc;
+    return composed;
   }
-  const normalized: unknown = profile.normalizeAnswer(nfc);
+  const normalized: unknown = profile.normalizeAnswer(composed);
   if (typeof normalized !== "string") {
     throw new TypeError("A language profile's normalizeAnswer must return a string.");
   }
