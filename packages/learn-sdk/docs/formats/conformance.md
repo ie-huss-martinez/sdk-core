@@ -12,21 +12,25 @@ Each file is an `hm-conformance` document, which `@hussmartinez/sdk-config`'s sc
 | [`hm-learn-access.json`](../../conformance/hm-learn-access.json) | Which courses a learner may open | `{ learner, courses }` | The course codes, in course order |
 | [`hm-learn-progress-changes.json`](../../conformance/hm-learn-progress-changes.json) | Applying changes to progress | `{ progress, changes }` | The `hm-learn-progress` document after them |
 | [`hm-learn-scheduling.json`](../../conformance/hm-learn-scheduling.json) | Spaced repetition | `{ scheduler, options?, start or state, reviews }` | Every scheduling state in turn, with its due time |
+| [`hm-learn-matching.json`](../../conformance/hm-learn-matching.json) | The built-in language profiles and the tolerant matcher | `{ profile, normalize }`, or `{ profile?, given, accepted, others?, maxDistance? }` | The text as the profile prepares it, or `{ match, distance }` |
+| [`hm-learn-due-items.json`](../../conformance/hm-learn-due-items.json) | Which cards are due | `{ progress, now, limit? }` | The due cards' ids, in review order |
 | [`hm-learn-commands.json`](../../conformance/hm-learn-commands.json) | Applying [`hm-learn-command`](hm-learn-command.md) | `{ document, commands, limits? }` | The draft after every command; their inverses, in reverse order, must restore the content |
 
 Any case may instead expect a rejection, `{ "error": { "code", "reason"? } }`.
 
 ## Running them
 
-- **Results** are compared as JSON values, exactly, except within a case's `tolerance`, which applies to every number. Only the FSRS-7 cases have one, `1e-9`, because their states hold computed floats.
+- **Results** are compared as JSON values, exactly, except within a case's `tolerance`, which applies to every number. The FSRS-7 cases have one, `1e-9`, because their states hold computed floats, and the matching cases have `1e-12`, for a distance that's a division.
 - **Rejections** are compared by `code` and, when the case gives one, `details.reason`, never by message. A limit's rejection gives only its code, such as `TEXT_TOO_LONG`, which names the limit.
 - **Documents** are given as JSON values, or as JSON text when a case reads text: a string `document` is parsed by the reader, after checking its size in UTF-8 bytes. Keys such as `__proto__` appear in the files as ordinary JSON keys, and a port must read them as such.
 - **Limits:** `limits`, when given, overrides learn-sdk's default limits for that case only.
-- **The host's exercise types:** the reader knows the built-in types (`multiple-choice`, `gap-fill`, `word-order`) and one host type, `"free-form"`, whose payload is any object, returned unchanged. A port registers it the same way.
+- **The host's exercise types:** the reader knows the built-in types (`multiple-choice`, `gap-fill`, `word-order`, `recall`, `sequence-recall`) and one host type, `"free-form"`, whose payload is any object, returned unchanged. A port registers it the same way.
 - **Grading** reads the exercise as an `hm-learn-content` document holding just that exercise, then grades with the default language profile: Unicode NFC, and nothing else. No case folding, no trimming, no locale rules and no ICU. Thai text is compared as NFC leaves it, so sara am written as nikhahit and sara aa doesn't match the precomposed form: unifying them is a Thai profile's job, not the default's.
 - **Scheduling:** `"fsrs"` is FSRS-7 without fuzzing, with optional `desiredRetention` and `weights`; `"fake"` is the fake scheduler from `@hussmartinez/learn-sdk/testing`. `start` begins with a new item's state at that time and includes it in the result; `state` continues from a stored one. Times are milliseconds since the Unix epoch.
 - **Progress changes:** an attempt is appended; a review replaces its item's card where it already is, or appends a new item's card.
 - **Commands** apply in order to the content, which is read with `parseContent` first. The result is a draft, which may be invalid content. A port also applies each command's inverse, in reverse order, and checks that it restores the content exactly; the inverses themselves aren't compared, only what they do.
+- **Matching:** `profile` is `"es"`, `"en"` or `"ar"`, a built-in profile, or absent for the default one. A profile's rules are fixed tables and string operations, with no ICU: a port copies the tables, and these cases check them. Both sides are prepared with the profile, split at spaces, stripped of the profile's articles and stemmed; then every run of the answer's words, from one word fewer to one more than the accepted answer has, is joined without spaces and compared by edit distance in code points, divided by the longer length. A rival in `others` that's strictly closer than the best accepted answer refuses the match. `recall` graded tolerantly gives the item's other choices as rivals.
+- **Due items:** a card is due when its `due` is at or before `now`. They come earliest first, and cards due at the same time in the order of their ids, compared by UTF-16 code unit.
 - **Course order:** courses are sorted by `position`, and courses at the same position keep the order given.
 
 In TypeScript, `test/conformance/run.ts` is the runner for each subject, and `describeConformance` from `@hussmartinez/sdk-config/testing/conformance` registers a test for each case.

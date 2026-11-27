@@ -55,6 +55,7 @@ export type { ExerciseType, ExerciseTypes, ReviewedItem } from "./core/model/exe
 export { createExerciseTypes, defineExerciseType } from "./core/model/exercise-type.js";
 export type { LanguageProfile, TextDirection } from "./core/model/language-profile.js";
 export { defaultLanguageProfile, normalizeForGrading } from "./core/model/language-profile.js";
+export { arabicProfile, englishProfile, spanishProfile } from "./core/model/language-profiles.js";
 export type { ParseProgressOptions } from "./core/model/parse-progress.js";
 export { parseProgress } from "./core/model/parse-progress.js";
 export type {
@@ -82,10 +83,18 @@ export type {
   ApplyLearnCommandOptions,
 } from "./core/operations/apply-command.js";
 export { applyLearnCommand } from "./core/operations/apply-command.js";
+export type { DueItemsOptions } from "./core/operations/due-items.js";
+export { dueItems } from "./core/operations/due-items.js";
 export type { GradeAnswerOptions } from "./core/operations/grade-answer.js";
 export { gradeAnswer } from "./core/operations/grade-answer.js";
 export type { ParseContentOptions } from "./core/operations/parse-content.js";
 export { parseContent } from "./core/operations/parse-content.js";
+export type { TolerantMatch, TolerantMatchOptions } from "./core/operations/tolerant-match.js";
+export {
+  DEFAULT_MATCH_DISTANCE,
+  editDistance,
+  matchTolerantly,
+} from "./core/operations/tolerant-match.js";
 export type { AudioSource } from "./core/ports/audio-source.js";
 export type { LearnCallOptions } from "./core/ports/options.js";
 export type { ProgressStore } from "./core/ports/progress-store.js";
@@ -148,6 +157,18 @@ export {
   retryTool,
   skipTool,
 } from "./features/player/player-tools.js";
+export type {
+  RecallAnswer,
+  RecallItem,
+  RecallPayload,
+  RecallTypeOptions,
+} from "./features/recall/recall.js";
+export { createRecallType, recall } from "./features/recall/recall.js";
+export type {
+  SequenceRecallAnswer,
+  SequenceRecallPayload,
+} from "./features/sequence-recall/sequence-recall.js";
+export { expectedTaps, sequenceRecall } from "./features/sequence-recall/sequence-recall.js";
 export type {
   WordOrderAnswer,
   WordOrderItem,

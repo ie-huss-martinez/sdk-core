@@ -22,6 +22,8 @@ export type TextDirection = "ltr" | "rtl";
  * - `segment` splits text into words for display only, such as offering a
  *   sentence's words as tiles in the editor. Grading never calls it, so it
  *   may use `Intl.Segmenter`.
+ * - `articles` and `stem` are for tolerant matching, which a host opts
+ *   into ({@link matchTolerantly}). Exact grading ignores them.
  *
  * @example
  * ```ts
@@ -46,6 +48,19 @@ export interface LanguageProfile {
   readonly normalizeAnswer?: (text: string) => string;
   /** Words of a text, for display only. Never used for grading. */
   readonly segment?: (text: string) => readonly string[];
+  /**
+   * Words that carry no meaning before a noun, such as "the", as they read
+   * after `normalizeAnswer`. Only {@link matchTolerantly} uses them, to
+   * leave them out; exact grading never does.
+   */
+  readonly articles?: readonly string[];
+  /**
+   * Reduces a word, as it reads after `normalizeAnswer`, to a form its
+   * plural shares, such as "apples" to "apple". Deterministic string
+   * operations, like `normalizeAnswer`. Only {@link matchTolerantly} uses
+   * it.
+   */
+  readonly stem?: (word: string) => string;
 }
 
 /**

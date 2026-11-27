@@ -9,8 +9,10 @@ import { conformanceFiles } from "./generate.js";
 import {
   access,
   applyChanges,
+  due,
   editCommands,
   grade,
+  matching,
   readContent,
   readProgress,
   schedule,
@@ -61,6 +63,8 @@ describeConformance(at("hm-learn-access.json"), access);
 describeConformance(at("hm-learn-progress-changes.json"), applyChanges);
 describeConformance(at("hm-learn-scheduling.json"), schedule);
 describeConformance(at("hm-learn-commands.json"), editCommands);
+describeConformance(at("hm-learn-matching.json"), matching);
+describeConformance(at("hm-learn-due-items.json"), due);
 
 describe("the format schemas accept every document the vectors read", () => {
   const isRead = ({ input, expected }: ConformanceCase) =>

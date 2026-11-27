@@ -56,6 +56,7 @@ const ALL_ISSUE_CODES: Record<LearnIssueCode, true> = {
   "gap-count": true,
   "answer-not-in-options": true,
   "not-a-permutation": true,
+  "repeated-tile": true,
 };
 
 function violation(run: () => unknown): unknown {

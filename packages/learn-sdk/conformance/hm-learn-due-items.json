@@ -1,0 +1,362 @@
+{
+  "format": "hm-conformance",
+  "version": 1,
+  "subject": "hm-learn-due-items",
+  "description": "Which cards are due (learn-sdk ADR 0010). input.progress is an hm-learn-progress document, input.now a time in milliseconds since the Unix epoch, and input.limit, when given, the most to return. expected is the ids of the cards whose due time is at or before now, earliest first; cards due at the same time are in the order of their ids, compared by UTF-16 code unit.",
+  "cases": [
+    {
+      "name": "nothing is due before the first card",
+      "input": {
+        "progress": {
+          "format": "hm-learn-progress",
+          "version": 1,
+          "attempts": [],
+          "cards": [
+            {
+              "itemId": "later",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767398400000
+            },
+            {
+              "itemId": "b",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767225600000
+            },
+            {
+              "itemId": "oldest",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767139200000
+            },
+            {
+              "itemId": "a",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767225600000
+            }
+          ]
+        },
+        "now": 1767139199999
+      },
+      "expected": []
+    },
+    {
+      "name": "a card is due at its time",
+      "input": {
+        "progress": {
+          "format": "hm-learn-progress",
+          "version": 1,
+          "attempts": [],
+          "cards": [
+            {
+              "itemId": "later",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767398400000
+            },
+            {
+              "itemId": "b",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767225600000
+            },
+            {
+              "itemId": "oldest",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767139200000
+            },
+            {
+              "itemId": "a",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767225600000
+            }
+          ]
+        },
+        "now": 1767139200000
+      },
+      "expected": [
+        "oldest"
+      ]
+    },
+    {
+      "name": "the longest overdue comes first, and cards due together in the order of their ids",
+      "input": {
+        "progress": {
+          "format": "hm-learn-progress",
+          "version": 1,
+          "attempts": [],
+          "cards": [
+            {
+              "itemId": "later",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767398400000
+            },
+            {
+              "itemId": "b",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767225600000
+            },
+            {
+              "itemId": "oldest",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767139200000
+            },
+            {
+              "itemId": "a",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767225600000
+            }
+          ]
+        },
+        "now": 1767312000000
+      },
+      "expected": [
+        "oldest",
+        "a",
+        "b"
+      ]
+    },
+    {
+      "name": "a limit keeps the first of them",
+      "input": {
+        "progress": {
+          "format": "hm-learn-progress",
+          "version": 1,
+          "attempts": [],
+          "cards": [
+            {
+              "itemId": "later",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767398400000
+            },
+            {
+              "itemId": "b",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767225600000
+            },
+            {
+              "itemId": "oldest",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767139200000
+            },
+            {
+              "itemId": "a",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767225600000
+            }
+          ]
+        },
+        "now": 1767484800000,
+        "limit": 2
+      },
+      "expected": [
+        "oldest",
+        "a"
+      ]
+    },
+    {
+      "name": "a limit of 0 gives none",
+      "input": {
+        "progress": {
+          "format": "hm-learn-progress",
+          "version": 1,
+          "attempts": [],
+          "cards": [
+            {
+              "itemId": "later",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767398400000
+            },
+            {
+              "itemId": "b",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767225600000
+            },
+            {
+              "itemId": "oldest",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767139200000
+            },
+            {
+              "itemId": "a",
+              "scheduling": {
+                "scheduler": "fsrs",
+                "model": "FSRS-7",
+                "version": 1,
+                "card": {
+                  "stability": 3.9,
+                  "difficulty": 5.1
+                }
+              },
+              "due": 1767225600000
+            }
+          ]
+        },
+        "now": 1767484800000,
+        "limit": 0
+      },
+      "expected": []
+    },
+    {
+      "name": "no cards, nothing due",
+      "input": {
+        "progress": {
+          "format": "hm-learn-progress",
+          "version": 1,
+          "attempts": [],
+          "cards": []
+        },
+        "now": 1767225600000
+      },
+      "expected": []
+    }
+  ]
+}

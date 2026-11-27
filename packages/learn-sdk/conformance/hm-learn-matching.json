@@ -1,0 +1,287 @@
+{
+  "format": "hm-conformance",
+  "version": 1,
+  "subject": "hm-learn-matching",
+  "description": "The built-in language profiles and the tolerant matcher (learn-sdk ADR 0010). input.profile is \"es\", \"en\" or \"ar\", or absent for the default profile, which applies Unicode NFC and nothing else. With input.normalize, expected is that text as the profile prepares it for comparison. Otherwise expected is { match, distance } for input.given, a text or a list of them, against input.accepted, with input.others as rivals and input.maxDistance in place of 0.25. distance is the edit distance in code points divided by the longer length; past maxDistance it is a lower bound: a run of words is never compared when the difference between its length and the length of the accepted answer, divided by the longer, is over maxDistance or over the best distance found so far, and counts as that far instead.",
+  "cases": [
+    {
+      "name": "Spanish: case, accents, punctuation and spaces don't count",
+      "input": {
+        "profile": "es",
+        "normalize": "  ¿QuÉ   tal?  "
+      },
+      "expected": "que tal",
+      "tolerance": 1e-12
+    },
+    {
+      "name": "Spanish: ñ reads as n",
+      "input": {
+        "profile": "es",
+        "normalize": "Niño"
+      },
+      "expected": "nino",
+      "tolerance": 1e-12
+    },
+    {
+      "name": "Spanish: an accent typed as a combining mark",
+      "input": {
+        "profile": "es",
+        "normalize": "café"
+      },
+      "expected": "cafe",
+      "tolerance": 1e-12
+    },
+    {
+      "name": "English: an apostrophe keeps a contraction one word",
+      "input": {
+        "profile": "en",
+        "normalize": "Don’t STOP!"
+      },
+      "expected": "dont stop",
+      "tolerance": 1e-12
+    },
+    {
+      "name": "English: letters outside the table stay as they are",
+      "input": {
+        "profile": "en",
+        "normalize": "Łódź"
+      },
+      "expected": "Łodź",
+      "tolerance": 1e-12
+    },
+    {
+      "name": "Arabic: tashkeel and tatweel don't count",
+      "input": {
+        "profile": "ar",
+        "normalize": "كِتَـابٌ"
+      },
+      "expected": "كتاب",
+      "tolerance": 1e-12
+    },
+    {
+      "name": "Arabic: the forms of alef are one letter",
+      "input": {
+        "profile": "ar",
+        "normalize": "أحمد إلى آخر ٱسم"
+      },
+      "expected": "احمد الي اخر اسم",
+      "tolerance": 1e-12
+    },
+    {
+      "name": "Arabic: ta marbuta reads as ha, alef maqsura as ya, hamza on its seat as the seat",
+      "input": {
+        "profile": "ar",
+        "normalize": "مدرسة مستشفى سؤال بئر"
+      },
+      "expected": "مدرسه مستشفي سوال بير",
+      "tolerance": 1e-12
+    },
+    {
+      "name": "Arabic: its punctuation reads as a space",
+      "input": {
+        "profile": "ar",
+        "normalize": "نعم، لا؟"
+      },
+      "expected": "نعم لا",
+      "tolerance": 1e-12
+    },
+    {
+      "name": "finds the word inside a sentence",
+      "input": {
+        "profile": "en",
+        "given": "I think it's an apple",
+        "accepted": [
+          "apple"
+        ]
+      },
+      "expected": {
+        "match": true,
+        "distance": 0
+      },
+      "tolerance": 1e-12
+    },
+    {
+      "name": "forgives an article and a plural",
+      "input": {
+        "profile": "es",
+        "given": "las manzanas",
+        "accepted": [
+          "la manzana"
+        ]
+      },
+      "expected": {
+        "match": true,
+        "distance": 0
+      },
+      "tolerance": 1e-12
+    },
+    {
+      "name": "forgives the attached article in Arabic",
+      "input": {
+        "profile": "ar",
+        "given": "التفاحة",
+        "accepted": [
+          "تفاحة"
+        ]
+      },
+      "expected": {
+        "match": true,
+        "distance": 0
+      },
+      "tolerance": 1e-12
+    },
+    {
+      "name": "forgives one slip in five letters",
+      "input": {
+        "given": "aple",
+        "accepted": [
+          "apple"
+        ]
+      },
+      "expected": {
+        "match": true,
+        "distance": 0.2
+      },
+      "tolerance": 1e-12
+    },
+    {
+      "name": "refuses one slip in three letters",
+      "input": {
+        "given": "cat",
+        "accepted": [
+          "car"
+        ]
+      },
+      "expected": {
+        "match": false,
+        "distance": 0.3333333333333333
+      },
+      "tolerance": 1e-12
+    },
+    {
+      "name": "accepts it at a wider distance",
+      "input": {
+        "given": "cat",
+        "accepted": [
+          "car"
+        ],
+        "maxDistance": 0.5
+      },
+      "expected": {
+        "match": true,
+        "distance": 0.3333333333333333
+      },
+      "tolerance": 1e-12
+    },
+    {
+      "name": "refuses any slip at distance 0",
+      "input": {
+        "given": "aple",
+        "accepted": [
+          "apple"
+        ],
+        "maxDistance": 0
+      },
+      "expected": {
+        "match": false,
+        "distance": 0.2
+      },
+      "tolerance": 1e-12
+    },
+    {
+      "name": "ignores the spaces in a name of two words",
+      "input": {
+        "given": "it is an icecream cone",
+        "accepted": [
+          "ice cream"
+        ]
+      },
+      "expected": {
+        "match": true,
+        "distance": 0
+      },
+      "tolerance": 1e-12
+    },
+    {
+      "name": "takes the best of several alternatives",
+      "input": {
+        "profile": "en",
+        "given": [
+          "a pear",
+          "a bear"
+        ],
+        "accepted": [
+          "bear"
+        ]
+      },
+      "expected": {
+        "match": true,
+        "distance": 0
+      },
+      "tolerance": 1e-12
+    },
+    {
+      "name": "refuses an answer that's closer to another choice",
+      "input": {
+        "given": "cat",
+        "accepted": [
+          "cart"
+        ],
+        "others": [
+          "cat"
+        ]
+      },
+      "expected": {
+        "match": false,
+        "distance": 0.25
+      },
+      "tolerance": 1e-12
+    },
+    {
+      "name": "a rival that's as close, and no closer, doesn't count",
+      "input": {
+        "given": "cart",
+        "accepted": [
+          "cart"
+        ],
+        "others": [
+          "cart"
+        ]
+      },
+      "expected": {
+        "match": true,
+        "distance": 0
+      },
+      "tolerance": 1e-12
+    },
+    {
+      "name": "never matches an empty answer",
+      "input": {
+        "given": "",
+        "accepted": [
+          "apple"
+        ]
+      },
+      "expected": {
+        "match": false,
+        "distance": 1
+      },
+      "tolerance": 1e-12
+    },
+    {
+      "name": "never matches an answer that's only an article",
+      "input": {
+        "profile": "en",
+        "given": "the",
+        "accepted": [
+          "the"
+        ]
+      },
+      "expected": {
+        "match": false,
+        "distance": 1
+      },
+      "tolerance": 1e-12
+    }
+  ]
+}
