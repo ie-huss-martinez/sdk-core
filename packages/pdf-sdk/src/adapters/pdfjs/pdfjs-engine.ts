@@ -300,7 +300,9 @@ class PdfJsEngine implements PdfEngine {
       // it up front would refuse a document with only an owner password.
       // pdf.js keeps it with the document, in its worker, until the document
       // is destroyed. Asked again, the password was wrong: declining makes
-      // pdf.js fail with its own PasswordException (docs/adr/0013).
+      // pdf.js fail with its own PasswordException (docs/adr/0013). The
+      // callback goes once loading settles, so the task, which a document
+      // handle keeps, doesn't hold the password past it.
       let offered = false;
       task.onPassword = (answer: (password: string | Error) => void) => {
         answer(offered ? new Error("The password was already tried.") : password);
@@ -313,12 +315,14 @@ class PdfJsEngine implements PdfEngine {
         onAbort: () => this.#cancel(task, host),
         message: "The PDF couldn't be opened.",
       });
+      task.onPassword = null as unknown as typeof task.onPassword;
       const document = new PdfJsDocument(pdfjs, proxy, task, host, () =>
         this.#documents.delete(document),
       );
       this.#documents.add(document);
       return document;
     } catch (error) {
+      task.onPassword = null as unknown as typeof task.onPassword;
       void task.destroy().catch(() => {});
       const mismatch = workerVersionMismatch(error, base);
       if (mismatch) {

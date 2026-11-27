@@ -497,33 +497,40 @@ export function createPdfSession(options: PdfSessionOptions): PdfSession {
     }
     const bytes = file instanceof Blob ? new Uint8Array(await file.arrayBuffer()) : copyBytes(file);
     throwIfAborted(signal);
-    const openWith = (secret?: string) =>
-      withProcessingTime(
-        policy,
-        (limited) =>
-          engine.open(bytes, { signal: limited, ...(secret ? { password: secret } : {}) }),
-        { signal },
-      ).catch((reason: unknown) => {
-        throw asPdfError(reason, "The PDF couldn't be opened.");
-      });
     // Without the password first, so the session knows whether the file
     // needs it: a password given for a file that opens without one isn't
-    // kept, and never protects an export (docs/adr/0013).
+    // kept, and never protects an export (docs/adr/0013). Both attempts
+    // share one processing-time limit: it bounds the open, not each try.
     let needed = false;
-    const document = await openWith().catch((failure: PdfError) => {
-      if (!password || failure.code !== "PASSWORD_REQUIRED") throw failure;
-      needed = true;
-      return openWith(password).catch((second: PdfError) => {
-        // The file needs a password and this one didn't open it, whatever
-        // the engine calls that.
-        if (second.code !== "PASSWORD_REQUIRED" || second.details?.["reason"] !== undefined) {
-          throw second;
+    const document = await withProcessingTime(
+      policy,
+      async (limited) => {
+        try {
+          return await engine.open(bytes, { signal: limited });
+        } catch (reason) {
+          if (!password || !isPdfError(reason, "PASSWORD_REQUIRED")) throw reason;
         }
-        throw new PdfError("PASSWORD_REQUIRED", "The password is wrong.", {
-          details: { reason: "incorrect-password" },
-          cause: second,
-        });
-      });
+        needed = true;
+        try {
+          return await engine.open(bytes, { signal: limited, password });
+        } catch (reason) {
+          // The file needs a password and this one didn't open it, whatever
+          // the engine calls that.
+          if (
+            !isPdfError(reason, "PASSWORD_REQUIRED") ||
+            reason.details?.["reason"] !== undefined
+          ) {
+            throw reason;
+          }
+          throw new PdfError("PASSWORD_REQUIRED", "The password is wrong.", {
+            details: { reason: "incorrect-password" },
+            cause: reason,
+          });
+        }
+      },
+      { signal },
+    ).catch((reason: unknown) => {
+      throw asPdfError(reason, "The PDF couldn't be opened.");
     });
     try {
       throwIfAborted(signal);

@@ -216,16 +216,19 @@ function PdfEditorBody(props: BodyProps): ReactNode {
   const saving = useSave({ session, messages, done, props: saveProps });
   // A document that needed a password asks, before it saves, whether the
   // copy keeps it (docs/adr/0013).
-  const [choosingSave, setChoosingSave] = useState(false);
+  // By the document it's about, so the question never outlives it: another
+  // document, even a protected one, starts from its own.
+  const [choosingSaveFor, setChoosingSaveFor] = useState<string | null>(null);
   const { save: saveNow } = saving;
   const chooseOrSave = useLatest(() => {
-    if (session.getSnapshot().passwordProtected) setChoosingSave(true);
+    const now = session.getSnapshot();
+    if (now.passwordProtected) setChoosingSaveFor(now.sources[0]?.id ?? null);
     else saveNow();
   });
   const save = useCallback(() => chooseOrSave.current(), [chooseOrSave]);
   // Asks for the password of a file that needs one, and tries again with it.
   const prompt = usePasswordPrompt();
-  const { run: runWithPassword } = prompt;
+  const { run: runWithPassword, cancel: cancelPrompt } = prompt;
   // What to say once the password dialog has closed. A toast shown while a
   // modal dialog is open speaks from inside it, and this dialog closes the
   // moment the document opens, which would take the words with it.
@@ -403,14 +406,18 @@ function PdfEditorBody(props: BodyProps): ReactNode {
       export: (options) => session.export(options),
       undo: () => session.undo(),
       redo: () => session.redo(),
-      close: () => session.close(),
+      close: () => {
+        // Whatever was being asked goes with the document: a pending open
+        // rejects, and can't open its file after the close.
+        cancelPrompt();
+        return session.close();
+      },
     }),
-    [session, openFile],
+    [session, openFile, cancelPrompt],
   );
 
   // The host's file opens when its identity changes; a newer one cancels it,
   // and whatever was being asked about the last one.
-  const { cancel: cancelPrompt } = prompt;
   useEffect(() => {
     if (file === undefined) return;
     if (file === null) {
@@ -869,12 +876,14 @@ function PdfEditorBody(props: BodyProps): ReactNode {
         onCancel={prompt.cancel}
       />
       <SaveDialog
-        open={choosingSave && snapshot.passwordProtected}
+        open={
+          choosingSaveFor !== null && choosingSaveFor === sourceId && snapshot.passwordProtected
+        }
         onSave={(choice) => {
-          setChoosingSave(false);
+          setChoosingSaveFor(null);
           saveNow(choice);
         }}
-        onCancel={() => setChoosingSave(false)}
+        onCancel={() => setChoosingSaveFor(null)}
       />
       <AnnouncerProvider>
         <ToastProvider>

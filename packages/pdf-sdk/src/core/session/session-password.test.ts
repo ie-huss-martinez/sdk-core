@@ -115,6 +115,23 @@ describe("opening a password-protected document", () => {
     expect((failure as PdfError).details).toEqual({ reason: "incorrect-password" });
   });
 
+  it("limits the whole open, both attempts together, to the processing time", async () => {
+    // Each attempt takes 60 ms of a 100 ms limit: either alone would pass.
+    const fake = createFakeEngine();
+    const engine: PdfEngine = {
+      open: async (source, options) => {
+        await new Promise((resolve) => setTimeout(resolve, 60));
+        if (options?.signal?.aborted) throw options.signal.reason;
+        return fake.open(source, options);
+      },
+      destroy: () => fake.destroy(),
+    };
+    const { session } = setup({ engine, filePolicy: { maxProcessingTime: 100 } });
+    await expect(session.open(locked(), { password: PASSWORD })).rejects.toSatisfy((error) =>
+      isPdfError(error, "PROCESSING_TIME_EXCEEDED"),
+    );
+  });
+
   it("doesn't keep a password the document didn't need", async () => {
     const { session, build, rotate } = setup();
     // No password to open, with or without an owner password of its own.

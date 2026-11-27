@@ -131,7 +131,8 @@ describe("the password dialog", () => {
     const input = field(container);
     expect(document.activeElement).toBe(input);
     expect(input.type).toBe("password");
-    expect(input.autocomplete).toBe("current-password");
+    // The attribute: Firefox's `autocomplete` property is empty for this value.
+    expect(input.getAttribute("autocomplete")).toBe("current-password");
     expect(input.labels?.[0]?.textContent).toBe("Password");
     expect(input.getAttribute("aria-invalid")).toBeNull();
     // Nothing behind the dialog says the open failed: it hasn't, yet.
@@ -302,6 +303,21 @@ describe("the password dialog", () => {
     expect(container.querySelectorAll(".hm-pdf-page")).toHaveLength(4);
   });
 
+  it("stops asking when the host closes the editor's document", async () => {
+    const { mounted, handle } = setUp();
+    const container = await mounted;
+    let pending: Promise<unknown> | undefined;
+    await act(async () => {
+      pending = handle.current?.open(locked(2)).catch((error: unknown) => error);
+    });
+    await waitFor(() => expect(passwordDialog(container).open).toBe(true), { timeout: FIRST_OPEN });
+    await act(() => handle.current?.close());
+
+    expect(isPdfError(await pending, "PASSWORD_REQUIRED")).toBe(true);
+    await waitFor(() => expect(passwordDialog(container).open).toBe(false));
+    expect(editor(container).dataset["hmStatus"]).toBe("empty");
+  });
+
   it("asks before inserting a protected file, then inserts its pages", async () => {
     const { mounted, handle } = setUp();
     const container = await mounted;
@@ -407,6 +423,22 @@ describe("downloading a document that needed a password", () => {
     expect(exported(onExport)).not.toHaveProperty("password");
 
     // The next download starts from keeping it again.
+    await act(() => userEvent.click(tool(container, "pdf.download")));
+    await waitFor(() => expect(dialog.open).toBe(true));
+    expect(dialog.querySelector('[aria-checked="true"]')?.textContent).toBe("Keep the password");
+  });
+
+  it("asks again for another document, rather than keeping a choice made for the last", async () => {
+    const { container, onExport, handle } = await opened();
+    await act(() => userEvent.click(tool(container, "pdf.download")));
+    const dialog = saveDialog(container);
+    await waitFor(() => expect(dialog.open).toBe(true));
+    await act(() => userEvent.click(buttonNamed(dialog, "Remove the password")));
+
+    // The host replaces the document, with another protected one.
+    await act(() => handle.current?.open(locked(3), { password: PASSWORD }));
+    await waitFor(() => expect(dialog.open).toBe(false));
+    expect(onExport).not.toHaveBeenCalled();
     await act(() => userEvent.click(tool(container, "pdf.download")));
     await waitFor(() => expect(dialog.open).toBe(true));
     expect(dialog.querySelector('[aria-checked="true"]')?.textContent).toBe("Keep the password");
