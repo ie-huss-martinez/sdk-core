@@ -38,6 +38,10 @@
       "types": "./dist/element.d.ts",
       "default": "./dist/element.js"
     },
+    "./native": {
+      "types": "./dist/native.d.ts",
+      "default": "./dist/native.js"
+    },
     "./testing": {
       "types": "./dist/testing.d.ts",
       "default": "./dist/testing.js"
@@ -58,18 +62,18 @@
     "lint:deps": "hm-lint-deps src",
     "lint:react": "hm-lint-react",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
-    "build": "vite build && pnpm check:api",
+    "build": "vite build && vite build --config vite.native.config.ts && pnpm check:api",
     "test": "vitest run --project unit",
     "test:browser": "hm-in-image vitest run --project browser",
     "test:browser:all": "hm-in-image vitest run --project browser --mode all-browsers",
-    "build:examples": "pnpm --filter @hussmartinez/learn-sdk-example-vite build && pnpm --filter @hussmartinez/learn-sdk-example-next build",
+    "build:examples": "pnpm --filter @hussmartinez/learn-sdk-example-vite build && pnpm --filter @hussmartinez/learn-sdk-example-next build && pnpm --filter @hussmartinez/learn-sdk-example-native build",
     "test:e2e": "pnpm --filter @hussmartinez/learn-sdk-e2e test:e2e",
     "test:visual": "hm-test-visual",
     "test:visual:update": "hm-test-visual --update",
     "check:size": "size-limit",
-    "check:api": "tsc -p tsconfig.build.json && api-extractor run && api-extractor run -c api-extractor.react.json && api-extractor run -c api-extractor.element.json && api-extractor run -c api-extractor.testing.json",
+    "check:api": "tsc -p tsconfig.build.json && api-extractor run && api-extractor run -c api-extractor.react.json && api-extractor run -c api-extractor.element.json && api-extractor run -c api-extractor.native.json && api-extractor run -c api-extractor.testing.json",
     "check:package": "publint run --pack pnpm --strict && attw --pack . --profile esm-only --exclude-entrypoints ./styles.css",
-    "api:update": "tsc -p tsconfig.build.json && api-extractor run --local && api-extractor run -c api-extractor.react.json --local && api-extractor run -c api-extractor.element.json --local && api-extractor run -c api-extractor.testing.json --local",
+    "api:update": "tsc -p tsconfig.build.json && api-extractor run --local && api-extractor run -c api-extractor.react.json --local && api-extractor run -c api-extractor.element.json --local && api-extractor run -c api-extractor.native.json --local && api-extractor run -c api-extractor.testing.json --local",
     "verify": "pnpm lint:css && pnpm lint:react && pnpm typecheck && pnpm lint:deps && pnpm build && pnpm test && pnpm test:browser && pnpm build:examples && pnpm test:e2e && pnpm test:visual && pnpm check:size && pnpm check:api && pnpm check:package",
     "verify:fast": "pnpm typecheck && pnpm test && pnpm lint:deps && pnpm lint:react && pnpm check:api",
     "conformance:update": "vitest run --project unit test/conformance --update"

@@ -1937,6 +1937,501 @@
       }
     },
     {
+      "name": "reads a recall and a sequence-recall exercise",
+      "input": {
+        "document": {
+          "format": "hm-learn-content",
+          "version": 1,
+          "exercises": [
+            {
+              "id": "rc",
+              "type": "recall",
+              "payload": {
+                "items": [
+                  {
+                    "id": "vault:keys",
+                    "cue": "Where are the keys?",
+                    "answers": [
+                      "In the drawer",
+                      "The drawer"
+                    ]
+                  },
+                  {
+                    "id": "vault:ana",
+                    "cue": "Who is this?",
+                    "answers": [
+                      "Ana"
+                    ],
+                    "choices": [
+                      "Ana",
+                      "Luis",
+                      "Marta"
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "id": "sr",
+              "type": "sequence-recall",
+              "payload": {
+                "tiles": 9,
+                "sequence": [
+                  4,
+                  0,
+                  7
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "format": "hm-learn-content",
+        "version": 1,
+        "exercises": [
+          {
+            "id": "rc",
+            "type": "recall",
+            "payload": {
+              "items": [
+                {
+                  "id": "vault:keys",
+                  "cue": "Where are the keys?",
+                  "answers": [
+                    "In the drawer",
+                    "The drawer"
+                  ]
+                },
+                {
+                  "id": "vault:ana",
+                  "cue": "Who is this?",
+                  "answers": [
+                    "Ana"
+                  ],
+                  "choices": [
+                    "Ana",
+                    "Luis",
+                    "Marta"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "sr",
+            "type": "sequence-recall",
+            "payload": {
+              "tiles": 9,
+              "sequence": [
+                4,
+                0,
+                7
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "reads a backward sequence",
+      "input": {
+        "document": {
+          "format": "hm-learn-content",
+          "version": 1,
+          "exercises": [
+            {
+              "id": "sr",
+              "type": "sequence-recall",
+              "payload": {
+                "tiles": 9,
+                "sequence": [
+                  4,
+                  0,
+                  7
+                ],
+                "backward": true
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "format": "hm-learn-content",
+        "version": 1,
+        "exercises": [
+          {
+            "id": "sr",
+            "type": "sequence-recall",
+            "payload": {
+              "tiles": 9,
+              "sequence": [
+                4,
+                0,
+                7
+              ],
+              "backward": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "refuses two recall items with one id",
+      "input": {
+        "document": {
+          "format": "hm-learn-content",
+          "version": 1,
+          "exercises": [
+            {
+              "id": "rc",
+              "type": "recall",
+              "payload": {
+                "items": [
+                  {
+                    "id": "vault:keys",
+                    "cue": "Where are the keys?",
+                    "answers": [
+                      "In the drawer",
+                      "The drawer"
+                    ]
+                  },
+                  {
+                    "id": "vault:keys",
+                    "cue": "Where are the keys?",
+                    "answers": [
+                      "In the drawer",
+                      "The drawer"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "error": {
+          "code": "INVALID_DOCUMENT",
+          "reason": "malformed-document"
+        }
+      }
+    },
+    {
+      "name": "refuses a recall item without an id",
+      "input": {
+        "document": {
+          "format": "hm-learn-content",
+          "version": 1,
+          "exercises": [
+            {
+              "id": "rc",
+              "type": "recall",
+              "payload": {
+                "items": [
+                  {
+                    "cue": "Who is this?",
+                    "answers": [
+                      "Ana"
+                    ],
+                    "choices": [
+                      "Ana",
+                      "Luis",
+                      "Marta"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "error": {
+          "code": "INVALID_DOCUMENT",
+          "reason": "malformed-document"
+        }
+      }
+    },
+    {
+      "name": "refuses recall choices that read the same after NFC and trimming",
+      "input": {
+        "document": {
+          "format": "hm-learn-content",
+          "version": 1,
+          "exercises": [
+            {
+              "id": "rc",
+              "type": "recall",
+              "payload": {
+                "items": [
+                  {
+                    "id": "vault:ana",
+                    "cue": "Who is this?",
+                    "answers": [
+                      "Ana"
+                    ],
+                    "choices": [
+                      "Ana",
+                      " Ana ",
+                      "Luis"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "error": {
+          "code": "INVALID_DOCUMENT",
+          "reason": "malformed-document"
+        }
+      }
+    },
+    {
+      "name": "refuses recall choices without an accepted answer",
+      "input": {
+        "document": {
+          "format": "hm-learn-content",
+          "version": 1,
+          "exercises": [
+            {
+              "id": "rc",
+              "type": "recall",
+              "payload": {
+                "items": [
+                  {
+                    "id": "vault:ana",
+                    "cue": "Who is this?",
+                    "answers": [
+                      "Ana"
+                    ],
+                    "choices": [
+                      "Luis",
+                      "Marta"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "error": {
+          "code": "INVALID_DOCUMENT",
+          "reason": "malformed-document"
+        }
+      }
+    },
+    {
+      "name": "refuses an unknown field in a recall item",
+      "input": {
+        "document": {
+          "format": "hm-learn-content",
+          "version": 1,
+          "exercises": [
+            {
+              "id": "rc",
+              "type": "recall",
+              "payload": {
+                "items": [
+                  {
+                    "id": "vault:ana",
+                    "cue": "Who is this?",
+                    "answers": [
+                      "Ana"
+                    ],
+                    "choices": [
+                      "Ana",
+                      "Luis",
+                      "Marta"
+                    ],
+                    "hint": "A"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "error": {
+          "code": "INVALID_DOCUMENT",
+          "reason": "malformed-document"
+        }
+      }
+    },
+    {
+      "name": "refuses a board of one tile",
+      "input": {
+        "document": {
+          "format": "hm-learn-content",
+          "version": 1,
+          "exercises": [
+            {
+              "id": "sr",
+              "type": "sequence-recall",
+              "payload": {
+                "tiles": 1,
+                "sequence": [
+                  0
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "error": {
+          "code": "INVALID_DOCUMENT",
+          "reason": "malformed-document"
+        }
+      }
+    },
+    {
+      "name": "refuses a board over the tile limit",
+      "input": {
+        "document": {
+          "format": "hm-learn-content",
+          "version": 1,
+          "exercises": [
+            {
+              "id": "sr",
+              "type": "sequence-recall",
+              "payload": {
+                "tiles": 31,
+                "sequence": [
+                  4,
+                  0,
+                  7
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "error": {
+          "code": "TOO_MANY_TILES"
+        }
+      }
+    },
+    {
+      "name": "refuses an empty sequence",
+      "input": {
+        "document": {
+          "format": "hm-learn-content",
+          "version": 1,
+          "exercises": [
+            {
+              "id": "sr",
+              "type": "sequence-recall",
+              "payload": {
+                "tiles": 9,
+                "sequence": []
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "error": {
+          "code": "INVALID_DOCUMENT",
+          "reason": "malformed-document"
+        }
+      }
+    },
+    {
+      "name": "refuses a sequence with a tile the board doesn't have",
+      "input": {
+        "document": {
+          "format": "hm-learn-content",
+          "version": 1,
+          "exercises": [
+            {
+              "id": "sr",
+              "type": "sequence-recall",
+              "payload": {
+                "tiles": 4,
+                "sequence": [
+                  0,
+                  4
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "error": {
+          "code": "INVALID_DOCUMENT",
+          "reason": "malformed-document"
+        }
+      }
+    },
+    {
+      "name": "refuses a sequence that lights a tile twice",
+      "input": {
+        "document": {
+          "format": "hm-learn-content",
+          "version": 1,
+          "exercises": [
+            {
+              "id": "sr",
+              "type": "sequence-recall",
+              "payload": {
+                "tiles": 9,
+                "sequence": [
+                  2,
+                  5,
+                  2
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "error": {
+          "code": "INVALID_DOCUMENT",
+          "reason": "malformed-document"
+        }
+      }
+    },
+    {
+      "name": "refuses a direction that isn't true or false",
+      "input": {
+        "document": {
+          "format": "hm-learn-content",
+          "version": 1,
+          "exercises": [
+            {
+              "id": "sr",
+              "type": "sequence-recall",
+              "payload": {
+                "tiles": 9,
+                "sequence": [
+                  4,
+                  0,
+                  7
+                ],
+                "backward": "yes"
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "error": {
+          "code": "INVALID_DOCUMENT",
+          "reason": "malformed-document"
+        }
+      }
+    },
+    {
       "name": "generated document read 1",
       "input": {
         "document": {

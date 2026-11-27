@@ -3,28 +3,38 @@ import {
   accessibleCourses,
   applyLearnCommand,
   applyProgressChanges,
+  arabicProfile,
   type Content,
   type ContentDraft,
   type Course,
   createExerciseTypes,
   createFsrsScheduler,
   defineExerciseType,
+  dueItems,
+  englishProfile,
   type FsrsSchedulerOptions,
   type Grade,
   gapFill,
   gradeAnswer,
+  type LanguageProfile,
   type LearnCommand,
   type Learner,
   type LearnLimitOverrides,
+  matchTolerantly,
   multipleChoice,
+  normalizeForGrading,
   type ProgressChange,
   type ProgressDocument,
   parseContent,
   parseProgress,
   type Rating,
+  recall,
   type Scheduled,
   type Scheduler,
   type SchedulingState,
+  sequenceRecall,
+  spanishProfile,
+  type TolerantMatch,
   toProgressDocument,
   wordOrder,
 } from "../../src/index.js";
@@ -50,7 +60,14 @@ export const freeForm = defineExerciseType<object, unknown>({
 });
 
 /** The built-in types and `"free-form"`. */
-export const types = createExerciseTypes([multipleChoice, gapFill, wordOrder, freeForm]);
+export const types = createExerciseTypes([
+  multipleChoice,
+  gapFill,
+  wordOrder,
+  recall,
+  sequenceRecall,
+  freeForm,
+]);
 
 /** Whether a call returns, rather than throws. */
 export const accepts = (read: () => unknown): boolean => {
@@ -165,4 +182,58 @@ export function editCommands({ document, commands, limits }: CommandsInput): Con
     throw new Error("The commands' inverses didn't restore the content.");
   }
   return state;
+}
+
+/** The built-in language profiles, by the name a case gives. */
+const PROFILES: Readonly<Record<string, LanguageProfile>> = {
+  es: spanishProfile,
+  en: englishProfile,
+  ar: arabicProfile,
+};
+
+/** What a matching case asks: a text prepared for comparison, or an answer matched tolerantly. */
+export type MatchingInput =
+  | { readonly profile: string; readonly normalize: string }
+  | {
+      readonly profile?: string;
+      readonly given: string | readonly string[];
+      readonly accepted: readonly string[];
+      readonly others?: readonly string[];
+      readonly maxDistance?: number;
+    };
+
+/**
+ * `hm-learn-matching`: the built-in language profiles and the tolerant
+ * matcher. A case with `normalize` gives the text as the named profile
+ * prepares it for comparison, after NFC. Any other gives whether `given`
+ * matches one of `accepted`, and how far it is from the closest.
+ */
+export function matching(input: MatchingInput): string | TolerantMatch {
+  const profile = input.profile === undefined ? undefined : PROFILES[input.profile];
+  if (input.profile !== undefined && !profile) {
+    throw new Error(`The case names a profile the runner doesn't have: ${input.profile}.`);
+  }
+  if ("normalize" in input) {
+    return normalizeForGrading(input.normalize, profile as LanguageProfile);
+  }
+  return matchTolerantly(input.given, input.accepted, {
+    ...(profile ? { profile } : {}),
+    ...(input.others ? { others: input.others } : {}),
+    ...(input.maxDistance === undefined ? {} : { maxDistance: input.maxDistance }),
+  });
+}
+
+/** `hm-learn-due-items`: the ids of the cards due at `now`, in the order to review them. */
+export function due({
+  progress,
+  now,
+  limit,
+}: {
+  progress: unknown;
+  now: number;
+  limit?: number;
+}): string[] {
+  return dueItems(parseProgress(progress), now, limit === undefined ? {} : { limit }).map(
+    (card) => card.itemId,
+  );
 }

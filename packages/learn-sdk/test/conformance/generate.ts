@@ -9,8 +9,10 @@ import { content, mutated, progress } from "../arbitraries/documents.js";
 import {
   access,
   applyChanges,
+  due,
   editCommands,
   grade,
+  matching,
   readContent,
   readProgress,
   type SchedulingInput,
@@ -170,6 +172,22 @@ const gf = {
     ],
   },
 };
+const rc = {
+  id: "rc",
+  type: "recall",
+  payload: {
+    items: [
+      { id: "vault:keys", cue: "Where are the keys?", answers: ["In the drawer", "The drawer"] },
+      { id: "vault:ana", cue: "Who is this?", answers: ["Ana"], choices: ["Ana", "Luis", "Marta"] },
+    ],
+  },
+};
+const sr = { id: "sr", type: "sequence-recall", payload: { tiles: 9, sequence: [4, 0, 7] } };
+const withRecall = (changes: Record<string, unknown>) =>
+  contentDocument({ ...rc, payload: { items: [{ ...rc.payload.items[1], ...changes }] } });
+const withSequence = (changes: Record<string, unknown>) =>
+  contentDocument({ ...sr, payload: { ...sr.payload, ...changes } });
+
 const wo = {
   id: "wo",
   type: "word-order",
@@ -401,6 +419,49 @@ export function contentCases(): ConformanceFile {
       malformed,
     ],
     ["refuses one tile", doc(withTiles({ tiles: ["ran"], alternatives: [] })), malformed],
+    ["reads a recall and a sequence-recall exercise", doc(contentDocument(rc, sr)), accepted],
+    ["reads a backward sequence", doc(withSequence({ backward: true })), accepted],
+    [
+      "refuses two recall items with one id",
+      doc(
+        contentDocument({ ...rc, payload: { items: [rc.payload.items[0], rc.payload.items[0]] } }),
+      ),
+      malformed,
+    ],
+    ["refuses a recall item without an id", doc(withRecall({ id: undefined })), malformed],
+    [
+      "refuses recall choices that read the same after NFC and trimming",
+      doc(withRecall({ choices: ["Ana", " Ana ", "Luis"] })),
+      malformed,
+    ],
+    [
+      "refuses recall choices without an accepted answer",
+      doc(withRecall({ choices: ["Luis", "Marta"] })),
+      malformed,
+    ],
+    ["refuses an unknown field in a recall item", doc(withRecall({ hint: "A" })), malformed],
+    ["refuses a board of one tile", doc(withSequence({ tiles: 1, sequence: [0] })), malformed],
+    [
+      "refuses a board over the tile limit",
+      doc(withSequence({ tiles: 31 })),
+      refused("TOO_MANY_TILES"),
+    ],
+    ["refuses an empty sequence", doc(withSequence({ sequence: [] })), malformed],
+    [
+      "refuses a sequence with a tile the board doesn't have",
+      doc(withSequence({ tiles: 4, sequence: [0, 4] })),
+      malformed,
+    ],
+    [
+      "refuses a sequence that lights a tile twice",
+      doc(withSequence({ sequence: [2, 5, 2] })),
+      malformed,
+    ],
+    [
+      "refuses a direction that isn't true or false",
+      doc(withSequence({ backward: "yes" })),
+      malformed,
+    ],
     ...generated(content, readContent),
   ];
   return file(
@@ -770,6 +831,62 @@ export function gradingCases(): ConformanceFile {
     [
       "word order: refuses too few tiles",
       { exercise: tiles(["ฉัน", "กิน", "ข้าว"]), answer: { orders: [[0, 1]] } },
+      malformedAnswer,
+    ],
+
+    [
+      "recall: an accepted answer, a wrong pick and nothing given",
+      {
+        exercise: {
+          ...rc,
+          payload: { items: [...rc.payload.items, { id: "c", cue: "?", answers: ["x"] }] },
+        },
+        answer: { recalled: ["The drawer", "Luis", null] },
+      },
+      accepted,
+    ],
+    [
+      "recall: the default profile compares case as it is, and a pick is right with spaces around it",
+      { exercise: rc, answer: { recalled: ["in the drawer", " Ana "] } },
+      accepted,
+    ],
+    [
+      "recall: refuses an answer for one item of two",
+      { exercise: rc, answer: { recalled: ["The drawer"] } },
+      malformedAnswer,
+    ],
+    [
+      "recall: refuses an answer that isn't text",
+      { exercise: rc, answer: { recalled: [1, "Ana"] } },
+      malformedAnswer,
+    ],
+    ["sequence recall: every tap right", { exercise: sr, answer: { taps: [4, 0, 7] } }, accepted],
+    [
+      "sequence recall: a slip on the last tap",
+      { exercise: sr, answer: { taps: [4, 0, 2] } },
+      accepted,
+    ],
+    [
+      "sequence recall: taps that weren't made are wrong",
+      { exercise: sr, answer: { taps: [4] } },
+      accepted,
+    ],
+    [
+      "sequence recall: backward wants the reverse order",
+      {
+        exercise: { ...sr, payload: { ...sr.payload, backward: true } },
+        answer: { taps: [7, 0, 4] },
+      },
+      accepted,
+    ],
+    [
+      "sequence recall: refuses more taps than the sequence",
+      { exercise: sr, answer: { taps: [4, 0, 7, 1] } },
+      malformedAnswer,
+    ],
+    [
+      "sequence recall: refuses a tap off the board",
+      { exercise: sr, answer: { taps: [9] } },
       malformedAnswer,
     ],
 
@@ -1354,6 +1471,161 @@ export function commandCases(): ConformanceFile {
   );
 }
 
+// hm-learn-matching
+
+export function matchingCases(): ConformanceFile {
+  const cases: HandWritten[] = [
+    [
+      "Spanish: case, accents, punctuation and spaces don't count",
+      { profile: "es", normalize: "  \u00BFQu\u00C9   tal?  " },
+      accepted,
+    ],
+    ["Spanish: \u00F1 reads as n", { profile: "es", normalize: "Ni\u00F1o" }, accepted],
+    [
+      "Spanish: an accent typed as a combining mark",
+      { profile: "es", normalize: "cafe\u0301" },
+      accepted,
+    ],
+    [
+      "English: an apostrophe keeps a contraction one word",
+      { profile: "en", normalize: "Don\u2019t STOP!" },
+      accepted,
+    ],
+    [
+      "English: letters outside the table stay as they are",
+      { profile: "en", normalize: "\u0141\u00F3d\u017A" },
+      accepted,
+    ],
+    [
+      "Arabic: tashkeel and tatweel don't count",
+      { profile: "ar", normalize: "\u0643\u0650\u062A\u064E\u0640\u0627\u0628\u064C" },
+      accepted,
+    ],
+    [
+      "Arabic: the forms of alef are one letter",
+      {
+        profile: "ar",
+        normalize:
+          "\u0623\u062D\u0645\u062F \u0625\u0644\u0649 \u0622\u062E\u0631 \u0671\u0633\u0645",
+      },
+      accepted,
+    ],
+    [
+      "Arabic: ta marbuta reads as ha, alef maqsura as ya, hamza on its seat as the seat",
+      {
+        profile: "ar",
+        normalize:
+          "\u0645\u062F\u0631\u0633\u0629 \u0645\u0633\u062A\u0634\u0641\u0649 \u0633\u0624\u0627\u0644 \u0628\u0626\u0631",
+      },
+      accepted,
+    ],
+    [
+      "Arabic: its punctuation reads as a space",
+      { profile: "ar", normalize: "\u0646\u0639\u0645\u060C \u0644\u0627\u061F" },
+      accepted,
+    ],
+    [
+      "finds the word inside a sentence",
+      { profile: "en", given: "I think it's an apple", accepted: ["apple"] },
+      accepted,
+    ],
+    [
+      "forgives an article and a plural",
+      { profile: "es", given: "las manzanas", accepted: ["la manzana"] },
+      accepted,
+    ],
+    [
+      "forgives the attached article in Arabic",
+      {
+        profile: "ar",
+        given: "\u0627\u0644\u062A\u0641\u0627\u062D\u0629",
+        accepted: ["\u062A\u0641\u0627\u062D\u0629"],
+      },
+      accepted,
+    ],
+    ["forgives one slip in five letters", { given: "aple", accepted: ["apple"] }, accepted],
+    ["refuses one slip in three letters", { given: "cat", accepted: ["car"] }, accepted],
+    [
+      "accepts it at a wider distance",
+      { given: "cat", accepted: ["car"], maxDistance: 0.5 },
+      accepted,
+    ],
+    [
+      "never matches an empty answer, even at distance 1",
+      { given: "", accepted: ["apple"], maxDistance: 1 },
+      accepted,
+    ],
+    [
+      "a rival heard in any alternative counts",
+      { given: ["aple", "pear"], accepted: ["apple"], others: ["pear"] },
+      accepted,
+    ],
+    [
+      "refuses any slip at distance 0",
+      { given: "aple", accepted: ["apple"], maxDistance: 0 },
+      accepted,
+    ],
+    [
+      "ignores the spaces in a name of two words",
+      { given: "it is an icecream cone", accepted: ["ice cream"] },
+      accepted,
+    ],
+    [
+      "takes the best of several alternatives",
+      { profile: "en", given: ["a pear", "a bear"], accepted: ["bear"] },
+      accepted,
+    ],
+    [
+      "refuses an answer that's closer to another choice",
+      { given: "cat", accepted: ["cart"], others: ["cat"] },
+      accepted,
+    ],
+    [
+      "a rival that's as close, and no closer, doesn't count",
+      { given: "cart", accepted: ["cart"], others: ["cart"] },
+      accepted,
+    ],
+    ["never matches an empty answer", { given: "", accepted: ["apple"] }, accepted],
+    [
+      "never matches an answer that's only an article",
+      { profile: "en", given: "the", accepted: ["the"] },
+      accepted,
+    ],
+  ];
+  return file(
+    "hm-learn-matching",
+    'The built-in language profiles and the tolerant matcher (learn-sdk ADR 0010). input.profile is "es", "en" or "ar", or absent for the default profile, which applies Unicode NFC and nothing else. With input.normalize, expected is that text as the profile prepares it for comparison. Otherwise expected is { match, distance } for input.given, a text or a list of them, against input.accepted, with input.others as rivals and input.maxDistance in place of 0.25. distance is the edit distance in code points divided by the longer length; past maxDistance it is a lower bound: a run of words is never compared when the difference between its length and the length of the accepted answer, divided by the longer, is over maxDistance or over the best distance found so far, and counts as that far instead.',
+    run(matching, cases).map((testCase) => ({ ...testCase, tolerance: 1e-12 })),
+  );
+}
+
+// hm-learn-due-items
+
+export function dueItemCases(): ConformanceFile {
+  const cardDue = (itemId: string, at: number) => ({ ...card, itemId, due: at });
+  const progress = progressDocument(
+    [],
+    [cardDue("later", T + 2 * DAY), cardDue("b", T), cardDue("oldest", T - DAY), cardDue("a", T)],
+  );
+  const cases: HandWritten[] = [
+    ["nothing is due before the first card", { progress, now: T - DAY - 1 }, accepted],
+    ["a card is due at its time", { progress, now: T - DAY }, accepted],
+    [
+      "the longest overdue comes first, and cards due together in the order of their ids",
+      { progress, now: T + DAY },
+      accepted,
+    ],
+    ["a limit keeps the first of them", { progress, now: T + 3 * DAY, limit: 2 }, accepted],
+    ["a limit of 0 gives none", { progress, now: T + 3 * DAY, limit: 0 }, accepted],
+    ["no cards, nothing due", { progress: progressDocument([], []), now: T }, accepted],
+  ];
+  return file(
+    "hm-learn-due-items",
+    "Which cards are due (learn-sdk ADR 0010). input.progress is an hm-learn-progress document, input.now a time in milliseconds since the Unix epoch, and input.limit, when given, the most to return. expected is the ids of the cards whose due time is at or before now, earliest first; cards due at the same time are in the order of their ids, compared by UTF-16 code unit.",
+    run(due, cases),
+  );
+}
+
 /** Every file, by its name in conformance/. */
 export const conformanceFiles = {
   "hm-learn-content.json": contentCases,
@@ -1363,4 +1635,6 @@ export const conformanceFiles = {
   "hm-learn-progress-changes.json": progressChangeCases,
   "hm-learn-scheduling.json": schedulingCases,
   "hm-learn-commands.json": commandCases,
+  "hm-learn-matching.json": matchingCases,
+  "hm-learn-due-items.json": dueItemCases,
 } as const;

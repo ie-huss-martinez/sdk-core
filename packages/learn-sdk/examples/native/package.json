@@ -1,0 +1,23 @@
+{
+  "name": "@hussmartinez/learn-sdk-example-native",
+  "private": true,
+  "description": "An Expo application that plays learn-sdk content with the built @hussmartinez/learn-sdk/native and @hussmartinez/ui/native, to prove that Metro resolves the packages and Hermes compiles them (sdk-core ADR 0069).",
+  "license": "Apache-2.0",
+  "main": "index.ts",
+  "scripts": {
+    "build": "tsc --noEmit && EXPO_NO_TELEMETRY=1 EXPO_OFFLINE=1 expo export --platform android --output-dir dist",
+    "start": "expo start"
+  },
+  "dependencies": {
+    "@hussmartinez/learn-sdk": "workspace:*",
+    "@hussmartinez/ui": "workspace:*",
+    "expo": "catalog:",
+    "react": "19.3.0",
+    "react-native": "catalog:",
+    "react-native-svg": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "typescript": "catalog:"
+  }
+}

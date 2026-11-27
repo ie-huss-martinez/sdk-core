@@ -1016,6 +1016,388 @@
       }
     },
     {
+      "name": "recall: an accepted answer, a wrong pick and nothing given",
+      "input": {
+        "exercise": {
+          "id": "rc",
+          "type": "recall",
+          "payload": {
+            "items": [
+              {
+                "id": "vault:keys",
+                "cue": "Where are the keys?",
+                "answers": [
+                  "In the drawer",
+                  "The drawer"
+                ]
+              },
+              {
+                "id": "vault:ana",
+                "cue": "Who is this?",
+                "answers": [
+                  "Ana"
+                ],
+                "choices": [
+                  "Ana",
+                  "Luis",
+                  "Marta"
+                ]
+              },
+              {
+                "id": "c",
+                "cue": "?",
+                "answers": [
+                  "x"
+                ]
+              }
+            ]
+          }
+        },
+        "answer": {
+          "recalled": [
+            "The drawer",
+            "Luis",
+            null
+          ]
+        }
+      },
+      "expected": {
+        "score": 1,
+        "max": 3,
+        "items": [
+          true,
+          false,
+          false
+        ]
+      }
+    },
+    {
+      "name": "recall: the default profile compares case as it is, and a pick is right with spaces around it",
+      "input": {
+        "exercise": {
+          "id": "rc",
+          "type": "recall",
+          "payload": {
+            "items": [
+              {
+                "id": "vault:keys",
+                "cue": "Where are the keys?",
+                "answers": [
+                  "In the drawer",
+                  "The drawer"
+                ]
+              },
+              {
+                "id": "vault:ana",
+                "cue": "Who is this?",
+                "answers": [
+                  "Ana"
+                ],
+                "choices": [
+                  "Ana",
+                  "Luis",
+                  "Marta"
+                ]
+              }
+            ]
+          }
+        },
+        "answer": {
+          "recalled": [
+            "in the drawer",
+            " Ana "
+          ]
+        }
+      },
+      "expected": {
+        "score": 1,
+        "max": 2,
+        "items": [
+          false,
+          true
+        ]
+      }
+    },
+    {
+      "name": "recall: refuses an answer for one item of two",
+      "input": {
+        "exercise": {
+          "id": "rc",
+          "type": "recall",
+          "payload": {
+            "items": [
+              {
+                "id": "vault:keys",
+                "cue": "Where are the keys?",
+                "answers": [
+                  "In the drawer",
+                  "The drawer"
+                ]
+              },
+              {
+                "id": "vault:ana",
+                "cue": "Who is this?",
+                "answers": [
+                  "Ana"
+                ],
+                "choices": [
+                  "Ana",
+                  "Luis",
+                  "Marta"
+                ]
+              }
+            ]
+          }
+        },
+        "answer": {
+          "recalled": [
+            "The drawer"
+          ]
+        }
+      },
+      "expected": {
+        "error": {
+          "code": "INVALID_ANSWER",
+          "reason": "malformed-answer"
+        }
+      }
+    },
+    {
+      "name": "recall: refuses an answer that isn't text",
+      "input": {
+        "exercise": {
+          "id": "rc",
+          "type": "recall",
+          "payload": {
+            "items": [
+              {
+                "id": "vault:keys",
+                "cue": "Where are the keys?",
+                "answers": [
+                  "In the drawer",
+                  "The drawer"
+                ]
+              },
+              {
+                "id": "vault:ana",
+                "cue": "Who is this?",
+                "answers": [
+                  "Ana"
+                ],
+                "choices": [
+                  "Ana",
+                  "Luis",
+                  "Marta"
+                ]
+              }
+            ]
+          }
+        },
+        "answer": {
+          "recalled": [
+            1,
+            "Ana"
+          ]
+        }
+      },
+      "expected": {
+        "error": {
+          "code": "INVALID_ANSWER",
+          "reason": "malformed-answer"
+        }
+      }
+    },
+    {
+      "name": "sequence recall: every tap right",
+      "input": {
+        "exercise": {
+          "id": "sr",
+          "type": "sequence-recall",
+          "payload": {
+            "tiles": 9,
+            "sequence": [
+              4,
+              0,
+              7
+            ]
+          }
+        },
+        "answer": {
+          "taps": [
+            4,
+            0,
+            7
+          ]
+        }
+      },
+      "expected": {
+        "score": 3,
+        "max": 3,
+        "items": [
+          true,
+          true,
+          true
+        ]
+      }
+    },
+    {
+      "name": "sequence recall: a slip on the last tap",
+      "input": {
+        "exercise": {
+          "id": "sr",
+          "type": "sequence-recall",
+          "payload": {
+            "tiles": 9,
+            "sequence": [
+              4,
+              0,
+              7
+            ]
+          }
+        },
+        "answer": {
+          "taps": [
+            4,
+            0,
+            2
+          ]
+        }
+      },
+      "expected": {
+        "score": 2,
+        "max": 3,
+        "items": [
+          true,
+          true,
+          false
+        ]
+      }
+    },
+    {
+      "name": "sequence recall: taps that weren't made are wrong",
+      "input": {
+        "exercise": {
+          "id": "sr",
+          "type": "sequence-recall",
+          "payload": {
+            "tiles": 9,
+            "sequence": [
+              4,
+              0,
+              7
+            ]
+          }
+        },
+        "answer": {
+          "taps": [
+            4
+          ]
+        }
+      },
+      "expected": {
+        "score": 1,
+        "max": 3,
+        "items": [
+          true,
+          false,
+          false
+        ]
+      }
+    },
+    {
+      "name": "sequence recall: backward wants the reverse order",
+      "input": {
+        "exercise": {
+          "id": "sr",
+          "type": "sequence-recall",
+          "payload": {
+            "tiles": 9,
+            "sequence": [
+              4,
+              0,
+              7
+            ],
+            "backward": true
+          }
+        },
+        "answer": {
+          "taps": [
+            7,
+            0,
+            4
+          ]
+        }
+      },
+      "expected": {
+        "score": 3,
+        "max": 3,
+        "items": [
+          true,
+          true,
+          true
+        ]
+      }
+    },
+    {
+      "name": "sequence recall: refuses more taps than the sequence",
+      "input": {
+        "exercise": {
+          "id": "sr",
+          "type": "sequence-recall",
+          "payload": {
+            "tiles": 9,
+            "sequence": [
+              4,
+              0,
+              7
+            ]
+          }
+        },
+        "answer": {
+          "taps": [
+            4,
+            0,
+            7,
+            1
+          ]
+        }
+      },
+      "expected": {
+        "error": {
+          "code": "INVALID_ANSWER",
+          "reason": "malformed-answer"
+        }
+      }
+    },
+    {
+      "name": "sequence recall: refuses a tap off the board",
+      "input": {
+        "exercise": {
+          "id": "sr",
+          "type": "sequence-recall",
+          "payload": {
+            "tiles": 9,
+            "sequence": [
+              4,
+              0,
+              7
+            ]
+          }
+        },
+        "answer": {
+          "taps": [
+            9
+          ]
+        }
+      },
+      "expected": {
+        "error": {
+          "code": "INVALID_ANSWER",
+          "reason": "malformed-answer"
+        }
+      }
+    },
+    {
       "name": "refuses an exercise of a type the host didn't register",
       "input": {
         "exercise": {

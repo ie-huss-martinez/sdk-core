@@ -1,3 +1,4 @@
+import { nfc } from "../../core/model/engine.js";
 import type { ExerciseType } from "../../core/model/exercise-type.js";
 import { defineExerciseType } from "../../core/model/exercise-type.js";
 import { normalizeForGrading } from "../../core/model/language-profile.js";
@@ -62,7 +63,7 @@ export interface GapFillAnswer {
 }
 
 /** Compares choices as a learner sees them: NFC, ignoring surrounding spaces. */
-const asSeen = (text: string) => text.normalize("NFC").trim();
+const asSeen = (text: string) => nfc(text).trim();
 
 function texts(
   list: readonly unknown[] | undefined,

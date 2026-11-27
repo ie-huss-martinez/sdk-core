@@ -179,6 +179,11 @@ function readCommand(input: unknown, maxText: number): LearnCommand {
       });
     },
   };
+  if (typeof structuredClone !== "function") {
+    throw new LearnError("UNSUPPORTED_ENVIRONMENT", "structuredClone isn't available here.", {
+      details: { feature: "structuredClone" },
+    });
+  }
   let copy: unknown;
   try {
     copy = structuredClone(input);

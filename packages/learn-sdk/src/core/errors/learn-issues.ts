@@ -18,7 +18,8 @@
  *   says how many.
  * - `out-of-range`: an index points past the end of its list, such as a
  *   correct choice that doesn't exist.
- * - `duplicate-id`: two exercises share an id.
+ * - `duplicate-id`: two exercises share an id, or two items of one `recall`
+ *   exercise do.
  * - `unknown-type`: an exercise's type isn't among the available types.
  * - `duplicate-choice`: two choices of a question read the same, ignoring
  *   surrounding spaces, so the question can't be answered fairly.
@@ -27,6 +28,7 @@
  *   accepted answers, so it can't be answered.
  * - `not-a-permutation`: a word-order alternative or answer doesn't use
  *   every tile exactly once.
+ * - `repeated-tile`: a sequence-recall sequence lights the same tile twice.
  *
  * @public
  */
@@ -47,7 +49,8 @@ export type LearnIssueCode =
   | "duplicate-choice"
   | "gap-count"
   | "answer-not-in-options"
-  | "not-a-permutation";
+  | "not-a-permutation"
+  | "repeated-tile";
 
 /**
  * One problem found while validating content or an answer: where it is,

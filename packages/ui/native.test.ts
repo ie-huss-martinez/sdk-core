@@ -1,7 +1,6 @@
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { createContext, runInContext } from "node:vm";
-import { build as esbuild, type Plugin } from "esbuild";
+import { runInBareRealm } from "@hussmartinez/sdk-config/testing/bare-realm";
 import { build } from "vite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -10,55 +9,21 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
  * Hermes, which has no DOM, and where `Intl` and
  * `String.prototype.normalize` can't be counted on.
  *
- * Each entry is bundled as Metro would bundle it, whole, and run in a realm
- * that has the ECMAScript language and nothing else: no `Intl`, no
- * `normalize`, and none of what a browser or Node adds, such as `document`,
- * `localStorage`, `Blob`, `TextEncoder`, `URL` or `setTimeout`.
- * That's less than Hermes has, so what runs here runs there.
+ * Each entry runs through sdk-config's `runInBareRealm`: bundled whole, as
+ * Metro would bundle it, in a realm that has the ECMAScript language and
+ * nothing else. That's less than Hermes has, so what runs here runs there.
  */
 
 // Inside the package, so the built files resolve react from its dependencies.
 const directory = new URL("temp/native-check/", import.meta.url);
 
-/** `react-native` and `react-native-svg`, as modules whose every export is a component. */
-const nativeStubs: Plugin = {
-  name: "native-stubs",
-  setup(pluginBuild) {
-    pluginBuild.onResolve({ filter: /^react-native(?:-svg)?$/ }, (args) => ({
-      path: args.path,
-      namespace: "native-stub",
-    }));
-    pluginBuild.onLoad({ filter: /.*/, namespace: "native-stub" }, () => ({
-      contents:
-        "module.exports = new Proxy({}, { get: (_, name) => (name === '__esModule' ? false : function Stub() { return null; }) });",
-      loader: "js",
-    }));
-  },
-};
-
-/** Bundles a built entry whole and runs `probe` on its exports in the bare realm. */
-async function inBareRealm(entry: string, probe: string): Promise<unknown> {
-  const bundle = await esbuild({
-    stdin: {
-      contents: `import * as entry from "./${entry}";\nglobalThis.result = JSON.stringify((${probe})(entry));\n`,
-      resolveDir: fileURLToPath(directory),
-      loader: "js",
-    },
-    bundle: true,
-    format: "iife",
-    write: false,
-    logLevel: "silent",
-    define: { "process.env.NODE_ENV": '"production"' },
-    plugins: [nativeStubs],
+/** Runs `probe` on a built entry's exports in the bare realm, with React Native's packages stubbed. */
+const inBareRealm = (entry: string, probe: string): Promise<unknown> =>
+  runInBareRealm({
+    entry: fileURLToPath(new URL(entry, directory)),
+    probe,
+    stubs: ["react-native", "react-native-svg"],
   });
-  const realm = createContext({});
-  runInContext("delete globalThis.Intl; delete String.prototype.normalize;", realm);
-  expect(runInContext("typeof Intl + typeof ''.normalize + typeof setTimeout", realm)).toBe(
-    "undefinedundefinedundefined",
-  );
-  runInContext(bundle.outputFiles[0]?.text ?? "", realm);
-  return JSON.parse(runInContext("result", realm) as string);
-}
 
 beforeAll(async () => {
   await rm(directory, { recursive: true, force: true });

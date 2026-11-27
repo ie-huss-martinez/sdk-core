@@ -1,3 +1,5 @@
+import { nfc } from "./engine.js";
+
 /**
  * Text direction of a language's script.
  *
@@ -20,6 +22,8 @@ export type TextDirection = "ltr" | "rtl";
  * - `segment` splits text into words for display only, such as offering a
  *   sentence's words as tiles in the editor. Grading never calls it, so it
  *   may use `Intl.Segmenter`.
+ * - `articles` and `stem` are for tolerant matching, which a host opts
+ *   into ({@link matchTolerantly}). Exact grading ignores them.
  *
  * @example
  * ```ts
@@ -44,6 +48,19 @@ export interface LanguageProfile {
   readonly normalizeAnswer?: (text: string) => string;
   /** Words of a text, for display only. Never used for grading. */
   readonly segment?: (text: string) => readonly string[];
+  /**
+   * Words that carry no meaning before a noun, such as "the", as they read
+   * after `normalizeAnswer`. Only {@link matchTolerantly} uses them, to
+   * leave them out; exact grading never does.
+   */
+  readonly articles?: readonly string[];
+  /**
+   * Reduces a word, as it reads after `normalizeAnswer`, to a form its
+   * plural shares, such as "apples" to "apple". Deterministic string
+   * operations, like `normalizeAnswer`. Only {@link matchTolerantly} uses
+   * it.
+   */
+  readonly stem?: (word: string) => string;
 }
 
 /**
@@ -62,6 +79,11 @@ export const defaultLanguageProfile: LanguageProfile = Object.freeze({
  * own rules. Every exercise type grades through it, so a server and a
  * browser compare the same strings.
  *
+ * On an engine without `String.prototype.normalize`, as Hermes can be, the
+ * NFC step is left out and the profile's rules do all the work. The
+ * built-in profiles fold accents and combining marks themselves, so they
+ * grade the same there (ADR 0010).
+ *
  * @example
  * ```ts
  * normalizeForGrading("café", defaultLanguageProfile) === normalizeForGrading("café", defaultLanguageProfile); // true
@@ -74,11 +96,11 @@ export const defaultLanguageProfile: LanguageProfile = Object.freeze({
  * @public
  */
 export function normalizeForGrading(text: string, profile: LanguageProfile): string {
-  const nfc = text.normalize("NFC");
+  const composed = nfc(text);
   if (!profile.normalizeAnswer) {
-    return nfc;
+    return composed;
   }
-  const normalized: unknown = profile.normalizeAnswer(nfc);
+  const normalized: unknown = profile.normalizeAnswer(composed);
   if (typeof normalized !== "string") {
     throw new TypeError("A language profile's normalizeAnswer must return a string.");
   }

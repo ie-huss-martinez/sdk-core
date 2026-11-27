@@ -24,17 +24,30 @@ learn-sdk's content format: a set of exercises, as a teacher writes them and a p
       "id": "food-3",
       "type": "word-order",
       "payload": { "items": [{ "tiles": ["ฉัน", "กิน", "ข้าว"] }] }
+    },
+    {
+      "id": "vault-1",
+      "type": "recall",
+      "payload": { "items": [{ "id": "vault:keys", "cue": "Where are the keys?", "answers": ["In the drawer"] }] }
+    },
+    {
+      "id": "path-1",
+      "type": "sequence-recall",
+      "payload": { "tiles": 9, "sequence": [4, 0, 7] }
     }
   ]
 }
 ```
 
 - **Exercises** are `{ id, type, title?, instructions?, payload }`. Ids are unique within the document, and live in a list, never as object keys.
-- **Built-in payloads:** the schema describes `multiple-choice`, `gap-fill` and `word-order`. An exercise of any other type is a host's: its payload is an object, which the host's exercise type validates.
+- **Built-in payloads:** the schema describes `multiple-choice`, `gap-fill`, `word-order`, `recall` and `sequence-recall`.
+  - **`recall`** is items to remember, each `{ id, cue, answers, choices? }`. The `id` is what the item's card in `hm-learn-progress` is kept under, so it's unique in its exercise, and best unique in everything a learner studies.
+  - **`sequence-recall`** is `{ tiles, sequence, backward? }`: a board of 2 to 30 tiles (never over 1,000, whatever limit a host sets), and the positions, from 0, that light up in order, none twice. With `backward`, the learner taps them back in reverse. Where each tile sits is the application's.
+- **Host types:** an exercise of any other type is a host's: its payload is an object, which the host's exercise type validates.
 - **Texts** are 1 to 2,000 Unicode code points, the default `maxTextLength`, with at least one character that isn't white space, as ECMAScript's `String.prototype.trim` defines it. The schema spells that set out rather than using `\S`, whose meaning varies between regular expression engines.
 - **Counts** are the default limits: at most 500 exercises, 100 questions or items per exercise, 8 choices, answers, options or alternatives, and 30 tiles. A host can lower or raise them with `limits`; the schema states the defaults.
 - **Size:** a document is at most 2,000,000 UTF-8 bytes by default. A schema can't express that, so readers check it before parsing.
-- **Beyond the schema,** readers check what depends on more than one field: unique ids, a registered type, a `correct` choice within the choices, exactly one gap (three or more underscores) in a gap-fill sentence, distinct choices and options compared after NFC and trimming, an answer among the options, and word-order alternatives that use exactly the tiles.
+- **Beyond the schema,** readers check what depends on more than one field: unique ids, a registered type, a `correct` choice within the choices, exactly one gap (three or more underscores) in a gap-fill sentence, distinct choices and options compared after NFC and trimming, an answer among the options, word-order alternatives that use exactly the tiles, unique item ids in a recall exercise, and sequence tiles the board has.
 - **Hostile keys:** in an object of fixed shape, `__proto__`, `constructor` and `toString` are unknown fields and refused. In a host type's payload they're ordinary data, read as own properties and copied unchanged.
 - **Strict:** an unknown field in any object of fixed shape is refused, never dropped, so a later version's document can't be misread as this one.
 

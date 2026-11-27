@@ -45,6 +45,10 @@
       "types": "./src/testing/audio-output.d.ts",
       "default": "./src/testing/audio-output.js"
     },
+    "./testing/bare-realm": {
+      "types": "./src/testing/bare-realm.d.ts",
+      "default": "./src/testing/bare-realm.js"
+    },
     "./testing/browser-instances": {
       "types": "./src/testing/browser-instances.d.ts",
       "default": "./src/testing/browser-instances.js"

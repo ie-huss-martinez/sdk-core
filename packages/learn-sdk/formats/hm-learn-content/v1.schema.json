@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/ie-huss-martinez/learn-sdk/blob/main/formats/hm-learn-content/v1.schema.json",
   "title": "hm-learn-content, version 1",
-  "description": "learn-sdk content: a set of exercises (docs/formats/hm-learn-content.md, learn-sdk ADR 0006, sdk-core ADR 0045). Lengths and counts are learn-sdk's default limits; the whole document is at most 2,000,000 UTF-8 bytes, which a schema can't express. Beyond this schema, readers check that exercise ids are unique, that the type is one the host registered, that a correct choice is in range, that a gap-fill sentence has exactly one gap, that choices and options are distinct, that a listed answer is among the options, and that each word-order alternative uses exactly the tiles.",
+  "description": "learn-sdk content: a set of exercises (docs/formats/hm-learn-content.md, learn-sdk ADR 0006, sdk-core ADR 0045). Lengths and counts are learn-sdk's default limits; the whole document is at most 2,000,000 UTF-8 bytes, which a schema can't express. Beyond this schema, readers check that exercise ids are unique, that the type is one the host registered, that a correct choice is in range, that a gap-fill sentence has exactly one gap, that choices and options are distinct, that a listed answer is among the options, that each word-order alternative uses exactly the tiles, that a recall exercise's item ids are unique, and that every tile of a sequence-recall sequence is one its board has.",
   "type": "object",
   "required": ["format", "version", "exercises"],
   "additionalProperties": false,
@@ -105,6 +105,44 @@
             "properties": {
               "payload": {
                 "$ref": "#/$defs/wordOrder"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+              "type": {
+                "const": "recall"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/recall"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+              "type": {
+                "const": "sequence-recall"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/sequenceRecall"
               }
             }
           }
@@ -245,6 +283,82 @@
               }
             }
           }
+        }
+      }
+    },
+    "recall": {
+      "description": "The recall payload.",
+      "type": "object",
+      "required": ["items"],
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "required": ["id", "cue", "answers"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "description": "The item's id, unique in its exercise, which its card in the learner's progress is kept under.",
+                "$ref": "#/$defs/text"
+              },
+              "cue": {
+                "description": "What the learner is shown or asked.",
+                "$ref": "#/$defs/text"
+              },
+              "answers": {
+                "description": "The accepted answers.",
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 8,
+                "items": {
+                  "$ref": "#/$defs/text"
+                }
+              },
+              "choices": {
+                "description": "Choices to pick from, one of which is an accepted answer. Without them, the learner types or says the answer.",
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 8,
+                "items": {
+                  "$ref": "#/$defs/text"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "sequenceRecall": {
+      "description": "The sequence-recall payload.",
+      "type": "object",
+      "required": ["tiles", "sequence"],
+      "additionalProperties": false,
+      "properties": {
+        "tiles": {
+          "description": "How many tiles the board has.",
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 30
+        },
+        "sequence": {
+          "description": "The tiles that light up, in order, by position from 0: each less than tiles, and none twice.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 30,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 29
+          }
+        },
+        "backward": {
+          "description": "Whether the learner taps them back in reverse.",
+          "type": "boolean"
         }
       }
     }

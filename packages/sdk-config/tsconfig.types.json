@@ -20,6 +20,7 @@
     "src/size/imports.js",
     "src/size/index.js",
     "src/testing/audio-output.js",
+    "src/testing/bare-realm.js",
     "src/testing/browser-instances.js",
     "src/testing/browsers.js",
     "src/testing/conformance.js",

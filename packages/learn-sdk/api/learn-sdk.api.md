@@ -52,6 +52,27 @@ export interface ApplyLearnCommandOptions {
 export function applyProgressChanges(snapshot: ProgressSnapshot, changes: readonly ProgressChange[]): ProgressSnapshot;
 
 // @public
+export const arabicProfile: LanguageProfile;
+
+// @public
+export interface AsyncProgressStorage {
+    // (undocumented)
+    getItem(key: string): Promise<string | null>;
+    // (undocumented)
+    removeItem(key: string): Promise<void>;
+    // (undocumented)
+    setItem(key: string, value: string): Promise<void>;
+}
+
+// @public
+export interface AsyncProgressStoreOptions {
+    readonly limits?: LearnLimitOverrides;
+    readonly namespace: string;
+    readonly onDiscard?: (reason: ProgressDiscardReason) => void;
+    readonly storage: AsyncProgressStorage;
+}
+
+// @public
 export interface AttemptRecord {
     // (undocumented)
     readonly answer: unknown;
@@ -122,6 +143,9 @@ export interface Course {
 }
 
 // @public
+export function createAsyncProgressStore(options: AsyncProgressStoreOptions): ProgressStore;
+
+// @public
 export function createExerciseTypes(types: readonly ExerciseType<unknown, unknown>[]): ExerciseTypes;
 
 // @public
@@ -140,13 +164,33 @@ export function createLocalProgressStore(options: LocalProgressStoreOptions): Pr
 export function createMemoryProgressStore(): ProgressStore;
 
 // @public
+export function createRecallType(options?: RecallTypeOptions): ExerciseType<RecallPayload, RecallAnswer>;
+
+// @public
+export const DEFAULT_MATCH_DISTANCE = 0.25;
+
+// @public
 export const defaultLanguageProfile: LanguageProfile;
 
 // @public
 export function defineExerciseType<Payload, Answer>(definition: ExerciseType<Payload, Answer>): ExerciseType<Payload, Answer>;
 
 // @public
+export function dueItems(progress: Pick<ProgressSnapshot, "cards">, now: number, options?: DueItemsOptions): readonly CardRecord[];
+
+// @public
+export interface DueItemsOptions {
+    readonly limit?: number;
+}
+
+// @public
+export function editDistance(a: string, b: string): number;
+
+// @public
 export const emptyProgress: ProgressSnapshot;
+
+// @public
+export const englishProfile: LanguageProfile;
 
 // @public
 export interface Enrolment {
@@ -187,6 +231,9 @@ export interface ExerciseType<Payload = unknown, Answer = unknown> {
 
 // @public
 export type ExerciseTypes = ReadonlyMap<string, ExerciseType>;
+
+// @public
+export function expectedTaps(payload: SequenceRecallPayload): readonly number[];
 
 // @public
 export interface FsrsSchedulerOptions {
@@ -245,11 +292,13 @@ export function isLearnError<Code extends LearnErrorCode = LearnErrorCode>(value
 
 // @public
 export interface LanguageProfile {
+    readonly articles?: readonly string[];
     readonly code: string;
     // (undocumented)
     readonly direction: TextDirection;
     readonly normalizeAnswer?: (text: string) => string;
     readonly segment?: (text: string) => readonly string[];
+    readonly stem?: (word: string) => string;
 }
 
 // @public
@@ -370,7 +419,7 @@ export interface LearnIssue {
 }
 
 // @public
-export type LearnIssueCode = "required" | "unknown-field" | "not-data" | "expected-object" | "expected-list" | "expected-text" | "expected-whole-number" | "expected-yes-no" | "empty-text" | "too-few" | "out-of-range" | "duplicate-id" | "unknown-type" | "duplicate-choice" | "gap-count" | "answer-not-in-options" | "not-a-permutation";
+export type LearnIssueCode = "required" | "unknown-field" | "not-data" | "expected-object" | "expected-list" | "expected-text" | "expected-whole-number" | "expected-yes-no" | "empty-text" | "too-few" | "out-of-range" | "duplicate-id" | "unknown-type" | "duplicate-choice" | "gap-count" | "answer-not-in-options" | "not-a-permutation" | "repeated-tile";
 
 // @public
 export type LearnLimitDefinitions = typeof learnLimitDefinitions;
@@ -539,6 +588,7 @@ export const learnMessages: {
     readonly "validation.gap-count": "Write the sentence with exactly one gap, as three underscores: ___";
     readonly "validation.answer-not-in-options": "None of the choices is an accepted answer. Add the answer to the choices.";
     readonly "validation.not-a-permutation": "Use every word exactly once, in any order.";
+    readonly "validation.repeated-tile": "Light each tile once only.";
     readonly "tools.check": "Check";
     readonly "tools.next": "Next";
     readonly "tools.previous": "Previous";
@@ -702,6 +752,9 @@ export interface LocalProgressStoreOptions {
     readonly onDiscard?: (reason: ProgressDiscardReason) => void;
     readonly storage?: ProgressStorage;
 }
+
+// @public
+export function matchTolerantly(given: string | readonly string[], accepted: readonly string[], options?: TolerantMatchOptions): TolerantMatch;
 
 // @public
 export const MAX_ISSUE_KEY_LENGTH = 64;
@@ -872,6 +925,34 @@ export interface ProgressStore {
 export type Rating = "again" | "hard" | "good" | "easy";
 
 // @public
+export const recall: ExerciseType<RecallPayload, RecallAnswer>;
+
+// @public
+export interface RecallAnswer {
+    // (undocumented)
+    readonly recalled: readonly (string | null)[];
+}
+
+// @public
+export interface RecallItem {
+    readonly answers: readonly string[];
+    readonly choices?: readonly string[];
+    readonly cue: string;
+    readonly id: string;
+}
+
+// @public
+export interface RecallPayload {
+    // (undocumented)
+    readonly items: readonly RecallItem[];
+}
+
+// @public
+export interface RecallTypeOptions {
+    readonly tolerance?: number;
+}
+
+// @public
 export const redoTool: LearnEditorTool;
 
 // @public
@@ -920,6 +1001,22 @@ export interface SchedulingState {
 }
 
 // @public
+export const sequenceRecall: ExerciseType<SequenceRecallPayload, SequenceRecallAnswer>;
+
+// @public
+export interface SequenceRecallAnswer {
+    // (undocumented)
+    readonly taps: readonly number[];
+}
+
+// @public
+export interface SequenceRecallPayload {
+    readonly backward?: boolean;
+    readonly sequence: readonly number[];
+    readonly tiles: number;
+}
+
+// @public
 export interface SetExerciseTextCommand {
     // (undocumented)
     readonly exerciseId: string;
@@ -945,10 +1042,27 @@ export interface SetPayloadCommand {
 export const skipTool: LearnPlayerTool;
 
 // @public
+export const spanishProfile: LanguageProfile;
+
+// @public
 export function splitAtGap(sentence: string): readonly [before: string, after: string] | undefined;
 
 // @public
 export type TextDirection = "ltr" | "rtl";
+
+// @public
+export interface TolerantMatch {
+    readonly distance: number;
+    // (undocumented)
+    readonly match: boolean;
+}
+
+// @public
+export interface TolerantMatchOptions {
+    readonly maxDistance?: number;
+    readonly others?: readonly string[];
+    readonly profile?: LanguageProfile;
+}
 
 // @public
 export function toProgressDocument(snapshot: ProgressSnapshot): ProgressDocument;

@@ -106,6 +106,7 @@ export const learnMessages = /* @__PURE__ */ defineMessages({
   "validation.answer-not-in-options":
     "None of the choices is an accepted answer. Add the answer to the choices.",
   "validation.not-a-permutation": "Use every word exactly once, in any order.",
+  "validation.repeated-tile": "Light each tile once only.",
   "tools.check": "Check",
   "tools.next": "Next",
   "tools.previous": "Previous",

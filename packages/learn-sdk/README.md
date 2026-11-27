@@ -4,7 +4,7 @@ A learning SDK: exercise types with their grading logic, a player and a teacher 
 
 It's published as **`@hussmartinez/learn-sdk`**, from `packages/learn-sdk` in the family's repository. It follows the family standards in [`sdk-core`'s `STANDARDS.md`](https://github.com/ie-huss-martinez/sdk-core/blob/main/STANDARDS.md), and in particular the decisions on [hostile input and no network](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0012-hostile-input-and-no-network.md), [ports and adapters](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0008-ports-adapters-and-session.md) and [accessibility and translatable text](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0014-accessibility-and-translatable-text.md).
 
-> Status: `0.x`, so the API may still change between minor versions. The package root, `@hussmartinez/learn-sdk`, has the headless core (such as `createLearnEditor` and `gradeAnswer`); the React entry, `@hussmartinez/learn-sdk/react`, has the player (`LearnPlayer`) and the editor (`LearnEditor`); the element entry, `@hussmartinez/learn-sdk/element`, has the editor's custom element. The player's element is still to come.
+> Status: `0.x`, so the API may still change between minor versions. The package root, `@hussmartinez/learn-sdk`, has the headless core (such as `createLearnEditor` and `gradeAnswer`); the React entry, `@hussmartinez/learn-sdk/react`, has the player (`LearnPlayer`) and the editor (`LearnEditor`); the element entry, `@hussmartinez/learn-sdk/element`, has the editor's custom element. The player's element is still to come. `@hussmartinez/learn-sdk/native` has the player as hooks for [React Native](#react-native), and is experimental.
 
 ## Teacher's editor
 
@@ -102,6 +102,71 @@ if (editor) {
 - **Other content:** setting `initialContent`, `single`, `types`, `limits` or `newId` to another value opens the editor afresh, with no history, as a new `key` does in React.
 - **Methods:** `getContent()` returns a promise, unlike the React handle's: it waits for the editor to render, then resolves with the content or rejects with the same errors. `flush()`, `undo()` and `redo()` are as in React.
 - **Events:** `hm-learn-editor-change` with `{ draft, issues, valid }`, `-event`, `-error` with `{ code, details }` for a refused command, and `-preferences`.
+
+## React Native
+
+learn-sdk's core runs on Hermes, React Native's engine, so an application there reads content, grades answers, schedules reviews and keeps progress with the same code as a server ([ADR 0010](docs/adr/0010-react-native-and-memory-training.md)). It needs no polyfill beyond what React Native sets up itself.
+
+> **Experimental.** `@hussmartinez/learn-sdk/native` builds and passes learn-sdk's own checks, which run the built package in a realm with no `Intl`, no `String.prototype.normalize` and no DOM, and compile it with Hermes in an Expo application. It hasn't been run on a device yet. Until an application has, its API may change in any release, and this note stays.
+
+```tsx
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  createAsyncProgressStore,
+  createExerciseTypes,
+  createFsrsScheduler,
+  recall,
+  type RecallPayload,
+  spanishProfile,
+} from "@hussmartinez/learn-sdk";
+import { useLearnPlayer } from "@hussmartinez/learn-sdk/native";
+import { ChoiceList } from "@hussmartinez/ui/native";
+
+// Made once: a new one would start a new session.
+const types = createExerciseTypes([recall]);
+const progressStore = createAsyncProgressStore({ namespace: "my-app", storage: AsyncStorage });
+const scheduler = createFsrsScheduler();
+
+export function Session({ content, learnerId }) {
+  const { player, current, error } = useLearnPlayer({
+    content,
+    types,
+    profile: spanishProfile,
+    progressStore,
+    scope: learnerId,
+    scheduler,
+  });
+  if (!player || !current) return <Problem error={error} />;
+  const [item] = (current.exercise.payload as RecallPayload).items;
+  // This content gives choices to pick from. An item without them is typed
+  // or spoken: draw a text field, and pass what was typed the same way.
+  if (!item.choices) return <TypedAnswer item={item} player={player} />;
+  return (
+    <ChoiceList
+      accessibilityLabel={item.cue}
+      choices={item.choices.map((choice) => ({ key: choice, label: choice }))}
+      correctKey={current.status === "checked" ? item.answers[0] : undefined}
+      onValueChange={(choice) => {
+        player.answer({ recalled: [choice] });
+        player.check();
+      }}
+    />
+  );
+}
+```
+
+- **`useLearnPlayer(options)`,** from `./native`, takes what `createLearnPlayer` takes and returns `{ player, snapshot, current, error, restart }`. It creates the session once for its content and settings, keeps `snapshot` and `current`, the exercise the learner is on, up to date, and disposes the session with the component. It draws nothing and has no text: use `@hussmartinez/ui/native` or your own views. `usePlayerSnapshot(player)` is the snapshot alone. Neither needs `react-native`, only React.
+- **`createAsyncProgressStore({ namespace, storage })`** keeps progress in any storage of AsyncStorage's shape: `getItem`, `setItem` and `removeItem`, each returning a promise. learn-sdk depends on no storage package. It reads back what it stored as untrusted, as the `localStorage` adapter does, and saves to one scope take turns, so two that overlap lose nothing.
+- **`dueItems(progress, now, { limit })`** returns the cards due for review, longest overdue first.
+- **Language profiles:** `spanishProfile`, `englishProfile` and `arabicProfile` compare answers without case, accents, punctuation or extra spaces, and in Arabic without tashkeel and with the forms of alef, ta marbuta and alef maqsura unified. They're fixed tables, with no `Intl`, so they grade the same on every engine. They're forgiving on purpose: a course that teaches where an accent goes should use its own profile.
+- **`matchTolerantly(given, accepted, { profile, maxDistance, others })`** finds an accepted answer inside what someone said or typed, forgiving an article, a plural or one slip in four letters, and refusing an answer that's closer to one of `others`. No exercise type uses it unless you ask: `createRecallType({ tolerance: DEFAULT_MATCH_DISTANCE })`.
+- **Two exercise types for memory:**
+  - **`recall`:** items of `{ id, cue, answers, choices? }`, answered by picking, typing or saying. With a scheduler, the player keeps a card per item, rated `good` when it was remembered and `again` when it wasn't.
+  - **`sequenceRecall`:** `{ tiles, sequence, backward? }`, the Corsi block-tapping task. The answer is `{ taps }`, and `expectedTaps(payload)` is the order to tap in. Your application draws the board and makes the sequences.
+
+  Neither has a block in `LearnPlayer` or `LearnEditor` yet.
+- **What isn't there on Hermes says so:** `loadClip`, the `localStorage` adapter, `applyLearnCommand` and the editor session's default ids need `Blob`, `localStorage`, `structuredClone` and `crypto.getRandomValues`. Where one is missing, they throw `LearnError` with `UNSUPPORTED_ENVIRONMENT` and `details.feature` naming it.
+- **`ts-fsrs` there:** `createFsrsScheduler` gives exactly Node's schedule in learn-sdk's bare-realm test, and Hermes compiles it. It hasn't been executed on a Hermes runtime in learn-sdk's own checks.
 
 ## Development
 
