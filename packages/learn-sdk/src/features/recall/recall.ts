@@ -190,9 +190,19 @@ export function createRecallType(
             .match;
         }
         const normalized = normalizeForGrading(given, profile);
-        return (
+        if (
           normalized !== "" &&
           item.answers.some((accepted) => normalizeForGrading(accepted, profile) === normalized)
+        ) {
+          return true;
+        }
+        // A choice is accepted as an answer when it reads the same as one,
+        // ignoring surrounding spaces, so picking that choice must be right
+        // whatever the profile makes of the spaces.
+        const seen = asSeen(given);
+        return (
+          item.choices?.some((choice) => asSeen(choice) === seen) === true &&
+          item.answers.some((accepted) => asSeen(accepted) === seen)
         );
       });
       return { score: items.filter(Boolean).length, max: items.length, items };
@@ -214,7 +224,9 @@ export function createRecallType(
  * remembered, `again` when it wasn't.
  *
  * This one grades exactly, after the language profile's rules
- * ({@link normalizeForGrading}). {@link createRecallType} makes one that
+ * ({@link normalizeForGrading}). A pick that reads as an accepted answer,
+ * surrounding spaces aside, is right too, since that's what made the choice
+ * valid. {@link createRecallType} makes one that
  * forgives a slip.
  *
  * Its issues, beyond the generic ones: `duplicate-id` for two items with

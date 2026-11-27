@@ -846,8 +846,8 @@ export function gradingCases(): ConformanceFile {
       accepted,
     ],
     [
-      "recall: the default profile compares case and spaces as they are",
-      { exercise: rc, answer: { recalled: ["in the drawer", " Ana"] } },
+      "recall: the default profile compares case as it is, and a pick is right with spaces around it",
+      { exercise: rc, answer: { recalled: ["in the drawer", " Ana "] } },
       accepted,
     ],
     [
@@ -1548,6 +1548,16 @@ export function matchingCases(): ConformanceFile {
     [
       "accepts it at a wider distance",
       { given: "cat", accepted: ["car"], maxDistance: 0.5 },
+      accepted,
+    ],
+    [
+      "never matches an empty answer, even at distance 1",
+      { given: "", accepted: ["apple"], maxDistance: 1 },
+      accepted,
+    ],
+    [
+      "a rival heard in any alternative counts",
+      { given: ["aple", "pear"], accepted: ["apple"], others: ["pear"] },
       accepted,
     ],
     [

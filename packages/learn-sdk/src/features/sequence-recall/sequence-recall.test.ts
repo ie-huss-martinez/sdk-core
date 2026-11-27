@@ -68,9 +68,25 @@ describe("sequence-recall: content", () => {
     expect(refusal(payload)).toEqual(issues);
   });
 
-  it("holds a board to the tile limit before anything is made of it", () => {
+  it("holds a board to the tile limit, and to 1,000 tiles whatever the limit", () => {
     expect(refusal({ tiles: 31, sequence: [0] })).toBe("TOO_MANY_TILES");
-    expect(refusal({ tiles: Number.MAX_SAFE_INTEGER, sequence: [0] })).toBe("TOO_MANY_TILES");
+    expect(refusal({ tiles: 1_001, sequence: [0] })).toEqual([["tiles", "out-of-range"]]);
+    expect(refusal({ tiles: Number.MAX_SAFE_INTEGER, sequence: [0] })).toEqual([
+      ["tiles", "out-of-range"],
+    ]);
+    // A host that raises the limit past it still gets no larger board.
+    const raised = () =>
+      parseContent(content({ tiles: 20_000, sequence: [0] }), {
+        types,
+        limits: { maxTiles: 50_000 },
+      });
+    expect(raised).toThrow(expect.objectContaining({ code: "INVALID_DOCUMENT" }));
+    expect(
+      parseContent(content({ tiles: 1_000, sequence: [999] }), {
+        types,
+        limits: { maxTiles: 50_000 },
+      }).exercises,
+    ).toHaveLength(1);
   });
 });
 

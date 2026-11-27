@@ -8,7 +8,7 @@ import { defineExerciseType } from "../../core/model/exercise-type.js";
  * @public
  */
 export interface SequenceRecallPayload {
-  /** How many tiles the board has, from 2 to `maxTiles`. Where each one sits is the application's. */
+  /** How many tiles the board has, from 2 to `maxTiles`, and never over 1,000. Where each one sits is the application's. */
   readonly tiles: number;
   /**
    * The tiles that light up, in order, by position from 0: at least one,
@@ -29,6 +29,9 @@ export interface SequenceRecallPayload {
 export interface SequenceRecallAnswer {
   readonly taps: readonly number[];
 }
+
+/** The largest board there can be, whatever a host raises `maxTiles` to. */
+const MAX_BOARD = 1_000;
 
 /**
  * The order to tap a `sequence-recall` exercise's tiles in: as shown, or
@@ -76,11 +79,16 @@ export const sequenceRecall: ExerciseType<SequenceRecallPayload, SequenceRecallA
         return undefined;
       }
       const tiles = context.at("tiles").wholeNumber(fields.tiles);
-      // A board is a list of tiles in all but name: its size has the same limit.
+      // A board is a list of tiles in all but name, so its size has the same
+      // limit, checked on a list of that size. Past MAX_BOARD nothing is a
+      // board, whatever a host's limit, and no list that long is ever made.
+      if (tiles !== undefined && tiles > MAX_BOARD) {
+        context.at("tiles").issue("out-of-range");
+      }
       const board =
-        tiles === undefined
+        tiles === undefined || tiles > MAX_BOARD
           ? undefined
-          : context.at("tiles").list(Array.from({ length: Math.min(tiles, 10_000) }), {
+          : context.at("tiles").list(Array.from({ length: tiles }), {
               limit: "maxTiles",
               minimum: 2,
             });

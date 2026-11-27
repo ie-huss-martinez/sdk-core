@@ -1072,7 +1072,7 @@
       }
     },
     {
-      "name": "recall: the default profile compares case and spaces as they are",
+      "name": "recall: the default profile compares case as it is, and a pick is right with spaces around it",
       "input": {
         "exercise": {
           "id": "rc",
@@ -1105,16 +1105,16 @@
         "answer": {
           "recalled": [
             "in the drawer",
-            " Ana"
+            " Ana "
           ]
         }
       },
       "expected": {
-        "score": 0,
+        "score": 1,
         "max": 2,
         "items": [
           false,
-          false
+          true
         ]
       }
     },

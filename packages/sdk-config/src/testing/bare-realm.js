@@ -80,6 +80,11 @@ export async function runInBareRealm({ entry, probe, stubs = [], provided = [] }
       loader: "js",
     },
     bundle: true,
+    // Everything the entry reaches, as Metro ships it: nothing dropped for
+    // being unused or marked pure, or a module that touches a missing
+    // global when it loads could pass by not being there.
+    treeShaking: false,
+    ignoreAnnotations: true,
     format: "iife",
     write: false,
     logLevel: "silent",

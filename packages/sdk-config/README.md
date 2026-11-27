@@ -384,10 +384,13 @@ import { runInBareRealm } from "@hussmartinez/sdk-config/testing/bare-realm";
 
 const result = await runInBareRealm({
   entry: fileURLToPath(new URL("temp/check/index.js", import.meta.url)),
-  probe: `(sdk) => sdk.gradeAnswer(exercise, answer, { types })`,
+  // The probe's source: it sees the entry's exports and nothing of this file,
+  // so what it needs is written into it.
+  probe: `(sdk) => sdk.normalizeForGrading(${JSON.stringify("  ¿Qué tal?  ")}, sdk.spanishProfile)`,
   stubs: ["react-native"],
   provided: ["AbortController"],
 });
+expect(result).toBe("que tal");
 ```
 
 - **`entry`** is the built file. Build into a folder inside the package, so its imports resolve.
@@ -395,7 +398,7 @@ const result = await runInBareRealm({
 - **`stubs`** names packages to replace with a module whose every export is a function that returns `null`, such as `react-native`, which only runs on a device.
 - **`provided`** names globals to take from the test's process, for what React Native sets up itself beside Hermes, such as `AbortController`. Naming one records that the entry relies on it.
 
-Importing the entry runs every module it reaches, so a module that touches a missing global when it loads fails the call, with the engine's own error, such as `Intl is not defined`. It doesn't run Hermes: an Expo application built with `expo export` proves Hermes compiles the code.
+Importing the entry runs every module it reaches, so a module that touches a missing global when it loads fails the call, even one a bundler would drop as unused or pure, with the engine's own error, such as `Intl is not defined`. It doesn't run Hermes: an Expo application built with `expo export` proves Hermes compiles the code.
 
 ### Testing: `testBrowsers`
 

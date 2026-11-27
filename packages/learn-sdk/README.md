@@ -138,6 +138,9 @@ export function Session({ content, learnerId }) {
   });
   if (!player || !current) return <Problem error={error} />;
   const [item] = (current.exercise.payload as RecallPayload).items;
+  // This content gives choices to pick from. An item without them is typed
+  // or spoken: draw a text field, and pass what was typed the same way.
+  if (!item.choices) return <TypedAnswer item={item} player={player} />;
   return (
     <ChoiceList
       accessibilityLabel={item.cue}

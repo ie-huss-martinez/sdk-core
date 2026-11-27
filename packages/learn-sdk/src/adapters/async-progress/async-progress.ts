@@ -65,7 +65,8 @@ const isText = (value: unknown): value is string => typeof value === "string" &&
  *   `CONTENT_TOO_LARGE`, so it can always be read back. A storage that
  *   rejects is `STORAGE_UNAVAILABLE`, with its failure as the cause.
  * - **Saves to one scope take turns,** each reading what the one before it
- *   wrote, so two that overlap never lose a change.
+ *   wrote, so two that overlap never lose a change. A save or a clear whose
+ *   `signal` aborts while it waits its turn changes nothing.
  * - **Not encrypted,** unless the storage you pass is.
  *
  * @example
@@ -162,9 +163,13 @@ export function createAsyncProgressStore(options: AsyncProgressStoreOptions): Pr
         // Copied now: the caller may change its list while this waits its turn.
         const pending = cloneData(changes);
         await inTurn(key, async () => {
+          // Checked again when its turn comes, and before the write: a save
+          // aborted while it waited or read changes nothing.
+          throwIfAborted(callOptions.signal);
           const next = applyProgressChanges(await read(key), pending);
           const text = JSON.stringify(toProgressDocument(next));
           policy.check("maxContentSize", utf8Size(text, policy.limits.maxContentSize.maximum));
+          throwIfAborted(callOptions.signal);
           await call(() => storage.setItem(key, text));
         });
       });
@@ -172,7 +177,11 @@ export function createAsyncProgressStore(options: AsyncProgressStoreOptions): Pr
     clear(scope, callOptions = {}) {
       return checked(callOptions, async () => {
         const key = keyFor(scope);
-        await inTurn(key, () => call(() => storage.removeItem(key)));
+        await inTurn(key, async () => {
+          // A clear aborted while it waited its turn removes nothing.
+          throwIfAborted(callOptions.signal);
+          await call(() => storage.removeItem(key));
+        });
       });
     },
   };

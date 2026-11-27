@@ -68,6 +68,16 @@ describe("runInBareRealm", () => {
     await expect(runInBareRealm({ entry: path, probe: "() => 1" })).rejects.toThrow(message);
   });
 
+  it("keeps what a bundler would drop: unused and marked pure still loads", async () => {
+    const path = await entry({
+      "entry.js": 'import "./unused.js";\nexport const ok = true;\n',
+      "unused.js": "const formatter = /* @__PURE__ */ new Intl.NumberFormat('en');\n",
+    });
+    await expect(runInBareRealm({ entry: path, probe: "(sdk) => sdk.ok" })).rejects.toThrow(
+      /Intl is not defined/,
+    );
+  });
+
   it("fails a probe that calls what needs one, and passes one that's guarded", async () => {
     const path = await entry({
       "entry.js": [

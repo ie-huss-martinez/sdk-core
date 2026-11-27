@@ -4,8 +4,10 @@ import type { LanguageProfile } from "./language-profile.js";
  * Built-in language profiles for Spanish, English and Arabic (ADR 0010):
  * forgiving rules for people who type or say an answer, written as plain
  * string operations on fixed tables. They use no `Intl`, no
- * `String.prototype.normalize` and no engine's case mapping, so they give
- * the same result on a server, in every browser and on Hermes.
+ * `String.prototype.normalize` and no engine's case mapping, so for their
+ * own languages' letters they give the same result on a server, in every
+ * browser and on Hermes. A letter outside the tables stays as it is, and
+ * can still differ between an engine with `normalize` and one without.
  */
 
 /**

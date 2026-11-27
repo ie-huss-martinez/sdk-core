@@ -1,4 +1,4 @@
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryProgressStore } from "../adapters/memory-progress/memory-progress.js";
@@ -132,6 +132,26 @@ describe("useLearnPlayer", () => {
     expect(session?.player).not.toBe(player);
     expect(session?.current?.position).toBe(0);
     expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("saves under StrictMode, which runs effects twice in development", async () => {
+    const progressStore = createMemoryProgressStore();
+    const container = document.createElement("div");
+    root = createRoot(container);
+    act(() =>
+      root?.render(
+        <StrictMode>
+          <Probe options={{ content, types, progressStore, scope: "learner" }} />
+        </StrictMode>,
+      ),
+    );
+    act(() => session?.player?.answer({ recalled: ["In the drawer"] }));
+    act(() => session?.player?.check());
+    await act(() => session?.player?.settled());
+    expect(session?.current?.grade?.score).toBe(1);
+    // A disposed player would show the grade and never save it.
+    expect((await progressStore.load("learner")).attempts).toHaveLength(1);
+    expect(session?.snapshot?.save).toBe("idle");
   });
 
   it("gives the error, and no session, for content it can't read", () => {

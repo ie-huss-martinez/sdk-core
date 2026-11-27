@@ -1,6 +1,5 @@
 import {
   useCallback,
-  useEffect,
   useInsertionEffect,
   useMemo,
   useRef,
@@ -40,6 +39,55 @@ export function usePlayerSnapshot(player: LearnPlayer | null): LearnPlayerSnapsh
     () => player?.getSnapshot() ?? null,
     () => player?.getSnapshot() ?? null,
   );
+}
+
+/** A session, or why there's none. One object for as long as neither changes. */
+interface Held {
+  readonly player: LearnPlayer | null;
+  readonly error: unknown;
+}
+
+/**
+ * Keeps a player alive for as long as a component listens to it, and never
+ * hands out a disposed one.
+ *
+ * A player made while rendering and disposed in an effect's cleanup breaks
+ * when React runs effects twice, as `StrictMode` does in development: the
+ * cleanup disposes the player, the second setup keeps it, and a disposed
+ * player no longer saves. Here the player belongs to the subscription
+ * instead. When the last listener goes it's disposed and forgotten, and the
+ * next listener, or the next render, gets a new one.
+ */
+function holdPlayer(make: () => LearnPlayer) {
+  let held: Held | undefined;
+  let listeners = 0;
+  const current = (): Held => {
+    if (!held) {
+      try {
+        held = { player: make(), error: null };
+      } catch (error) {
+        held = { player: null, error };
+      }
+    }
+    return held;
+  };
+  return {
+    current,
+    subscribe(listener: () => void): () => void {
+      const { player } = current();
+      listeners += 1;
+      const unsubscribe = player?.subscribe(listener);
+      return () => {
+        unsubscribe?.();
+        listeners -= 1;
+        if (listeners === 0 && held?.player === player) {
+          player?.dispose();
+          // Content that couldn't be read stays an error: it won't read better again.
+          held = player ? undefined : held;
+        }
+      };
+    },
+  };
 }
 
 /**
@@ -85,7 +133,9 @@ function useLatest<Value>(value: Value): { readonly current: Value } {
 /**
  * A learn-sdk player session for a component to draw: the headless player,
  * created once for its content and settings and disposed with the
- * component, with its state kept current (ADR 0010). It renders nothing and
+ * component, with its state kept current (ADR 0010). It's safe under
+ * `StrictMode`, which mounts a component twice in development: the session
+ * a component ends up with is always a live one. It renders nothing and
  * has no text: draw the current exercise with your own views, and call the
  * player's actions.
  *
@@ -129,11 +179,11 @@ export function useLearnPlayer(options: LearnPlayerOptions): LearnPlayerSession 
   const [run, setRun] = useState(0);
   const restart = useCallback(() => setRun((count) => count + 1), []);
 
-  const session = useMemo((): { player: LearnPlayer | null; error: unknown } => {
+  const holder = useMemo(() => {
     // `run` only counts restarts: reading it here is what starts a new session.
     void run;
-    try {
-      const player = createLearnPlayer({
+    return holdPlayer(() =>
+      createLearnPlayer({
         content,
         types,
         ...(profile ? { profile } : {}),
@@ -145,11 +195,8 @@ export function useLearnPlayer(options: LearnPlayerOptions): LearnPlayerSession 
         onProgress,
         onEvent,
         onError,
-      });
-      return { player, error: null };
-    } catch (error) {
-      return { player: null, error };
-    }
+      }),
+    );
   }, [
     content,
     types,
@@ -164,8 +211,8 @@ export function useLearnPlayer(options: LearnPlayerOptions): LearnPlayerSession 
     onError,
     run,
   ]);
-  useEffect(() => () => session.player?.dispose(), [session]);
-
+  // The session lives while this component listens: see holdPlayer.
+  const session = useSyncExternalStore(holder.subscribe, holder.current, holder.current);
   const snapshot = usePlayerSnapshot(session.player);
   const current = useMemo((): CurrentExercise | null => {
     const exercise = snapshot?.content.exercises[snapshot.position];
@@ -175,7 +222,7 @@ export function useLearnPlayer(options: LearnPlayerOptions): LearnPlayerSession 
       : null;
   }, [snapshot]);
   return useMemo(
-    () => ({ ...session, snapshot, current, restart }),
+    () => ({ player: session.player, error: session.error, snapshot, current, restart }),
     [session, snapshot, current, restart],
   );
 }

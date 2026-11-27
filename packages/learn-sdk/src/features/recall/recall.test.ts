@@ -76,6 +76,17 @@ describe("recall: grading", () => {
     expect(grade([""]).score).toBe(0);
   });
 
+  it("counts a pick right when the choice reads as an accepted answer, spaces aside", () => {
+    // Validation accepts " In the drawer " as the accepted choice, so grading must too.
+    const one = exercise([item({ choices: [" In the drawer ", "On the table"] })]);
+    const grade = (text: string) => gradeAnswer(one, { recalled: [text] }, { types }).score;
+    expect(grade(" In the drawer ")).toBe(1);
+    expect(grade("On the table")).toBe(0);
+    // Typed, with no choices to pick from, the default profile stays strict.
+    const typed = exercise([item()]);
+    expect(gradeAnswer(typed, { recalled: [" In the drawer "] }, { types }).score).toBe(0);
+  });
+
   it("forgives a plural, an article, a slip and a sentence around it when tolerant", () => {
     const one = exercise([item({ answers: ["drawer"] })], tolerant);
     const grade = (text: string) =>

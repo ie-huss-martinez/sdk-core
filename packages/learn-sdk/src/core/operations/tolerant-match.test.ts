@@ -78,6 +78,24 @@ describe("matchTolerantly", () => {
     expect(matchTolerantly("the", ["the"], { profile: englishProfile }).match).toBe(false);
   });
 
+  it("never matches nothing, even when any distance is allowed", () => {
+    expect(matchTolerantly("", ["apple"], { maxDistance: 1 }).match).toBe(false);
+    expect(matchTolerantly("apple", [], { maxDistance: 1 }).match).toBe(false);
+    expect(
+      matchTolerantly("apple", ["..."], { maxDistance: 1, profile: englishProfile }).match,
+    ).toBe(false);
+    // Something against something does, at that distance.
+    expect(matchTolerantly("xyz", ["apple"], { maxDistance: 1 }).match).toBe(true);
+  });
+
+  it("treats a recogniser's alternatives as one answer: a rival heard in any of them counts", () => {
+    expect(matchTolerantly(["aple", "pear"], ["apple"]).match).toBe(true);
+    expect(matchTolerantly(["aple", "pear"], ["apple"], { others: ["pear"] })).toEqual({
+      match: false,
+      distance: 0.2,
+    });
+  });
+
   it("refuses a distance that isn't one, and a stem that doesn't return text", () => {
     expect(() => matchTolerantly("a", ["a"], { maxDistance: 2 })).toThrow(TypeError);
     expect(() => matchTolerantly("a", ["a"], { maxDistance: Number.NaN })).toThrow(TypeError);

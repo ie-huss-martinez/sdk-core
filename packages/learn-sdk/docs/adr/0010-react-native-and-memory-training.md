@@ -55,7 +55,8 @@ A `ProgressStore` over a storage the host passes in, of AsyncStorage's shape: `g
 
 - **Spanish and English:** without case, accents, apostrophes, punctuation or extra spaces. `ñ` reads as `n`, as a keyboard without it types.
 - **Arabic:** without tashkeel or tatweel, and with the letters people write one for another unified: the forms of alef, ta marbuta and ha, alef maqsura and ya, and hamza on waw or ya as its seat.
-- **They're tables and string operations, and nothing else** ([ADR 0004](0004-dependencies-validators-and-fsrs.md)): no `Intl`, no `normalize`, and no `toLowerCase`, whose tables are the engine's. Accented letters fold through a fixed table, and an accent typed as a combining mark is removed, so the result is the same with or without NFC. Letters outside the tables stay as they are.
+- **They're tables and string operations, and nothing else** ([ADR 0004](0004-dependencies-validators-and-fsrs.md)): no `Intl`, no `normalize`, and no `toLowerCase`, whose tables are the engine's. Accented letters fold through a fixed table, and an accent typed as a combining mark is removed.
+- **With or without NFC, they agree on their own languages' letters, and only those.** The tables hold the accented vowels, `ñ`, `ç` and their capitals, and Arabic's marks and variants. A letter outside them stays as it is, so it can still differ between an engine with `normalize` and one without: `ő` typed as `o` and a combining double acute is `ő` with NFC, and `o` without it, and the Kelvin sign is `K` only with NFC. That's the default profile's gap, narrowed to what Spanish, English and Arabic don't use.
 - **They're forgiving on purpose.** A course that teaches where the accent goes shouldn't grade with them; it uses the default profile, or its own.
 
 A profile may also carry `articles` and `stem`, which only the tolerant matcher reads.
@@ -67,7 +68,8 @@ A profile may also carry `articles` and `stem`, which only the tolerant matcher 
 - **Every run of the answer's words is tried,** from one word fewer to one more than the accepted answer has, so a word wrapped in a sentence is found.
 - **Articles are dropped and words stemmed** when the profile has `articles` and `stem`: conservative plural and ending rules, and for Arabic the attached article.
 - **Distance is Levenshtein's, in code points, over the longer length.** The default limit is 0.25: one slip in four letters, so a word of three letters must be exact.
-- **A rival wins.** With `others`, such as the other choices on screen, an answer that's closer to one of them isn't a match: "cat" doesn't pass for "cart" when "cat" was on offer.
+- **A rival wins.** With `others`, such as the other choices on screen, an answer that's closer to one of them isn't a match: "cat" doesn't pass for "cart" when "cat" was on offer. A speech recogniser's alternatives are one answer heard several ways: the closest of them to an accepted answer counts, and so does the closest of them to a rival.
+- **Nothing never matches.** An empty answer, or one that's only articles and punctuation, isn't a match at any distance.
 - **A long answer stays cheap.** A run whose length alone puts it out of reach is never compared, so the cost follows the answer's length, not its square. Answers are untrusted and may be 2,000 code points.
 - **Exact grading is untouched.** No exercise type matches tolerantly unless a host makes one that does. It's deterministic, so a server and a device still agree.
 - **Alias lists stay with the application.** Which regional words name a picture is content, not a rule: an application lists them as accepted answers.
@@ -80,9 +82,9 @@ Both are data in `hm-learn-content` version 1, with their payloads in its schema
 
 - **It rates its own items.** `reviewItems` gives each item `good` when it was remembered and `again` when it wasn't, so with a scheduler the player keeps a card for each. [ADR 0007](0007-player-and-editor-sessions.md) kept ratings out of the quiz types, where a grade isn't a memory signal. Here remembering is the whole exercise, and there's no partial answer to map.
 - **An item's `id` is its card's key.** It's unique in its exercise, which is checked. A scope has one card per id, so ids should be unique in everything a learner studies, which only the application can know.
-- **`createRecallType({ tolerance })`** makes one that grades with the tolerant matcher, with the item's other choices as rivals. `recall` itself is exact. A host registers the same one on its server as on the device.
+- **`createRecallType({ tolerance })`** makes one that grades with the tolerant matcher, with the item's other choices as rivals. `recall` itself is exact, except that a pick which reads as an accepted answer, surrounding spaces aside, is right: that's the comparison that made the choice valid, so grading keeps to it. A host registers the same one on its server as on the device.
 
-**`sequence-recall`** is the Corsi block-tapping task: `{ tiles, sequence, backward? }`, a board of 2 to 30 tiles and the order some of them light up in, each once. The answer is the tiles tapped back, forwards or in reverse.
+**`sequence-recall`** is the Corsi block-tapping task: `{ tiles, sequence, backward? }`, a board of 2 to 30 tiles, and never over 1,000 whatever a host raises the limit to, and the order some of them light up in, each once. The answer is the tiles tapped back, forwards or in reverse.
 
 - **Content holds the sequence,** so a session is graded the same anywhere. An application generates sequences and draws the board: where a tile sits, how long it's lit and how the span adapts are the application's.
 - **Each tap in the right place scores,** and `grade.items` says which, so an application can replay the path from the first slip.
@@ -99,6 +101,7 @@ Both are data in `hm-learn-content` version 1, with their payloads in its schema
 `@hussmartinez/learn-sdk/native` holds what needs React and can't come from `./react`:
 
 - **`useLearnPlayer(options)`** creates the headless player for a component, disposes it with the component, and returns `{ player, snapshot, current, error, restart }`. The session is made again only when its content or settings change; its callbacks may change freely.
+  - **The session belongs to the hook's subscription, not to an effect.** A player made while rendering and disposed in an effect's cleanup is left disposed when React runs effects twice, as `StrictMode` does in development, and a disposed player shows grades and saves nothing. `LearnPlayer`, in `./react`, is built that way today, and has that fault under `StrictMode`; fixing it is its own change.
 - **`usePlayerSnapshot(player)`** is the snapshot alone.
 - **It draws nothing and has no text.** An application draws the current exercise with `@hussmartinez/ui/native` or its own views.
 - **It imports nothing from `react-native`,** so learn-sdk doesn't list it as a peer. The entry is named for where it's used: it's the React layer that's safe there.

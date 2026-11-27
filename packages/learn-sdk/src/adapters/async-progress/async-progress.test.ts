@@ -124,6 +124,28 @@ describe("createAsyncProgressStore", () => {
     }
   });
 
+  it("changes nothing when a queued save or clear is aborted before its turn", async () => {
+    const { storage, values } = memoryStorage(5);
+    const store = createAsyncProgressStore({ namespace: "app", storage });
+    await store.save("s", [attempt("kept", 1)]);
+    // Both wait behind a save that's still writing.
+    const busy = store.save("s", [attempt("also kept", 2)]);
+    const stopClear = new AbortController();
+    const stopSave = new AbortController();
+    const cleared = store.clear("s", { signal: stopClear.signal });
+    const saved = store.save("s", [attempt("never written", 3)], { signal: stopSave.signal });
+    stopClear.abort();
+    stopSave.abort();
+    await busy;
+    await expect(cleared).rejects.toMatchObject({ code: "ABORTED" });
+    await expect(saved).rejects.toMatchObject({ code: "ABORTED" });
+    expect(values.size).toBe(1);
+    expect((await store.load("s")).attempts.map((kept) => kept.exerciseId)).toEqual([
+      "kept",
+      "also kept",
+    ]);
+  });
+
   it("needs a namespace, a scope and a storage of the right shape", async () => {
     const { storage } = memoryStorage();
     expect(() => createAsyncProgressStore({ namespace: "", storage })).toThrow(TypeError);

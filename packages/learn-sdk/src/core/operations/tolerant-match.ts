@@ -159,7 +159,10 @@ function closest(given: readonly string[], target: readonly string[], limit: num
  * ```
  *
  * @param given - What the learner typed or said. Several, for a speech
- *   recogniser's alternatives: the best of them counts.
+ *   recogniser's alternatives: they're one answer heard several ways, so
+ *   the closest of them to an accepted answer counts, and so does the
+ *   closest of them to a rival. If any alternative is nearer a rival than
+ *   the best is to an accepted answer, it isn't a match.
  * @param accepted - The answers that are right.
  * @param options - The profile, the distance and the rival answers.
  * @throws `TypeError` if `maxDistance` isn't a number from 0 to 1.
@@ -175,17 +178,23 @@ export function matchTolerantly(
     throw new TypeError("maxDistance is a number from 0 to 1.");
   }
   const heard = (typeof given === "string" ? [given] : given).map((text) => words(text, profile));
-  const best = (targets: readonly string[], limit: number): number => {
+  const wanted = accepted.map((text) => words(text, profile));
+  // With nothing said, or nothing to find, there's nothing to compare:
+  // never a match, whatever distance is allowed.
+  const comparable =
+    heard.some((text) => text.length > 0) && wanted.some((target) => target.length > 0);
+  const best = (targets: readonly (readonly string[])[], limit: number): number => {
     let distance = 1;
-    for (const target of targets.map((text) => words(text, profile))) {
+    for (const target of targets) {
       for (const text of heard) {
         distance = Math.min(distance, closest(text, target, limit));
       }
     }
     return distance;
   };
-  const distance = best(accepted, maxDistance);
+  const distance = best(wanted, maxDistance);
   // A rival only matters when it's strictly closer than the answer found.
-  const rival = distance <= maxDistance ? best(options.others ?? [], distance) : 1;
-  return { match: distance <= maxDistance && !(rival < distance), distance };
+  const rivals = (options.others ?? []).map((text) => words(text, profile));
+  const rival = comparable && distance <= maxDistance ? best(rivals, distance) : 1;
+  return { match: comparable && distance <= maxDistance && !(rival < distance), distance };
 }
