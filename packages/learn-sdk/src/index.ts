@@ -10,6 +10,11 @@
  * @packageDocumentation
  */
 
+export type {
+  AsyncProgressStorage,
+  AsyncProgressStoreOptions,
+} from "./adapters/async-progress/async-progress.js";
+export { createAsyncProgressStore } from "./adapters/async-progress/async-progress.js";
 export type { FsrsSchedulerOptions } from "./adapters/fsrs/fsrs-scheduler.js";
 export { createFsrsScheduler } from "./adapters/fsrs/fsrs-scheduler.js";
 export type {

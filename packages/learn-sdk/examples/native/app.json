@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "name": "learn-sdk native example",
+    "slug": "hm-learn-sdk-example-native",
+    "version": "1.0.0",
+    "platforms": ["android", "ios"],
+    "userInterfaceStyle": "automatic"
+  }
+}

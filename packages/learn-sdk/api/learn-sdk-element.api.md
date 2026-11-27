@@ -360,6 +360,7 @@ export const learnEditorMessages: {
     readonly "validation.gap-count": "Write the sentence with exactly one gap, as three underscores: ___";
     readonly "validation.answer-not-in-options": "None of the choices is an accepted answer. Add the answer to the choices.";
     readonly "validation.not-a-permutation": "Use every word exactly once, in any order.";
+    readonly "validation.repeated-tile": "Light each tile once only.";
     readonly "tools.check": "Check";
     readonly "tools.next": "Next";
     readonly "tools.previous": "Previous";

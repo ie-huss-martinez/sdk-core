@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-26
 - **Amends:** [ADR 0004](0004-entry-points-and-module-format.md), which gains a `./native` entry, and [ADR 0013](0013-browser-and-react-support.md), which gains React Native as a platform and a rule for the engine it runs on
-- **Amended:** 2026-11-26, to mark a native entry as experimental until it's checked on a device, and to record that sdk-core's gaps are closed
+- **Amended:** 2026-11-26, to mark a native entry as experimental until it's checked on a device, and to record that sdk-core's gaps are closed; 2026-11-27, when the bare-realm test moved to sdk-config and learn-sdk's gaps closed
 
 ## Context
 
@@ -55,6 +55,8 @@ Three layers, cheapest first:
 
 Each package starts with a test of its own for layer 2. If a second package copies it, the helper moves to `sdk-config` ([ADR 0039](0039-test-applications-in-each-repository.md)'s rule for duplication).
 
+**Amended, 2026-11-27:** learn-sdk was the second, so the helper is now `runInBareRealm`, from `@hussmartinez/sdk-config/testing/bare-realm`, and `ui` and learn-sdk both use it. A test names the globals it takes from React Native itself, which sets some up beside Hermes, such as `AbortController`: the list is the record of what a package relies on there.
+
 ### `ui`'s native entry
 
 `@hussmartinez/ui/native` is the first:
@@ -93,5 +95,5 @@ Each package starts with a test of its own for layer 2. If a second package copi
 - The native components are fewer and plainer than the web's, and grow as applications need them. They share tokens and icons with the web, not behaviour: a fix to the web `Button` doesn't reach the native one.
 - **Known gaps in the root entries,** to close before a native entry relies on them:
   - **sdk-core:** closed on 2026-11-26, before the release that publishes `@hussmartinez/ui/native`. `createMessages` checks for each `Intl` constructor before using it and fails with `UNSUPPORTED_ENVIRONMENT`, naming it; plain text needs none. `cleanFileName` leaves a name uncomposed where there's no `normalize`. Its other uses of platform types, such as `Blob` in the file policy and `URL` for worker assets, belong to features a native entry doesn't reach yet, and are checked when one does.
-  - **learn-sdk:** `normalize("NFC")` in grading, and `Blob` in its audio port. Its native entry's pull request fixes them.
+  - **learn-sdk:** closed on 2026-11-27, with its native entry ([learn-sdk ADR 0010](../../packages/learn-sdk/docs/adr/0010-react-native-and-memory-training.md)): `normalize`, `structuredClone`, `TextEncoder`, `Blob` and `crypto.getRandomValues` are each replaced or checked.
 - [`STANDARDS.md`](../../STANDARDS.md) gains the `./native` entry, the optional peers, and the rule for the root entry.

@@ -30,6 +30,7 @@ Install, as devDependencies, the tools for the presets you use. They are optiona
 | `testing/visual`, `hm-test-visual` | `@playwright/test`, and Docker outside the browser test image |
 | `testing/browser-instances`, `hm-netlog-errors` | `@vitest/browser-playwright` |
 | `testing/browsers` | Nothing |
+| `testing/bare-realm` | `esbuild` |
 | `testing/require-image` | Nothing |
 | `testing/timeouts` | Nothing |
 | `testing/fonts` | Nothing |
@@ -373,6 +374,28 @@ describeConformance(new URL("../../conformance/commands.json", import.meta.url),
 - **`schemaValidator(schemaFile)`** checks a value against a JSON Schema 2020-12 file, such as an SDK's own format schema, and returns the problems.
 
 It's test code only, and needs `vitest` and `ajv`, which are optional peer dependencies.
+
+### Testing: `runInBareRealm`
+
+`@hussmartinez/sdk-config/testing/bare-realm` checks that a package's built entry is safe on Hermes, React Native's engine ([ADR 0069](https://github.com/ie-huss-martinez/sdk-core/blob/main/docs/adr/0069-react-native-entry-points.md)). It bundles the entry whole, as Metro does, and runs a probe on its exports in a realm with the ECMAScript language and nothing else: no `Intl`, no `String.prototype.normalize`, and no `document`, `localStorage`, `Blob`, `TextEncoder`, `URL`, `structuredClone`, `crypto`, `setTimeout` or `process`. That's less than Hermes has, so what runs there runs on Hermes, as far as globals go. It needs `esbuild`.
+
+```ts
+import { runInBareRealm } from "@hussmartinez/sdk-config/testing/bare-realm";
+
+const result = await runInBareRealm({
+  entry: fileURLToPath(new URL("temp/check/index.js", import.meta.url)),
+  probe: `(sdk) => sdk.gradeAnswer(exercise, answer, { types })`,
+  stubs: ["react-native"],
+  provided: ["AbortController"],
+});
+```
+
+- **`entry`** is the built file. Build into a folder inside the package, so its imports resolve.
+- **`probe`** is the source of a function that takes the entry's exports and returns what to check, or a promise of it. It runs inside the realm and comes back through JSON, so it sees nothing of the test.
+- **`stubs`** names packages to replace with a module whose every export is a function that returns `null`, such as `react-native`, which only runs on a device.
+- **`provided`** names globals to take from the test's process, for what React Native sets up itself beside Hermes, such as `AbortController`. Naming one records that the entry relies on it.
+
+Importing the entry runs every module it reaches, so a module that touches a missing global when it loads fails the call, with the engine's own error, such as `Intl is not defined`. It doesn't run Hermes: an Expo application built with `expo export` proves Hermes compiles the code.
 
 ### Testing: `testBrowsers`
 

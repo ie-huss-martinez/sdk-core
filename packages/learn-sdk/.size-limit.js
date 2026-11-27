@@ -26,22 +26,36 @@
  * and none has a budget, because no host loads one through learn-sdk.
  *
  * The element entry mounts the whole editor (ADR 0009), and the testing
- * entry is for tests, so they keep their ceilings only. This SDK has no worker and no
+ * entry is for tests, so they keep their ceilings only. The native entry's
+ * hooks have import budgets, like any entry whose exports come apart. This SDK has no worker and no
  * lazy chunks.
  */
+import { fileURLToPath } from "node:url";
 import { entryBudget, importBudget } from "@hussmartinez/sdk-config/size";
 
 const core = "dist/index.js";
 const react = "dist/react.js";
+const native = "dist/native.js";
+/** The built core, as esbuild resolves the native entry's import of it. */
+const coreFile = fileURLToPath(new URL(core, import.meta.url));
 
 export default [
   // 17 kB since the React player: the code it shares with the core moved
   // into a shared chunk, which measures about 1.5 kB more than the same code
   // in one file, unminified (15.6 against 14.1 kB).
-  entryBudget({ name: "Server-safe core (.)", entry: core, limit: "17 kB" }),
+  // 20.5 kB; 20.27 kB with what React Native applications asked for (ADR
+  // 0010): two exercise types, three language profiles, the tolerant matcher,
+  // the async-storage adapter and dueItems, 3.7 kB together. Before, 17 kB;
+  // 16.57 kB. An application ships what it imports of it: the scenarios
+  // below are what to judge by.
+  entryBudget({ name: "Server-safe core (.)", entry: core, limit: "20.5 kB" }),
   entryBudget({ name: "React entry (./react)", entry: react, limit: "40 kB" }),
   // 21.76 kB with the editor element (ADR 0009).
   entryBudget({ name: "Element entry (./element)", entry: "dist/element.js", limit: "23 kB" }),
+  // What a React Native application loads: this entry and the core beside
+  // it, which it imports whole (ADR 0010). 21.5 kB; 21.04 kB, of which the
+  // entry's own hooks are 0.8 kB.
+  entryBudget({ name: "React Native entry (./native)", entry: native, limit: "21.5 kB" }),
   entryBudget({
     name: "Contract suites and fakes (./testing)",
     entry: "dist/testing.js",
@@ -137,6 +151,58 @@ export default [
     imports:
       "{ createLearnPlayer, createExerciseTypes, multipleChoice, gapFill, wordOrder, createFsrsScheduler, createLocalProgressStore }",
     limit: "20.5 kB",
+  }),
+  // What React Native applications use (ADR 0010).
+  // 3.5 kB; 3.05 kB, with the tolerant matcher it can grade with.
+  importBudget({ name: "Core: recall", entry: core, imports: "{ recall }", limit: "3.5 kB" }),
+  // 2.5 kB; 2.22 kB.
+  importBudget({
+    name: "Core: sequenceRecall",
+    entry: core,
+    imports: "{ sequenceRecall }",
+    limit: "2.5 kB",
+  }),
+  // 2.5 kB; 2.13 kB.
+  importBudget({
+    name: "Core: matchTolerantly",
+    entry: core,
+    imports: "{ matchTolerantly }",
+    limit: "2.5 kB",
+  }),
+  // 4.5 kB; 4.24 kB, with the progress reader, as the localStorage adapter has.
+  importBudget({
+    name: "Core: createAsyncProgressStore",
+    entry: core,
+    imports: "{ createAsyncProgressStore }",
+    limit: "4.5 kB",
+  }),
+  // 21.5 kB; 21.13 kB, of which ts-fsrs is 13: a session with both memory
+  // types, a scheduler, AsyncStorage, two profiles and what's due.
+  importBudget({
+    name: "Core: a native app's set",
+    entry: core,
+    imports:
+      "{ createLearnPlayer, createExerciseTypes, recall, sequenceRecall, createFsrsScheduler, createAsyncProgressStore, spanishProfile, arabicProfile, dueItems }",
+    limit: "21.5 kB",
+  }),
+
+  // React Native (./native). Its imports of the core entry beside it are
+  // left out, as the family's packages are: the scenarios above count them.
+  // A floor: 0.1 kB; 0.09 kB.
+  importBudget({
+    name: "Native floor: usePlayerSnapshot",
+    entry: native,
+    imports: "{ usePlayerSnapshot }",
+    ignore: [coreFile],
+    limit: "0.1 kB",
+  }),
+  // 1 kB; 0.57 kB.
+  importBudget({
+    name: "Native: useLearnPlayer",
+    entry: native,
+    imports: "{ useLearnPlayer }",
+    ignore: [coreFile],
+    limit: "1 kB",
   }),
 
   // React (./react).
