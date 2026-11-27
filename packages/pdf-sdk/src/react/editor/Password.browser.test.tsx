@@ -10,6 +10,7 @@ import { everythingIn } from "../../../test/secrets.js";
 import { isPdfError } from "../../core/errors/pdf-error.js";
 import type { PdfEngine } from "../../core/ports/pdf-engine.js";
 import type { PdfSessionEvent } from "../../core/session/session.js";
+import { SAY_CHECKING_AFTER } from "./PasswordDialog.js";
 import { PdfEditor } from "./PdfEditor.js";
 import type { PdfEditorChange, PdfEditorHandle, PdfEditorProps } from "./types.js";
 
@@ -186,6 +187,42 @@ describe("the password dialog", () => {
     }
 
     await type(`${PASSWORD}{Enter}`);
+    await status(container, "ready");
+    await waitFor(() => expect(dialog.open).toBe(false));
+  });
+
+  it("says that it's checking only when the check takes a while", async () => {
+    // An engine whose opens with a password wait until the test lets them through.
+    const fake = createFakeEngine();
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const engine: PdfEngine = {
+      open: async (source, options) => {
+        if (options?.password) await gate;
+        return fake.open(source, options);
+      },
+      destroy: () => fake.destroy(),
+    };
+    const { mounted } = setUp({ engine });
+    const container = await mounted;
+    await ask(container);
+    const dialog = passwordDialog(container);
+    await type(`${PASSWORD}{Enter}`);
+
+    // At once: shown, the button disabled with focus kept in the field, and not said.
+    expect(dialog.querySelector(".hm-pdf-password-status")?.textContent).toBe(
+      "Checking the password…",
+    );
+    expect(buttonNamed(dialog, "Unlock").getAttribute("aria-disabled")).toBe("true");
+    expect(field(container).readOnly).toBe(true);
+    expect(said(dialog, "polite")).toBe("");
+    await waitFor(() => expect(said(dialog, "polite")).toBe("Checking the password…"), {
+      timeout: SAY_CHECKING_AFTER + 2_000,
+    });
+
+    release();
     await status(container, "ready");
     await waitFor(() => expect(dialog.open).toBe(false));
   });
@@ -500,7 +537,7 @@ describe("the password dialog, as a screen reader says it (sdk-core ADR 0065)", 
         await type(`${WRONG}{Enter}`);
         await waitFor(() => expect(field(container).getAttribute("aria-invalid")).toBe("true"));
       }),
-    ).toEqual(["polite: Checking the password…", "assertive: That password didn't open this PDF."]);
+    ).toEqual(["assertive: That password didn't open this PDF."]);
 
     // The right one closes the dialog: focus goes to the document, and the
     // editor says what opened.
@@ -509,10 +546,6 @@ describe("the password dialog, as a screen reader says it (sdk-core ADR 0065)", 
         await type(`${PASSWORD}{Enter}`);
         await status(container, "ready");
       }),
-    ).toEqual([
-      "polite: Checking the password…",
-      "region, Document",
-      "polite: Opened a PDF with 3 pages.",
-    ]);
+    ).toEqual(["region, Document", "polite: Opened a PDF with 3 pages."]);
   });
 });

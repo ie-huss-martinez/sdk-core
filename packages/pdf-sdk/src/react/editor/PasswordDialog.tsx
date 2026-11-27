@@ -10,6 +10,13 @@ import { type FormEvent, type ReactNode, type RefObject, useEffect, useId, useRe
 import { usePdfMessages } from "../hooks.js";
 import type { PasswordPromptState } from "./use-password-prompt.js";
 
+/**
+ * How long a password is tried before the dialog says so aloud, in
+ * milliseconds. Most checks end at once, and saying "checking" after the
+ * answer has arrived, a frame late, would only talk over it.
+ */
+export const SAY_CHECKING_AFTER = 1_000;
+
 interface PasswordDialogProps extends PasswordPromptState {
   readonly onSubmit: (password: string) => void;
   readonly onCancel: () => void;
@@ -37,6 +44,13 @@ function PasswordForm(props: FormProps): ReactNode {
     if (incorrect) announce(messages.error(incorrect), { politeness: "assertive" });
   }, [incorrect, announce, messages]);
 
+  // A check that takes a while is said, so the wait isn't silent.
+  useEffect(() => {
+    if (!checking) return;
+    const timer = setTimeout(() => announce(messages.t("password.checking")), SAY_CHECKING_AFTER);
+    return () => clearTimeout(timer);
+  }, [checking, announce, messages]);
+
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const input = field.current;
@@ -45,7 +59,6 @@ function PasswordForm(props: FormProps): ReactNode {
     // is heard from there, whichever way the form was sent.
     input.focus();
     if (input.value === "") return;
-    announce(messages.t("password.checking"));
     // Straight from the field to the session: never state (docs/adr/0013).
     onSubmit(input.value);
   };
