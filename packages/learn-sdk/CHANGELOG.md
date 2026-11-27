@@ -1,5 +1,26 @@
 # @hussmartinez/learn-sdk
 
+## 0.4.6
+
+### Patch Changes
+
+- [#252](https://github.com/ie-huss-martinez/sdk-core/pull/252) [`318ee8c`](https://github.com/ie-huss-martinez/sdk-core/commit/318ee8c0ed7e425c16de99e0e2a1a1891bcc685b) Thanks [@hussmartinez](https://github.com/hussmartinez)! - learn-sdk runs on React Native, and gains what a memory-training application needs. Everything is additive.
+  
+  - **The core runs on Hermes.** Grading no longer needs `String.prototype.normalize`: without it, text is compared as typed, and the language profile's rules do the work. The in-memory and `localStorage` progress stores no longer need `structuredClone` or `TextEncoder`. `loadClip`, `applyLearnCommand` and the editor session's default ids now throw `LearnError` with `UNSUPPORTED_ENVIRONMENT`, and `details.feature` naming it, where `Blob`, `structuredClone` or `crypto.getRandomValues` is missing.
+  - **`@hussmartinez/learn-sdk/native`,** experimental: `useLearnPlayer(options)` and `usePlayerSnapshot(player)`, the headless player as hooks, with no DOM and no text. They need React only.
+  - **`createAsyncProgressStore({ namespace, storage })`** keeps progress in a storage of AsyncStorage's shape, passed in.
+  - **`dueItems(progress, now, { limit })`** returns the cards due for review.
+  - **`spanishProfile`, `englishProfile` and `arabicProfile`:** language profiles that compare answers without case, accents, punctuation or, in Arabic, tashkeel and letter variants, with no `Intl`.
+  - **`matchTolerantly`, `editDistance` and `DEFAULT_MATCH_DISTANCE`:** forgiving matching, which no exercise type uses unless you ask for it.
+  - **Two exercise types,** in `hm-learn-content` version 1's schema: `recall`, which rates its own items for spaced repetition, with `createRecallType({ tolerance })` for forgiving grading, and `sequenceRecall`, with `expectedTaps`. `LearnPlayer` and `LearnEditor` have no blocks for them yet.
+  
+  `LanguageProfile` gains two optional members, `articles` and `stem`, which only `matchTolerantly` reads. `LearnIssueCode` gains `repeated-tile`, with its text in `learnMessages`: a hand-written list of every code, such as in a test, must add it.
+
+- [#258](https://github.com/ie-huss-martinez/sdk-core/pull/258) [`ccfac2b`](https://github.com/ie-huss-martinez/sdk-core/commit/ccfac2b4e75af3aeddbe30cf262d25785aebf284) Thanks [@hussmartinez](https://github.com/hussmartinez)! - `LearnPlayer` keeps saving under React's `StrictMode`, and every import from the core is about 1.2 kB smaller.
+  
+  - **`StrictMode`:** in development, `StrictMode` runs effects twice. `LearnPlayer` disposed its session in the first run's cleanup and kept using it, so answers showed as checked and never reached `progressStore` or `onProgress`'s saves. Production builds weren't affected. The session now lives as long as the component listens to it, as `useLearnPlayer`'s does.
+  - **Size:** the message catalogue, the limit definitions and two constants no longer ride along with unrelated imports. `import { parseContent }` goes from 3.1 to 1.9 kB, `gradeAnswer` from 2.6 to 1.4 kB, and `defaultLanguageProfile` from 1.5 to 0.07 kB, minified and compressed. Nothing changes in the API.
+
 ## 0.4.5
 
 ### Patch Changes
